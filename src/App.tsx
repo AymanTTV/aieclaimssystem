@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Maintenance from './pages/Maintenance';
 import Rentals from './pages/Rentals';
 import Accidents from './pages/Accidents';
+import Claims from './pages/Claims';
 import Finance from './pages/Finance';
 import Users from './pages/Users';
 
@@ -97,6 +98,18 @@ function App() {
                 element={
                   <Layout>
                     <Accidents />
+                  </Layout>
+                }
+              />
+            }
+          />
+          <Route
+            path="/claims"
+            element={
+              <PrivateRoute
+                element={
+                  <Layout>
+                    <Claims />
                   </Layout>
                 }
               />

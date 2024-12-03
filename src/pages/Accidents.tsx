@@ -4,37 +4,19 @@ import { useAccidents } from '../hooks/useAccidents';
 import Card from '../components/Card';
 import AccidentCard from '../components/AccidentCard';
 import AccidentForm from '../components/AccidentForm';
-import { Plus } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import AccidentHeader from '../components/accidents/AccidentHeader';
+import { exportAccidents, processAccidentsImport } from '../utils/AccidentExport';
+import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { User } from '../types';
+import toast from 'react-hot-toast';
 
 const Accidents = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { accidents, loading: accidentsLoading } = useAccidents();
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [drivers, setDrivers] = useState<Record<string, User>>({});
-
-  React.useEffect(() => {
-    const fetchDrivers = async () => {
-      const uniqueDriverIds = [...new Set(accidents.map(accident => accident.driverId))];
-      const driverData: Record<string, User> = {};
-
-      for (const driverId of uniqueDriverIds) {
-        const driverDoc = await getDoc(doc(db, 'users', driverId));
-        if (driverDoc.exists()) {
-          driverData[driverId] = { id: driverDoc.id, ...driverDoc.data() } as User;
-        }
-      }
-
-      setDrivers(driverData);
-    };
-
-    if (accidents.length > 0) {
-      fetchDrivers();
-    }
-  }, [accidents]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   if (vehiclesLoading || accidentsLoading) {
     return (
@@ -49,22 +31,59 @@ const Accidents = () => {
     return acc;
   }, {} as Record<string, typeof vehicles[0]>);
 
-  const filteredAccidents = selectedVehicle
-    ? accidents.filter(accident => accident.vehicleId === selectedVehicle)
-    : accidents;
+  const handleSearch = (query: string) => {
+    setSearchTerm(query.toLowerCase());
+  };
+
+  const handleExport = () => {
+    exportAccidents(accidents);
+    toast.success('Accidents exported successfully');
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result;
+        const rows = text?.toString().split('\n').map(row => row.split(','));
+        if (rows) {
+          const importedData = processAccidentsImport(rows);
+
+          for (const accident of importedData) {
+            await addDoc(collection(db, 'accidents'), {
+              ...accident,
+              vehicleId: vehicles[0].id, // Add vehicle selection in import if necessary
+            });
+          }
+
+          toast.success(`${importedData.length} accidents imported successfully`);
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Error importing accidents:', error);
+      toast.error('Failed to import accidents');
+    }
+  };
+
+  const filteredAccidents = accidents.filter(accident => {
+    const matchesSearch =
+      accident.description.toLowerCase().includes(searchTerm) ||
+      accident.driverName?.toLowerCase().includes(searchTerm);
+    const matchesStatus = statusFilter === 'all' || accident.status === statusFilter;
+    const matchesVehicle = !selectedVehicle || accident.vehicleId === selectedVehicle;
+    return matchesSearch && matchesStatus && matchesVehicle;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Accidents</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Report Accident
-        </button>
-      </div>
+      <AccidentHeader
+        onSearch={handleSearch}
+        onImport={handleImport}
+        onExport={handleExport}
+        onAdd={() => setShowForm(true)}
+        onStatusFilterChange={setStatusFilter}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
@@ -104,12 +123,11 @@ const Accidents = () => {
                 key={accident.id}
                 accident={accident}
                 vehicle={vehicleMap[accident.vehicleId]}
-                driver={drivers[accident.driverId]}
               />
             ))}
             {filteredAccidents.length === 0 && (
               <div className="text-center py-12 bg-white rounded-lg">
-                <p className="text-gray-500">No accidents reported</p>
+                <p className="text-gray-500">No accidents found</p>
               </div>
             )}
           </div>

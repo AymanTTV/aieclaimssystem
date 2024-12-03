@@ -4,13 +4,19 @@ import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import Card from '../components/Card';
 import MaintenanceLogCard from '../components/MaintenanceLogCard';
 import MaintenanceForm from '../components/MaintenanceForm';
-import { Plus } from 'lucide-react';
+import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
+import { exportMaintenanceLogs, processMaintenanceImport } from '../utils/MaintenanceExport';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import toast from 'react-hot-toast';
 
 const Maintenance = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   if (vehiclesLoading || logsLoading) {
     return (
@@ -25,22 +31,59 @@ const Maintenance = () => {
     return acc;
   }, {} as Record<string, typeof vehicles[0]>);
 
-  const filteredLogs = selectedVehicle
-    ? logs.filter(log => log.vehicleId === selectedVehicle)
-    : logs;
+  const handleSearch = (query: string) => {
+    setSearchTerm(query.toLowerCase());
+  };
+
+  const handleExport = () => {
+    exportMaintenanceLogs(logs);
+    toast.success('Maintenance logs exported successfully');
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result;
+        const rows = text?.toString().split('\n').map(row => row.split(','));
+        if (rows) {
+          const importedData = processMaintenanceImport(rows);
+          
+          for (const log of importedData) {
+            await addDoc(collection(db, 'maintenanceLogs'), {
+              ...log,
+              vehicleId: vehicles[0].id, // You might want to add vehicle selection in import
+            });
+          }
+          
+          toast.success(`${importedData.length} maintenance logs imported successfully`);
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Error importing maintenance logs:', error);
+      toast.error('Failed to import maintenance logs');
+    }
+  };
+
+  const filteredLogs = logs.filter(log => {
+    const matchesSearch = 
+      log.description.toLowerCase().includes(searchTerm) ||
+      log.serviceProvider.toLowerCase().includes(searchTerm);
+    const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
+    const matchesVehicle = !selectedVehicle || log.vehicleId === selectedVehicle;
+    return matchesSearch && matchesStatus && matchesVehicle;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Schedule Maintenance
-        </button>
-      </div>
+      <MaintenanceHeader
+        onSearch={handleSearch}
+        onImport={handleImport}
+        onExport={handleExport}
+        onAdd={() => setShowForm(true)}
+        onStatusFilterChange={setStatusFilter}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">

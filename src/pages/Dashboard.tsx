@@ -1,25 +1,20 @@
 import React from 'react';
 import { useVehicles } from '../hooks/useVehicles';
+import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import Card from '../components/Card';
-import VehicleCard from '../components/VehicleCard';
-import StatusBadge from '../components/StatusBadge';
+import VehicleStatusChart from '../components/dashboard/VehicleStatusChart';
+import MaintenanceTrend from '../components/dashboard/MaintenanceTrend';
+import InsuranceExpiryList from '../components/dashboard/InsuranceExpiryList';
 import { Car, Wrench, AlertTriangle, Calendar } from 'lucide-react';
 
 const Dashboard = () => {
-  const { vehicles, loading, error } = useVehicles();
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { logs: maintenanceLogs, loading: logsLoading } = useMaintenanceLogs();
 
-  if (loading) {
+  if (vehiclesLoading || logsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center text-red-600">
-        Error loading vehicles: {error}
       </div>
     );
   }
@@ -31,10 +26,8 @@ const Dashboard = () => {
     unavailable: vehicles.filter(v => v.status === 'unavailable').length,
   };
 
-  const upcomingMaintenance = vehicles
-    .filter(v => v.nextMaintenance > new Date())
-    .sort((a, b) => a.nextMaintenance.getTime() - b.nextMaintenance.getTime())
-    .slice(0, 3);
+  const totalMaintenanceCost = maintenanceLogs.reduce((sum, log) => sum + log.cost, 0);
+  const averageMaintenanceCost = totalMaintenanceCost / maintenanceLogs.length || 0;
 
   return (
     <div className="space-y-6">
@@ -77,32 +70,39 @@ const Dashboard = () => {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card title="Fleet Status Distribution">
+          <VehicleStatusChart vehicles={vehicles} />
+        </Card>
+
+        <Card title="Maintenance Trend">
+          <MaintenanceTrend logs={maintenanceLogs} />
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card title="Fleet Overview">
-            <div className="grid gap-4">
-              {vehicles.map(vehicle => (
-                <VehicleCard key={vehicle.id} vehicle={vehicle} />
-              ))}
+          <Card title="Maintenance Overview">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500">Total Maintenance Cost</p>
+                <p className="text-2xl font-semibold text-primary">
+                  ${totalMaintenanceCost.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500">Average Cost per Maintenance</p>
+                <p className="text-2xl font-semibold text-secondary">
+                  ${averageMaintenanceCost.toFixed(2)}
+                </p>
+              </div>
             </div>
           </Card>
         </div>
 
-        <div>
-          <Card title="Upcoming Maintenance">
-            <div className="space-y-4">
-              {upcomingMaintenance.map(vehicle => (
-                <div key={vehicle.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-                    <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
-                  </div>
-                  <StatusBadge status={vehicle.status} />
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <Card title="Insurance Expiry Alerts">
+          <InsuranceExpiryList vehicles={vehicles} />
+        </Card>
       </div>
     </div>
   );

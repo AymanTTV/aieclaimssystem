@@ -1,24 +1,25 @@
 import React, { useState } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
-import Card from '../components/Card';
 import RentalCard from '../components/RentalCard';
 import RentalForm from '../components/RentalForm';
-import { Plus } from 'lucide-react';
+import { exportRentals } from '../utils/RentalsExport';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User } from '../types';
+import { Plus } from 'lucide-react';
 
 const Rentals = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { rentals, loading: rentalsLoading } = useRentals();
+  const { rentals, loading: rentalsLoading, addRental } = useRentals();
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [renters, setRenters] = useState<Record<string, User>>({});
 
   React.useEffect(() => {
     const fetchRenters = async () => {
-      const uniqueRenterIds = [...new Set(rentals.map(rental => rental.renterId))];
+      const uniqueRenterIds = [...new Set(rentals.map((rental) => rental.renterId))];
       const renterData: Record<string, User> = {};
 
       for (const renterId of uniqueRenterIds) {
@@ -36,6 +37,26 @@ const Rentals = () => {
     }
   }, [rentals]);
 
+  const handleSearch = (query: string) => {
+    setSearchQuery(query.toLowerCase());
+  };
+
+  const handleImport = (file: File) => {
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (!text) return;
+
+      const importedRentals = JSON.parse(text as string);
+      importedRentals.forEach((rental: any) => {
+        addRental(rental);
+      });
+    };
+
+    reader.readAsText(file);
+  };
+
   if (vehiclesLoading || rentalsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -49,26 +70,60 @@ const Rentals = () => {
     return acc;
   }, {} as Record<string, typeof vehicles[0]>);
 
-  const filteredRentals = selectedVehicle
-    ? rentals.filter(rental => rental.vehicleId === selectedVehicle)
-    : rentals;
+  const filteredRentals = rentals
+    .filter((rental) => (selectedVehicle ? rental.vehicleId === selectedVehicle : true))
+    .filter((rental) => {
+      const renter = renters[rental.renterId];
+      const vehicle = vehicleMap[rental.vehicleId];
+      return (
+        rental.id.toLowerCase().includes(searchQuery) ||
+        (renter && renter.name?.toLowerCase().includes(searchQuery)) ||
+        (vehicle && vehicle.registrationNumber?.toLowerCase().includes(searchQuery))
+      );
+    });
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Schedule Rental
-        </button>
+        <div className="flex space-x-4">
+          <input
+            type="text"
+            placeholder="Search rentals..."
+            onChange={(e) => handleSearch(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm w-64 focus:ring-primary focus:border-primary"
+          />
+          <button
+            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-600"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus className="w-5 h-5 inline mr-2" />
+            Schedule Rental
+          </button>
+          <label className="cursor-pointer bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-600">
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => e.target.files && handleImport(e.target.files[0])}
+              className="hidden"
+            />
+          </label>
+          <button
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            onClick={() => exportRentals(rentals)}
+          >
+            Export
+          </button>
+        </div>
       </div>
 
+      {/* Filter Section */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
-          <Card title="Filter by Vehicle">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-semibold text-lg mb-4">Filter by Vehicle</h3>
             <div className="space-y-2">
               <button
                 onClick={() => setSelectedVehicle(null)}
@@ -80,7 +135,7 @@ const Rentals = () => {
               >
                 All Vehicles
               </button>
-              {vehicles.map(vehicle => (
+              {vehicles.map((vehicle) => (
                 <button
                   key={vehicle.id}
                   onClick={() => setSelectedVehicle(vehicle.id)}
@@ -94,12 +149,13 @@ const Rentals = () => {
                 </button>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
 
+        {/* Rentals List Section */}
         <div className="lg:col-span-3">
           <div className="space-y-4">
-            {filteredRentals.map(rental => (
+            {filteredRentals.map((rental) => (
               <RentalCard
                 key={rental.id}
                 rental={rental}
@@ -116,12 +172,11 @@ const Rentals = () => {
         </div>
       </div>
 
+      {/* Rental Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              Schedule Rental
-            </h2>
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Schedule Rental</h2>
             <RentalForm
               vehicle={vehicles[0]}
               onClose={() => setShowForm(false)}

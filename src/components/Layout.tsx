@@ -10,7 +10,8 @@ import {
   Users, 
   LogOut,
   Menu,
-  User
+  User,
+  FileText
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 
@@ -25,6 +26,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Maintenance', href: '/maintenance', icon: Wrench },
     { name: 'Rentals', href: '/rentals', icon: Calendar },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle },
+    { name: 'Claims', href: '/claims', icon: FileText },
     { name: 'Finance', href: '/finance', icon: DollarSign, role: ['admin', 'manager'] },
     { name: 'Users', href: '/users', icon: Users, role: ['admin'] },
     { name: 'Profile', href: '/profile', icon: User },
@@ -89,7 +91,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           {/* User info */}
           <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-3">
+              {user?.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.name}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center">
+                  <span className="text-lg font-medium">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.name}
@@ -100,7 +115,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
               <button
                 onClick={handleLogout}
-                className="ml-2 p-2 text-gray-400 hover:text-primary"
+                className="p-2 text-gray-400 hover:text-primary rounded-full hover:bg-gray-100"
+                title="Logout"
               >
                 <LogOut className="w-5 h-5" />
               </button>
