@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import AdminSetup from './pages/AdminSetup';
 import Dashboard from './pages/Dashboard';
+import Vehicles from './pages/Vehicles';
 import Maintenance from './pages/Maintenance';
 import Rentals from './pages/Rentals';
 import Accidents from './pages/Accidents';
@@ -62,6 +63,18 @@ function App() {
                 element={
                   <Layout>
                     <Dashboard />
+                  </Layout>
+                }
+              />
+            }
+          />
+          <Route
+            path="/vehicles"
+            element={
+              <PrivateRoute
+                element={
+                  <Layout>
+                    <Vehicles />
                   </Layout>
                 }
               />

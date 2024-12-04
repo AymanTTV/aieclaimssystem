@@ -5,6 +5,7 @@ import Card from '../components/Card';
 import VehicleStatusChart from '../components/dashboard/VehicleStatusChart';
 import MaintenanceTrend from '../components/dashboard/MaintenanceTrend';
 import InsuranceExpiryList from '../components/dashboard/InsuranceExpiryList';
+import VehicleReport from '../components/dashboard/VehicleReport';
 import { Car, Wrench, AlertTriangle, Calendar } from 'lucide-react';
 
 const Dashboard = () => {
@@ -71,10 +72,7 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Fleet Status Distribution">
-          <VehicleStatusChart vehicles={vehicles} />
-        </Card>
-
+        <VehicleReport vehicles={vehicles} />
         <Card title="Maintenance Trend">
           <MaintenanceTrend logs={maintenanceLogs} />
         </Card>
@@ -82,21 +80,8 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card title="Maintenance Overview">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-500">Total Maintenance Cost</p>
-                <p className="text-2xl font-semibold text-primary">
-                  ${totalMaintenanceCost.toFixed(2)}
-                </p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-500">Average Cost per Maintenance</p>
-                <p className="text-2xl font-semibold text-secondary">
-                  ${averageMaintenanceCost.toFixed(2)}
-                </p>
-              </div>
-            </div>
+          <Card title="Fleet Status Distribution">
+            <VehicleStatusChart vehicles={vehicles} />
           </Card>
         </div>
 

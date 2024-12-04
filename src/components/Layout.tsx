@@ -5,13 +5,14 @@ import {
   Car, 
   Calendar, 
   Wrench,
-  AlertTriangle,
+  AlertTriangle, 
   DollarSign, 
   Users, 
   LogOut,
   Menu,
   User,
-  FileText
+  FileText,
+  Truck
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 
@@ -23,6 +24,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Car },
+    { name: 'Vehicles', href: '/vehicles', icon: Truck },
     { name: 'Maintenance', href: '/maintenance', icon: Wrench },
     { name: 'Rentals', href: '/rentals', icon: Calendar },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle },
