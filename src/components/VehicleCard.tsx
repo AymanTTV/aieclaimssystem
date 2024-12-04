@@ -17,7 +17,15 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onClick }) => {
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center">
-          <Car className="w-8 h-8 text-primary mr-3" />
+          {vehicle.image ? (
+            <img
+              src={vehicle.image}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              className="w-16 h-16 object-cover rounded-md mr-3"
+            />
+          ) : (
+            <Car className="w-8 h-8 text-primary mr-3" />
+          )}
           <div>
             <h3 className="text-lg font-medium text-gray-900">
               {vehicle.make} {vehicle.model}

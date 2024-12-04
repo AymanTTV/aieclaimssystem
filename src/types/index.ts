@@ -23,6 +23,7 @@ export interface Vehicle {
   lastMaintenance: Date;
   nextMaintenance: Date;
   assignedDriver?: string;
+  image?: string;
 }
 
 export interface MaintenanceLog {
@@ -67,4 +68,4 @@ export interface Transaction {
   amount: number;
   category: string;
   description: string;
-}
+}w

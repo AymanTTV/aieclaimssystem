@@ -6,15 +6,17 @@ import { Vehicle } from '../types';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Upload } from 'lucide-react';
+import VehicleSelect from './VehicleSelect';
 
 interface AccidentFormProps {
-  vehicle: Vehicle;
+  vehicles: Vehicle[];
   onClose: () => void;
 }
 
-const AccidentForm: React.FC<AccidentFormProps> = ({ vehicle, onClose }) => {
+const AccidentForm: React.FC<AccidentFormProps> = ({ vehicles, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     location: '',
@@ -25,6 +27,10 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ vehicle, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVehicleId) {
+      toast.error('Please select a vehicle');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -41,7 +47,7 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ vehicle, onClose }) => {
       }
 
       await addDoc(collection(db, 'accidents'), {
-        vehicleId: vehicle.id,
+        vehicleId: selectedVehicleId,
         driverId: user?.id,
         date: new Date(formData.date),
         location: formData.location,
@@ -63,6 +69,12 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ vehicle, onClose }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <VehicleSelect
+        vehicles={vehicles}
+        selectedVehicleId={selectedVehicleId}
+        onSelect={setSelectedVehicleId}
+      />
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Date</label>
         <input

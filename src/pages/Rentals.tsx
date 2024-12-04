@@ -11,7 +11,7 @@ import { Plus } from 'lucide-react';
 
 const Rentals = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { rentals, loading: rentalsLoading, addRental } = useRentals();
+  const { rentals, loading: rentalsLoading } = useRentals();
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -50,7 +50,7 @@ const Rentals = () => {
 
       const importedRentals = JSON.parse(text as string);
       importedRentals.forEach((rental: any) => {
-        addRental(rental);
+        // Handle rental import
       });
     };
 
@@ -178,7 +178,7 @@ const Rentals = () => {
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Schedule Rental</h2>
             <RentalForm
-              vehicle={vehicles[0]}
+              vehicles={vehicles}
               onClose={() => setShowForm(false)}
             />
           </div>

@@ -141,7 +141,7 @@ const Accidents = () => {
               Report Accident
             </h2>
             <AccidentForm
-              vehicle={vehicles[0]}
+              vehicles={vehicles}
               onClose={() => setShowForm(false)}
             />
           </div>

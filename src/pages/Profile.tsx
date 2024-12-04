@@ -1,222 +1,191 @@
-import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, storageMetadata } from '../lib/firebase';
-import { useAuth } from '../context/AuthContext';
-import { User } from '../types/index';
-import { Upload, UserCircle, Phone, MapPin, Mail, Building } from 'lucide-react';
-import toast from 'react-hot-toast';
+import React, { useState } from 'react';
+import { useVehicles } from '../hooks/useVehicles';
+import { useRentals } from '../hooks/useRentals';
+import RentalCard from '../components/RentalCard';
+import RentalForm from '../components/RentalForm';
+import { exportRentals } from '../utils/RentalsExport';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { User } from '../types';
+import { Plus } from 'lucide-react';
 
-const Profile = () => {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    phoneNumber: '',
-    address: '',
-    image: null as File | null,
-  });
+const Rentals = () => {
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { rentals, loading: rentalsLoading } = useRentals();
+  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [renters, setRenters] = useState<Record<string, User>>({});
 
-  useEffect(() => {
-    const fetchUserDetails = async () => {
-      if (user?.id) {
-        const userDoc = await getDoc(doc(db, 'users', user.id));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setFormData(prev => ({
-            ...prev,
-            name: userData.name || '',
-            phoneNumber: userData.phoneNumber || '',
-            address: userData.address || '',
-          }));
-          if (userData.photoURL) {
-            setImagePreview(userData.photoURL);
-          }
+  React.useEffect(() => {
+    const fetchRenters = async () => {
+      const uniqueRenterIds = [...new Set(rentals.map((rental) => rental.renterId))];
+      const renterData: Record<string, User> = {};
+
+      for (const renterId of uniqueRenterIds) {
+        const renterDoc = await getDoc(doc(db, 'users', renterId));
+        if (renterDoc.exists()) {
+          renterData[renterId] = { id: renterDoc.id, ...renterDoc.data() } as User;
         }
       }
+
+      setRenters(renterData);
     };
 
-    fetchUserDetails();
-  }, [user]);
+    if (rentals.length > 0) {
+      fetchRenters();
+    }
+  }, [rentals]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      // Upload logic
-      const file = e.target.files?.[0];
-    if (!file) return;
+  const handleSearch = (query: string) => {
+    setSearchQuery(query.toLowerCase());
+  };
 
-    setFormData({ ...formData, image: file });
-    
+  const handleImport = (file: File) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    } catch (error: any) {
-      if (error.code === "storage/retry-limit-exceeded") {
-        toast.error("Failed to upload profile picture. Please try again with a smaller image or check your internet connection.");
-      } else {
-        // Handle other errors
-      }
-    }
-    
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.id) return;
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (!text) return;
 
-    setLoading(true);
-
-    try {
-      let photoURL = user.photoURL || '';
-      
-      if (formData.image) {
-        const imageRef = ref(storage, `profile-pictures/${user.id}`);
-        const snapshot = await uploadBytes(imageRef, formData.image, {
-          ...storageMetadata,
-          contentType: formData.image.type,
-        });
-        photoURL = await getDownloadURL(snapshot.ref);
-      }
-
-      await updateDoc(doc(db, 'users', user.id), {
-        name: formData.name,
-        phoneNumber: formData.phoneNumber,
-        address: formData.address,
-        photoURL,
+      const importedRentals = JSON.parse(text as string);
+      importedRentals.forEach((rental: any) => {
+        // Handle rental import
       });
+    };
 
-      toast.success('Profile updated successfully');
-      setEditMode(false);
-    } catch (error: any) {
-      console.error('Error updating profile:', error);
-      toast.error(error.message || 'Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
+    reader.readAsText(file);
   };
+
+  if (vehiclesLoading || rentalsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const vehicleMap = vehicles.reduce((acc, vehicle) => {
+    acc[vehicle.id] = vehicle;
+    return acc;
+  }, {} as Record<string, typeof vehicles[0]>);
+
+  const filteredRentals = rentals
+    .filter((rental) => (selectedVehicle ? rental.vehicleId === selectedVehicle : true))
+    .filter((rental) => {
+      const renter = renters[rental.renterId];
+      const vehicle = vehicleMap[rental.vehicleId];
+      return (
+        rental.id.toLowerCase().includes(searchQuery) ||
+        (renter && renter.name?.toLowerCase().includes(searchQuery)) ||
+        (vehicle && vehicle.registrationNumber?.toLowerCase().includes(searchQuery))
+      );
+    });
 
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
-      <div className="md:flex">
-        <div className="md:w-1/3 bg-gray-50 p-8">
-          <div className="text-center">
-            <div className="relative inline-block">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Profile"
-                  className="h-32 w-32 rounded-full object-cover mx-auto"
-                />
-              ) : (
-                <UserCircle className="h-32 w-32 text-gray-300 mx-auto" />
-              )}
-              {editMode && (
-                <label className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg cursor-pointer">
-                  <Upload className="h-5 w-5 text-gray-500" />
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                </label>
-              )}
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
+        <div className="flex space-x-4">
+          <input
+            type="text"
+            placeholder="Search rentals..."
+            onChange={(e) => handleSearch(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm w-64 focus:ring-primary focus:border-primary"
+          />
+          <button
+            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-600"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus className="w-5 h-5 inline mr-2" />
+            Schedule Rental
+          </button>
+          <label className="cursor-pointer bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-600">
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => e.target.files && handleImport(e.target.files[0])}
+              className="hidden"
+            />
+          </label>
+          <button
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            onClick={() => exportRentals(rentals)}
+          >
+            Export
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-semibold text-lg mb-4">Filter by Vehicle</h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => setSelectedVehicle(null)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                  !selectedVehicle
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                All Vehicles
+              </button>
+              {vehicles.map((vehicle) => (
+                <button
+                  key={vehicle.id}
+                  onClick={() => setSelectedVehicle(vehicle.id)}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                    selectedVehicle === vehicle.id
+                      ? 'bg-primary text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {vehicle.make} {vehicle.model} - {vehicle.registrationNumber}
+                </button>
+              ))}
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-gray-900">
-              {formData.name}
-            </h2>
-            <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
           </div>
         </div>
 
-        <div className="md:w-2/3 p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Profile Details</h3>
-            {!editMode ? (
-              <button
-                onClick={() => setEditMode(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-600"
-              >
-                Edit Profile
-              </button>
-            ) : (
-              <div className="space-x-2">
-                <button
-                  onClick={() => setEditMode(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-600"
-                >
-                  Save Changes
-                </button>
+        {/* Rentals List Section */}
+        <div className="lg:col-span-3">
+          <div className="space-y-4">
+            {filteredRentals.map((rental) => (
+              <RentalCard
+                key={rental.id}
+                rental={rental}
+                vehicle={vehicleMap[rental.vehicleId]}
+                renter={renters[rental.renterId]}
+              />
+            ))}
+            {filteredRentals.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-lg">
+                <p className="text-gray-500">No rentals found</p>
               </div>
             )}
           </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <Mail className="h-5 w-5 text-gray-400 mr-2" />
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="text-gray-900">{user?.email}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center">
-              <Phone className="h-5 w-5 text-gray-400 mr-2" />
-              <div>
-                <p className="text-sm text-gray-500">Phone Number</p>
-                {editMode ? (
-                  <input
-                    type="tel"
-                    value={formData.phoneNumber}
-                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  />
-                ) : (
-                  <p className="text-gray-900">{formData.phoneNumber || 'Not provided'}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-start">
-              <MapPin className="h-5 w-5 text-gray-400 mr-2 mt-1" />
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Address</p>
-                {editMode ? (
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  />
-                ) : (
-                  <p className="text-gray-900">{formData.address || 'Not provided'}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center">
-              <Building className="h-5 w-5 text-gray-400 mr-2" />
-              <div>
-                <p className="text-sm text-gray-500">Role</p>
-                <p className="text-gray-900 capitalize">{user?.role}</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
+
+      {/* Rental Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Schedule Rental</h2>
+            <RentalForm
+              vehicles={vehicles}
+              onClose={() => setShowForm(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Profile;
+export default Rentals;

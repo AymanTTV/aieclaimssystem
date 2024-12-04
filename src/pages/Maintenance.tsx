@@ -52,7 +52,7 @@ const Maintenance = () => {
           for (const log of importedData) {
             await addDoc(collection(db, 'maintenanceLogs'), {
               ...log,
-              vehicleId: vehicles[0].id, // You might want to add vehicle selection in import
+              vehicleId: vehicles[0].id,
             });
           }
           
@@ -141,7 +141,7 @@ const Maintenance = () => {
               Schedule Maintenance
             </h2>
             <MaintenanceForm
-              vehicle={vehicles[0]}
+              vehicles={vehicles}
               onClose={() => setShowForm(false)}
             />
           </div>

@@ -4,15 +4,17 @@ import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import VehicleSelect from './VehicleSelect';
 
 interface RentalFormProps {
-  vehicle: Vehicle;
+  vehicles: Vehicle[];
   onClose: () => void;
 }
 
-const RentalForm: React.FC<RentalFormProps> = ({ vehicle, onClose }) => {
+const RentalForm: React.FC<RentalFormProps> = ({ vehicles, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [formData, setFormData] = useState({
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -21,11 +23,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicle, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVehicleId) {
+      toast.error('Please select a vehicle');
+      return;
+    }
     setLoading(true);
 
     try {
       await addDoc(collection(db, 'rentals'), {
-        vehicleId: vehicle.id,
+        vehicleId: selectedVehicleId,
         renterId: user?.id,
         startDate: new Date(formData.startDate),
         endDate: new Date(formData.endDate),
@@ -45,6 +51,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicle, onClose }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <VehicleSelect
+        vehicles={vehicles}
+        selectedVehicleId={selectedVehicleId}
+        onSelect={setSelectedVehicleId}
+      />
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Start Date</label>
         <input

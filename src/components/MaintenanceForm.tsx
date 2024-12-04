@@ -3,14 +3,16 @@ import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
 import toast from 'react-hot-toast';
+import VehicleSelect from './VehicleSelect';
 
 interface MaintenanceFormProps {
-  vehicle: Vehicle;
+  vehicles: Vehicle[];
   onClose: () => void;
 }
 
-const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicle, onClose }) => {
+const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose }) => {
   const [loading, setLoading] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [formData, setFormData] = useState({
     type: 'routine',
     description: '',
@@ -21,11 +23,15 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicle, onClose }) =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVehicleId) {
+      toast.error('Please select a vehicle');
+      return;
+    }
     setLoading(true);
 
     try {
       await addDoc(collection(db, 'maintenanceLogs'), {
-        vehicleId: vehicle.id,
+        vehicleId: selectedVehicleId,
         type: formData.type,
         description: formData.description,
         cost: parseFloat(formData.cost),
@@ -45,6 +51,12 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicle, onClose }) =
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <VehicleSelect
+        vehicles={vehicles}
+        selectedVehicleId={selectedVehicleId}
+        onSelect={setSelectedVehicleId}
+      />
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Type</label>
         <select
