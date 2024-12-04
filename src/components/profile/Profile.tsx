@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, storageMetadata } from '../lib/firebase';
-import { useAuth } from '../context/AuthContext';
+import { db, storage, storageMetadata } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { User } from '../types';
 import { UserCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import RoleSelector from '../components/profile/RoleSelector';
-import ProfileImageUpload from '../components/profile/ProfileImageUpload';
+import RoleSelector from './RoleSelector';
+import ProfileImageUpload from './ProfileImageUpload';
 
 const Profile = () => {
   const { user } = useAuth();

@@ -3,7 +3,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, storageMetadata } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { User } from '../types';
+import { User } from '../types/index';
 import { Upload, UserCircle, Phone, MapPin, Mail, Building } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -42,7 +42,9 @@ const Profile = () => {
   }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    try {
+      // Upload logic
+      const file = e.target.files?.[0];
     if (!file) return;
 
     setFormData({ ...formData, image: file });
@@ -52,6 +54,14 @@ const Profile = () => {
       setImagePreview(reader.result as string);
     };
     reader.readAsDataURL(file);
+    } catch (error: any) {
+      if (error.code === "storage/retry-limit-exceeded") {
+        toast.error("Failed to upload profile picture. Please try again with a smaller image or check your internet connection.");
+      } else {
+        // Handle other errors
+      }
+    }
+    
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
