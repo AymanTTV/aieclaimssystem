@@ -13,41 +13,26 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Initialize services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Configure storage settings with increased timeout and retry limits
-storage.maxOperationRetryTime = 60000; // 1 minute
-storage.maxUploadRetryTime = 60000; // 1 minute
+// Configure storage settings
+storage.maxOperationRetryTime = 120000; // 2 minutes
+storage.maxUploadRetryTime = 120000; // 2 minutes
 
-// Set custom metadata to handle CORS and caching
+// Storage metadata with CORS headers
 export const storageMetadata = {
-  cacheControl: 'public,max-age=3600',
+  cacheControl: 'public,max-age=7200',
   contentType: 'image/jpeg',
   customMetadata: {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  }
-};
-
-// Helper function to handle image upload
-export const uploadImage = async (file: File, path: string): Promise<string> => {
-  try {
-    // Compress image if needed (implement compression logic here)
-    const imageRef = ref(storage, path);
-    const snapshot = await uploadBytes(imageRef, file, {
-      ...storageMetadata,
-      contentType: file.type,
-    });
-    return await getDownloadURL(snapshot.ref);
-  } catch (error: any) {
-    if (error.code === 'storage/retry-limit-exceeded') {
-      throw new Error('Image upload failed. Please try uploading a smaller image or check your internet connection.');
-    }
-    throw error;
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   }
 };
 

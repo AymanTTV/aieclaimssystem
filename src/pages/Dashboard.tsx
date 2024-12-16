@@ -1,16 +1,16 @@
 import React from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
-import Card from '../components/Card';
-import VehicleStatusChart from '../components/dashboard/VehicleStatusChart';
+import VehicleMetrics from '../components/dashboard/VehicleMetrics';
 import MaintenanceTrend from '../components/dashboard/MaintenanceTrend';
-import InsuranceExpiryList from '../components/dashboard/InsuranceExpiryList';
+import FleetStatusChart from '../components/dashboard/FleetStatusChart';
+import ComplianceReport from '../components/dashboard/ComplianceReport';
 import VehicleReport from '../components/dashboard/VehicleReport';
-import { Car, Wrench, AlertTriangle, Calendar } from 'lucide-react';
+import { eachMonthOfInterval, subMonths, format } from 'date-fns';
 
 const Dashboard = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { logs: maintenanceLogs, loading: logsLoading } = useMaintenanceLogs();
+  const { logs, loading: logsLoading } = useMaintenanceLogs();
 
   if (vehiclesLoading || logsLoading) {
     return (
@@ -20,74 +20,72 @@ const Dashboard = () => {
     );
   }
 
-  const stats = {
-    total: vehicles.length,
-    active: vehicles.filter(v => v.status === 'active').length,
-    maintenance: vehicles.filter(v => v.status === 'maintenance').length,
-    unavailable: vehicles.filter(v => v.status === 'unavailable').length,
+  // Prepare maintenance trend data
+  const last6Months = eachMonthOfInterval({
+    start: subMonths(new Date(), 5),
+    end: new Date(),
+  });
+
+  const maintenanceTrendData = {
+    labels: last6Months.map(date => format(date, 'MMM yyyy')),
+    datasets: [
+      {
+        label: 'Maintenance Cost',
+        data: last6Months.map(month => {
+          return logs
+            .filter(log => log.date.getMonth() === month.getMonth())
+            .reduce((sum, log) => sum + log.cost, 0);
+        }),
+        borderColor: 'rgb(220, 38, 38)',
+        backgroundColor: 'rgba(220, 38, 38, 0.5)',
+      },
+      {
+        label: 'Number of Maintenance',
+        data: last6Months.map(month => {
+          return logs.filter(log => log.date.getMonth() === month.getMonth()).length;
+        }),
+        borderColor: 'rgb(22, 163, 74)',
+        backgroundColor: 'rgba(22, 163, 74, 0.5)',
+        yAxisID: 'count',
+      },
+    ],
   };
 
-  const totalMaintenanceCost = maintenanceLogs.reduce((sum, log) => sum + log.cost, 0);
-  const averageMaintenanceCost = totalMaintenanceCost / maintenanceLogs.length || 0;
+  // Prepare fleet status distribution data
+  const fleetStatusData = {
+    labels: ['Active', 'Maintenance', 'Rented', 'Claims', 'Unavailable'],
+    datasets: [
+      {
+        data: [
+          vehicles.filter(v => v.status === 'active').length,
+          vehicles.filter(v => v.status === 'maintenance').length,
+          vehicles.filter(v => v.status === 'rented').length,
+          vehicles.filter(v => v.status === 'claim').length,
+          vehicles.filter(v => v.status === 'unavailable').length,
+        ],
+        backgroundColor: [
+          'rgba(22, 163, 74, 0.8)',
+          'rgba(234, 179, 8, 0.8)',
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(139, 92, 246, 0.8)',
+          'rgba(220, 38, 38, 0.8)',
+        ],
+      },
+    ],
+  };
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white">
-          <div className="flex items-center">
-            <Car className="w-8 h-8 text-primary" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Vehicles</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="bg-white">
-          <div className="flex items-center">
-            <Wrench className="w-8 h-8 text-yellow-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">In Maintenance</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.maintenance}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="bg-white">
-          <div className="flex items-center">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Unavailable</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.unavailable}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="bg-white">
-          <div className="flex items-center">
-            <Calendar className="w-8 h-8 text-secondary" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.active}</p>
-            </div>
-          </div>
-        </Card>
+      <VehicleMetrics />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MaintenanceTrend data={maintenanceTrendData} />
+        <FleetStatusChart data={fleetStatusData} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <VehicleReport vehicles={vehicles} />
-        <Card title="Maintenance Trend">
-          <MaintenanceTrend logs={maintenanceLogs} />
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card title="Fleet Status Distribution">
-            <VehicleStatusChart vehicles={vehicles} />
-          </Card>
-        </div>
-
-        <Card title="Insurance Expiry Alerts">
-          <InsuranceExpiryList vehicles={vehicles} />
-        </Card>
+        <ComplianceReport vehicles={vehicles} />
       </div>
     </div>
   );

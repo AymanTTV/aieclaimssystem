@@ -1,30 +1,110 @@
 import React, { useState } from 'react';
 import { useFinances } from '../hooks/useFinances';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
-import Card from '../components/Card';
+import { DataTable } from '../components/DataTable/DataTable';
+import { format } from 'date-fns';
+import { Plus, Download, Edit, Trash2, Eye } from 'lucide-react';
 import FinancialSummary from '../components/FinancialSummary';
-import TransactionList from '../components/TransactionList';
+import FinanceFilters from '../components/finance/FinanceFilters';
 import TransactionForm from '../components/TransactionForm';
-import FinanceHeader from '../components/finance/FinanceHeader';
-import { exportFinanceData, importFinanceData } from '../utils/FinanceExport';
-import { addDoc, collection } from 'firebase/firestore';
+import TransactionDetails from '../components/finance/TransactionDetails';
+import Modal from '../components/ui/Modal';
+import StatusBadge from '../components/StatusBadge';
+import { exportFinanceData } from '../utils/FinanceExport';
+import { addDoc, collection, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
+import { Transaction } from '../types';
 
 const Finance = () => {
   const { transactions, loading } = useFinances();
   const {
-    searchTerm,
-    setSearchTerm,
-    period,
-    setPeriod,
+    searchQuery,
+    setSearchQuery,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
     type,
     setType,
+    category,
+    setCategory,
     filteredTransactions
   } = useFinanceFilters(transactions);
-  
+
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<'income' | 'expense'>('income');
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
+
+  const columns = [
+    {
+      header: 'Date',
+      cell: ({ row }) => format(row.original.date, 'MMM dd, yyyy'),
+    },
+    {
+      header: 'Type',
+      cell: ({ row }) => (
+        <StatusBadge 
+          status={row.original.type === 'income' ? 'completed' : 'pending'}
+        />
+      ),
+    },
+    {
+      header: 'Category',
+      accessorKey: 'category',
+    },
+    {
+      header: 'Amount',
+      cell: ({ row }) => (
+        <span className={row.original.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+          £{row.original.amount.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      header: 'Description',
+      accessorKey: 'description',
+    },
+    {
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTransaction(row.original);
+            }}
+            className="text-blue-600 hover:text-blue-800"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingTransaction(row.original);
+            }}
+            className="text-blue-600 hover:text-blue-800"
+            title="Edit"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeletingTransactionId(row.original.id);
+            }}
+            className="text-red-600 hover:text-red-800"
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   if (loading) {
     return (
@@ -34,82 +114,131 @@ const Finance = () => {
     );
   }
 
-  const handleExport = () => {
-    try {
-      exportFinanceData(filteredTransactions);
-      toast.success('Transactions exported successfully');
-    } catch (error) {
-      toast.error('Failed to export transactions');
-    }
-  };
-
-  const handleImport = async (file: File) => {
-    try {
-      const importedTransactions = await importFinanceData(file);
-      
-      for (const transaction of importedTransactions) {
-        await addDoc(collection(db, 'transactions'), {
-          ...transaction,
-          createdAt: new Date()
-        });
-      }
-      
-      toast.success(`${importedTransactions.length} transactions imported successfully`);
-    } catch (error) {
-      console.error('Import error:', error);
-      toast.error('Failed to import transactions');
-    }
-  };
-
-  const income = filteredTransactions.filter(t => t.type === 'income');
-  const expenses = filteredTransactions.filter(t => t.type === 'expense');
-
   return (
     <div className="space-y-6">
-      <FinanceHeader
-        onSearch={setSearchTerm}
-        onImport={handleImport}
-        onExport={handleExport}
-        onAddIncome={() => {
-          setFormType('income');
-          setShowForm(true);
-        }}
-        onAddExpense={() => {
-          setFormType('expense');
-          setShowForm(true);
-        }}
-        period={period}
-        onPeriodChange={setPeriod}
-        type={type}
-        onTypeChange={setType}
-      />
-
-      <FinancialSummary transactions={filteredTransactions} period={period} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TransactionList
-          transactions={income}
-          title="Recent Income"
-        />
-        <TransactionList
-          transactions={expenses}
-          title="Recent Expenses"
-        />
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Finance Management</h1>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => exportFinanceData(filteredTransactions)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            Export
+          </button>
+          <button
+            onClick={() => {
+              setFormType('income');
+              setShowForm(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-secondary hover:bg-secondary-600"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Income
+          </button>
+          <button
+            onClick={() => {
+              setFormType('expense');
+              setShowForm(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Expense
+          </button>
+        </div>
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {formType === 'income' ? 'Record Income' : 'Record Expense'}
-            </h2>
-            <TransactionForm
-              type={formType}
-              onClose={() => setShowForm(false)}
-            />
+      <FinanceFilters
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        type={type}
+        onTypeChange={setType}
+        category={category}
+        onCategoryChange={setCategory}
+      />
+
+      <FinancialSummary transactions={filteredTransactions} period="custom" />
+
+      <DataTable
+        data={filteredTransactions}
+        columns={columns}
+        onRowClick={(transaction) => setSelectedTransaction(transaction)}
+      />
+
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title={`Add ${formType === 'income' ? 'Income' : 'Expense'}`}
+      >
+        <TransactionForm
+          type={formType}
+          onClose={() => setShowForm(false)}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+        title="Transaction Details"
+        size="lg"
+      >
+        {selectedTransaction && (
+          <TransactionDetails transaction={selectedTransaction} />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        title="Edit Transaction"
+      >
+        {editingTransaction && (
+          <TransactionForm
+            type={editingTransaction.type}
+            transaction={editingTransaction}
+            onClose={() => setEditingTransaction(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!deletingTransactionId}
+        onClose={() => setDeletingTransactionId(null)}
+        title="Delete Transaction"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Are you sure you want to delete this transaction? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setDeletingTransactionId(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await deleteDoc(doc(db, 'transactions', deletingTransactionId));
+                  toast.success('Transaction deleted successfully');
+                  setDeletingTransactionId(null);
+                } catch (error) {
+                  toast.error('Failed to delete transaction');
+                }
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+            >
+              Delete
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

@@ -7,7 +7,7 @@ import { Calendar, DollarSign, User as UserIcon } from 'lucide-react';
 interface RentalCardProps {
   rental: Rental;
   vehicle: Vehicle;
-  renter: User;
+  renter?: User | null;
 }
 
 const RentalCard: React.FC<RentalCardProps> = ({ rental, vehicle, renter }) => {
@@ -34,7 +34,7 @@ const RentalCard: React.FC<RentalCardProps> = ({ rental, vehicle, renter }) => {
       <div className="mt-4 space-y-3">
         <div className="flex items-center text-sm">
           <UserIcon className="w-4 h-4 text-gray-400 mr-2" />
-          <span>{renter.name}</span>
+          <span>{renter?.name || 'Loading...'}</span>
         </div>
 
         <div className="flex items-center text-sm">

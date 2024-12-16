@@ -1,37 +1,94 @@
 import React from 'react';
+import clsx from 'clsx';
 
-type StatusType = 'active' | 'maintenance' | 'unavailable' | 
-                 'scheduled' | 'in-progress' | 'completed' | 
-                 'pending' | 'paid' | 'overdue' |
-                 'reported' | 'investigating' | 'processing' | 'resolved';
+type StatusType = 
+  | 'active' 
+  | 'maintenance' 
+  | 'rented'
+  | 'claim'
+  | 'unavailable'
+  | 'scheduled'
+  | 'in-progress'
+  | 'completed'
+  | 'cancelled'
+  | 'pending'
+  | 'paid'
+  | 'overdue'
+  | 'fault'
+  | 'non-fault'
+  | 'settled'
+  | 'won'
+  | 'lost'
+  | 'hired'
+  | 'daily'
+  | 'weekly'
+  | 'sold';
 
 interface StatusBadgeProps {
-  status: StatusType;
+  status: StatusType | undefined;
+  className?: string;
 }
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
+  if (!status) return null;
+
   const getStatusColor = (status: StatusType) => {
-    const colors = {
-      active: 'bg-secondary-100 text-secondary-700',
-      maintenance: 'bg-yellow-100 text-yellow-700',
-      unavailable: 'bg-red-100 text-red-700',
-      scheduled: 'bg-blue-100 text-blue-700',
-      'in-progress': 'bg-purple-100 text-purple-700',
-      completed: 'bg-green-100 text-green-700',
-      pending: 'bg-orange-100 text-orange-700',
-      paid: 'bg-secondary-100 text-secondary-700',
-      overdue: 'bg-red-100 text-red-700',
-      reported: 'bg-yellow-100 text-yellow-700',
-      investigating: 'bg-blue-100 text-blue-700',
-      processing: 'bg-purple-100 text-purple-700',
-      resolved: 'bg-green-100 text-green-700',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'maintenance':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'rented':
+      case 'hired':
+        return 'bg-blue-100 text-blue-800';
+      case 'claim':
+        return 'bg-purple-100 text-purple-800';
+      case 'unavailable':
+        return 'bg-red-100 text-red-700';
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-800';
+      case 'in-progress':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-700';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'paid':
+        return 'bg-green-100 text-green-800';
+      case 'overdue':
+        return 'bg-red-100 text-red-700';
+      case 'fault':
+        return 'bg-red-100 text-red-700';
+      case 'non-fault':
+        return 'bg-blue-100 text-blue-800';
+      case 'settled':
+        return 'bg-green-100 text-green-800';
+      case 'won':
+        return 'bg-green-100 text-green-800';
+      case 'lost':
+        return 'bg-red-100 text-red-700';
+      case 'daily':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'weekly':
+        return 'bg-purple-100 text-purple-800';
+      case 'sold':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <span
+      className={clsx(
+        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
+        getStatusColor(status),
+        className
+      )}
+    >
+      {status.replace(/-/g, ' ')}
     </span>
   );
 };

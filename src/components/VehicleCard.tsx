@@ -2,19 +2,34 @@ import React from 'react';
 import { Vehicle } from '../types';
 import StatusBadge from './StatusBadge';
 import { format } from 'date-fns';
-import { Car } from 'lucide-react';
+import { Car, Edit, Trash2 } from 'lucide-react';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
   onClick?: () => void;
+  onDelete?: () => void;
 }
 
-const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onClick }) => {
+const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onClick, onDelete }) => {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.();
+  };
+
   return (
     <div 
       onClick={onClick}
-      className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow"
+      className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow relative group"
     >
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={handleDelete}
+          className="p-1 text-red-600 hover:bg-red-50 rounded-full"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+      </div>
+
       <div className="flex items-start justify-between">
         <div className="flex items-center">
           {vehicle.image ? (

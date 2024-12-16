@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
   Car, 
   Calendar, 
@@ -10,29 +11,31 @@ import {
   Users, 
   LogOut,
   Menu,
-  User,
+  X,
   FileText,
-  Truck
+  Truck,
+  UserPlus
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const location = useLocation();
   const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Car },
-    { name: 'Vehicles', href: '/vehicles', icon: Truck },
-    { name: 'Maintenance', href: '/maintenance', icon: Wrench },
-    { name: 'Rentals', href: '/rentals', icon: Calendar },
-    { name: 'Accidents', href: '/accidents', icon: AlertTriangle },
-    { name: 'Claims', href: '/claims', icon: FileText },
-    { name: 'Finance', href: '/finance', icon: DollarSign, role: ['admin', 'manager'] },
-    { name: 'Users', href: '/users', icon: Users, role: ['admin'] },
-    { name: 'Profile', href: '/profile', icon: User },
-  ].filter(item => !item.role || (user?.role && item.role.includes(user.role)));
+    { name: 'Vehicles', href: '/vehicles', icon: Truck, permission: 'vehicles' },
+    { name: 'Maintenance', href: '/maintenance', icon: Wrench, permission: 'maintenance' },
+    { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
+    { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
+    { name: 'Claims', href: '/claims', icon: FileText, permission: 'claims' },
+    { name: 'Finance', href: '/finance', icon: DollarSign, permission: 'finance' },
+    { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },
+    { name: 'Users', href: '/users', icon: Users, permission: 'users' },
+  ].filter(item => !item.permission || can(item.permission as any, 'view'));
 
   const handleLogout = async () => {
     try {
@@ -49,9 +52,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+          className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary"
         >
-          <Menu size={24} />
+          {isMobileMenuOpen ? (
+            <X className="h-6 w-6" aria-hidden="true" />
+          ) : (
+            <Menu className="h-6 w-6" aria-hidden="true" />
+          )}
         </button>
       </div>
 
@@ -65,11 +72,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {/* Logo */}
           <div className="flex items-center justify-center h-16 bg-primary text-white">
             <Car className="w-8 h-8 mr-2" />
-            <span className="text-xl font-bold">AIE Claims</span>
+            <span className="text-xl font-bold">AIE SKYLINE</span>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-4 space-y-1">
+          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
@@ -77,6 +84,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <Link
                   key={item.name}
                   to={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className={`
                     flex items-center px-4 py-2 text-sm font-medium rounded-md
                     ${isActive 
@@ -93,7 +101,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           {/* User info */}
           <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center space-x-3">
+            <Link 
+              to="/profile"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md transition-colors"
+            >
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
@@ -116,13 +128,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </p>
               </div>
               <button
-                onClick={handleLogout}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleLogout();
+                }}
                 className="p-2 text-gray-400 hover:text-primary rounded-full hover:bg-gray-100"
                 title="Logout"
               >
                 <LogOut className="w-5 h-5" />
               </button>
-            </div>
+            </Link>
           </div>
         </div>
       </div>
@@ -133,6 +149,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* Overlay for mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-gray-600 bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
     </div>
   );
 };

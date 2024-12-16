@@ -10,15 +10,18 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface DataTableProps<T> {
   data: T[];
   columns: ColumnDef<T, any>[];
   onRowClick?: (row: T) => void;
+  module?: keyof typeof DEFAULT_PERMISSIONS.admin;
 }
 
-export function DataTable<T>({ data, columns, onRowClick }: DataTableProps<T>) {
+export function DataTable<T>({ data, columns, onRowClick, module }: DataTableProps<T>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const { can } = usePermissions();
 
   const table = useReactTable({
     data,
@@ -69,8 +72,8 @@ export function DataTable<T>({ data, columns, onRowClick }: DataTableProps<T>) {
             {table.getRowModel().rows.map(row => (
               <tr
                 key={row.id}
-                onClick={() => onRowClick?.(row.original)}
-                className={onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}
+                onClick={() => module && (!module || can(module, 'view')) && onRowClick?.(row.original)}
+                className={onRowClick && (!module || can(module, 'view')) ? 'cursor-pointer hover:bg-gray-50' : ''}
               >
                 {row.getVisibleCells().map(cell => (
                   <td

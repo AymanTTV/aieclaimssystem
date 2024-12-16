@@ -5,26 +5,19 @@ interface StatCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
-  trend?: {
-    value: number;
-    isPositive: boolean;
-  };
-  className?: string;
+  iconColor?: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, trend, className = '' }) => {
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, iconColor = 'text-primary' }) => {
   return (
-    <div className={`bg-white rounded-lg shadow-md p-4 ${className}`}>
+    <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex items-center">
-        <Icon className="w-8 h-8 text-primary" />
+        <div className={`rounded-full p-3 ${iconColor} bg-opacity-10`}>
+          <Icon className={`w-6 h-6 ${iconColor}`} />
+        </div>
         <div className="ml-4">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900">{value}</p>
-          {trend && (
-            <p className={`text-sm ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {trend.isPositive ? '↑' : '↓'} {trend.value}%
-            </p>
-          )}
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
         </div>
       </div>
     </div>

@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isManager() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || request.auth.uid == userId;
+    }
+    
+    // Vehicles collection
+    match /vehicles/{vehicleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+    }
+    
+    // Maintenance logs collection
+    match /maintenanceLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+    }
+    
+    // Rentals collection
+    match /rentals/{rentalId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+    }
+    
+    // Mileage History collection
+    match /mileageHistory/{historyId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+    }
+  }
+}

@@ -1,55 +1,66 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { MaintenanceLog } from '../../types';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface MaintenanceTrendProps {
-  logs: MaintenanceLog[];
+  data: ChartData<'line'>;
 }
 
-const MaintenanceTrend: React.FC<MaintenanceTrendProps> = ({ logs }) => {
-  const now = new Date();
-  const sixMonthsAgo = subMonths(now, 6);
-  const months = eachMonthOfInterval({ start: sixMonthsAgo, end: now });
-
-  const data = months.map(month => {
-    const monthLogs = logs.filter(log => {
-      const logDate = new Date(log.date);
-      return logDate >= startOfMonth(month) && logDate <= endOfMonth(month);
-    });
-
-    return {
-      month: format(month, 'MMM yyyy'),
-      cost: monthLogs.reduce((sum, log) => sum + log.cost, 0),
-      count: monthLogs.length
-    };
-  });
+const MaintenanceTrend: React.FC<MaintenanceTrendProps> = ({ data }) => {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Maintenance Trend'
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          drawBorder: false,
+          color: 'rgba(0, 0, 0, 0.05)'
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        }
+      }
+    }
+  };
 
   return (
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis yAxisId="left" />
-          <YAxis yAxisId="right" orientation="right" />
-          <Tooltip />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="cost"
-            stroke="#DC2626"
-            name="Cost ($)"
-          />
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="count"
-            stroke="#16A34A"
-            name="Number of Maintenance"
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Maintenance Trend</h3>
+      <div className="h-[400px]">
+        <Line options={options} data={data} />
+      </div>
     </div>
   );
 };

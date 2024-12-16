@@ -14,12 +14,15 @@ import Accidents from './pages/Accidents';
 import Claims from './pages/Claims';
 import Finance from './pages/Finance';
 import Users from './pages/Users';
+import Customers from './pages/Customers';
+import { usePermissions } from './hooks/usePermissions';
 
 const PrivateRoute: React.FC<{ 
   element: React.ReactElement;
-  requiredRole?: 'admin' | 'manager' | 'driver';
-}> = ({ element, requiredRole }) => {
+  permission?: keyof RolePermissions;
+}> = ({ element, permission }) => {
   const { user, loading } = useAuth();
+  const { can } = usePermissions();
 
   if (loading) {
     return <div>Loading...</div>;
@@ -29,7 +32,7 @@ const PrivateRoute: React.FC<{
     return <Navigate to="/login" />;
   }
 
-  if (requiredRole && user.role !== requiredRole && user.role !== 'admin') {
+  if (permission && !can(permission, 'view')) {
     return <Navigate to="/" />;
   }
 
@@ -77,6 +80,7 @@ function App() {
                     <Vehicles />
                   </Layout>
                 }
+                permission="vehicles"
               />
             }
           />
@@ -89,6 +93,7 @@ function App() {
                     <Maintenance />
                   </Layout>
                 }
+                permission="maintenance"
               />
             }
           />
@@ -101,6 +106,7 @@ function App() {
                     <Rentals />
                   </Layout>
                 }
+                permission="rentals"
               />
             }
           />
@@ -113,6 +119,7 @@ function App() {
                     <Accidents />
                   </Layout>
                 }
+                permission="accidents"
               />
             }
           />
@@ -125,6 +132,7 @@ function App() {
                     <Claims />
                   </Layout>
                 }
+                permission="claims"
               />
             }
           />
@@ -137,7 +145,20 @@ function App() {
                     <Finance />
                   </Layout>
                 }
-                requiredRole="manager"
+                permission="finance"
+              />
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <PrivateRoute
+                element={
+                  <Layout>
+                    <Customers />
+                  </Layout>
+                }
+                permission="rentals"
               />
             }
           />
@@ -150,7 +171,7 @@ function App() {
                     <Users />
                   </Layout>
                 }
-                requiredRole="admin"
+                permission="users"
               />
             }
           />

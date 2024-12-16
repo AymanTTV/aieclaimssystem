@@ -5,10 +5,11 @@ import {
   Plus,
   Search
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface TableHeaderProps {
   title: string;
+  module: string;
   onAdd?: () => void;
   onImport?: (file: File) => void;
   onExport?: () => void;
@@ -18,13 +19,14 @@ interface TableHeaderProps {
 
 const TableHeader: React.FC<TableHeaderProps> = ({
   title,
+  module,
   onAdd,
   onImport,
   onExport,
   onSearch,
   showAddButton = true,
 }) => {
-  const { user } = useAuth();
+  const { can } = usePermissions();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,35 +59,41 @@ const TableHeader: React.FC<TableHeaderProps> = ({
         )}
 
         <div className="flex gap-2">
-          {user?.role !== 'driver' && (
+          {can(module as any, 'create') && (
             <>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImport}
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-              />
-              
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Import
-              </button>
+              {onExport && (
+                <button
+                  onClick={onExport}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </button>
+              )}
 
-              <button
-                onClick={onExport}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </button>
+              {onImport && (
+                <>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImport}
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                  />
+                  
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </button>
+                </>
+              )}
             </>
           )}
 
-          {showAddButton && user?.role === 'admin' && onAdd && (
+          {showAddButton && can(module as any, 'create') && onAdd && (
             <button
               onClick={onAdd}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"

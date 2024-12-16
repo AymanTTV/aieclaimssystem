@@ -5,12 +5,14 @@ import { db, storage } from '../lib/firebase';
 import { Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '../lib/constants';
+import { useAuth } from '../context/AuthContext';
 
 interface VehicleFormProps {
   onClose: () => void;
 }
 
 const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -22,6 +24,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
     status: 'active',
     mileage: 0,
     insuranceExpiry: new Date().toISOString().split('T')[0],
+    motExpiry: new Date().toISOString().split('T')[0],
+    nslExpiry: new Date().toISOString().split('T')[0],
+    roadTaxExpiry: new Date().toISOString().split('T')[0],
     lastMaintenance: new Date().toISOString().split('T')[0],
     nextMaintenance: new Date().toISOString().split('T')[0],
     image: null as File | null,
@@ -52,6 +57,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.role || !['admin', 'manager'].includes(user.role)) {
+      toast.error('Unauthorized to add vehicles');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -67,9 +77,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
         ...formData,
         image: imageUrl,
         insuranceExpiry: new Date(formData.insuranceExpiry),
+        motExpiry: new Date(formData.motExpiry),
+        nslExpiry: new Date(formData.nslExpiry),
+        roadTaxExpiry: new Date(formData.roadTaxExpiry),
         lastMaintenance: new Date(formData.lastMaintenance),
         nextMaintenance: new Date(formData.nextMaintenance),
         createdAt: new Date(),
+        createdBy: user.id,
       });
 
       toast.success('Vehicle added successfully');
@@ -150,12 +164,14 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
         >
           <option value="active">Active</option>
           <option value="maintenance">Maintenance</option>
+          <option value="rented">Rented</option>
+          <option value="claim">In Claim</option>
           <option value="unavailable">Unavailable</option>
         </select>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Mileage (km)</label>
+        <label className="block text-sm font-medium text-gray-700">Mileage</label>
         <input
           type="number"
           required
@@ -165,15 +181,50 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onClose }) => {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Insurance Expiry</label>
-        <input
-          type="date"
-          required
-          value={formData.insuranceExpiry}
-          onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">MOT Expiry</label>
+          <input
+            type="date"
+            required
+            value={formData.motExpiry}
+            onChange={(e) => setFormData({ ...formData, motExpiry: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">NSL Expiry</label>
+          <input
+            type="date"
+            required
+            value={formData.nslExpiry}
+            onChange={(e) => setFormData({ ...formData, nslExpiry: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Road Tax Expiry</label>
+          <input
+            type="date"
+            required
+            value={formData.roadTaxExpiry}
+            onChange={(e) => setFormData({ ...formData, roadTaxExpiry: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Insurance Expiry</label>
+          <input
+            type="date"
+            required
+            value={formData.insuranceExpiry}
+            onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

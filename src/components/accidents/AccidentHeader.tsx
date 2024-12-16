@@ -56,7 +56,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
           >
             <Plus className="h-5 w-5 mr-2" />
-            Add Accident
+            Report Accident
           </button>
         </div>
       </div>
@@ -68,7 +68,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
           </div>
           <input
             type="text"
-            placeholder="Search accident logs..."
+            placeholder="Search accidents..."
             onChange={(e) => onSearch(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           />
@@ -77,10 +77,10 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
           onChange={(e) => onStatusFilterChange(e.target.value)}
           className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
         >
-          <option value="all">All Status</option>
-          <option value="reported">Reported</option>
-          <option value="under-investigation">Under Investigation</option>
-          <option value="resolved">Resolved</option>
+          <option value="all">All Claims</option>
+          <option value="fault">Fault</option>
+          <option value="non-fault">Non-Fault</option>
+          <option value="settled">Settled</option>
         </select>
       </div>
     </div>
