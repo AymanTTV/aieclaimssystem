@@ -3,6 +3,7 @@ import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { Eye, Edit, Trash2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
+import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 
 interface MaintenanceTableProps {
@@ -20,6 +21,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { can } = usePermissions();
+
   const columns = [
     {
       header: 'Vehicle',
@@ -62,81 +65,56 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       ),
     },
     {
-      header: 'Mileage',
+      header: 'Cost',
       cell: ({ row }) => (
         <div>
-          <div>{row.original.currentMileage?.toLocaleString() || 'N/A'}</div>
-          {row.original.nextServiceMileage && (
-            <div className="text-sm text-gray-500">
-              Next: {row.original.nextServiceMileage.toLocaleString()}
-            </div>
-          )}
+          <div className="font-medium">£{row.original.cost.toFixed(2)}</div>
+          <div className="text-xs text-gray-500">
+            {row.original.vatDetails && 'Inc. VAT'}
+          </div>
         </div>
       ),
-    },
-    {
-      header: 'Cost',
-      cell: ({ row }) => {
-        const log = row.original;
-        const partsTotal = (log.parts || []).reduce((sum, part) => sum + (part.cost * part.quantity), 0);
-        const laborTotal = log.laborCost || 0;
-
-        return (
-          <div>
-            <div className="font-medium">£{log.cost.toFixed(2)}</div>
-            <div className="text-xs space-y-1">
-              {partsTotal > 0 && (
-                <div className="text-gray-500">
-                  Parts: £{partsTotal.toFixed(2)}
-                </div>
-              )}
-              {laborTotal > 0 && (
-                <div className="text-gray-500">
-                  Labor: £{laborTotal.toFixed(2)}
-                </div>
-              )}
-              {log.vatDetails && (
-                <div className="text-gray-500">Inc. VAT</div>
-              )}
-            </div>
-          </div>
-        );
-      },
     },
     {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(row.original);
-            }}
-            className="text-red-600 hover:text-red-800"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {can('maintenance', 'view') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {can('maintenance', 'update') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="Edit"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {can('maintenance', 'delete') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
+              className="text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -146,7 +124,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     <DataTable
       data={logs}
       columns={columns}
-      onRowClick={(log) => onView(log)}
+      onRowClick={(log) => can('maintenance', 'view') && onView(log)}
     />
   );
 };

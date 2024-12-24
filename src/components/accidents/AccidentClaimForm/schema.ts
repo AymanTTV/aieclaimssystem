@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 export const claimFormSchema = z.object({
+  // Submitter Type
+  submitterType: z.enum(['company', 'client']),
+
   // Driver Details
   driverName: z.string().min(1, 'Name is required'),
   driverAddress: z.string().min(1, 'Address is required'),
@@ -45,12 +48,14 @@ export const claimFormSchema = z.object({
     contactNumber: z.string()
   })).optional(),
 
-  // Witness Details
-  witnessName: z.string().optional(),
-  witnessAddress: z.string().optional(),
-  witnessPostCode: z.string().optional(),
-  witnessDOB: z.string().optional(),
-  witnessContact: z.string().optional(),
+  // Witnesses
+  witnesses: z.array(z.object({
+    name: z.string(),
+    address: z.string(),
+    postCode: z.string(),
+    dob: z.string(),
+    contactNumber: z.string()
+  })).optional(),
 
   // Police Details
   policeOfficerName: z.string().optional(),

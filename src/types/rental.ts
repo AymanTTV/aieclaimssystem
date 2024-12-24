@@ -1,3 +1,7 @@
+export type RentalReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'wfw-c-substitute' | 'h-substitute';
+export type RentalStatus = 'urgent' | 'awaiting' | 'levc-loan' | 'completed';
+export type RentalType = 'daily' | 'weekly' | 'claim';
+
 export interface Rental {
   id: string;
   vehicleId: string;
@@ -9,9 +13,10 @@ export interface Rental {
   negotiated?: boolean;
   negotiationNotes?: string;
   approvedBy?: string;
-  status: 'scheduled' | 'hired' | 'claim' | 'completed' | 'cancelled';
+  reason: RentalReason;
+  status: RentalStatus;
   paymentStatus: 'pending' | 'paid' | 'overdue';
-  type: 'daily' | 'weekly' | 'claim';
+  type: RentalType;
   numberOfWeeks?: number;
   extensionHistory?: RentalExtension[];
   createdAt: Date;

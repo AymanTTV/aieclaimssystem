@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
+import { ensureValidDate } from '../utils/dateHelpers';
 
 export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -20,9 +21,15 @@ export const useVehicles = () => {
           vehicleData.push({
             id: doc.id,
             ...data,
-            insuranceExpiry: data.insuranceExpiry.toDate(),
-            lastMaintenance: data.lastMaintenance.toDate(),
-            nextMaintenance: data.nextMaintenance.toDate(),
+            // Ensure all date fields are valid Date objects
+            insuranceExpiry: ensureValidDate(data.insuranceExpiry?.toDate()),
+            motExpiry: ensureValidDate(data.motExpiry?.toDate()),
+            nslExpiry: ensureValidDate(data.nslExpiry?.toDate()),
+            roadTaxExpiry: ensureValidDate(data.roadTaxExpiry?.toDate()),
+            lastMaintenance: ensureValidDate(data.lastMaintenance?.toDate()),
+            nextMaintenance: ensureValidDate(data.nextMaintenance?.toDate()),
+            createdAt: ensureValidDate(data.createdAt?.toDate()),
+            updatedAt: ensureValidDate(data.updatedAt?.toDate()),
           } as Vehicle);
         });
         setVehicles(vehicleData);

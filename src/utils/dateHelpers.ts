@@ -4,7 +4,7 @@ export const formatDate = (date: Date | null | undefined): string => {
   if (!date || !isValid(date)) {
     return 'Not set';
   }
-  return format(date, 'MMM dd, yyyy');
+  return format(date, 'dd/MM/yyyy');
 };
 
 export const formatDateForInput = (date: Date | string | undefined): string => {
@@ -12,24 +12,24 @@ export const formatDateForInput = (date: Date | string | undefined): string => {
     return new Date().toISOString().split('T')[0];
   }
 
-  try {
-    const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
-    if (!isValid(dateObj)) {
-      return new Date().toISOString().split('T')[0];
-    }
-    return format(dateObj, 'yyyy-MM-dd');
-  } catch {
+  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!isValid(dateObj)) {
     return new Date().toISOString().split('T')[0];
   }
+  return format(dateObj, 'yyyy-MM-dd');
 };
 
-export const ensureValidDate = (date: Date | string | undefined): Date => {
+export const ensureValidDate = (date: any): Date => {
   if (!date) return new Date();
   
-  try {
-    const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
-    return isValid(dateObj) ? dateObj : new Date();
-  } catch {
-    return new Date();
+  if (date instanceof Date && isValid(date)) {
+    return date;
   }
+  
+  if (typeof date === 'string') {
+    const parsed = parseISO(date);
+    if (isValid(parsed)) return parsed;
+  }
+  
+  return new Date();
 };

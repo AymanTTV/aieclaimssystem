@@ -2,56 +2,64 @@ import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
 
-const WitnessDetails = () => {
+interface WitnessDetailsProps {
+  count: number;
+  onCountChange: (count: number) => void;
+}
+
+const WitnessDetails: React.FC<WitnessDetailsProps> = ({ count, onCountChange }) => {
   const { register, formState: { errors } } = useFormContext();
-  const [hasWitness, setHasWitness] = React.useState(false);
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Witness Details</h3>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Were there any witnesses?</label>
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900">Witness Details</h3>
         <select
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          onChange={(e) => setHasWitness(e.target.value === 'yes')}
+          value={count}
+          onChange={(e) => onCountChange(parseInt(e.target.value))}
+          className="block rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
         >
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
+          <option value="0">No witnesses</option>
+          {[1, 2, 3].map(num => (
+            <option key={num} value={num}>{num} witness{num !== 1 ? 'es' : ''}</option>
+          ))}
         </select>
       </div>
 
-      {hasWitness && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            label="Name"
-            {...register('witnessName')}
-            error={errors.witnessName?.message as string}
-          />
-          <FormField
-            label="Address"
-            {...register('witnessAddress')}
-            error={errors.witnessAddress?.message as string}
-          />
-          <FormField
-            label="Post Code"
-            {...register('witnessPostCode')}
-            error={errors.witnessPostCode?.message as string}
-          />
-          <FormField
-            type="date"
-            label="Date of Birth"
-            {...register('witnessDOB')}
-            error={errors.witnessDOB?.message as string}
-          />
-          <FormField
-            type="tel"
-            label="Contact Number"
-            {...register('witnessContact')}
-            error={errors.witnessContact?.message as string}
-          />
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={index} className="border rounded-lg p-4 space-y-4">
+          <h4 className="font-medium">Witness {index + 1}</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Name"
+              {...register(`witnesses.${index}.name`)}
+              error={errors?.witnesses?.[index]?.name?.message as string}
+            />
+            <FormField
+              label="Address"
+              {...register(`witnesses.${index}.address`)}
+              error={errors?.witnesses?.[index]?.address?.message as string}
+            />
+            <FormField
+              label="Post Code"
+              {...register(`witnesses.${index}.postCode`)}
+              error={errors?.witnesses?.[index]?.postCode?.message as string}
+            />
+            <FormField
+              type="date"
+              label="Date of Birth"
+              {...register(`witnesses.${index}.dob`)}
+              error={errors?.witnesses?.[index]?.dob?.message as string}
+            />
+            <FormField
+              type="tel"
+              label="Contact Number"
+              {...register(`witnesses.${index}.contactNumber`)}
+              error={errors?.witnesses?.[index]?.contactNumber?.message as string}
+            />
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 };

@@ -92,7 +92,7 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
         >
           <option value="driver">Driver</option>
           <option value="manager">Manager</option>
-          <option value="admin">Admin</option>
+          <option value="admin">Finance</option>
         </select>
       </div>
 

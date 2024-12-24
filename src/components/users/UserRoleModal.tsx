@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
 import { DEFAULT_PERMISSIONS, type RolePermissions } from '../../types/roles';
+import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 
 interface UserRoleModalProps {
@@ -11,14 +12,20 @@ interface UserRoleModalProps {
 }
 
 const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
+  const { isManager } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState(user.role);
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(
-    DEFAULT_PERMISSIONS[user.role]
+    user.permissions || DEFAULT_PERMISSIONS[user.role]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isManager) {
+      toast.error('Only managers can modify user permissions');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -38,57 +45,58 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
     }
   };
 
-  const handleRoleChange = (newRole: User['role']) => {
-    setRole(newRole);
-    setCustomPermissions(DEFAULT_PERMISSIONS[newRole]);
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700">Role</label>
         <select
           value={role}
-          onChange={(e) => handleRoleChange(e.target.value as User['role'])}
+          onChange={(e) => {
+            setRole(e.target.value as User['role']);
+            setCustomPermissions(DEFAULT_PERMISSIONS[e.target.value as User['role']]);
+          }}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          disabled={!isManager}
         >
           <option value="admin">Admin</option>
           <option value="manager">Manager</option>
-          <option value="driver">Driver</option>
+          <option value="finance">Finance</option>
         </select>
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Permissions</h3>
-        {Object.entries(customPermissions).map(([module, permissions]) => (
-          <div key={module} className="border rounded-lg p-4">
-            <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">{module}</h4>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.entries(permissions).map(([action, enabled]) => (
-                <label key={action} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) => {
-                      setCustomPermissions({
-                        ...customPermissions,
-                        [module]: {
-                          ...customPermissions[module],
-                          [action]: e.target.checked
-                        }
-                      });
-                    }}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="ml-2 text-sm text-gray-700 capitalize">
-                    {action}
-                  </span>
-                </label>
-              ))}
+      {isManager && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-gray-900">Custom Permissions</h3>
+          {Object.entries(customPermissions).map(([module, permissions]) => (
+            <div key={module} className="border rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">{module}</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(permissions).map(([action, enabled]) => (
+                  <label key={action} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => {
+                        setCustomPermissions({
+                          ...customPermissions,
+                          [module]: {
+                            ...customPermissions[module],
+                            [action]: e.target.checked
+                          }
+                        });
+                      }}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="ml-2 text-sm text-gray-700 capitalize">
+                      {action}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex justify-end space-x-3">
         <button
@@ -100,7 +108,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         </button>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !isManager}
           className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
         >
           {loading ? 'Updating...' : 'Update Permissions'}

@@ -24,7 +24,7 @@ const ParamedicDetails = () => {
       {paramedicInvolved && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            label="Paramedic Names"
+            label="Names of Paramedics"
             {...register('paramedicNames')}
             error={errors.paramedicNames?.message as string}
             placeholder="Names of attending paramedics"

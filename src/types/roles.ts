@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'manager' | 'driver';
+export type Role = 'admin' | 'manager' | 'finance';
 
 export interface Permission {
   view: boolean;
@@ -20,7 +20,7 @@ export interface RolePermissions {
 }
 
 export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
-  admin: {
+  manager: {
     dashboard: { view: true, create: true, update: true, delete: true },
     vehicles: { view: true, create: true, update: true, delete: true },
     maintenance: { view: true, create: true, update: true, delete: true },
@@ -31,8 +31,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { view: true, create: true, update: true, delete: true },
     customers: { view: true, create: true, update: true, delete: true }
   },
-  manager: {
-    dashboard: { view: true, create: false, update: false, delete: false },
+  admin: {
+    dashboard: { view: true, create: true, update: true, delete: false },
     vehicles: { view: true, create: true, update: true, delete: false },
     maintenance: { view: true, create: true, update: true, delete: false },
     rentals: { view: true, create: true, update: true, delete: false },
@@ -42,31 +42,15 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { view: true, create: false, update: false, delete: false },
     customers: { view: true, create: true, update: true, delete: false }
   },
-  driver: {
+  finance: {
     dashboard: { view: true, create: false, update: false, delete: false },
     vehicles: { view: true, create: false, update: false, delete: false },
-    maintenance: { view: true, create: true, update: false, delete: false },
+    maintenance: { view: false, create: false, update: false, delete: false },
     rentals: { view: true, create: false, update: false, delete: false },
-    accidents: { view: true, create: true, update: false, delete: false },
-    claims: { view: true, create: true, update: false, delete: false },
-    finance: { view: false, create: false, update: false, delete: false },
+    accidents: { view: false, create: false, update: false, delete: false },
+    claims: { view: true, create: false, update: false, delete: false },
+    finance: { view: true, create: true, update: true, delete: false },
     users: { view: false, create: false, update: false, delete: false },
-    customers: { view: false, create: false, update: false, delete: false }
+    customers: { view: true, create: false, update: false, delete: false }
   }
-};
-
-export const hasPermission = (
-  role: Role,
-  module: keyof RolePermissions,
-  action: keyof Permission
-): boolean => {
-  return DEFAULT_PERMISSIONS[role][module][action];
-};
-
-export const getDefaultPermissions = (role: Role): RolePermissions => {
-  return DEFAULT_PERMISSIONS[role];
-};
-
-export const isModuleVisible = (role: Role, module: keyof RolePermissions): boolean => {
-  return DEFAULT_PERMISSIONS[role][module].view;
 };

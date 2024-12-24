@@ -25,12 +25,12 @@ const PoliceDetails = () => {
       {policeInvolved && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            label="Officer Name"
+            label="Officer's Name"
             {...register('policeOfficerName')}
             error={errors.policeOfficerName?.message as string}
           />
           <FormField
-            label="Badge Number"
+            label="Badge/ID Number"
             {...register('policeBadgeNumber')}
             error={errors.policeBadgeNumber?.message as string}
           />

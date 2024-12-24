@@ -2,45 +2,33 @@ import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
 
-const PassengerDetails = () => {
-  const { register, formState: { errors }, watch } = useFormContext();
-  const [hasPassengers, setHasPassengers] = React.useState(false);
-  const [passengerCount, setPassengerCount] = React.useState(0);
+interface PassengerDetailsProps {
+  count: number;
+  onCountChange: (count: number) => void;
+}
+
+const PassengerDetails: React.FC<PassengerDetailsProps> = ({ count, onCountChange }) => {
+  const { register, formState: { errors } } = useFormContext();
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Passenger Details</h3>
-      
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Were there any passengers?</label>
-          <select
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            onChange={(e) => setHasPassengers(e.target.value === 'yes')}
-          >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </select>
-        </div>
-
-        {hasPassengers && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Number of Passengers</label>
-            <select
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              onChange={(e) => setPassengerCount(parseInt(e.target.value))}
-            >
-              {[1, 2, 3, 4].map(num => (
-                <option key={num} value={num}>{num}</option>
-              ))}
-            </select>
-          </div>
-        )}
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900">Passenger Details</h3>
+        <select
+          value={count}
+          onChange={(e) => onCountChange(parseInt(e.target.value))}
+          className="block rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+        >
+          <option value="0">No passengers</option>
+          {[1, 2, 3, 4].map(num => (
+            <option key={num} value={num}>{num} passenger{num !== 1 ? 's' : ''}</option>
+          ))}
+        </select>
       </div>
 
-      {hasPassengers && [...Array(passengerCount)].map((_, index) => (
-        <div key={index} className="p-4 border border-gray-200 rounded-lg">
-          <h4 className="text-md font-medium mb-4">Passenger {index + 1}</h4>
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={index} className="border rounded-lg p-4 space-y-4">
+          <h4 className="font-medium">Passenger {index + 1}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               label="Name"

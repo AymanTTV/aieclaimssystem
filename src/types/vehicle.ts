@@ -1,17 +1,10 @@
 export type VehicleStatus = 
-  | 'active'
-  | 'maintenance' 
+  | 'available'
   | 'rented'
-  | 'claim'
+  | 'maintenance'
+  | 'test-scheduled'
   | 'unavailable'
   | 'sold';
-
-export interface VehicleOwner {
-  fullName: string;
-  address: string;
-  email: string;
-  phoneNumber: string;
-}
 
 export interface Vehicle {
   id: string;
@@ -29,11 +22,21 @@ export interface Vehicle {
   lastMaintenance: Date;
   nextMaintenance: Date;
   image?: string;
+  currentRental?: string | null; // Reference to current rental if any
+  currentMaintenance?: string | null; // Reference to current maintenance if any
+  currentTest?: string | null; // Reference to current test if any
   owner: VehicleOwner;
   createdAt: Date;
   createdBy: string;
   soldDate?: Date;
   salePrice?: number;
+}
+
+export interface VehicleOwner {
+  fullName: string;
+  address: string;
+  email: string;
+  phoneNumber: string;
 }
 
 export interface MileageHistory {

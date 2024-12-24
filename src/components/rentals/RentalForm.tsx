@@ -27,6 +27,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     startDate: new Date().toISOString().split('T')[0],
     endDate: addWeeks(new Date(), 1).toISOString().split('T')[0],
     type: RENTAL_TYPES.DAILY as keyof typeof RENTAL_TYPES,
+    reason: 'hired' as 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'wfw-c-substitute' | 'h-substitute',
+    status: 'awaiting' as 'urgent' | 'awaiting' | 'levc-loan' | 'completed'
   });
 
   // Update end date when rental type or number of weeks changes
@@ -36,7 +38,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
     if (formData.type === RENTAL_TYPES.WEEKLY) {
       endDate = addWeeks(startDate, numberOfWeeks);
-      endDate = addDays(endDate, -1); // Subtract one day to get correct duration
+      endDate = addDays(endDate, -1);
     }
 
     setFormData(prev => ({
@@ -48,35 +50,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const standardCost = calculateRentalCost(
     new Date(formData.startDate),
     new Date(formData.endDate),
-    formData.type
+    formData.type,
+    formData.reason
   );
-
-  const handleRentalTypeChange = (type: keyof typeof RENTAL_TYPES) => {
-    setFormData(prev => ({
-      ...prev,
-      type,
-      // Reset end date when switching types
-      endDate: type === RENTAL_TYPES.WEEKLY 
-        ? addWeeks(new Date(prev.startDate), numberOfWeeks).toISOString().split('T')[0]
-        : prev.endDate
-    }));
-  };
-
-  const handleStartDateChange = (date: string) => {
-    const newStartDate = new Date(date);
-    let newEndDate = newStartDate;
-
-    if (formData.type === RENTAL_TYPES.WEEKLY) {
-      newEndDate = addWeeks(newStartDate, numberOfWeeks);
-      newEndDate = addDays(newEndDate, -1); // Subtract one day to get correct duration
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      startDate: date,
-      endDate: newEndDate.toISOString().split('T')[0]
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,16 +71,18 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         startDate: new Date(formData.startDate),
         endDate: new Date(formData.endDate),
         type: formData.type,
+        reason: formData.reason,
+        status: formData.status,
         numberOfWeeks: formData.type === RENTAL_TYPES.WEEKLY ? numberOfWeeks : undefined,
         cost: finalCost,
         standardCost,
         negotiated: !!customRate,
         negotiationNotes: negotiationNotes || null,
         approvedBy: customRate ? user?.id : null,
-        status: 'scheduled',
         paymentStatus: 'pending',
         createdAt: new Date(),
         createdBy: user?.id,
+        updatedAt: new Date(),
       });
 
       toast.success('Rental scheduled successfully');
@@ -146,13 +124,46 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         <label className="block text-sm font-medium text-gray-700">Rental Type</label>
         <select
           value={formData.type}
-          onChange={(e) => handleRentalTypeChange(e.target.value as keyof typeof RENTAL_TYPES)}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value as keyof typeof RENTAL_TYPES })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           required
         >
-          <option value={RENTAL_TYPES.DAILY}>Daily Rental (£{RENTAL_RATES.daily}/day)</option>
-          <option value={RENTAL_TYPES.WEEKLY}>Weekly Rental (£{RENTAL_RATES.weekly}/week)</option>
-          <option value={RENTAL_TYPES.CLAIM}>Claim Rental (£{RENTAL_RATES.claim + 10}/day inc. insurance)</option>
+          <option value={RENTAL_TYPES.DAILY}>Daily (£{RENTAL_RATES.daily}/day)</option>
+          <option value={RENTAL_TYPES.WEEKLY}>Weekly (£{RENTAL_RATES.weekly}/week)</option>
+          <option value={RENTAL_TYPES.CLAIM}>Claim (£{RENTAL_RATES.claim}/day)</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Reason</label>
+        <select
+          value={formData.reason}
+          onChange={(e) => setFormData({ ...formData, reason: e.target.value as typeof formData.reason })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="hired">Hired</option>
+          <option value="claim">Claim</option>
+          <option value="o/d">O/D</option>
+          <option value="staff">Staff</option>
+          <option value="workshop">Workshop</option>
+          <option value="wfw-c-substitute">WFW C Substitute</option>
+          <option value="h-substitute">H Substitute</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <select
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="urgent">Urgent</option>
+          <option value="awaiting">Awaiting</option>
+          <option value="levc-loan">LEVC Loan</option>
+          <option value="completed">Completed</option>
         </select>
       </div>
 
@@ -175,7 +186,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           type="date"
           label="Start Date"
           value={formData.startDate}
-          onChange={(e) => handleStartDateChange(e.target.value)}
+          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
           required
           min={new Date().toISOString().split('T')[0]}
         />

@@ -1,15 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { claimFormSchema, type ClaimFormData } from './schema';
 import { useAuth } from '../../../context/AuthContext';
-import { useVehicles } from '../../../hooks/useVehicles';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import toast from 'react-hot-toast';
-import VehicleSelect from '../../VehicleSelect';
 
 // Import all sections
+import SubmitterDetails from './sections/SubmitterDetails';
 import DriverDetails from './sections/DriverDetails';
 import VehicleDetails from './sections/VehicleDetails';
 import FaultPartyDetails from './sections/FaultPartyDetails';
@@ -25,75 +24,41 @@ interface AccidentClaimFormProps {
 
 const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
   const { user } = useAuth();
-  const { vehicles } = useVehicles();
-  const [selectedVehicleId, setSelectedVehicleId] = React.useState<string>('');
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = useState(false);
+  const [passengerCount, setPassengerCount] = useState(0);
+  const [witnessCount, setWitnessCount] = useState(0);
 
   const methods = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
-    mode: 'onBlur',
     defaultValues: {
-      passengers: Array(4).fill({
-        name: '',
-        address: '',
-        postCode: '',
-        dob: '',
-        contactNumber: ''
-      })
+      submitterType: 'company',
+      passengers: [],
+      witnesses: []
     }
   });
 
-  const onSubmit = async (data: ClaimFormData) => {
-    if (!user || !selectedVehicleId) {
-      toast.error('Please select a vehicle');
-      return;
-    }
-
+  const handleSubmit = async (data: ClaimFormData) => {
+    if (!user) return;
     setLoading(true);
 
     try {
-      // Create accident record
-      const accidentRef = await addDoc(collection(db, 'accidents'), {
-        vehicleId: selectedVehicleId,
-        driverId: user.id,
-        date: new Date(data.accidentDate),
-        time: data.accidentTime,
-        location: data.accidentLocation,
-        description: data.description,
-        damageDetails: data.damageDetails,
-        status: 'reported',
-        createdAt: new Date(),
-      });
-
-      // Create claim record
       await addDoc(collection(db, 'claims'), {
-        accidentId: accidentRef.id,
-        claimDetails: {
-          ...data,
-          accidentDate: new Date(data.accidentDate),
-          dob: new Date(data.driverDOB),
-          passengers: data.passengers?.map(p => ({
-            ...p,
-            dob: p.dob ? new Date(p.dob) : null
-          }))
-        },
+        ...data,
         status: 'submitted',
-        type: 'pending',
-        assignedTo: '',
-        createdAt: new Date(),
+        claimType: 'pending',
+        submittedBy: user.id,
+        submittedAt: new Date(),
         updatedAt: new Date(),
-        documents: {
-          invoices: []
-        },
-        progressNotes: [{
+        progressHistory: [{
           id: Date.now().toString(),
           date: new Date(),
           note: 'Claim submitted',
-          author: user.name
+          author: user.name,
+          status: 'submitted'
         }]
       });
 
-      toast.success('Accident report and claim submitted successfully');
+      toast.success('Claim submitted successfully');
       onClose();
     } catch (error) {
       console.error('Error submitting claim:', error);
@@ -105,21 +70,14 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-8">
-        <p className="text-sm text-gray-500">
-          Please fill in all required details so we can process your claim efficiently
-        </p>
+      <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-8">
+        <div className="space-y-6">
+          {/* Submitter Type Section */}
+          <div className="bg-white rounded-lg p-6">
+            <SubmitterDetails />
+          </div>
 
-        <div className="space-y-4">
-          <VehicleSelect
-            vehicles={vehicles}
-            selectedVehicleId={selectedVehicleId}
-            onSelect={setSelectedVehicleId}
-            required
-          />
-        </div>
-
-        <div className="space-y-8">
+          {/* Rest of the sections */}
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
           </div>
@@ -137,11 +95,17 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <PassengerDetails />
+            <PassengerDetails 
+              count={passengerCount}
+              onCountChange={setPassengerCount}
+            />
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <WitnessDetails />
+            <WitnessDetails 
+              count={witnessCount}
+              onCountChange={setWitnessCount}
+            />
           </div>
 
           <div className="bg-white rounded-lg p-6">
@@ -159,7 +123,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-              disabled={loading}
             >
               Cancel
             </button>

@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   email: string;
-  role: 'admin' | 'manager' | 'driver';
+  role: 'admin' | 'manager' | 'finance';
   name: string;
   createdAt: Date;
   photoURL?: string;

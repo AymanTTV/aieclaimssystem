@@ -7,60 +7,39 @@ export const RENTAL_TYPES = {
 } as const;
 
 export const RENTAL_RATES = {
-  [RENTAL_TYPES.DAILY]: 60, // £60 per day
-  [RENTAL_TYPES.WEEKLY]: 360, // £360 per week
-  [RENTAL_TYPES.CLAIM]: 340 // £350 per day + £10 insurance
+  daily: 60, // £60 per day
+  weekly: 360, // £360 per week
+  claim: 340, // £340 per day for claim rentals
+  staff: 30, // £30 per day for staff
+  workshop: 0, // Free for workshop
+  substitute: 45 // £45 per day for substitutes
 } as const;
 
 export const calculateRentalCost = (
   startDate: Date,
   endDate: Date,
   type: keyof typeof RENTAL_TYPES,
-  customRate?: number
+  reason?: string
 ): number => {
-  const days = differenceInDays(endDate, startDate) + 1; // Include both start and end days
+  const days = differenceInDays(endDate, startDate) + 1;
 
-  // If custom rate is provided, use it
-  if (customRate !== undefined) {
-    return days * customRate;
+  // Special rates based on reason
+  if (reason === 'staff') return days * RENTAL_RATES.staff;
+  if (reason === 'workshop') return 0;
+  if (reason === 'wfw-c-substitute' || reason === 'h-substitute') {
+    return days * RENTAL_RATES.substitute;
   }
 
-  // For weekly rentals, check if duration is less than a week
+  // Standard rates based on type
   if (type === RENTAL_TYPES.WEEKLY) {
-    if (days < 7) {
-      // Convert to daily rate if less than a week
-      return days * RENTAL_RATES[RENTAL_TYPES.DAILY];
-    }
-    // Calculate full weeks and remaining days
     const weeks = Math.floor(days / 7);
     const remainingDays = days % 7;
-    return (weeks * RENTAL_RATES[RENTAL_TYPES.WEEKLY]) + 
-           (remainingDays * RENTAL_RATES[RENTAL_TYPES.DAILY]);
+    return (weeks * RENTAL_RATES.weekly) + (remainingDays * RENTAL_RATES.daily);
   }
 
-  // For claim rentals, add insurance cost
   if (type === RENTAL_TYPES.CLAIM) {
-    return days * (RENTAL_RATES[RENTAL_TYPES.CLAIM] + 10); // Daily rate + insurance
+    return days * RENTAL_RATES.claim;
   }
 
-  // Default daily rate
-  return days * RENTAL_RATES[RENTAL_TYPES.DAILY];
-};
-
-export const calculateProRatedCost = (
-  startDate: Date,
-  endDate: Date,
-  type: keyof typeof RENTAL_TYPES,
-  returnedEarly: boolean
-): number => {
-  if (!returnedEarly) return calculateRentalCost(startDate, endDate, type);
-
-  const actualDays = differenceInDays(endDate, startDate) + 1;
-  
-  // If it was a weekly rental but returned within 4 days, charge daily rate
-  if (type === RENTAL_TYPES.WEEKLY && actualDays <= 4) {
-    return actualDays * RENTAL_RATES[RENTAL_TYPES.DAILY];
-  }
-
-  return calculateRentalCost(startDate, endDate, type);
+  return days * RENTAL_RATES.daily;
 };

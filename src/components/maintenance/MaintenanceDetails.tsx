@@ -36,9 +36,19 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-medium text-gray-500">Vehicle</h3>
-          <p className="mt-1">
-            {vehicle.make} {vehicle.model} - {vehicle.registrationNumber}
-          </p>
+          <div className="mt-1 flex items-center space-x-2">
+            {vehicle.image && (
+              <img 
+                src={vehicle.image} 
+                alt={`${vehicle.make} ${vehicle.model}`}
+                className="h-10 w-10 object-cover rounded-md"
+              />
+            )}
+            <div>
+              <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+              <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
+            </div>
+          </div>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Status</h3>

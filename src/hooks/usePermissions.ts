@@ -29,5 +29,8 @@ export const usePermissions = () => {
     can,
     canAny,
     canAll,
+    isManager: user?.role === 'manager',
+    isAdmin: user?.role === 'admin',
+    isFinance: user?.role === 'finance'
   };
 };

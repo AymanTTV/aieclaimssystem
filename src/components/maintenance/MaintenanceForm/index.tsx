@@ -1,6 +1,22 @@
-{/* Previous imports remain the same */}
+import React from 'react';
+import { useMaintenanceForm } from './useMaintenanceForm';
+import { Vehicle, MaintenanceLog } from '../../../types';
+import { usePermissions } from '../../../hooks/usePermissions';
+import MaintenanceDetails from './sections/MaintenanceDetails';
+import ServiceCenterSection from './sections/ServiceCenterSection';
+import PartsSection from './sections/PartsSection';
+import LaborSection from './sections/LaborSection';
+import CostSummary from './sections/CostSummary';
+import VehicleSelect from '../../VehicleSelect';
+
+interface MaintenanceFormProps {
+  vehicles: Vehicle[];
+  onClose: () => void;
+  editLog?: MaintenanceLog;
+}
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
+  const { can } = usePermissions();
   const {
     loading,
     selectedVehicleId,
@@ -18,9 +34,41 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     calculateTotalCost,
   } = useMaintenanceForm({ vehicles, onClose, editLog });
 
+  if (!can('maintenance', editLog ? 'update' : 'create')) {
+    return <div>You don't have permission to {editLog ? 'edit' : 'create'} maintenance records.</div>;
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Previous sections remain the same */}
+      <VehicleSelect
+        vehicles={vehicles}
+        selectedVehicleId={selectedVehicleId}
+        onSelect={setSelectedVehicleId}
+        required
+      />
+
+      <MaintenanceDetails
+        formData={formData}
+        setFormData={setFormData}
+      />
+
+      <ServiceCenterSection
+        formData={formData}
+        onServiceCenterSelect={handleServiceCenterSelect}
+      />
+
+      <PartsSection
+        parts={parts}
+        setParts={setParts}
+      />
+
+      <LaborSection
+        formData={formData}
+        setFormData={setFormData}
+        includeVATOnLabor={includeVATOnLabor}
+        setIncludeVATOnLabor={setIncludeVATOnLabor}
+        calculateLaborCost={calculateLaborCost}
+      />
 
       <CostSummary
         calculatePartsCost={calculatePartsCost}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MileageHistory } from '../types/vehicle';
 import toast from 'react-hot-toast';
@@ -16,32 +16,32 @@ export const useMileageHistory = (vehicleId: string) => {
       return;
     }
 
-    const fetchHistory = async () => {
-      try {
-        const mileageRef = collection(db, 'mileageHistory');
-        const q = query(
-          mileageRef,
-          where('vehicleId', '==', vehicleId),
-          orderBy('date', 'desc')
-        );
+    const q = query(
+      collection(db, 'mileageHistory'),
+      where('vehicleId', '==', vehicleId),
+      orderBy('date', 'desc')
+    );
 
-        const snapshot = await getDocs(q);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         const historyData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
           date: doc.data().date.toDate(),
         })) as MileageHistory[];
-
+        
         setHistory(historyData);
-      } catch (err) {
+        setLoading(false);
+      },
+      (err) => {
         console.error('Error fetching mileage history:', err);
-        setError(err as Error);
-      } finally {
+        setError(err);
         setLoading(false);
       }
-    };
+    );
 
-    fetchHistory();
+    return () => unsubscribe();
   }, [vehicleId]);
 
   return { history, loading, error };
