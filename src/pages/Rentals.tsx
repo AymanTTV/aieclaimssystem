@@ -31,7 +31,7 @@ const Rentals = () => {
     vehicleFilter,
     setVehicleFilter,
     filteredRentals
-  } = useRentalFilters(rentals);
+  } = useRentalFilters(rentals, vehicles, customers); // Pass all three arrays
 
   useRentalStatusUpdates(); // Enable automatic status updates
 
@@ -84,6 +84,8 @@ const Rentals = () => {
         </div>
       </div>
 
+      
+
       <RentalFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -95,6 +97,7 @@ const Rentals = () => {
         onVehicleFilterChange={setVehicleFilter}
         vehicles={vehicles}
       />
+
 
       <RentalTable
         rentals={filteredRentals}

@@ -1,3 +1,4 @@
+// src/components/rentals/RentalFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
 import { Vehicle } from '../../types';
@@ -27,23 +28,19 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
 }) => {
   return (
     <div className="space-y-4">
-      {/* Search Input - Full width with proper spacing */}
-      <div className="w-full">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search rentals..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm h-10"
-          />
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
         </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search by vehicle, customer, or rental type..."
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+        />
       </div>
 
-      {/* Filters Grid - Responsive layout */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <select
           value={statusFilter}

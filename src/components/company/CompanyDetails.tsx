@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'; // Add setDoc import
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
 import CompanyLogo from './CompanyLogo';
 import FormField from '../ui/FormField';
+import { Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SignaturePad from "../ui/SignaturePad"
+
 
 interface CompanySettings {
   logoUrl?: string;
@@ -16,11 +20,12 @@ interface CompanySettings {
   website: string;
   officialAddress: string;
   bankName: string;
-  bankAddress: string;
-  iban: string;
-  taxNumber: string;
-  swiftBic: string;
+  sortCode: string;
+  accountNumber: string;
+  vatNumber: string;
   registrationNumber: string;
+  termsAndConditions: string; // Text area content
+  signature: string; // Base64 encoded signature
 }
 
 const CompanyDetails = () => {
@@ -36,11 +41,12 @@ const CompanyDetails = () => {
     website: '',
     officialAddress: '',
     bankName: '',
-    bankAddress: '',
-    iban: '',
-    taxNumber: '',
-    swiftBic: '',
-    registrationNumber: ''
+    sortCode: '',
+    accountNumber: '',
+    vatNumber: '',
+    registrationNumber: '',
+    termsAndConditions: '',
+    signature: ''
   });
 
   useEffect(() => {
@@ -48,7 +54,27 @@ const CompanyDetails = () => {
       try {
         const docRef = doc(db, 'companySettings', 'details');
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
+        if (!docSnap.exists()) {
+          const defaultSettings = {
+            fullName: '',
+            title: '',
+            email: '',
+            replyToEmail: '',
+            phone: '',
+            website: '',
+            officialAddress: '',
+            bankName: '',
+            sortCode: '',
+            accountNumber: '',
+            vatNumber: '',
+            registrationNumber: '',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+
+          await setDoc(docRef, defaultSettings);
+          setFormData(defaultSettings);
+        } else {
           setFormData(docSnap.data() as CompanySettings);
         }
       } catch (error) {
@@ -62,6 +88,24 @@ const CompanyDetails = () => {
     fetchCompanyDetails();
   }, []);
 
+  const handleFileUpload = async (file: File, type: 'terms' | 'signature') => {
+    try {
+      const storageRef = ref(storage, `company/${type}/${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      
+      setFormData(prev => ({
+        ...prev,
+        [type === 'terms' ? 'termsAndConditionsUrl' : 'signatureUrl']: url
+      }));
+      
+      toast.success(`${type === 'terms' ? 'Terms & Conditions' : 'Signature'} uploaded successfully`);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) return;
@@ -69,11 +113,29 @@ const CompanyDetails = () => {
     setLoading(true);
 
     try {
-      await updateDoc(doc(db, 'companySettings', 'details'), {
-        ...formData,
-        updatedAt: new Date(),
-        updatedBy: user.id
-      });
+      const docRef = doc(db, 'companySettings', 'details');
+      
+      // First check if document exists
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        // Create document if it doesn't exist
+        await setDoc(docRef, {
+          ...formData,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: user.id,
+          updatedBy: user.id
+        });
+      } else {
+        // Update existing document
+        await updateDoc(docRef, {
+          ...formData,
+          updatedAt: new Date(),
+          updatedBy: user.id
+        });
+      }
+
       toast.success('Company details updated successfully');
       setEditing(false);
     } catch (error) {
@@ -188,30 +250,30 @@ const CompanyDetails = () => {
             required
           />
           <FormField
-            label="Bank Address"
-            value={formData.bankAddress}
-            onChange={(e) => setFormData({ ...formData, bankAddress: e.target.value })}
-            disabled={!editing}
-          />
-          <FormField
-            label="IBAN"
-            value={formData.iban}
-            onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
+            label="Sort Code"
+            value={formData.sortCode}
+            onChange={(e) => setFormData({ ...formData, sortCode: e.target.value })}
             disabled={!editing}
             required
+            pattern="[0-9]{2}-[0-9]{2}-[0-9]{2}"
+            placeholder="00-00-00"
           />
           <FormField
-            label="SWIFT/BIC"
-            value={formData.swiftBic}
-            onChange={(e) => setFormData({ ...formData, swiftBic: e.target.value })}
-            disabled={!editing}
-          />
-          <FormField
-            label="Tax Number"
-            value={formData.taxNumber}
-            onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
+            label="Account Number"
+            value={formData.accountNumber}
+            onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
             disabled={!editing}
             required
+            pattern="[0-9]{8}"
+            placeholder="12345678"
+          />
+          <FormField
+            label="VAT Number"
+            value={formData.vatNumber}
+            onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })}
+            disabled={!editing}
+            required
+            placeholder="GB123456789"
           />
           <FormField
             label="Company Registration Number"
@@ -234,8 +296,47 @@ const CompanyDetails = () => {
             required
           />
         </div>
+
+        {/* Terms & Conditions Upload */}
+        <div className="col-span-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Terms & Conditions
+          </label>
+          <textarea
+            value={formData.termsAndConditions}
+            onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
+            rows={10}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            disabled={!editing}
+            placeholder="Enter your company's terms and conditions here..."
+          />
+        </div>
+
+        {/* E-Signature */}
+      <div className="col-span-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Company E-Signature
+        </label>
+        {editing ? (
+          <SignaturePad
+            value={formData.signature}
+            onChange={(signature) => setFormData({ ...formData, signature })}
+            className="mt-1 border rounded-md"
+          />
+        ) : (
+          formData.signature && (
+            <img 
+              src={formData.signature} 
+              alt="Company Signature" 
+              className="mt-1 h-24 object-contain"
+            />
+          )
+        )}
       </div>
-    </div>
+        </div>
+      </div>
+    
+    
   );
 };
 

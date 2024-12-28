@@ -1,5 +1,6 @@
+// src/hooks/useVehicleFilters.ts
 import { useState, useMemo } from 'react';
-import { Vehicle } from '../types/vehicle';
+import { Vehicle } from '../types';
 
 export const useVehicleFilters = (vehicles: Vehicle[]) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,11 +15,13 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
         return false;
       }
 
+      const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        vehicle.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vehicle.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vehicle.vin.toLowerCase().includes(searchQuery.toLowerCase());
+        vehicle.registrationNumber.toLowerCase().includes(searchLower) ||
+        vehicle.make.toLowerCase().includes(searchLower) ||
+        vehicle.model.toLowerCase().includes(searchLower) ||
+        vehicle.vin.toLowerCase().includes(searchLower) ||
+        vehicle.owner?.name.toLowerCase().includes(searchLower);
 
       const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
       const matchesMake = makeFilter === 'all' || vehicle.make === makeFilter;

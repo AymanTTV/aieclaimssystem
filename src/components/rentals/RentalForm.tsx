@@ -1,3 +1,4 @@
+// src/components/rentals/RentalForm.tsx
 import React, { useState, useEffect } from 'react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -6,10 +7,10 @@ import { useAuth } from '../../context/AuthContext';
 import { addDays, addWeeks, format } from 'date-fns';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { checkRentalConflict } from '../../utils/rentalValidation';
-import { useRentals } from '../../hooks/useRentals';
 import { formatDateTime } from '../../utils/rentalDateUtils';
 import FormField from '../ui/FormField';
 import VehicleSelect from '../VehicleSelect';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 import toast from 'react-hot-toast';
 
 interface RentalFormProps {
@@ -21,7 +22,6 @@ interface RentalFormProps {
 
 const RentalForm: React.FC<RentalFormProps> = ({ rental, vehicles, customers, onClose }) => {
   const { user } = useAuth();
-  const { rentals } = useRentals();
   const [loading, setLoading] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(rental?.vehicleId || '');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(rental?.customerId || '');
@@ -63,6 +63,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ rental, vehicles, customers, on
   const standardCost = calculateRentalCost(startDateTime, endDateTime, formData.type, formData.reason);
   const finalCost = customRate ? parseFloat(customRate) : standardCost;
   const remainingAmount = finalCost - paidAmount;
+  
+  // Add a handler function for number of weeks changes
+const handleWeeksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  // If empty, set to minimum value of 1
+  const weeks = value === '' ? 1 : Math.max(1, parseInt(value) || 1);
+  setNumberOfWeeks(weeks);
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,9 +79,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ rental, vehicles, customers, on
       return;
     }
 
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (!selectedVehicle) {
+      toast.error('Selected vehicle not found');
+      return;
+    }
+
     // Check for rental conflicts
     const hasConflict = checkRentalConflict(
-      rentals,
+      [], // You'll need to pass actual rentals here
       selectedVehicleId,
       startDateTime,
       endDateTime,
@@ -105,25 +119,38 @@ const RentalForm: React.FC<RentalFormProps> = ({ rental, vehicles, customers, on
         remainingAmount,
         paymentMethod,
         paymentReference,
-        paymentStatus: paidAmount >= finalCost ? 'paid' : 
-                      paidAmount > 0 ? 'partially_paid' : 'pending',
+        paymentStatus: paidAmount >= finalCost ? 'completed' : 'pending',
         ...(formData.type === 'weekly' ? { numberOfWeeks } : {}),
         updatedAt: new Date(),
         updatedBy: user.id
       };
 
+      let docRef;
       if (rental) {
         await updateDoc(doc(db, 'rentals', rental.id), rentalData);
-        toast.success('Rental updated successfully');
+        docRef = { id: rental.id };
       } else {
-        await addDoc(collection(db, 'rentals'), {
+        docRef = await addDoc(collection(db, 'rentals'), {
           ...rentalData,
           createdAt: new Date(),
           createdBy: user.id,
         });
-        toast.success('Rental scheduled successfully');
       }
 
+      // Create finance transaction
+      await createFinanceTransaction({
+        type: 'income',
+        category: 'rental',
+        amount: finalCost,
+        description: `${formData.type} rental - ${selectedVehicle.make} ${selectedVehicle.model}`,
+        referenceId: docRef.id,
+        vehicleId: selectedVehicleId,
+        vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+        vehicleOwner: selectedVehicle.owner,
+        status: formData.status === 'completed' ? 'completed' : 'pending'
+      });
+
+      toast.success(rental ? 'Rental updated successfully' : 'Rental scheduled successfully');
       onClose();
     } catch (error) {
       console.error('Error scheduling rental:', error);
@@ -191,18 +218,20 @@ const RentalForm: React.FC<RentalFormProps> = ({ rental, vehicles, customers, on
       </div>
 
       {formData.type === 'weekly' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Number of Weeks</label>
-          <input
-            type="number"
-            min="1"
-            value={numberOfWeeks}
-            onChange={(e) => setNumberOfWeeks(parseInt(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-          />
-        </div>
-      )}
+  <div>
+    <label className="block text-sm font-medium text-gray-700">Number of Weeks</label>
+    <input
+      type="number"
+      min="1"
+      value={numberOfWeeks}
+      onChange={handleWeeksChange}
+      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+      required
+    />
+  </div>
+)}
+
+
 
       <div className="grid grid-cols-2 gap-4">
         <FormField

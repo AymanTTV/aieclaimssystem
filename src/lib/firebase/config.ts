@@ -1,9 +1,10 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, FirebaseOptions } from 'firebase/app';
+import { getAuth, ActionCodeSettings } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-const firebaseConfig = {
+// Firebase configuration
+const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
@@ -12,24 +13,27 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+// Configure password reset settings
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+export const passwordResetSettings: ActionCodeSettings = {
+  url: 'https://aie-claims.firebaseapp.com/login', // Change this to your actual domain
+  handleCodeInApp: true,
+};
+
+
+
+// Initialize Firebase app
+const app = initializeApp(firebaseConfig);
+
+// Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Configure storage settings with shorter timeouts
+// Configure storage settings
 storage.maxOperationRetryTime = 15000; // 15 seconds
 storage.maxUploadRetryTime = 15000; // 15 seconds
 
-// Storage metadata with CORS headers
-export const storageMetadata = {
-  cacheControl: 'public,max-age=7200',
-  customMetadata: {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Max-Age': '3600'
-  }
-};
+
+// Export initialized app as default
+export default app;

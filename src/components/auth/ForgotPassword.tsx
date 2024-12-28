@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { passwordResetSettings } from '../../lib/firebase/config';
+import {auth} from '../../lib/firebase';
+
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -17,12 +19,31 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     setLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email);
-      toast.success('Password reset email sent. Please check your inbox.');
+      await sendPasswordResetEmail(auth, email, passwordResetSettings);
+      toast.success('Password reset email sent. Please check your inbox and spam folder.');
       onBack();
     } catch (error: any) {
       console.error('Error sending reset email:', error);
-      toast.error(error.message || 'Failed to send reset email');
+      let errorMessage = 'Failed to send reset email';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email address';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many attempts. Please try again later';
+          break;
+        case 'auth/unauthorized-continue-uri':
+          errorMessage = 'Invalid reset link configuration. Please contact support.';
+          break;
+        default:
+          errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

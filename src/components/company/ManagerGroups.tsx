@@ -21,19 +21,20 @@ interface GroupFormData {
   permissions: string[];
 }
 
-const DEFAULT_PERMISSIONS = [
-  'Orders by locations',
-  'Order',
-  'Payments',
-  'Vehicle',
-  'Contacts',
-  'Order Maintenance',
-  'Daily plan',
-  'Timeline',
-  'Invoice and agreement',
-  'Settings',
-  'Other permissions'
-];
+const DEFAULT_PERMISSIONS = {
+  admin: {
+    name: 'Admin',
+    permissions: ['Full system access', 'User management', 'Financial controls', 'System settings']
+  },
+  manager: {
+    name: 'Manager',
+    permissions: ['Vehicle management', 'Maintenance scheduling', 'Rental management', 'Staff management']
+  },
+  finance: {
+    name: 'Finance',
+    permissions: ['Financial reports', 'Payment processing', 'Invoice management', 'Financial analytics']
+  }
+};
 
 const ManagerGroups = () => {
   const { user } = useAuth();
@@ -76,11 +77,6 @@ const ManagerGroups = () => {
 
     if (!formData.name.trim()) {
       toast.error('Group name is required');
-      return;
-    }
-
-    if (formData.permissions.length === 0) {
-      toast.error('Please select at least one permission');
       return;
     }
 
@@ -137,140 +133,38 @@ const ManagerGroups = () => {
     <div className="bg-white rounded-lg shadow">
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Manager Groups</h2>
-          <button
-            onClick={() => {
-              setEditingGroup(null);
-              setFormData({ name: '', permissions: [] });
-              setShowForm(true);
-            }}
-            className="inline-flex items-center px-3 py-1.5 border border-primary text-sm font-medium rounded text-primary hover:bg-primary hover:text-white"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add group
-          </button>
+          <h2 className="text-lg font-medium text-gray-900">Role Groups</h2>
         </div>
-
-        {showForm && (
-          <div className="mb-6 p-4 border rounded-lg">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Group Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
-                <div className="space-y-2">
-                  {DEFAULT_PERMISSIONS.map((permission) => (
-                    <label key={permission} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.permissions.includes(permission)}
-                        onChange={(e) => {
-                          const newPermissions = e.target.checked
-                            ? [...formData.permissions, permission]
-                            : formData.permissions.filter(p => p !== permission);
-                          setFormData({ ...formData, permissions: newPermissions });
-                        }}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{permission}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingGroup(null);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-                >
-                  {editingGroup ? 'Update' : 'Create'} Group
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
+                  Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Permissions
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {groups.map((group) => (
-                <tr key={group.id}>
+              {Object.entries(DEFAULT_PERMISSIONS).map(([role, details]) => (
+                <tr key={role}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {group.name}
+                    {details.name}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
-                      {group.permissions.map((permission, index) => (
+                      {details.permissions.map((permission, index) => (
                         <Badge key={index} variant="primary">
                           {permission}
                         </Badge>
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingGroup(group);
-                          setFormData({
-                            name: group.name,
-                            permissions: group.permissions
-                          });
-                          setShowForm(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(group.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))}
-              {groups.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
-                    No manager groups found
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

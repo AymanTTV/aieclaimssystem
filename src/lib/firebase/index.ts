@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { passwordResetSettings, authPersistence } from './auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,19 +22,10 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Configure storage settings
-storage.maxOperationRetryTime = 120000; // 2 minutes
-storage.maxUploadRetryTime = 120000; // 2 minutes
+// Configure auth persistence
+setPersistence(auth, browserLocalPersistence);
 
-// Storage metadata with CORS headers
-export const storageMetadata = {
-  cacheControl: 'public,max-age=7200',
-  contentType: 'image/jpeg',
-  customMetadata: {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-  }
-};
+// Export configurations
+export { passwordResetSettings, authPersistence };
 
 export default app;

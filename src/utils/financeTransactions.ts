@@ -1,5 +1,6 @@
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { Vehicle } from '../types';
 
 interface FinanceTransactionParams {
   type: 'income' | 'expense';
@@ -8,7 +9,12 @@ interface FinanceTransactionParams {
   description: string;
   referenceId: string;
   vehicleId: string;
-  status?: 'pending' | 'completed' | 'cancelled';
+  vehicleName?: string;
+  vehicleOwner?: {
+    name: string;
+    isDefault: boolean;
+  };
+  status?: 'pending' | 'completed';
 }
 
 export const createFinanceTransaction = async ({
@@ -18,6 +24,8 @@ export const createFinanceTransaction = async ({
   description,
   referenceId,
   vehicleId,
+  vehicleName,
+  vehicleOwner,
   status = 'completed'
 }: FinanceTransactionParams) => {
   try {
@@ -28,6 +36,8 @@ export const createFinanceTransaction = async ({
       description,
       referenceId,
       vehicleId,
+      vehicleName,
+      vehicleOwner,
       status,
       date: new Date(),
       createdAt: new Date(),
@@ -39,20 +49,4 @@ export const createFinanceTransaction = async ({
     console.error('Error creating finance transaction:', error);
     return { success: false, error };
   }
-};
-
-export const calculateRentalIncome = (startDate: Date, endDate: Date, dailyRate: number): number => {
-  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  return days * dailyRate;
-};
-
-export const calculateClaimSettlement = (
-  claimType: 'fault' | 'non-fault',
-  policyExcess: number,
-  totalExpenses: number
-): number => {
-  if (claimType === 'fault') {
-    return -policyExcess; // Negative amount as it's an expense
-  }
-  return totalExpenses; // Full amount recovered for non-fault claims
 };

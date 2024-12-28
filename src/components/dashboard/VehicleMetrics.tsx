@@ -8,48 +8,51 @@ const VehicleMetrics = () => {
   const { vehicles } = useVehicles();
   const { rentals } = useRentals();
 
-  const activeRentals = rentals.filter(r => r.status === 'active');
-  const claimRentals = activeRentals.filter(r => r.type === 'claim');
-  const generalRentals = activeRentals.filter(r => r.type === 'general');
+  // Count active rentals (status is 'rented' or 'active')
+  const activeRentals = rentals.filter(r => 
+    r.status === 'rented' || r.status === 'active'
+  ).length;
 
-  const metrics = {
-    totalVehicles: vehicles.length,
-    activeRentals: generalRentals.length,
-    claimRentals: claimRentals.length,
-    needingAttention: vehicles.filter(v => {
-      const today = new Date();
-      return (
-        v.motExpiry <= today ||
-        v.nslExpiry <= today ||
-        v.roadTaxExpiry <= today ||
-        v.insuranceExpiry <= today
-      );
-    }).length
-  };
+  // Count claim rentals
+  const claimRentals = rentals.filter(r => 
+    (r.status === 'rented' || r.status === 'active') && 
+    r.type === 'claim'
+  ).length;
+
+  // Count vehicles needing attention (expired or soon expiring documents)
+  const needingAttention = vehicles.filter(v => {
+    const today = new Date();
+    return (
+      v.motExpiry <= today ||
+      v.nslExpiry <= today ||
+      v.roadTaxExpiry <= today ||
+      v.insuranceExpiry <= today
+    );
+  }).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard
         title="Total Vehicles"
-        value={metrics.totalVehicles}
+        value={vehicles.length}
         icon={Car}
         iconColor="text-primary"
       />
       <StatCard
         title="Active Rentals"
-        value={metrics.activeRentals}
+        value={activeRentals}
         icon={Clock}
         iconColor="text-green-500"
       />
       <StatCard
         title="Claim Rentals"
-        value={metrics.claimRentals}
+        value={claimRentals}
         icon={FileText}
         iconColor="text-blue-500"
       />
       <StatCard
         title="Need Attention"
-        value={metrics.needingAttention}
+        value={needingAttention}
         icon={AlertTriangle}
         iconColor="text-amber-500"
       />

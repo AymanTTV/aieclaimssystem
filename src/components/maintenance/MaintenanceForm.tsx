@@ -129,6 +129,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           laborVAT: includeVATOnLabor
         }
       };
+      
 
       if (editLog) {
         await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
@@ -152,6 +153,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             description: `Maintenance payment for ${formData.description}`,
             referenceId: docRef.id,
             vehicleId: selectedVehicleId,
+            vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+            status: formData.status === 'completed' ? 'completed' : 'pending'
           });
         }
 

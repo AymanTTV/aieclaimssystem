@@ -22,7 +22,8 @@ const VehicleReport: React.FC<VehicleReportProps> = ({ vehicles }) => {
     <Card title="Vehicle Reports">
       <div className="space-y-6">
         <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Upcoming Maintenance</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-
+            3">Upcoming Maintenance</h3>
           <div className="space-y-3">
             {upcomingMaintenance.map(vehicle => (
               <div key={vehicle.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">

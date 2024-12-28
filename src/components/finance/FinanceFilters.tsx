@@ -12,8 +12,8 @@ interface FinanceFiltersProps {
   onTypeChange: (type: 'all' | 'income' | 'expense') => void;
   category: string;
   onCategoryChange: (category: string) => void;
-  paymentStatus: 'all' | 'paid' | 'unpaid' | 'partially_paid';
-  onPaymentStatusChange: (status: 'all' | 'paid' | 'unpaid' | 'partially_paid') => void;
+  paymentStatus: 'all' | 'pending' | 'completed';
+  onPaymentStatusChange: (status: 'all' | 'pending' | 'completed') => void;
   owner: string;
   onOwnerChange: (owner: string) => void;
   owners: string[];
@@ -116,9 +116,8 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1"
           >
             <option value="all">All Status</option>
-            <option value="paid">Paid</option>
-            <option value="partially_paid">Partially Paid</option>
-            <option value="unpaid">Unpaid</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
 

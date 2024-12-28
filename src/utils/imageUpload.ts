@@ -1,5 +1,5 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage, storageMetadata } from '../lib/firebase/config';
+import { storage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -10,14 +10,9 @@ const RETRY_DELAY = 2000; // 2 seconds
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const uploadImage = async (file: File, path: string): Promise<string> => {
-  // Validate file type
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error('Please upload a JPEG, PNG or WebP image');
-  }
-
-  // Validate file size
-  if (file.size > MAX_SIZE) {
-    throw new Error('Image size must be less than 5MB');
+  // Validate file type and size
+  if (!validateImage(file)) {
+    throw new Error('Invalid image file');
   }
 
   let attempts = 0;
@@ -25,7 +20,7 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
 
   while (attempts < MAX_RETRIES) {
     try {
-      // Create a unique filename
+      // Create unique filename
       const timestamp = Date.now();
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
       const filename = `${timestamp}_${sanitizedName}`;
@@ -33,17 +28,26 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
       // Create storage reference
       const storageRef = ref(storage, `${path}/${filename}`);
 
-      // Upload with metadata
-      const snapshot = await uploadBytes(storageRef, file, {
-        ...storageMetadata,
+      // Upload with metadata including CORS headers
+      const metadata = {
         contentType: file.type,
-      });
+        cacheControl: 'public,max-age=7200',
+        customMetadata: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Max-Age': '86400',
+        }
+      };
+
+      // Perform upload
+      const snapshot = await uploadBytes(storageRef, file, metadata);
       
-      // Get download URL
+      // Get download URL with custom headers
       const downloadURL = await getDownloadURL(snapshot.ref);
       return downloadURL;
 
     } catch (error: any) {
+      console.error('Upload attempt failed:', error);
       lastError = error;
       attempts++;
       
@@ -51,9 +55,7 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
         break;
       }
 
-      // Wait before retrying
       await delay(RETRY_DELAY * attempts);
-      console.log(`Retrying upload, attempt ${attempts + 1} of ${MAX_RETRIES}`);
     }
   }
 
