@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { updateVehicleStatus } from '../utils/vehicleStatus';
+import { addVehicleStatus, removeVehicleStatus } from '../utils/vehicleStatusManager';
 
 export const useVehicleStatusManager = () => {
   useEffect(() => {
@@ -20,16 +20,22 @@ export const useVehicleStatusManager = () => {
     const unsubscribeRentals = onSnapshot(rentalsQuery, snapshot => {
       snapshot.docChanges().forEach(change => {
         const rental = change.doc.data();
-        updateVehicleStatus(rental.vehicleId, rental.status === 'active' ? 'rented' : 'available');
+        if (rental.status === 'active') {
+          addVehicleStatus(rental.vehicleId, 'rented', rental.activeStatuses || []);
+        } else if (rental.status === 'completed') {
+          removeVehicleStatus(rental.vehicleId, 'rented', rental.activeStatuses || []);
+        }
       });
     });
 
     const unsubscribeMaintenance = onSnapshot(maintenanceQuery, snapshot => {
       snapshot.docChanges().forEach(change => {
         const maintenance = change.doc.data();
-        const status = maintenance.status === 'completed' ? 'available' : 
-                      maintenance.type.includes('test') ? 'test-scheduled' : 'maintenance';
-        updateVehicleStatus(maintenance.vehicleId, status);
+        if (maintenance.status === 'in-progress') {
+          addVehicleStatus(maintenance.vehicleId, 'maintenance', maintenance.activeStatuses || []);
+        } else if (maintenance.status === 'completed') {
+          removeVehicleStatus(maintenance.vehicleId, 'maintenance', maintenance.activeStatuses || []);
+        }
       });
     });
 

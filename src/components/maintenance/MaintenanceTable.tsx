@@ -53,7 +53,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
     {
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <StatusBadge status={row.original.status} />
+          <StatusBadge status={row.original.paymentStatus} />
+        </div>
+      ),
     },
     {
       header: 'Service Provider',
@@ -66,14 +71,27 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
     {
       header: 'Cost',
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">£{row.original.cost.toFixed(2)}</div>
-          <div className="text-xs text-gray-500">
-            {row.original.vatDetails && 'Inc. VAT'}
+      cell: ({ row }) => {
+        const log = row.original;
+        const totalCost = log.cost;
+        const paidAmount = log.paidAmount || 0;
+        const remainingAmount = totalCost - paidAmount;
+
+        return (
+          <div>
+            <div className="font-medium">£{totalCost.toFixed(2)}</div>
+            {log.paymentStatus === 'partially_paid' && (
+              <div className="text-xs space-y-0.5">
+                <div className="text-green-600">Paid: £{paidAmount.toFixed(2)}</div>
+                <div className="text-amber-600">Due: £{remainingAmount.toFixed(2)}</div>
+              </div>
+            )}
+            <div className="text-xs text-gray-500">
+              {log.vatDetails && 'Inc. VAT'}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'Actions',

@@ -1,103 +1,79 @@
 import React from 'react';
+import { calculateCosts } from '../../../../utils/maintenanceCostUtils';
 
 interface CostSummaryProps {
-  calculatePartsCost: () => number;
-  calculateLaborCost: () => number;
-  calculateTotalCost: () => number;
   parts: Array<{ name: string; quantity: number; cost: number; includeVAT: boolean; }>;
-  includeVATOnLabor: boolean;
   laborHours: number;
   laborRate: number;
+  includeVATOnLabor: boolean;
+  paymentStatus: 'paid' | 'unpaid';
+  onPaymentStatusChange: (status: 'paid' | 'unpaid') => void;
 }
 
-const VAT_RATE = 0.20; // 20% VAT
-
 const CostSummary: React.FC<CostSummaryProps> = ({
-  calculatePartsCost,
-  calculateLaborCost,
-  calculateTotalCost,
   parts,
-  includeVATOnLabor,
   laborHours,
   laborRate,
+  includeVATOnLabor,
+  paymentStatus,
+  onPaymentStatusChange
 }) => {
-  // Calculate parts costs
-  const partsWithoutVAT = parts
-    .filter(part => !part.includeVAT)
-    .reduce((sum, part) => sum + (part.cost * part.quantity), 0);
-
-  const partsWithVAT = parts
-    .filter(part => part.includeVAT)
-    .reduce((sum, part) => sum + (part.cost * part.quantity * (1 + VAT_RATE)), 0);
-
-  // Calculate labor costs
-  const baseLaborCost = laborHours * laborRate;
-  const laborWithVAT = includeVATOnLabor ? baseLaborCost * (1 + VAT_RATE) : 0;
-  const laborWithoutVAT = includeVATOnLabor ? 0 : baseLaborCost;
-
-  // Calculate totals
-  const totalWithoutVAT = partsWithoutVAT + laborWithoutVAT;
-  const totalWithVAT = partsWithVAT + laborWithVAT;
-  const vatAmount = (partsWithVAT - (partsWithVAT / (1 + VAT_RATE))) + 
-                   (laborWithVAT - (laborWithVAT / (1 + VAT_RATE)));
+  const costs = calculateCosts(parts, laborHours, laborRate, includeVATOnLabor);
 
   return (
-    <div className="border-t pt-4">
-      {/* Parts Breakdown */}
-      <div className="mb-4">
-        <h4 className="text-sm font-medium text-gray-900 mb-2">Parts Cost Breakdown</h4>
-        <div className="space-y-1 text-sm">
-          {partsWithoutVAT > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Parts without VAT:</span>
-              <span>£{partsWithoutVAT.toFixed(2)}</span>
-            </div>
-          )}
-          {partsWithVAT > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Parts with VAT:</span>
-              <span>£{partsWithVAT.toFixed(2)}</span>
-            </div>
-          )}
+    <div className="border-t pt-4 space-y-4">
+      {/* Parts and Labor Breakdown */}
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Parts Total:</span>
+          <span>£{costs.partsTotal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Labor Total:</span>
+          <span>£{costs.laborTotal.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Labor Breakdown */}
-      <div className="mb-4">
-        <h4 className="text-sm font-medium text-gray-900 mb-2">Labor Cost Breakdown</h4>
-        <div className="space-y-1 text-sm">
-          {laborWithoutVAT > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Labor without VAT:</span>
-              <span>£{laborWithoutVAT.toFixed(2)}</span>
-            </div>
-          )}
-          {laborWithVAT > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Labor with VAT:</span>
-              <span>£{laborWithVAT.toFixed(2)}</span>
-            </div>
-          )}
+      {/* Cost Summary */}
+      <div className="border-t pt-2 space-y-2">
+        <div className="flex justify-between text-sm font-medium">
+          <span>Net Amount:</span>
+          <span>£{costs.netAmount.toFixed(2)}</span>
         </div>
-      </div>
-
-      {/* Total Summary */}
-      <div className="border-t pt-4 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total without VAT:</span>
-          <span>£{totalWithoutVAT.toFixed(2)}</span>
+        <div className="flex justify-between text-sm font-medium">
+          <span>VAT Amount:</span>
+          <span>£{costs.vatAmount.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total with VAT:</span>
-          <span>£{totalWithVAT.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">VAT Amount:</span>
-          <span>£{vatAmount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-lg font-medium border-t pt-2">
+        <div className="flex justify-between text-lg font-bold border-t pt-2">
           <span>Total Cost:</span>
-          <span>£{calculateTotalCost().toFixed(2)}</span>
+          <span>£{costs.totalAmount.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Payment Status */}
+      <div className="flex items-center justify-between pt-4 border-t">
+        <span className="text-sm font-medium text-gray-700">Payment Status</span>
+        <div className="flex items-center space-x-4">
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              value="paid"
+              checked={paymentStatus === 'paid'}
+              onChange={() => onPaymentStatusChange('paid')}
+              className="form-radio text-primary focus:ring-primary"
+            />
+            <span className="ml-2 text-sm text-gray-700">Paid</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              value="unpaid"
+              checked={paymentStatus === 'unpaid'}
+              onChange={() => onPaymentStatusChange('unpaid')}
+              className="form-radio text-primary focus:ring-primary"
+            />
+            <span className="ml-2 text-sm text-gray-700">Unpaid</span>
+          </label>
         </div>
       </div>
     </div>

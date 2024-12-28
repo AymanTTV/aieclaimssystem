@@ -5,21 +5,25 @@ import { usePermissions } from '../hooks/usePermissions';
 import VehicleTable from '../components/vehicles/VehicleTable';
 import VehicleFilters from '../components/vehicles/VehicleFilters';
 import VehicleForm from '../components/vehicles/VehicleForm';
+import VehicleSaleModal from '../components/vehicles/VehicleSaleModal';
 import VehicleDetailsModal from '../components/vehicles/VehicleDetailsModal';
+import DeleteConfirmationModal from '../components/ui/DeleteConfirmationModal';
 import Modal from '../components/ui/Modal';
+import { Vehicle } from '../types';
+import { doc, deleteDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
+import toast from 'react-hot-toast';
 import { Plus, Download } from 'lucide-react';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
-import { Vehicle } from '../types';
-import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);
   const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(null);
+  const [deletingVehicle, setDeletingVehicle] = React.useState<Vehicle | null>(null);
+  const [sellingVehicle, setSellingVehicle] = React.useState<Vehicle | null>(null);
   const [showForm, setShowForm] = React.useState(false);
 
   const {
@@ -35,28 +39,58 @@ const Vehicles = () => {
     uniqueMakes,
   } = useVehicleFilters(vehicles);
 
-  const handleSubmit = async (data: Partial<Vehicle>) => {
-    let imageUrl = data.image ? data.image : editingVehicle?.image || '';
-
-    if (data.image instanceof File) {
-      const imageRef = ref(storage, `vehicles/${Date.now()}_${data.image.name}`);
-      const snapshot = await uploadBytes(imageRef, data.image);
-      imageUrl = await getDownloadURL(snapshot.ref);
+  const handleDelete = async (vehicle: Vehicle) => {
+    if (!can('vehicles', 'delete')) {
+      toast.error('You do not have permission to delete vehicles');
+      return;
     }
 
-    const vehicleData = {
-      ...data,
-      image: imageUrl,
-      updatedAt: new Date(),
-    };
+    if (vehicle.status !== 'sold') {
+      toast.error('Only sold vehicles can be deleted');
+      return;
+    }
 
-    if (editingVehicle) {
-      await updateDoc(doc(db, 'vehicles', editingVehicle.id), vehicleData);
-    } else {
-      await addDoc(collection(db, 'vehicles'), {
-        ...vehicleData,
-        createdAt: new Date(),
-      });
+    try {
+      await deleteDoc(doc(db, 'vehicles', vehicle.id));
+      toast.success('Vehicle deleted successfully');
+      setDeletingVehicle(null);
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      toast.error('Failed to delete vehicle');
+    }
+  };
+
+  const handleSubmit = async (data: Partial<Vehicle>) => {
+    try {
+      let imageUrl = data.image ? data.image : editingVehicle?.image || '';
+
+      if (data.image instanceof File) {
+        const imageRef = ref(storage, `vehicles/${Date.now()}_${data.image.name}`);
+        const snapshot = await uploadBytes(imageRef, data.image);
+        imageUrl = await getDownloadURL(snapshot.ref);
+      }
+
+      const vehicleData = {
+        ...data,
+        image: imageUrl,
+        updatedAt: new Date(),
+      };
+
+      if (editingVehicle) {
+        await updateDoc(doc(db, 'vehicles', editingVehicle.id), vehicleData);
+      } else {
+        await addDoc(collection(db, 'vehicles'), {
+          ...vehicleData,
+          createdAt: new Date(),
+        });
+      }
+
+      toast.success(`Vehicle ${editingVehicle ? 'updated' : 'added'} successfully`);
+      setEditingVehicle(null);
+      setShowForm(false);
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      toast.error(`Failed to ${editingVehicle ? 'update' : 'add'} vehicle`);
     }
   };
 
@@ -110,9 +144,11 @@ const Vehicles = () => {
         vehicles={filteredVehicles}
         onView={setSelectedVehicle}
         onEdit={setEditingVehicle}
-        onDelete={() => {}}
+        onDelete={setDeletingVehicle}
+        onMarkAsSold={setSellingVehicle}
       />
 
+      {/* Vehicle Form Modal */}
       <Modal
         isOpen={showForm || !!editingVehicle}
         onClose={() => {
@@ -131,19 +167,46 @@ const Vehicles = () => {
         />
       </Modal>
 
-     <Modal
-  isOpen={!!selectedVehicle}
-  onClose={() => setSelectedVehicle(null)}
-  title="Vehicle Details"
->
-  {selectedVehicle && (
+      {/* Vehicle Details Modal */}
+      <Modal
+        isOpen={!!selectedVehicle}
+        onClose={() => setSelectedVehicle(null)}
+        title="Vehicle Details"
+      >
+        {selectedVehicle && (
           <VehicleDetailsModal
             vehicle={selectedVehicle}
             onClose={() => setSelectedVehicle(null)}
           />
         )}
-</Modal>
+      </Modal>
 
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!deletingVehicle}
+        onClose={() => setDeletingVehicle(null)}
+        onConfirm={() => deletingVehicle && handleDelete(deletingVehicle)}
+        title="Delete Vehicle"
+        message={
+          deletingVehicle?.status !== 'sold'
+            ? "Only sold vehicles can be deleted. Please mark the vehicle as sold first."
+            : "Are you sure you want to delete this vehicle? This action cannot be undone."
+        }
+      />
+
+      {/* Sale Modal */}
+      <Modal
+        isOpen={!!sellingVehicle}
+        onClose={() => setSellingVehicle(null)}
+        title="Mark Vehicle as Sold"
+      >
+        {sellingVehicle && (
+          <VehicleSaleModal
+            vehicle={sellingVehicle}
+            onClose={() => setSellingVehicle(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 };

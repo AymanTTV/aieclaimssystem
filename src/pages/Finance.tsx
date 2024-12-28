@@ -1,23 +1,22 @@
 import React, { useState } from 'react';
 import { useFinances } from '../hooks/useFinances';
+import { useVehicles } from '../hooks/useVehicles';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
-import { DataTable } from '../components/DataTable/DataTable';
-import { format } from 'date-fns';
-import { Plus, Download, Edit, Trash2, Eye } from 'lucide-react';
-import FinancialSummary from '../components/FinancialSummary';
 import FinanceFilters from '../components/finance/FinanceFilters';
-import TransactionForm from '../components/TransactionForm';
+import TransactionTable from '../components/finance/TransactionTable';
+import TransactionForm from '../components/finance/TransactionForm';
 import TransactionDetails from '../components/finance/TransactionDetails';
+import TransactionDeleteModal from '../components/finance/TransactionDeleteModal';
+import FinancialSummary from '../components/finance/FinancialSummary';
 import Modal from '../components/ui/Modal';
-import StatusBadge from '../components/StatusBadge';
+import { Plus, Download } from 'lucide-react';
 import { exportFinanceData } from '../utils/FinanceExport';
-import { addDoc, collection, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import toast from 'react-hot-toast';
 import { Transaction } from '../types';
+import toast from 'react-hot-toast';
 
 const Finance = () => {
-  const { transactions, loading } = useFinances();
+  const { transactions, loading: transactionsLoading } = useFinances();
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
   const {
     searchQuery,
     setSearchQuery,
@@ -29,8 +28,13 @@ const Finance = () => {
     setType,
     category,
     setCategory,
+    paymentStatus,
+    setPaymentStatus,
+    owner,
+    setOwner,
+    uniqueOwners,
     filteredTransactions
-  } = useFinanceFilters(transactions);
+  } = useFinanceFilters(transactions, vehicles);
 
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<'income' | 'expense'>('income');
@@ -38,75 +42,17 @@ const Finance = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
 
-  const columns = [
-    {
-      header: 'Date',
-      cell: ({ row }) => format(row.original.date, 'MMM dd, yyyy'),
-    },
-    {
-      header: 'Type',
-      cell: ({ row }) => (
-        <StatusBadge 
-          status={row.original.type === 'income' ? 'completed' : 'pending'}
-        />
-      ),
-    },
-    {
-      header: 'Category',
-      accessorKey: 'category',
-    },
-    {
-      header: 'Amount',
-      cell: ({ row }) => (
-        <span className={row.original.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-          £{row.original.amount.toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      header: 'Description',
-      accessorKey: 'description',
-    },
-    {
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedTransaction(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingTransaction(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletingTransactionId(row.original.id);
-            }}
-            className="text-red-600 hover:text-red-800"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const handleExport = () => {
+    try {
+      exportFinanceData(filteredTransactions);
+      toast.success('Finance data exported successfully');
+    } catch (error) {
+      console.error('Error exporting finance data:', error);
+      toast.error('Failed to export finance data');
+    }
+  };
 
-  if (loading) {
+  if (transactionsLoading || vehiclesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -120,8 +66,8 @@ const Finance = () => {
         <h1 className="text-2xl font-bold text-gray-900">Finance Management</h1>
         <div className="flex space-x-2">
           <button
-            onClick={() => exportFinanceData(filteredTransactions)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            onClick={handleExport}
+            className="btn btn-outline"
           >
             <Download className="h-5 w-5 mr-2" />
             Export
@@ -131,7 +77,7 @@ const Finance = () => {
               setFormType('income');
               setShowForm(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-secondary hover:bg-secondary-600"
+            className="btn btn-secondary"
           >
             <Plus className="h-5 w-5 mr-2" />
             Add Income
@@ -141,7 +87,7 @@ const Finance = () => {
               setFormType('expense');
               setShowForm(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            className="btn btn-primary"
           >
             <Plus className="h-5 w-5 mr-2" />
             Add Expense
@@ -160,16 +106,24 @@ const Finance = () => {
         onTypeChange={setType}
         category={category}
         onCategoryChange={setCategory}
+        paymentStatus={paymentStatus}
+        onPaymentStatusChange={setPaymentStatus}
+        owner={owner}
+        onOwnerChange={setOwner}
+        owners={uniqueOwners}
       />
 
       <FinancialSummary transactions={filteredTransactions} period="custom" />
 
-      <DataTable
-        data={filteredTransactions}
-        columns={columns}
-        onRowClick={(transaction) => setSelectedTransaction(transaction)}
+      <TransactionTable
+        transactions={filteredTransactions}
+        vehicles={vehicles}
+        onView={setSelectedTransaction}
+        onEdit={setEditingTransaction}
+        onDelete={(transaction) => setDeletingTransactionId(transaction.id)}
       />
 
+      {/* Modals */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -185,10 +139,12 @@ const Finance = () => {
         isOpen={!!selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
         title="Transaction Details"
-        size="lg"
       >
         {selectedTransaction && (
-          <TransactionDetails transaction={selectedTransaction} />
+          <TransactionDetails
+            transaction={selectedTransaction}
+            vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)}
+          />
         )}
       </Modal>
 
@@ -211,33 +167,12 @@ const Finance = () => {
         onClose={() => setDeletingTransactionId(null)}
         title="Delete Transaction"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete this transaction? This action cannot be undone.
-          </p>
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => setDeletingTransactionId(null)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  await deleteDoc(doc(db, 'transactions', deletingTransactionId));
-                  toast.success('Transaction deleted successfully');
-                  setDeletingTransactionId(null);
-                } catch (error) {
-                  toast.error('Failed to delete transaction');
-                }
-              }}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
+        {deletingTransactionId && (
+          <TransactionDeleteModal
+            transactionId={deletingTransactionId}
+            onClose={() => setDeletingTransactionId(null)}
+          />
+        )}
       </Modal>
     </div>
   );

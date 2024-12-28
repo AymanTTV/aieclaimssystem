@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -10,12 +10,19 @@ interface RentalDeleteModalProps {
 }
 
 const RentalDeleteModal: React.FC<RentalDeleteModalProps> = ({ rentalId, onClose }) => {
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
+    if (!rentalId) {
+      toast.error('Invalid rental ID');
+      return;
+    }
+
     setLoading(true);
+
     try {
-      await deleteDoc(doc(db, 'rentals', rentalId));
+      const rentalRef = doc(db, 'rentals', rentalId);
+      await deleteDoc(rentalRef);
       toast.success('Rental deleted successfully');
       onClose();
     } catch (error) {
@@ -35,14 +42,14 @@ const RentalDeleteModal: React.FC<RentalDeleteModalProps> = ({ rentalId, onClose
       
       <p className="text-sm text-gray-500">
         Are you sure you want to delete this rental? This action cannot be undone.
-        Any associated financial records will remain in the system.
       </p>
 
       <div className="flex justify-end space-x-3">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          disabled={loading}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
         >
           Cancel
         </button>
@@ -50,7 +57,7 @@ const RentalDeleteModal: React.FC<RentalDeleteModalProps> = ({ rentalId, onClose
           type="button"
           onClick={handleDelete}
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+          className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
         >
           {loading ? 'Deleting...' : 'Delete Rental'}
         </button>

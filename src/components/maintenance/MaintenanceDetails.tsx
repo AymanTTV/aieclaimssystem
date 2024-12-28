@@ -10,26 +10,6 @@ interface MaintenanceDetailsProps {
 }
 
 const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle }) => {
-  const VAT_RATE = 0.20;
-
-  const calculateVATAmount = () => {
-    let vatAmount = 0;
-
-    // Calculate VAT on parts
-    if (log.vatDetails?.partsVAT) {
-      vatAmount += log.parts
-        .filter((_, index) => log.vatDetails.partsVAT[index].includeVAT)
-        .reduce((sum, part) => sum + (part.cost * part.quantity * VAT_RATE), 0);
-    }
-
-    // Calculate VAT on labor
-    if (log.vatDetails?.laborVAT) {
-      vatAmount += log.laborCost * VAT_RATE;
-    }
-
-    return vatAmount;
-  };
-
   return (
     <div className="space-y-6">
       {/* Basic Information */}
@@ -52,8 +32,9 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Status</h3>
-          <div className="mt-1">
+          <div className="mt-1 space-y-1">
             <StatusBadge status={log.status} />
+            <StatusBadge status={log.paymentStatus} />
           </div>
         </div>
       </div>
@@ -107,14 +88,18 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           <h4 className="text-sm font-medium text-gray-500">Next Service Mileage</h4>
           <p className="mt-1">{log.nextServiceMileage.toLocaleString()}</p>
         </div>
+        <div>
+          <h4 className="text-sm font-medium text-gray-500">Next Service Date</h4>
+          <p className="mt-1">{formatDate(log.nextServiceDate)}</p>
+        </div>
       </div>
 
-      {/* Parts and Labor */}
-      {log.parts && log.parts.length > 0 && (
-        <div className="border-t pt-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Parts and Labor</h3>
-          
-          {/* Parts List */}
+      {/* Cost Breakdown */}
+      <div className="border-t pt-4">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Breakdown</h3>
+        
+        {/* Parts List */}
+        {log.parts && log.parts.length > 0 && (
           <div className="mb-4">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Parts</h4>
             <div className="space-y-2">
@@ -134,34 +119,61 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
               ))}
             </div>
           </div>
+        )}
 
-          {/* Labor Cost */}
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Labor</h4>
-            <div className="bg-gray-50 p-2 rounded flex justify-between items-center">
+        {/* Labor Cost */}
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Labor</h4>
+          <div className="bg-gray-50 p-2 rounded flex justify-between items-center">
+            <div>
               <span>Labor Cost</span>
-              <div className="text-right">
-                <div>£{log.laborCost.toFixed(2)}</div>
-                {log.vatDetails?.laborVAT && (
-                  <div className="text-sm text-gray-500">+VAT</div>
-                )}
-              </div>
+              <span className="text-sm text-gray-500 ml-2">
+                ({log.laborHours} hours @ £{log.laborRate}/hour)
+              </span>
             </div>
-          </div>
-
-          {/* Cost Summary */}
-          <div className="border-t pt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">VAT Amount:</span>
-              <span>£{calculateVATAmount().toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-lg font-medium">
-              <span>Total Cost:</span>
-              <span>£{log.cost.toFixed(2)}</span>
+            <div className="text-right">
+              <div>£{log.laborCost.toFixed(2)}</div>
+              {log.vatDetails?.laborVAT && (
+                <div className="text-sm text-gray-500">+VAT</div>
+              )}
             </div>
           </div>
         </div>
-      )}
+
+        {/* Payment Information */}
+        <div className="border-t pt-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span>Total Amount:</span>
+            <span className="font-medium">£{log.cost.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Amount Paid:</span>
+            <span className="text-green-600">£{(log.paidAmount || 0).toFixed(2)}</span>
+          </div>
+          {log.remainingAmount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Remaining Amount:</span>
+              <span className="text-amber-600">£{log.remainingAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm pt-2 border-t">
+            <span>Payment Status:</span>
+            <StatusBadge status={log.paymentStatus} />
+          </div>
+          {log.paymentMethod && (
+            <div className="flex justify-between text-sm">
+              <span>Payment Method:</span>
+              <span className="capitalize">{log.paymentMethod.replace('_', ' ')}</span>
+            </div>
+          )}
+          {log.paymentReference && (
+            <div className="flex justify-between text-sm">
+              <span>Reference:</span>
+              <span>{log.paymentReference}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

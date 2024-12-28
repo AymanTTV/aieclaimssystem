@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
-import { ensureValidDate } from '../utils/dateHelpers';
+import { ensureValidDate } from '../utils/dateHelpers'; // Ensure this utility exists and is properly implemented
+
+// Utility function to handle conversion of Firebase Timestamp or Date
+function ensureValidDate(value: any): Date | null {
+  if (!value) return null; // Return null if undefined or null
+  if (value.toDate) return value.toDate(); // Firestore Timestamp
+  if (value instanceof Date) return value; // Already a Date object
+  return null; // For any other invalid formats
+}
 
 export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -22,14 +30,14 @@ export const useVehicles = () => {
             id: doc.id,
             ...data,
             // Ensure all date fields are valid Date objects
-            insuranceExpiry: ensureValidDate(data.insuranceExpiry?.toDate()),
-            motExpiry: ensureValidDate(data.motExpiry?.toDate()),
-            nslExpiry: ensureValidDate(data.nslExpiry?.toDate()),
-            roadTaxExpiry: ensureValidDate(data.roadTaxExpiry?.toDate()),
-            lastMaintenance: ensureValidDate(data.lastMaintenance?.toDate()),
-            nextMaintenance: ensureValidDate(data.nextMaintenance?.toDate()),
-            createdAt: ensureValidDate(data.createdAt?.toDate()),
-            updatedAt: ensureValidDate(data.updatedAt?.toDate()),
+            insuranceExpiry: ensureValidDate(data.insuranceExpiry),
+            motExpiry: ensureValidDate(data.motExpiry),
+            nslExpiry: ensureValidDate(data.nslExpiry),
+            roadTaxExpiry: ensureValidDate(data.roadTaxExpiry),
+            lastMaintenance: ensureValidDate(data.lastMaintenance),
+            nextMaintenance: ensureValidDate(data.nextMaintenance),
+            createdAt: ensureValidDate(data.createdAt),
+            updatedAt: ensureValidDate(data.updatedAt),
           } as Vehicle);
         });
         setVehicles(vehicleData);

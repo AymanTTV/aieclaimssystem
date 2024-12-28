@@ -1,6 +1,5 @@
 import React from 'react';
 import { Search } from 'lucide-react';
-import { format } from 'date-fns';
 
 interface FinanceFiltersProps {
   searchQuery: string;
@@ -13,12 +12,12 @@ interface FinanceFiltersProps {
   onTypeChange: (type: 'all' | 'income' | 'expense') => void;
   category: string;
   onCategoryChange: (category: string) => void;
+  paymentStatus: 'all' | 'paid' | 'unpaid' | 'partially_paid';
+  onPaymentStatusChange: (status: 'all' | 'paid' | 'unpaid' | 'partially_paid') => void;
+  owner: string;
+  onOwnerChange: (owner: string) => void;
+  owners: string[];
 }
-
-const CATEGORIES = {
-  income: ['Rental', 'Insurance Claim', 'Sale', 'Other'],
-  expense: ['Maintenance', 'Insurance', 'Fuel', 'Registration', 'Vehicle Test', 'Other']
-};
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   searchQuery,
@@ -31,56 +30,59 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   onTypeChange,
   category,
   onCategoryChange,
+  paymentStatus,
+  onPaymentStatusChange,
+  owner,
+  onOwnerChange,
+  owners
 }) => {
   return (
     <div className="space-y-4">
-      {/* Search Input - Full width with proper spacing */}
-      <div className="w-full">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search transactions..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm h-10"
-          />
+      {/* Search Input */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
         </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search transactions..."
+          className="form-input pl-10 w-full"
+        />
       </div>
 
-      {/* Filters Grid - Responsive layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Filters Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         {/* Date Range */}
-        <div className="space-y-2">
+        <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+            value={startDate ? startDate.toISOString().split('T')[0] : ''}
             onChange={(e) => onStartDateChange(e.target.value ? new Date(e.target.value) : null)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+            className="form-input mt-1"
           />
         </div>
 
-        <div className="space-y-2">
+        <div>
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+            value={endDate ? endDate.toISOString().split('T')[0] : ''}
             onChange={(e) => onEndDateChange(e.target.value ? new Date(e.target.value) : null)}
-            min={startDate ? format(startDate, 'yyyy-MM-dd') : undefined}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+            min={startDate ? startDate.toISOString().split('T')[0] : undefined}
+            className="form-input mt-1"
           />
         </div>
 
         {/* Type Filter */}
-        <div className="space-y-2">
+        <div>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
             value={type}
             onChange={(e) => onTypeChange(e.target.value as typeof type)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+            className="form-select mt-1"
           >
             <option value="all">All Types</option>
             <option value="income">Income</option>
@@ -89,16 +91,49 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         </div>
 
         {/* Category Filter */}
-        <div className="space-y-2">
+        <div>
           <label className="block text-sm font-medium text-gray-700">Category</label>
           <select
             value={category}
             onChange={(e) => onCategoryChange(e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+            className="form-select mt-1"
           >
             <option value="all">All Categories</option>
-            {type !== 'all' && CATEGORIES[type].map((cat) => (
-              <option key={cat} value={cat.toLowerCase()}>{cat}</option>
+            <option value="rental">Rental</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="insurance">Insurance</option>
+            <option value="tax">Tax</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        {/* Payment Status Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+          <select
+            value={paymentStatus}
+            onChange={(e) => onPaymentStatusChange(e.target.value as typeof paymentStatus)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Status</option>
+            <option value="paid">Paid</option>
+            <option value="partially_paid">Partially Paid</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+
+        {/* Owner Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Owner</label>
+          <select
+            value={owner}
+            onChange={(e) => onOwnerChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Owners</option>
+            <option value="company">AIE Skyline</option>
+            {owners.map((ownerName) => (
+              <option key={ownerName} value={ownerName}>{ownerName}</option>
             ))}
           </select>
         </div>

@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { User } from '../../types';
-import { DEFAULT_PERMISSIONS } from '../../types/roles';
+import { getDefaultPermissions } from '../../types/roles';
 import FormField from '../ui/FormField';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,7 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
     email: '',
     password: '',
     name: '',
-    role: 'driver' as User['role'],
+    role: 'admin' as User['role'],
     phoneNumber: '',
     address: '',
   });
@@ -41,7 +41,7 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
         role: formData.role,
         phoneNumber: formData.phoneNumber,
         address: formData.address,
-        permissions: DEFAULT_PERMISSIONS[formData.role],
+        permissions: getDefaultPermissions(formData.role),
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -90,9 +90,9 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           required
         >
-          <option value="driver">Driver</option>
+          <option value="admin">Admin</option>
           <option value="manager">Manager</option>
-          <option value="admin">Finance</option>
+          <option value="finance">Finance</option>
         </select>
       </div>
 

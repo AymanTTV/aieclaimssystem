@@ -36,23 +36,21 @@ export default function Modal({
 
         <div
           className={clsx(
-            'relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 w-full',
+            'relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 w-full modal-content',
             sizes[size]
           )}
         >
-          <div className="bg-white">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-              <button
-                type="button"
-                className="text-gray-400 hover:text-gray-500"
-                onClick={onClose}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="px-6 py-4">{children}</div>
+          <div className="modal-header flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+            <button
+              type="button"
+              className="text-gray-400 hover:text-gray-500 transition-colors"
+              onClick={onClose}
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
+          <div className="p-6 bg-white">{children}</div>
         </div>
       </div>
     </div>

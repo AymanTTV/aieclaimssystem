@@ -4,14 +4,13 @@ import { useVehicleFilters } from '../../hooks/useVehicleFilters';
 import { useVehicleActions } from '../../hooks/useVehicleActions';
 import { usePermissions } from '../../hooks/usePermissions';
 import VehicleTable from '../../components/vehicles/VehicleTable';
-import VehicleFilters from './components/VehicleFilters';
-import VehicleDetailsModal from './components/VehicleDetailsModal';
-import VehicleFormModal from './components/VehicleFormModal';
-import VehicleSaleModal from './components/VehicleSaleModal';
-import VehicleUndoSaleModal from './components/VehicleUndoSaleModal';
-import VehicleDeleteModal from './components/VehicleDeleteModal';
-import VehicleHeader from './components/VehicleHeader';
-
+import VehicleFilters from '../../components/vehicles/VehicleFilters';
+import VehicleDetailsModal from '../../components/vehicles/VehicleDetailsModal';
+import VehicleForm from '../../components/vehicles/VehicleForm';
+import VehicleSaleModal from '../../components/vehicles/VehicleSaleModal';
+import VehicleUndoSaleModal from '../../components/vehicles/VehicleUndoSaleModal';
+import VehicleDeleteModal from '../../components/vehicles/VehicleDeleteModal';
+import VehicleHeader from '../../components/vehicles/VehicleHeader';
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();

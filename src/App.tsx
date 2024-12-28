@@ -15,6 +15,7 @@ import Claims from './pages/Claims';
 import Finance from './pages/Finance';
 import Users from './pages/Users';
 import Customers from './pages/Customers';
+import { CompanyManagers } from './pages/CompanyManagers';
 import { usePermissions } from './hooks/usePermissions';
 
 const PrivateRoute: React.FC<{ 
@@ -47,134 +48,127 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/admin-setup" element={<AdminSetup />} />
-          <Route
-            path="/profile"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Profile />
-                  </Layout>
-                }
-              />
-            }
-          />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                }
-              />
-            }
-          />
-          <Route
-            path="/vehicles"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Vehicles />
-                  </Layout>
-                }
-                permission="vehicles"
-              />
-            }
-          />
-          <Route
-            path="/maintenance"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Maintenance />
-                  </Layout>
-                }
-                permission="maintenance"
-              />
-            }
-          />
-          <Route
-            path="/rentals"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Rentals />
-                  </Layout>
-                }
-                permission="rentals"
-              />
-            }
-          />
-          <Route
-            path="/accidents"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Accidents />
-                  </Layout>
-                }
-                permission="accidents"
-              />
-            }
-          />
-          <Route
-            path="/claims"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Claims />
-                  </Layout>
-                }
-                permission="claims"
-              />
-            }
-          />
-          <Route
-            path="/finance"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Finance />
-                  </Layout>
-                }
-                permission="finance"
-              />
-            }
-          />
-          <Route
-            path="/customers"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Customers />
-                  </Layout>
-                }
-                permission="rentals"
-              />
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <PrivateRoute
-                element={
-                  <Layout>
-                    <Users />
-                  </Layout>
-                }
-                permission="users"
-              />
-            }
-          />
+          
+          <Route path="/" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              }
+            />
+          } />
+          
+          <Route path="/profile" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Profile />
+                </Layout>
+              }
+            />
+          } />
+          
+          <Route path="/vehicles" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Vehicles />
+                </Layout>
+              }
+              permission="vehicles"
+            />
+          } />
+          
+          <Route path="/maintenance" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Maintenance />
+                </Layout>
+              }
+              permission="maintenance"
+            />
+          } />
+          
+          <Route path="/rentals" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Rentals />
+                </Layout>
+              }
+              permission="rentals"
+            />
+          } />
+          
+          <Route path="/accidents" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Accidents />
+                </Layout>
+              }
+              permission="accidents"
+            />
+          } />
+          
+          <Route path="/claims" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Claims />
+                </Layout>
+              }
+              permission="claims"
+            />
+          } />
+          
+          <Route path="/finance" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Finance />
+                </Layout>
+              }
+              permission="finance"
+            />
+          } />
+          
+          <Route path="/users" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Users />
+                </Layout>
+              }
+              permission="users"
+            />
+          } />
+          
+          <Route path="/customers" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Customers />
+                </Layout>
+              }
+              permission="customers"
+            />
+          } />
+
+          <Route path="/company-managers" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <CompanyManagers />
+                </Layout>
+              }
+              permission="users"
+            />
+          } />
+          
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </Router>

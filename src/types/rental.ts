@@ -1,22 +1,23 @@
-export type RentalReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'wfw-c-substitute' | 'h-substitute';
-export type RentalStatus = 'urgent' | 'awaiting' | 'levc-loan' | 'completed';
-export type RentalType = 'daily' | 'weekly' | 'claim';
-
+// Update the Rental interface to include payment tracking
 export interface Rental {
   id: string;
   vehicleId: string;
   customerId: string;
   startDate: Date;
   endDate: Date;
+  type: RentalType;
+  reason: RentalReason;
+  status: RentalStatus;
+  paymentStatus: PaymentStatus;
   cost: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'cheque';
+  paymentReference?: string;
   standardCost?: number;
   negotiated?: boolean;
   negotiationNotes?: string;
   approvedBy?: string;
-  reason: RentalReason;
-  status: RentalStatus;
-  paymentStatus: 'pending' | 'paid' | 'overdue';
-  type: RentalType;
   numberOfWeeks?: number;
   extensionHistory?: RentalExtension[];
   createdAt: Date;
@@ -25,12 +26,4 @@ export interface Rental {
   updatedBy?: string;
 }
 
-export interface RentalExtension {
-  date: Date;
-  originalEndDate: Date;
-  newEndDate: Date;
-  cost: number;
-  approvedBy?: string;
-  negotiated?: boolean;
-  negotiationNotes?: string;
-}
+export type PaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'overdue';

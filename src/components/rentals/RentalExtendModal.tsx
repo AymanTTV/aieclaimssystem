@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import { Rental } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { addDays, addWeeks, format } from 'date-fns';
-import { calculateRentalCost, RENTAL_TYPES, RENTAL_RATES } from '../../utils/rentalCalculations';
+import { calculateRentalCost, RENTAL_RATES, type RentalType } from '../../utils/rentalCalculations';
 import toast from 'react-hot-toast';
 import FormField from '../ui/FormField';
 
@@ -18,9 +18,9 @@ const RentalExtendModal: React.FC<RentalExtendModalProps> = ({ rental, onClose }
   const [loading, setLoading] = useState(false);
   const [customRate, setCustomRate] = useState<string>('');
   const [negotiationNotes, setNegotiationNotes] = useState('');
-  const [extensionPeriod, setExtensionPeriod] = useState(rental.type === RENTAL_TYPES.WEEKLY ? 1 : 1);
+  const [extensionPeriod, setExtensionPeriod] = useState(rental.type === 'weekly' ? 1 : 1);
   const [extensionUnit, setExtensionUnit] = useState<'days' | 'weeks'>(
-    rental.type === RENTAL_TYPES.WEEKLY ? 'weeks' : 'days'
+    rental.type === 'weekly' ? 'weeks' : 'days'
   );
 
   const newEndDate = extensionUnit === 'weeks' 

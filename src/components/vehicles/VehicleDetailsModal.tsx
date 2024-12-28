@@ -3,7 +3,7 @@ import { Vehicle } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
-import { Car, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Car, User, MapPin, Calendar, Clock, AlertTriangle, FileText, DollarSign } from 'lucide-react';
 import { useMileageHistory } from '../../hooks/useMileageHistory';
 
 interface VehicleDetailsModalProps {
@@ -11,7 +11,7 @@ interface VehicleDetailsModalProps {
   onClose: () => void;
 }
 
-const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle }) => {
+const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onClose }) => {
   const { history, loading: historyLoading } = useMileageHistory(vehicle.id);
 
   const DetailItem = ({ label, value, isDate = false, isExpiring = false }: { 
@@ -45,6 +45,23 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle }) =>
         )}
       </div>
 
+      {/* Owner Information */}
+      <div className="border-b border-gray-200 pb-4">
+        <div className="flex items-start space-x-3">
+          <User className="w-5 h-5 text-gray-400 mt-1" />
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Owner Information</h3>
+            <p className="text-gray-900 font-medium mt-2">{vehicle.owner?.name || 'AIE Skyline'}</p>
+            {vehicle.owner?.address && !vehicle.owner?.isDefault && (
+              <div className="flex items-center mt-1 text-gray-500">
+                <MapPin className="w-4 h-4 mr-1" />
+                {vehicle.owner.address}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Basic Information */}
       <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
         <DetailItem label="Registration Number" value={vehicle.registrationNumber} />
@@ -62,13 +79,16 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle }) =>
 
       {/* Mileage History */}
       <div className="border-b border-gray-200 pb-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Mileage History</h3>
+        <div className="flex items-center space-x-2 mb-4">
+          <Clock className="w-5 h-5 text-gray-400" />
+          <h3 className="text-lg font-medium text-gray-900">Mileage History</h3>
+        </div>
         {historyLoading ? (
           <div className="text-center py-4">Loading history...</div>
         ) : (
           <div className="space-y-2">
             <div className="font-medium">
-              Current Mileage: {vehicle.mileage.toLocaleString()} mi
+              Current Mileage: {vehicle.mileage.toLocaleString()} km
             </div>
             {history.map((record) => (
               <div key={record.id} className="flex justify-between text-sm">
@@ -76,7 +96,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle }) =>
                   <span className="text-gray-600">{formatDate(record.date)}</span>
                   <span className="mx-2">•</span>
                   <span>
-                    {record.previousMileage.toLocaleString()} → {record.newMileage.toLocaleString()} mi
+                    {record.previousMileage.toLocaleString()} → {record.newMileage.toLocaleString()} km
                   </span>
                 </div>
                 <div className="text-gray-500">
@@ -91,7 +111,86 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle }) =>
         )}
       </div>
 
-      {/* Rest of the component remains the same... */}
+      {/* Document Expiry Dates */}
+      <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
+        <DetailItem 
+          label="MOT Expiry" 
+          value={vehicle.motExpiry} 
+          isDate 
+          isExpiring={isExpiringOrExpired(vehicle.motExpiry)} 
+        />
+        <DetailItem 
+          label="NSL Expiry" 
+          value={vehicle.nslExpiry} 
+          isDate 
+          isExpiring={isExpiringOrExpired(vehicle.nslExpiry)} 
+        />
+        <DetailItem 
+          label="Road Tax Expiry" 
+          value={vehicle.roadTaxExpiry} 
+          isDate 
+          isExpiring={isExpiringOrExpired(vehicle.roadTaxExpiry)} 
+        />
+        <DetailItem 
+          label="Insurance Expiry" 
+          value={vehicle.insuranceExpiry} 
+          isDate 
+          isExpiring={isExpiringOrExpired(vehicle.insuranceExpiry)} 
+        />
+      </div>
+
+      {/* Maintenance Information */}
+      <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
+        <DetailItem 
+          label="Last Maintenance" 
+          value={vehicle.lastMaintenance} 
+          isDate 
+        />
+        <DetailItem 
+          label="Next Maintenance" 
+          value={vehicle.nextMaintenance} 
+          isDate 
+          isExpiring={isExpiringOrExpired(vehicle.nextMaintenance)} 
+        />
+      </div>
+
+      {/* Sale Information (if sold) */}
+      {vehicle.status === 'sold' && (
+        <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
+          <DetailItem 
+            label="Sale Date" 
+            value={vehicle.soldDate} 
+            isDate 
+          />
+          <DetailItem 
+            label="Sale Price" 
+            value={`£${vehicle.salePrice?.toLocaleString()}`} 
+          />
+        </div>
+      )}
+
+      {/* Creation Information */}
+      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
+        <DetailItem 
+          label="Created At" 
+          value={vehicle.createdAt} 
+          isDate 
+        />
+        <DetailItem 
+          label="Created By" 
+          value={vehicle.createdBy} 
+        />
+      </div>
+
+      {/* Close Button */}
+      <div className="flex justify-end pt-4">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          Close
+        </button>
+      </div>
     </div>
   );
 };

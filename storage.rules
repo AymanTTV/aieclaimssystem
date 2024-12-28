@@ -16,38 +16,35 @@ service firebase.storage {
         firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
 
-    // Allow read access to all authenticated users
-    match /{allPaths=**} {
-      allow read: if isAuthenticated();
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 5 * 1024 * 1024; // 5MB max
     }
 
-    // Customer documents
-    match /customers/{customerId}/{document=**} {
+    // Company logo
+    match /company/logo {
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
-        (isAdmin() || isManager() || request.auth.uid == customerId);
+        (isAdmin() || isManager()) &&
+        isValidImage();
     }
 
     // Profile pictures
     match /profile-pictures/{userId} {
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
-        (isAdmin() || request.auth.uid == userId);
+        (request.auth.uid == userId || isAdmin()) &&
+        isValidImage();
     }
 
-    // Vehicle images
-    match /vehicles/{document=**} {
-      allow write: if isAuthenticated() && 
-        (isAdmin() || isManager());
-    }
-
-    // Accident images
-    match /accidents/{document=**} {
-      allow write: if isAuthenticated();
-    }
-
-    // Maintenance documents
-    match /maintenance/{document=**} {
-      allow write: if isAuthenticated() && 
-        (isAdmin() || isManager());
+    // Add CORS headers to all responses
+    function corsHeaders() {
+      return response.headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        'Access-Control-Max-Age': '3600'
+      };
     }
   }
 }

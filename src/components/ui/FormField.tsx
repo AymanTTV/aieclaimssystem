@@ -1,5 +1,4 @@
-import React from 'react';
-import { forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 
 interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -15,9 +14,7 @@ const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
         </label>
         <input
           ref={ref}
-          className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm ${
-            error ? 'border-red-300' : ''
-          } ${className}`}
+          className={`form-input ${error ? 'border-red-300' : ''} ${className}`}
           {...props}
         />
         {error && (

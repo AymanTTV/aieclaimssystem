@@ -27,6 +27,7 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
         status: 'sold',
         soldDate: new Date(),
         salePrice: parseFloat(salePrice),
+        updatedAt: new Date(),
       });
 
       toast.success('Vehicle marked as sold successfully');

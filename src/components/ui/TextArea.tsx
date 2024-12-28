@@ -1,5 +1,4 @@
-import React from 'react';
-import { forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
@@ -16,9 +15,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         <textarea
           ref={ref}
           rows={4}
-          className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm ${
-            error ? 'border-red-300' : ''
-          } ${className}`}
+          className={`form-textarea ${error ? 'border-red-300' : ''} ${className}`}
           {...props}
         />
         {error && (

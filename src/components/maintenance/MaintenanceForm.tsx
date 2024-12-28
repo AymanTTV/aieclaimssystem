@@ -3,7 +3,7 @@ import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, MaintenanceLog, Part } from '../../types';
 import { addYears } from 'date-fns';
-import { formatDateForInput, ensureValidDate } from '../../utils/dateHelpers';
+import { formatDateForInput } from '../../utils/dateHelpers';
 import toast from 'react-hot-toast';
 import VehicleSelect from '../VehicleSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
@@ -11,8 +11,8 @@ import FormField from '../ui/FormField';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { createMileageHistoryRecord } from '../../utils/mileageUtils';
 import { usePermissions } from '../../hooks/usePermissions';
-
-const VAT_RATE = 0.20; // 20% VAT
+import { calculateCosts } from '../../utils/maintenanceCostUtils';
+import { useAuth } from '../../context/AuthContext';
 
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
@@ -21,14 +21,21 @@ interface MaintenanceFormProps {
 }
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
+  const { user } = useAuth();
   const { can } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(editLog?.vehicleId || '');
   const [parts, setParts] = useState<(Part & { includeVAT: boolean })[]>(
-    editLog?.parts.map(part => ({ ...part, includeVAT: false })) || []
+    editLog?.parts.map(part => ({
+      ...part,
+      includeVAT: editLog.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false
+    })) || []
   );
-  const [includeVATOnLabor, setIncludeVATOnLabor] = useState(false);
-  
+  const [includeVATOnLabor, setIncludeVATOnLabor] = useState(editLog?.vatDetails?.laborVAT || false);
+  const [paidAmount, setPaidAmount] = useState(editLog?.paidAmount || 0);
+  const [paymentMethod, setPaymentMethod] = useState(editLog?.paymentMethod || 'cash');
+  const [paymentReference, setPaymentReference] = useState(editLog?.paymentReference || '');
+
   const [formData, setFormData] = useState({
     type: editLog?.type || 'yearly-service',
     description: editLog?.description || '',
@@ -36,13 +43,18 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     location: editLog?.location || '',
     date: formatDateForInput(editLog?.date),
     currentMileage: editLog?.currentMileage || 0,
-    laborHours: editLog?.laborCost ? editLog.laborCost / 75 : 0,
-    laborRate: 75,
+    laborHours: editLog?.laborHours || 0,
+    laborRate: editLog?.laborRate || 75,
     nextServiceMileage: editLog?.nextServiceMileage || 0,
     nextServiceDate: formatDateForInput(editLog?.nextServiceDate),
     notes: editLog?.notes || '',
     status: editLog?.status || 'scheduled',
   });
+
+  const costs = calculateCosts(parts, formData.laborHours, formData.laborRate, includeVATOnLabor);
+  const remainingAmount = costs.totalAmount - paidAmount;
+  const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' : 
+                       paidAmount > 0 ? 'partially_paid' : 'unpaid';
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -56,10 +68,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       }
     }
   }, [selectedVehicleId, vehicles]);
-
-  if (!can('maintenance', editLog ? 'update' : 'create')) {
-    return <div>You don't have permission to {editLog ? 'edit' : 'schedule'} maintenance.</div>;
-  }
 
   const handleServiceCenterSelect = (center: {
     name: string;
@@ -75,38 +83,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     }));
   };
 
-  const handleAddPart = () => {
-    setParts([...parts, { name: '', quantity: 1, cost: 0, includeVAT: false }]);
-  };
-
-  const handlePartChange = (index: number, field: keyof (Part & { includeVAT: boolean }), value: any) => {
-    const newParts = [...parts];
-    newParts[index] = { ...newParts[index], [field]: value };
-    setParts(newParts);
-  };
-
-  const handleRemovePart = (index: number) => {
-    setParts(parts.filter((_, i) => i !== index));
-  };
-
-  const calculatePartsCost = (): number => {
-    return parts.reduce((sum, part) => {
-      const partCost = part.cost * part.quantity;
-      return sum + (part.includeVAT ? partCost * (1 + VAT_RATE) : partCost);
-    }, 0);
-  };
-
-  const calculateLaborCost = (): number => {
-    const baseCost = formData.laborHours * formData.laborRate;
-    return includeVATOnLabor ? baseCost * (1 + VAT_RATE) : baseCost;
-  };
-
-  const calculateTotalCost = (): number => {
-    return calculatePartsCost() + calculateLaborCost();
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     if (!selectedVehicleId) {
       toast.error('Please select a vehicle');
       return;
@@ -126,13 +105,20 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         description: formData.description,
         serviceProvider: formData.serviceProvider,
         location: formData.location,
-        date: ensureValidDate(formData.date),
+        date: new Date(formData.date),
         currentMileage: formData.currentMileage,
         nextServiceMileage: formData.nextServiceMileage,
-        nextServiceDate: ensureValidDate(formData.nextServiceDate || addYears(new Date(formData.date), 1)),
+        nextServiceDate: new Date(formData.nextServiceDate),
         parts: parts.map(({ includeVAT, ...part }) => part),
-        laborCost: calculateLaborCost(),
-        cost: calculateTotalCost(),
+        laborHours: formData.laborHours,
+        laborRate: formData.laborRate,
+        laborCost: costs.laborTotal,
+        cost: costs.totalAmount,
+        paidAmount,
+        remainingAmount,
+        paymentStatus,
+        paymentMethod,
+        paymentReference,
         status: formData.status,
         notes: formData.notes,
         vatDetails: {
@@ -145,34 +131,45 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       };
 
       if (editLog) {
-        await updateDoc(doc(db, 'maintenanceLogs', editLog.id), maintenanceData);
-      } else {
-        const docRef = await addDoc(collection(db, 'maintenanceLogs'), maintenanceData);
-
-        await createFinanceTransaction({
-          type: 'expense',
-          category: 'maintenance',
-          amount: calculateTotalCost(),
-          description: `Maintenance cost for ${formData.description}`,
-          referenceId: docRef.id,
-          vehicleId: selectedVehicleId,
+        await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+          ...maintenanceData,
+          updatedAt: new Date(),
+          updatedBy: user.id
         });
+      } else {
+        const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+          ...maintenanceData,
+          createdAt: new Date(),
+          createdBy: user.id,
+          updatedAt: new Date()
+        });
+
+        if (paidAmount > 0) {
+          await createFinanceTransaction({
+            type: 'expense',
+            category: 'maintenance',
+            amount: paidAmount,
+            description: `Maintenance payment for ${formData.description}`,
+            referenceId: docRef.id,
+            vehicleId: selectedVehicleId,
+          });
+        }
 
         if (formData.currentMileage !== selectedVehicle.mileage) {
           await createMileageHistoryRecord(
             selectedVehicle,
             formData.currentMileage,
-            'System',
+            user.name,
             'Updated during maintenance'
           );
         }
       }
 
-      toast.success(editLog ? 'Maintenance log updated successfully' : 'Maintenance scheduled successfully');
+      toast.success(`Maintenance ${editLog ? 'updated' : 'scheduled'} successfully`);
       onClose();
     } catch (error) {
       console.error('Error:', error);
-      toast.error(editLog ? 'Failed to update maintenance log' : 'Failed to schedule maintenance');
+      toast.error(`Failed to ${editLog ? 'update' : 'schedule'} maintenance`);
     } finally {
       setLoading(false);
     }
@@ -184,6 +181,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         vehicles={vehicles}
         selectedVehicleId={selectedVehicleId}
         onSelect={setSelectedVehicleId}
+        disabled={!!editLog}
       />
 
       <div>
@@ -202,24 +200,24 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         </select>
       </div>
 
-      <FormField
-        type="date"
-        label="Date"
-        value={formData.date}
-        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-        required
-      />
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Service Center</label>
-        <ServiceCenterDropdown
-          value={formData.serviceProvider}
-          onChange={handleServiceCenterSelect}
-          onInputChange={(value) => setFormData({ ...formData, serviceProvider: value })}
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
+        <FormField
+          type="date"
+          label="Date"
+          value={formData.date}
+          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+          required
+        />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Service Center</label>
+          <ServiceCenterDropdown
+            value={formData.serviceProvider}
+            onChange={handleServiceCenterSelect}
+            onInputChange={(value) => setFormData({ ...formData, serviceProvider: value })}
+          />
+        </div>
+
         <FormField
           type="number"
           label="Current Mileage"
@@ -272,13 +270,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         />
       </div>
 
+      {/* Parts Section */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-gray-700">Parts</label>
           <button
             type="button"
-            onClick={handleAddPart}
-            className="px-2 py-1 text-sm text-primary hover:bg-primary-50 rounded-md"
+            onClick={() => setParts([...parts, { name: '', quantity: 1, cost: 0, includeVAT: false }])}
+            className="text-sm text-primary hover:text-primary-600"
           >
             Add Part
           </button>
@@ -288,14 +287,22 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             <input
               type="text"
               value={part.name}
-              onChange={(e) => handlePartChange(index, 'name', e.target.value)}
+              onChange={(e) => {
+                const newParts = [...parts];
+                newParts[index] = { ...part, name: e.target.value };
+                setParts(newParts);
+              }}
               placeholder="Part name"
               className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             />
             <input
               type="number"
               value={part.quantity}
-              onChange={(e) => handlePartChange(index, 'quantity', parseInt(e.target.value))}
+              onChange={(e) => {
+                const newParts = [...parts];
+                newParts[index] = { ...part, quantity: parseInt(e.target.value) || 0 };
+                setParts(newParts);
+              }}
               placeholder="Qty"
               className="w-20 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
               min="1"
@@ -303,7 +310,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             <input
               type="number"
               value={part.cost}
-              onChange={(e) => handlePartChange(index, 'cost', parseFloat(e.target.value))}
+              onChange={(e) => {
+                const newParts = [...parts];
+                newParts[index] = { ...part, cost: parseFloat(e.target.value) || 0 };
+                setParts(newParts);
+              }}
               placeholder="Cost"
               className="w-24 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
               min="0"
@@ -313,15 +324,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               <input
                 type="checkbox"
                 checked={part.includeVAT}
-                onChange={(e) => handlePartChange(index, 'includeVAT', e.target.checked)}
+                onChange={(e) => {
+                  const newParts = [...parts];
+                  newParts[index] = { ...part, includeVAT: e.target.checked };
+                  setParts(newParts);
+                }}
                 className="rounded border-gray-300 text-primary focus:ring-primary"
               />
               <span className="text-sm text-gray-600">+VAT</span>
             </label>
             <button
               type="button"
-              onClick={() => handleRemovePart(index)}
-              className="px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded-md"
+              onClick={() => setParts(parts.filter((_, i) => i !== index))}
+              className="text-red-600 hover:text-red-800"
             >
               Remove
             </button>
@@ -329,13 +344,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         ))}
       </div>
 
+      {/* Labor Section */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Labor</label>
         <div className="flex items-center space-x-2">
           <input
             type="number"
             value={formData.laborHours}
-            onChange={(e) => setFormData({ ...formData, laborHours: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, laborHours: parseFloat(e.target.value) || 0 })}
             placeholder="Hours"
             className="w-24 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             min="0"
@@ -345,7 +361,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           <input
             type="number"
             value={formData.laborRate}
-            onChange={(e) => setFormData({ ...formData, laborRate: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, laborRate: parseFloat(e.target.value) || 0 })}
             placeholder="Rate/hour"
             className="w-24 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             min="0"
@@ -360,22 +376,69 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             />
             <span className="text-sm text-gray-600">+VAT</span>
           </label>
-          <span className="py-2">= £{calculateLaborCost().toFixed(2)}</span>
+          <span className="py-2">= £{costs.laborTotal.toFixed(2)}</span>
         </div>
       </div>
 
-      <div className="border-t pt-4 space-y-2">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>Parts Total (inc. VAT where applicable):</span>
-          <span>£{calculatePartsCost().toFixed(2)}</span>
+      {/* Payment Section */}
+      <div className="border-t pt-4 space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            type="number"
+            label="Amount Paid"
+            value={paidAmount}
+            onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
+            min="0"
+            max={costs.totalAmount}
+            step="0.01"
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          </div>
+
+          <div className="col-span-2">
+            <FormField
+              label="Payment Reference"
+              value={paymentReference}
+              onChange={(e) => setPaymentReference(e.target.value)}
+              placeholder="Enter payment reference or transaction ID"
+            />
+          </div>
         </div>
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>Labor Total (inc. VAT where applicable):</span>
-          <span>£{calculateLaborCost().toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-lg font-medium">
-          <span>Total Cost:</span>
-          <span>£{calculateTotalCost().toFixed(2)}</span>
+
+        {/* Payment Summary */}
+        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+          <div className="flex justify-between text-sm">
+            <span>Total Amount:</span>
+            <span className="font-medium">£{costs.totalAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Amount Paid:</span>
+            <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+          </div>
+          {remainingAmount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Remaining Amount:</span>
+              <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm pt-2 border-t">
+            <span>Payment Status:</span>
+            <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
+          </div>
         </div>
       </div>
 

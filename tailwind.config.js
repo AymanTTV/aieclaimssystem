@@ -26,6 +26,13 @@ export default {
           600: '#15803D',
           700: '#166534',
         }
+      },
+      boxShadow: {
+        'input': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+        'input-focus': '0 0 0 2px rgba(220, 38, 38, 0.1)',
+      },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       }
     },
   },

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Vehicle } from '../types';
+import { Vehicle } from '../types/vehicle';
 
 export const useVehicleFilters = (vehicles: Vehicle[]) => {
   const [searchQuery, setSearchQuery] = useState('');

@@ -1,14 +1,15 @@
 import React from 'react';
-import { Transaction } from '../../types';
+import { Transaction, Vehicle } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../StatusBadge';
-import { DollarSign, Calendar, FileText, Car } from 'lucide-react';
+import { DollarSign, Calendar, FileText, Car, User } from 'lucide-react';
 
 interface TransactionDetailsProps {
   transaction: Transaction;
+  vehicle?: Vehicle;
 }
 
-const TransactionDetails: React.FC<TransactionDetailsProps> = ({ transaction }) => {
+const TransactionDetails: React.FC<TransactionDetailsProps> = ({ transaction, vehicle }) => {
   return (
     <div className="space-y-6">
       {/* Basic Information */}
@@ -37,6 +38,31 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({ transaction }) 
         </div>
       </div>
 
+      {/* Vehicle Information */}
+      {vehicle && (
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Details</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-sm font-medium text-gray-500">Vehicle</h4>
+              <p className="mt-1">
+                {vehicle.make} {vehicle.model} - {vehicle.registrationNumber}
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-gray-500">Owner</h4>
+              <p className="mt-1">
+                {vehicle.owner?.isDefault ? 'AIE Skyline' : vehicle.owner?.name}
+              </p>
+              {!vehicle.owner?.isDefault && vehicle.owner?.address && (
+                <p className="text-sm text-gray-500 mt-1">{vehicle.owner.address}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Description */}
       <div>
         <h3 className="text-sm font-medium text-gray-500">Description</h3>
@@ -48,14 +74,6 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({ transaction }) 
         <div>
           <h3 className="text-sm font-medium text-gray-500">Reference</h3>
           <p className="mt-1">#{transaction.referenceId}</p>
-        </div>
-      )}
-
-      {/* Vehicle Information */}
-      {transaction.vehicleId && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-500">Related Vehicle</h3>
-          <p className="mt-1">#{transaction.vehicleId}</p>
         </div>
       )}
 

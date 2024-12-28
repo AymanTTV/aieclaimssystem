@@ -1,5 +1,3 @@
-import { Vehicle } from './vehicle';
-
 export interface MaintenanceLog {
   id: string;
   vehicleId: string;
@@ -7,6 +5,7 @@ export interface MaintenanceLog {
   date: Date;
   description: string;
   cost: number;
+  paidAmount?: number;
   serviceProvider: string;
   location: string;
   parts: Part[];
@@ -15,6 +14,7 @@ export interface MaintenanceLog {
   nextServiceDate: Date;
   nextServiceMileage: number;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+  paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
   notes?: string;
   vatDetails?: {
     partsVAT: Array<{ partName: string; includeVAT: boolean }>;
@@ -28,11 +28,10 @@ export interface Part {
   cost: number;
 }
 
-export interface ServiceCenter {
-  name: string;
-  address: string;
-  postcode: string;
-  phone: string;
-  hourlyRate: number;
-  specialties: string[];
+export interface CostBreakdown {
+  netAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+  partsTotal: number;
+  laborTotal: number;
 }

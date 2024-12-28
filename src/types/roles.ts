@@ -17,10 +17,11 @@ export interface RolePermissions {
   finance: Permission;
   users: Permission;
   customers: Permission;
+  company: Permission;
 }
 
 export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
-  manager: {
+  admin: {
     dashboard: { view: true, create: true, update: true, delete: true },
     vehicles: { view: true, create: true, update: true, delete: true },
     maintenance: { view: true, create: true, update: true, delete: true },
@@ -29,18 +30,20 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     claims: { view: true, create: true, update: true, delete: true },
     finance: { view: true, create: true, update: true, delete: true },
     users: { view: true, create: true, update: true, delete: true },
-    customers: { view: true, create: true, update: true, delete: true }
+    customers: { view: true, create: true, update: true, delete: true },
+    company: { view: true, create: true, update: true, delete: true }
   },
-  admin: {
+  manager: {
     dashboard: { view: true, create: true, update: true, delete: false },
     vehicles: { view: true, create: true, update: true, delete: false },
     maintenance: { view: true, create: true, update: true, delete: false },
     rentals: { view: true, create: true, update: true, delete: false },
     accidents: { view: true, create: true, update: true, delete: false },
     claims: { view: true, create: true, update: true, delete: false },
-    finance: { view: true, create: true, update: true, delete: false },
+    finance: { view: true, create: true, update: false, delete: false },
     users: { view: true, create: false, update: false, delete: false },
-    customers: { view: true, create: true, update: true, delete: false }
+    customers: { view: true, create: true, update: true, delete: false },
+    company: { view: true, create: false, update: false, delete: false }
   },
   finance: {
     dashboard: { view: true, create: false, update: false, delete: false },
@@ -51,6 +54,11 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     claims: { view: true, create: false, update: false, delete: false },
     finance: { view: true, create: true, update: true, delete: false },
     users: { view: false, create: false, update: false, delete: false },
-    customers: { view: true, create: false, update: false, delete: false }
+    customers: { view: true, create: false, update: false, delete: false },
+    company: { view: true, create: false, update: false, delete: false }
   }
+};
+
+export const getDefaultPermissions = (role: Role): RolePermissions => {
+  return DEFAULT_PERMISSIONS[role];
 };

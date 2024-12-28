@@ -69,7 +69,9 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
           <h3 className="text-lg font-medium text-gray-900">Custom Permissions</h3>
           {Object.entries(customPermissions).map(([module, permissions]) => (
             <div key={module} className="border rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">{module}</h4>
+              <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">
+                {module === 'company' ? 'Company & Managers' : module}
+              </h4>
               <div className="grid grid-cols-2 gap-4">
                 {Object.entries(permissions).map(([action, enabled]) => (
                   <label key={action} className="flex items-center">

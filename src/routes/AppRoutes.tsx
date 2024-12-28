@@ -17,6 +17,7 @@ const Claims = lazyLoad('../pages/Claims');
 const Finance = lazyLoad('../pages/Finance');
 const Users = lazyLoad('../pages/Users');
 const Customers = lazyLoad('../pages/Customers');
+const CompanyManagers = lazyLoad('../pages/CompanyManagers');
 
 const AppRoutes = () => {
   return (
@@ -100,6 +101,14 @@ const AppRoutes = () => {
         <ProtectedRoute requiredPermission={{ module: 'customers', action: 'view' }}>
           <Layout>
             <Customers />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/company-managers" element={
+        <ProtectedRoute requiredPermission={{ module: 'users', action: 'view' }}>
+          <Layout>
+            <CompanyManagers />
           </Layout>
         </ProtectedRoute>
       } />

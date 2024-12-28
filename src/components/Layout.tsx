@@ -14,7 +14,8 @@ import {
   X,
   FileText,
   Truck,
-  UserPlus
+  UserPlus,
+  Building
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 
@@ -35,6 +36,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Finance', href: '/finance', icon: DollarSign, permission: 'finance' },
     { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },
     { name: 'Users', href: '/users', icon: Users, permission: 'users' },
+    { name: 'Company & Managers', href: '/company-managers', icon: Building, permission: 'users' },
   ].filter(item => !item.permission || can(item.permission as any, 'view'));
 
   const handleLogout = async () => {

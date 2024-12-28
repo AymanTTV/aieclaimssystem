@@ -8,11 +8,11 @@ import { format } from 'date-fns';
 
 interface RentalTableProps {
   rentals: Rental[];
-  vehicles: Record<string, Vehicle>;
-  customers: Record<string, Customer>;
+  vehicles: Vehicle[];
+  customers: Customer[];
   onView: (rental: Rental) => void;
   onEdit: (rental: Rental) => void;
-  onDelete: (rental: Rental) => void;
+  onDelete: (rentalId: string) => void;
   onExtend: (rental: Rental) => void;
 }
 
@@ -31,7 +31,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
     {
       header: 'Vehicle',
       cell: ({ row }) => {
-        const vehicle = vehicles[row.original.vehicleId];
+        const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
         return vehicle ? (
           <div>
             <div className="font-medium">{vehicle.make} {vehicle.model}</div>
@@ -43,7 +43,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
     {
       header: 'Customer',
       cell: ({ row }) => {
-        const customer = customers[row.original.customerId];
+        const customer = customers.find(c => c.id === row.original.customerId);
         return customer ? (
           <div>
             <div className="font-medium">{customer.name}</div>
@@ -53,22 +53,29 @@ const RentalTable: React.FC<RentalTableProps> = ({
       },
     },
     {
-      header: 'Period',
+      header: 'Type',
       cell: ({ row }) => (
-        <div>
-          <div>{format(row.original.startDate, 'dd/MM/yyyy')}</div>
-          <div className="text-sm text-gray-500">{format(row.original.endDate, 'dd/MM/yyyy')}</div>
+        <div className="space-y-1">
+          <StatusBadge status={row.original.type} />
+          <StatusBadge status={row.original.reason} />
         </div>
       ),
     },
     {
-      header: 'Type',
+      header: 'Period',
       cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.reason} />
-          <div className="text-sm text-gray-500">
-            {row.original.type === 'weekly' ? `${row.original.numberOfWeeks} weeks` : 'Daily'}
+        <div>
+          <div className="text-sm">
+            {format(row.original.startDate, 'dd/MM/yyyy HH:mm')}
           </div>
+          <div className="text-sm text-gray-500">
+            {format(row.original.endDate, 'dd/MM/yyyy HH:mm')}
+          </div>
+          {row.original.numberOfWeeks && (
+            <div className="text-xs text-gray-500">
+              {row.original.numberOfWeeks} week{row.original.numberOfWeeks > 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       ),
     },
@@ -83,14 +90,43 @@ const RentalTable: React.FC<RentalTableProps> = ({
     },
     {
       header: 'Cost',
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">£{row.original.cost.toFixed(2)}</div>
-          {row.original.negotiated && (
-            <div className="text-xs text-gray-500">Negotiated rate</div>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const rental = row.original;
+        const totalCost = rental.cost;
+        const paidAmount = rental.paidAmount || 0;
+        const remainingAmount = rental.remainingAmount || (totalCost - paidAmount);
+
+        return (
+          <div>
+            <div className="font-medium">£{totalCost.toFixed(2)}</div>
+            {rental.standardCost && rental.standardCost !== rental.cost && (
+              <div className="text-xs text-gray-500 line-through">
+                £{rental.standardCost.toFixed(2)}
+              </div>
+            )}
+            {rental.negotiated && (
+              <div className="text-xs text-amber-600">Negotiated rate</div>
+            )}
+            {rental.paymentStatus !== 'pending' && (
+              <div className="text-xs space-y-0.5 mt-1">
+                <div className="text-green-600">
+                  Paid: £{paidAmount.toFixed(2)}
+                </div>
+                {remainingAmount > 0 && (
+                  <div className="text-amber-600">
+                    Due: £{remainingAmount.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            )}
+            {rental.paymentMethod && (
+              <div className="text-xs text-gray-500 mt-1 capitalize">
+                via {rental.paymentMethod.replace('_', ' ')}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'Actions',
@@ -108,18 +144,20 @@ const RentalTable: React.FC<RentalTableProps> = ({
               <Eye className="h-4 w-4" />
             </button>
           )}
-          {can('rentals', 'update') && row.original.status !== 'completed' && (
+          {can('rentals', 'update') && (
             <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExtend(row.original);
-                }}
-                className="text-green-600 hover:text-green-800"
-                title="Extend Rental"
-              >
-                <Clock className="h-4 w-4" />
-              </button>
+              {row.original.status !== 'completed' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExtend(row.original);
+                  }}
+                  className="text-green-600 hover:text-green-800"
+                  title="Extend Rental"
+                >
+                  <Clock className="h-4 w-4" />
+                </button>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -132,11 +170,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
               </button>
             </>
           )}
-          {can('rentals', 'delete') && (
+          {can('rentals', 'delete') && row.original.status !== 'rented' && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(row.original);
+                onDelete(row.original.id);
               }}
               className="text-red-600 hover:text-red-800"
               title="Delete"

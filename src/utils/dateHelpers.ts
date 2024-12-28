@@ -1,5 +1,38 @@
 import { format, isValid, parseISO } from 'date-fns';
 
+/**
+ * Formats a date for HTML input elements
+ */
+export const formatDateForInput = (date: Date | string | undefined | null): string => {
+  if (!date) return new Date().toISOString().split('T')[0];
+
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(dateObj) ? format(dateObj, 'yyyy-MM-dd') : new Date().toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+/**
+ * Ensures a date value is a valid Date object
+ */
+export const ensureValidDate = (date: any): Date => {
+  if (!date) return new Date();
+  
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(dateObj) ? dateObj : new Date();
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return new Date();
+  }
+};
+
+/**
+ * Formats a date for display
+ */
 export const formatDate = (date: Date | null | undefined): string => {
   if (!date || !isValid(date)) {
     return 'Not set';
@@ -7,29 +40,14 @@ export const formatDate = (date: Date | null | undefined): string => {
   return format(date, 'dd/MM/yyyy');
 };
 
-export const formatDateForInput = (date: Date | string | undefined): string => {
-  if (!date) {
-    return new Date().toISOString().split('T')[0];
+/**
+ * Validates a date string
+ */
+export const isValidDateString = (dateString: string): boolean => {
+  try {
+    const date = parseISO(dateString);
+    return isValid(date);
+  } catch {
+    return false;
   }
-
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
-  if (!isValid(dateObj)) {
-    return new Date().toISOString().split('T')[0];
-  }
-  return format(dateObj, 'yyyy-MM-dd');
-};
-
-export const ensureValidDate = (date: any): Date => {
-  if (!date) return new Date();
-  
-  if (date instanceof Date && isValid(date)) {
-    return date;
-  }
-  
-  if (typeof date === 'string') {
-    const parsed = parseISO(date);
-    if (isValid(parsed)) return parsed;
-  }
-  
-  return new Date();
 };
