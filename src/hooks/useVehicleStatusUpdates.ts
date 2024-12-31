@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { addVehicleStatus, removeVehicleStatus } from '../utils/vehicleStatusManager';
 
@@ -8,42 +8,38 @@ export const useVehicleStatusUpdates = () => {
     // Monitor rentals
     const rentalsQuery = query(
       collection(db, 'rentals'),
-      where('status', 'in', ['active', 'completed', 'cancelled'])
+      where('status', 'in', ['scheduled', 'active', 'completed'])
     );
 
     // Monitor maintenance
     const maintenanceQuery = query(
       collection(db, 'maintenanceLogs'),
-      where('status', 'in', ['scheduled', 'in-progress', 'completed', 'cancelled'])
+      where('status', 'in', ['scheduled', 'in-progress', 'completed'])
     );
 
     const unsubscribeRentals = onSnapshot(rentalsQuery, snapshot => {
-      snapshot.docChanges().forEach(async change => {
+      snapshot.docChanges().forEach(change => {
+        const rental = { id: change.doc.id, ...change.doc.data() };
+        
         if (change.type === 'modified') {
-          const rental = { id: change.doc.id, ...change.doc.data() };
-          const vehicleDoc = await getDoc(doc(db, 'vehicles', rental.vehicleId));
-          const vehicle = vehicleDoc.data();
-          
           if (rental.status === 'active') {
-            await addVehicleStatus(rental.vehicleId, 'rented', vehicle?.activeStatuses);
-          } else if (rental.status === 'completed' || rental.status === 'cancelled') {
-            await removeVehicleStatus(rental.vehicleId, 'rented', vehicle?.activeStatuses);
+            addVehicleStatus(rental.vehicleId, 'rented', 'rental');
+          } else if (rental.status === 'completed') {
+            removeVehicleStatus(rental.vehicleId, 'rented');
           }
         }
       });
     });
 
     const unsubscribeMaintenance = onSnapshot(maintenanceQuery, snapshot => {
-      snapshot.docChanges().forEach(async change => {
+      snapshot.docChanges().forEach(change => {
+        const maintenance = { id: change.doc.id, ...change.doc.data() };
+        
         if (change.type === 'modified') {
-          const maintenance = { id: change.doc.id, ...change.doc.data() };
-          const vehicleDoc = await getDoc(doc(db, 'vehicles', maintenance.vehicleId));
-          const vehicle = vehicleDoc.data();
-          
           if (maintenance.status === 'in-progress') {
-            await addVehicleStatus(maintenance.vehicleId, 'maintenance', vehicle?.activeStatuses);
-          } else if (maintenance.status === 'completed' || maintenance.status === 'cancelled') {
-            await removeVehicleStatus(maintenance.vehicleId, 'maintenance', vehicle?.activeStatuses);
+            addVehicleStatus(maintenance.vehicleId, 'maintenance', 'maintenance');
+          } else if (maintenance.status === 'completed') {
+            removeVehicleStatus(maintenance.vehicleId, 'maintenance');
           }
         }
       });

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Vehicle } from '../../types';
+import { Vehicle, VehicleOwner } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { formatInputDate, parseFormDate } from '../../utils/dateFormat';
-import FormField from '../ui/FormField';
+import { checkDuplicateVehicle } from '../../utils/vehicleValidation';
+import { validateImage } from '../../utils/imageUpload';
 import { Upload } from 'lucide-react';
+import FormField from '../ui/FormField';
 import toast from 'react-hot-toast';
 
 interface VehicleFormProps {
@@ -11,16 +13,17 @@ interface VehicleFormProps {
   onClose: () => void;
   onSubmit: (data: Partial<Vehicle>) => Promise<void>;
 }
-const DEFAULT_OWNER = {
+
+const DEFAULT_OWNER: VehicleOwner = {
   name: 'AIE Skyline',
   address: '',
   isDefault: true
 };
 
 const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit }) => {
+  const { user } = useAuth();
   const { can } = usePermissions();
   const [loading, setLoading] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle?.image || null);
   const [owner, setOwner] = useState<VehicleOwner>(vehicle?.owner || DEFAULT_OWNER);
   const [isCustomOwner, setIsCustomOwner] = useState(!vehicle?.owner?.isDefault);
@@ -32,49 +35,68 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     year: vehicle?.year?.toString() || new Date().getFullYear().toString(),
     registrationNumber: vehicle?.registrationNumber || '',
     mileage: vehicle?.mileage?.toString() || '0',
-    motExpiry: formatInputDate(vehicle?.motExpiry),
-    insuranceExpiry: formatInputDate(vehicle?.insuranceExpiry),
-    roadTaxExpiry: formatInputDate(vehicle?.roadTaxExpiry),
-    nslExpiry: formatInputDate(vehicle?.nslExpiry),
-    lastMaintenance: formatInputDate(vehicle?.lastMaintenance),
-    nextMaintenance: formatInputDate(vehicle?.nextMaintenance),
+    insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
+    motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
+    nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
+    roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
+    lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
+    nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
+    image: null as File | null,
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!validateImage(file)) {
+      return;
+    }
+
+    setFormData({ ...formData, image: file });
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     setLoading(true);
 
     try {
-      const vehicleData = {
-        ...formData,
-        owner: isCustomOwner ? owner : DEFAULT_OWNER,
-        mileage: parseInt(formData.mileage),
-        year: parseInt(formData.year),
-        motExpiry: parseFormDate(formData.motExpiry),
-        insuranceExpiry: parseFormDate(formData.insuranceExpiry),
-        roadTaxExpiry: parseFormDate(formData.roadTaxExpiry),
-        nslExpiry: parseFormDate(formData.nslExpiry),
-        lastMaintenance: parseFormDate(formData.lastMaintenance),
-        nextMaintenance: parseFormDate(formData.nextMaintenance),
-        status: vehicle?.status || 'available',
-        image: imageFile,
-      };
+      // Check for duplicates
+      const isDuplicate = await checkDuplicateVehicle(
+        formData.registrationNumber,
+        formData.vin,
+        vehicle?.id
+      );
 
-      // Validate all dates are valid
-      const dateFields = ['motExpiry', 'insuranceExpiry', 'roadTaxExpiry', 'nslExpiry', 'lastMaintenance', 'nextMaintenance'];
-      const invalidDates = dateFields.filter(field => !vehicleData[field]);
-      
-      if (invalidDates.length > 0) {
-        toast.error(`Invalid dates for: ${invalidDates.join(', ')}`);
+      if (isDuplicate) {
+        setLoading(false);
         return;
       }
 
-      await onSubmit(vehicleData);
-      toast.success(`Vehicle ${vehicle ? 'updated' : 'added'} successfully`);
+      await onSubmit({
+        ...formData,
+        year: parseInt(formData.year),
+        mileage: parseInt(formData.mileage),
+        insuranceExpiry: new Date(formData.insuranceExpiry),
+        motExpiry: new Date(formData.motExpiry),
+        nslExpiry: new Date(formData.nslExpiry),
+        roadTaxExpiry: new Date(formData.roadTaxExpiry),
+        lastMaintenance: new Date(formData.lastMaintenance),
+        nextMaintenance: new Date(formData.nextMaintenance),
+        image: formData.image,
+        owner: isCustomOwner ? owner : DEFAULT_OWNER
+      });
+
       onClose();
     } catch (error) {
-      console.error('Error submitting form:', error);
-      toast.error(`Failed to ${vehicle ? 'update' : 'add'} vehicle`);
+      console.error('Error saving vehicle:', error);
+      toast.error('Failed to save vehicle');
     } finally {
       setLoading(false);
     }
@@ -86,6 +108,54 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Vehicle Information */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          label="VIN"
+          value={formData.vin}
+          onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
+          required
+        />
+
+        <FormField
+          label="Registration Number"
+          value={formData.registrationNumber}
+          onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+          required
+        />
+
+        <FormField
+          label="Make"
+          value={formData.make}
+          onChange={(e) => setFormData({ ...formData, make: e.target.value })}
+          required
+        />
+
+        <FormField
+          label="Model"
+          value={formData.model}
+          onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+          required
+        />
+
+        <FormField
+          type="number"
+          label="Year"
+          value={formData.year}
+          onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+          required
+        />
+
+        <FormField
+          type="number"
+          label="Mileage"
+          value={formData.mileage}
+          onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
+          required
+        />
+      </div>
+
+      {/* Owner Information */}
       <div className="border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
         
@@ -134,51 +204,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           )}
         </div>
       </div>
+
+      {/* Document Expiry Dates */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField
-          label="VIN"
-          value={formData.vin}
-          onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
-          required
-        />
-
-        <FormField
-          label="Registration Number"
-          value={formData.registrationNumber}
-          onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-          required
-        />
-
-        <FormField
-          label="Make"
-          value={formData.make}
-          onChange={(e) => setFormData({ ...formData, make: e.target.value })}
-          required
-        />
-
-        <FormField
-          label="Model"
-          value={formData.model}
-          onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-          required
-        />
-
-        <FormField
-          type="number"
-          label="Year"
-          value={formData.year}
-          onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-          required
-        />
-
-        <FormField
-          type="number"
-          label="Mileage"
-          value={formData.mileage}
-          onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
-          required
-        />
-
         <FormField
           type="date"
           label="MOT Expiry"
@@ -189,9 +217,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
 
         <FormField
           type="date"
-          label="Insurance Expiry"
-          value={formData.insuranceExpiry}
-          onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
+          label="NSL Expiry"
+          value={formData.nslExpiry}
+          onChange={(e) => setFormData({ ...formData, nslExpiry: e.target.value })}
           required
         />
 
@@ -205,9 +233,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
 
         <FormField
           type="date"
-          label="NSL Expiry"
-          value={formData.nslExpiry}
-          onChange={(e) => setFormData({ ...formData, nslExpiry: e.target.value })}
+          label="Insurance Expiry"
+          value={formData.insuranceExpiry}
+          onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
           required
         />
 
@@ -228,37 +256,38 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         />
       </div>
 
+      {/* Vehicle Image */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Vehicle Image</label>
-        <div className="mt-1 flex items-center">
-          {imagePreview && (
-            <img
-              src={imagePreview}
-              alt="Vehicle preview"
-              className="h-32 w-32 object-cover rounded-md mr-4"
-            />
-          )}
-          <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-            <Upload className="h-5 w-5 mr-2 text-gray-400" />
-            Upload Image
-            <input
-              type="file"
-              className="hidden"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setImageFile(file);
-                  const reader = new FileReader();
-                  reader.onloadend = () => setImagePreview(reader.result as string);
-                  reader.readAsDataURL(file);
-                }
-              }}
-            />
-          </label>
+        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+          <div className="space-y-1 text-center">
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="Vehicle preview"
+                className="mx-auto h-32 w-auto object-cover rounded-md"
+              />
+            ) : (
+              <Upload className="mx-auto h-12 w-12 text-gray-400" />
+            )}
+            <div className="flex text-sm text-gray-600">
+              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                <span>Upload a photo</span>
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+              </label>
+              <p className="pl-1">or drag and drop</p>
+            </div>
+            <p className="text-xs text-gray-500">PNG, JPG, WebP up to 5MB</p>
+          </div>
         </div>
       </div>
 
+      {/* Form Actions */}
       <div className="flex justify-end space-x-3">
         <button
           type="button"

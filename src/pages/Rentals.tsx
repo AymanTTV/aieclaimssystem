@@ -31,15 +31,15 @@ const Rentals = () => {
     vehicleFilter,
     setVehicleFilter,
     filteredRentals
-  } = useRentalFilters(rentals, vehicles, customers); // Pass all three arrays
+  } = useRentalFilters(rentals, vehicles, customers);
 
-  useRentalStatusUpdates(); // Enable automatic status updates
+  useRentalStatusUpdates();
 
   const [showForm, setShowForm] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [editingRental, setEditingRental] = useState<Rental | null>(null);
   const [extendingRental, setExtendingRental] = useState<Rental | null>(null);
-  const [deletingRentalId, setDeletingRentalId] = useState<string | null>(null);
+  const [deletingRental, setDeletingRental] = useState<Rental | null>(null);
 
   const handleExport = () => {
     try {
@@ -51,6 +51,22 @@ const Rentals = () => {
     }
   };
 
+  const handleDownloadAgreement = (rental: Rental) => {
+    if (rental.documents?.agreement) {
+      window.open(rental.documents.agreement, '_blank');
+    } else {
+      toast.error('No hire agreement available');
+    }
+  };
+
+  const handleDownloadInvoice = (rental: Rental) => {
+    if (rental.documents?.invoice) {
+      window.open(rental.documents.invoice, '_blank');
+    } else {
+      toast.error('No invoice available');
+    }
+  };
+
   if (vehiclesLoading || rentalsLoading || customersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -58,9 +74,6 @@ const Rentals = () => {
       </div>
     );
   }
-
-  // Filter available vehicles
-  const availableVehicles = vehicles.filter(v => v.status === 'available');
 
   return (
     <div className="space-y-6">
@@ -84,8 +97,6 @@ const Rentals = () => {
         </div>
       </div>
 
-      
-
       <RentalFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -98,15 +109,16 @@ const Rentals = () => {
         vehicles={vehicles}
       />
 
-
       <RentalTable
         rentals={filteredRentals}
         vehicles={vehicles}
         customers={customers}
         onView={setSelectedRental}
         onEdit={setEditingRental}
-        onDelete={setDeletingRentalId}
+        onDelete={setDeletingRental}
         onExtend={setExtendingRental}
+        onDownloadAgreement={handleDownloadAgreement}
+        onDownloadInvoice={handleDownloadInvoice}
       />
 
       {/* Modals */}
@@ -117,7 +129,7 @@ const Rentals = () => {
         size="xl"
       >
         <RentalForm
-          vehicles={availableVehicles}
+          vehicles={vehicles}
           customers={customers}
           onClose={() => setShowForm(false)}
         />
@@ -134,6 +146,8 @@ const Rentals = () => {
             rental={selectedRental}
             vehicle={vehicles.find(v => v.id === selectedRental.vehicleId) || null}
             customer={customers.find(c => c.id === selectedRental.customerId) || null}
+            onDownloadAgreement={() => handleDownloadAgreement(selectedRental)}
+            onDownloadInvoice={() => handleDownloadInvoice(selectedRental)}
           />
         )}
       </Modal>
@@ -167,14 +181,14 @@ const Rentals = () => {
       </Modal>
 
       <Modal
-        isOpen={!!deletingRentalId}
-        onClose={() => setDeletingRentalId(null)}
+        isOpen={!!deletingRental}
+        onClose={() => setDeletingRental(null)}
         title="Delete Rental"
       >
-        {deletingRentalId && (
+        {deletingRental && (
           <RentalDeleteModal
-            rentalId={deletingRentalId}
-            onClose={() => setDeletingRentalId(null)}
+            rental={deletingRental}
+            onClose={() => setDeletingRental(null)}
           />
         )}
       </Modal>

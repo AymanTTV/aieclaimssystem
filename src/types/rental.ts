@@ -1,4 +1,3 @@
-// Update the Rental interface to include payment tracking
 export interface Rental {
   id: string;
   vehicleId: string;
@@ -20,6 +19,11 @@ export interface Rental {
   approvedBy?: string;
   numberOfWeeks?: number;
   extensionHistory?: RentalExtension[];
+  documents?: {
+    agreement?: string;
+    invoice?: string;
+  };
+  signature?: string;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string;
@@ -27,3 +31,16 @@ export interface Rental {
 }
 
 export type PaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'overdue';
+export type RentalType = 'daily' | 'weekly' | 'claim';
+export type RentalStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
+export type RentalReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'c-substitute' | 'h-substitute';
+
+export interface RentalExtension {
+  date: Date;
+  originalEndDate: Date;
+  newEndDate: Date;
+  cost: number;
+  approvedBy?: string;
+  negotiated?: boolean;
+  negotiationNotes?: string;
+}

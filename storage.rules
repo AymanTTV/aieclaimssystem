@@ -1,7 +1,6 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -16,35 +15,32 @@ service firebase.storage {
         firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
 
-    function isValidImage() {
-      return request.resource.contentType.matches('image/.*') &&
-             request.resource.size < 5 * 1024 * 1024; // 5MB max
-    }
-
-    // Company logo
-    match /company/logo {
+    // Allow read access to all authenticated users
+    match /{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && 
-        (isAdmin() || isManager()) &&
-        isValidImage();
     }
 
     // Profile pictures
     match /profile-pictures/{userId} {
-      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
-        (request.auth.uid == userId || isAdmin()) &&
-        isValidImage();
+        (request.auth.uid == userId || isAdmin());
     }
 
-    // Add CORS headers to all responses
-    function corsHeaders() {
-      return response.headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        'Access-Control-Max-Age': '3600'
-      };
+    // Vehicle images
+    match /vehicles/{vehicleId}/{fileName} {
+      allow write: if isAuthenticated() && 
+        (isAdmin() || isManager());
+    }
+
+    // Rental documents
+    match /rentals/{rentalId}/{fileName} {
+      allow write: if isAuthenticated() && 
+        (isAdmin() || isManager());
+    }
+
+    // Claims documents
+    match /claims/{claimId}/{fileName} {
+      allow write: if isAuthenticated();
     }
   }
 }

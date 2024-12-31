@@ -1,5 +1,4 @@
-// src/components/ui/SignaturePad.tsx
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 
 export interface SignaturePadProps {

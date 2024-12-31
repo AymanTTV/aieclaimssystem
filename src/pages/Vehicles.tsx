@@ -16,8 +16,11 @@ import { db, storage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { Plus, Download } from 'lucide-react';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
+import { useVehicleStatusTracking } from '../hooks/useVehicleStatusTracking';
+
 
 const Vehicles = () => {
+  useVehicleStatusTracking();
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);

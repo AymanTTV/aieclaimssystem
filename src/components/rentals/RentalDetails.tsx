@@ -2,29 +2,54 @@ import React from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
 import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Clock } from 'lucide-react';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Clock, PenTool } from 'lucide-react';
+
 
 interface RentalDetailsProps {
   rental: Rental;
   vehicle: Vehicle | null;
   customer: Customer | null;
+  onDownloadAgreement: () => void;
+  onDownloadInvoice: () => void;
 }
 
-const RentalDetails: React.FC<RentalDetailsProps> = ({ rental, vehicle, customer }) => {
-  const formatDate = (date: Date | null | undefined): string => {
-    if (!date || !isValid(date)) {
-      return 'Not available';
-    }
-    try {
-      return format(date, 'dd/MM/yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
-    }
+const RentalDetails: React.FC<RentalDetailsProps> = ({
+  rental,
+  vehicle,
+  customer,
+  onDownloadAgreement,
+  onDownloadInvoice
+}) => {
+  // Helper function to safely format dates
+  const formatDateTime = (date: Date | null | undefined): string => {
+    if (!date || !isValid(date)) return 'N/A';
+    return format(date, 'dd/MM/yyyy HH:mm');
   };
 
   return (
     <div className="space-y-6">
+      {/* Documents Section */}
+      <div className="flex justify-end space-x-4">
+        {rental.documents?.agreement && (
+          <button
+            onClick={onDownloadAgreement}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Hire Agreement
+          </button>
+        )}
+        {rental.documents?.invoice && (
+          <button
+            onClick={onDownloadInvoice}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Invoice
+          </button>
+        )}
+      </div>
+
       {/* Vehicle Information */}
       <div className="border-b pb-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Details</h3>
@@ -106,14 +131,14 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({ rental, vehicle, customer
             <Calendar className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <p className="text-sm text-gray-500">Start Date & Time</p>
-              <p className="font-medium">{formatDate(rental.startDate)}</p>
+              <p className="font-medium">{formatDateTime(rental.startDate)}</p>
             </div>
           </div>
           <div className="flex items-center">
             <Calendar className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <p className="text-sm text-gray-500">End Date & Time</p>
-              <p className="font-medium">{formatDate(rental.endDate)}</p>
+              <p className="font-medium">{formatDateTime(rental.endDate)}</p>
             </div>
           </div>
           {rental.numberOfWeeks && (
@@ -175,17 +200,20 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({ rental, vehicle, customer
         </div>
       </div>
 
-      {/* Negotiation Details */}
-      {rental.negotiated && (
+      {/* Customer Signature */}
+      {rental.signature && (
         <div className="border-b pb-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Negotiation Details</h3>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Negotiated Rate</strong> - Approved by {rental.approvedBy || 'Unknown'}
-            </p>
-            {rental.negotiationNotes && (
-              <p className="text-sm text-yellow-600 mt-2">{rental.negotiationNotes}</p>
-            )}
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Signature</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center space-x-2 mb-2">
+              <PenTool className="h-5 w-5 text-gray-400" />
+              <span className="text-sm text-gray-600">Signed by {customer?.name || 'Customer'}</span>
+            </div>
+            <img 
+              src={rental.signature} 
+              alt="Customer Signature" 
+              className="max-h-24 object-contain bg-white rounded border"
+            />
           </div>
         </div>
       )}
@@ -197,21 +225,25 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({ rental, vehicle, customer
           <div className="space-y-3">
             {rental.extensionHistory.map((extension, index) => (
               <div key={index} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="font-medium">
-                      Extended on {formatDate(extension.date)}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {formatDate(extension.originalEndDate)} → {formatDate(extension.newEndDate)}
-                    </p>
+                    <p className="text-sm text-gray-500">Original End Date</p>
+                    <p className="font-medium">{formatDateTime(extension.originalEndDate)}</p>
                   </div>
-                  <div className="text-right">
+                  <div>
+                    <p className="text-sm text-gray-500">New End Date</p>
+                    <p className="font-medium">{formatDateTime(extension.newEndDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Extension Cost</p>
                     <p className="font-medium">£{extension.cost.toFixed(2)}</p>
-                    {extension.approvedBy && (
-                      <p className="text-xs text-gray-500">Approved by {extension.approvedBy}</p>
-                    )}
                   </div>
+                  {extension.negotiated && (
+                    <div>
+                      <p className="text-sm text-gray-500">Negotiation Notes</p>
+                      <p className="text-sm">{extension.negotiationNotes}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -222,8 +254,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({ rental, vehicle, customer
       {/* Audit Information */}
       <div className="text-sm text-gray-500">
         <div className="flex justify-between">
-          <div>Created: {formatDate(rental.createdAt)}</div>
-          <div>Last Updated: {formatDate(rental.updatedAt)}</div>
+          <div>Created: {formatDateTime(rental.createdAt)}</div>
+          <div>Last Updated: {formatDateTime(rental.updatedAt)}</div>
         </div>
       </div>
     </div>

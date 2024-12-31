@@ -2,10 +2,8 @@ import { ActionCodeSettings } from 'firebase/auth';
 
 // Password reset configuration
 export const passwordResetSettings: ActionCodeSettings = {
-  // Redirect back to login page after password reset
-  url: `${window.location.origin}/login`,
-  // Don't handle the code in the app since we want Firebase to handle the reset flow
-  handleCodeInApp: false
+  url: `${window.location.origin}/login`, // Redirect back to login page after reset
+  handleCodeInApp: false // Let Firebase handle the reset flow
 };
 
 // Auth persistence settings

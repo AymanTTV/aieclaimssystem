@@ -1,5 +1,5 @@
 import { storage } from './config';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import toast from 'react-hot-toast';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -11,44 +11,28 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const uploadFile = async (file: File, path: string): Promise<string> => {
   // Validate file
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error('Invalid file type. Please upload a JPEG, PNG or WebP image');
-  }
-  if (file.size > MAX_SIZE) {
-    throw new Error('File size must be less than 5MB');
+  if (!validateFile(file)) {
+    throw new Error('Invalid file');
   }
 
   let attempt = 0;
   
   while (attempt < MAX_RETRIES) {
     try {
-      // Create storage reference with timestamp to avoid conflicts
+      // Create storage reference with timestamp
       const timestamp = Date.now();
       const storageRef = ref(storage, `${path}_${timestamp}`);
 
       // Create upload task
-      const uploadTask = uploadBytesResumable(storageRef, file, {
+      const uploadTask = await uploadBytes(storageRef, file, {
         contentType: file.type,
         customMetadata: {
           'Cache-Control': 'public,max-age=7200'
         }
       });
 
-      // Wait for upload to complete
-      await new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            console.log('Upload progress:', progress);
-          },
-          (error) => reject(error),
-          () => resolve(uploadTask)
-        );
-      });
-
       // Get download URL
-      const downloadURL = await getDownloadURL(storageRef);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
       return downloadURL;
 
     } catch (error: any) {

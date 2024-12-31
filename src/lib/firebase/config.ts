@@ -1,10 +1,10 @@
-import { initializeApp, FirebaseOptions } from 'firebase/app';
-import { getAuth, ActionCodeSettings } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { passwordResetSettings } from './auth';
 
-// Firebase configuration
-const firebaseConfig: FirebaseOptions = {
+const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
@@ -13,27 +13,32 @@ const firebaseConfig: FirebaseOptions = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
-// Configure password reset settings
-
-export const passwordResetSettings: ActionCodeSettings = {
-  url: 'https://aie-claims.firebaseapp.com/login', // Change this to your actual domain
-  handleCodeInApp: true,
-};
-
-
 
 // Initialize Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services
+// Initialize services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Initialize Storage with custom settings
 export const storage = getStorage(app);
+storage.maxOperationRetryTime = 60000; // 60 seconds
+storage.maxUploadRetryTime = 60000; // 60 seconds
 
-// Configure storage settings
-storage.maxOperationRetryTime = 15000; // 15 seconds
-storage.maxUploadRetryTime = 15000; // 15 seconds
+// Storage metadata with CORS headers
+export const storageMetadata = {
+  cacheControl: 'public,max-age=7200',
+  contentType: 'auto',
+  customMetadata: {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, HEAD',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '3600'
+  }
+};
 
+// Export password reset settings
+export { passwordResetSettings };
 
-// Export initialized app as default
 export default app;

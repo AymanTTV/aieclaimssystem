@@ -1,40 +1,40 @@
-import { Vehicle } from '../types';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import toast from 'react-hot-toast';
 
-export const validateVehicle = async (vehicle: Partial<Vehicle>, isEdit = false): Promise<string[]> => {
-  const errors: string[] = [];
+export const checkDuplicateVehicle = async (
+  registrationNumber: string,
+  vin: string,
+  vehicleId?: string // Optional - used when editing
+): Promise<boolean> => {
+  try {
+    // Check registration number
+    const regQuery = query(
+      collection(db, 'vehicles'),
+      where('registrationNumber', '==', registrationNumber)
+    );
+    const regDocs = await getDocs(regQuery);
+    
+    if (!regDocs.empty && (!vehicleId || regDocs.docs[0].id !== vehicleId)) {
+      toast.error('A vehicle with this registration number already exists');
+      return true;
+    }
 
-  // Check for duplicate registration
-  const regQuery = query(
-    collection(db, 'vehicles'),
-    where('registrationNumber', '==', vehicle.registrationNumber)
-  );
-  const regDocs = await getDocs(regQuery);
-  
-  if (!isEdit && !regDocs.empty) {
-    errors.push('Vehicle with this registration already exists');
+    // Check VIN
+    const vinQuery = query(
+      collection(db, 'vehicles'),
+      where('vin', '==', vin)
+    );
+    const vinDocs = await getDocs(vinQuery);
+    
+    if (!vinDocs.empty && (!vehicleId || vinDocs.docs[0].id !== vehicleId)) {
+      toast.error('A vehicle with this VIN already exists');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking for duplicates:', error);
+    return false;
   }
-
-  // Check for duplicate VIN
-  const vinQuery = query(
-    collection(db, 'vehicles'),
-    where('vin', '==', vehicle.vin)
-  );
-  const vinDocs = await getDocs(vinQuery);
-  
-  if (!isEdit && !vinDocs.empty) {
-    errors.push('Vehicle with this VIN already exists');
-  }
-
-  return errors;
-};
-
-export const checkVehicleAvailability = async (vehicleId: string, startDate: Date, endDate: Date) => {
-  const conflicts = await Promise.all([
-    checkRentalConflicts(vehicleId, startDate, endDate),
-    checkMaintenanceConflicts(vehicleId, startDate, endDate)
-  ]);
-
-  return !conflicts.some(Boolean);
 };

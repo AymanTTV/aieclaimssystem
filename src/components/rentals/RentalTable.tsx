@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, Clock } from 'lucide-react';
+import { Eye, Edit, Trash2, Clock, FileText, Download } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
@@ -12,8 +12,10 @@ interface RentalTableProps {
   customers: Customer[];
   onView: (rental: Rental) => void;
   onEdit: (rental: Rental) => void;
-  onDelete: (rentalId: string) => void;
+  onDelete: (rental: Rental) => void;
   onExtend: (rental: Rental) => void;
+  onDownloadAgreement: (rental: Rental) => void;
+  onDownloadInvoice: (rental: Rental) => void;
 }
 
 const RentalTable: React.FC<RentalTableProps> = ({
@@ -24,6 +26,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onEdit,
   onDelete,
   onExtend,
+  onDownloadAgreement,
+  onDownloadInvoice,
 }) => {
   const { can } = usePermissions();
 
@@ -119,14 +123,40 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 )}
               </div>
             )}
-            {rental.paymentMethod && (
-              <div className="text-xs text-gray-500 mt-1 capitalize">
-                via {rental.paymentMethod.replace('_', ' ')}
-              </div>
-            )}
           </div>
         );
       },
+    },
+    {
+      header: 'Documents',
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          {row.original.documents?.agreement && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadAgreement(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="Download Agreement"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documents?.invoice && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadInvoice(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Download Invoice"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
     },
     {
       header: 'Actions',
@@ -174,7 +204,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(row.original.id);
+                onDelete(row.original);
               }}
               className="text-red-600 hover:text-red-800"
               title="Delete"
