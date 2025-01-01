@@ -3,76 +3,36 @@ import clsx from 'clsx';
 
 type StatusType = 
   | 'active' 
-  | 'maintenance' 
+  | 'maintenance'
+  | 'scheduled-maintenance'
   | 'rented'
+  | 'scheduled-rental'
   | 'claim'
   | 'unavailable'
-  | 'scheduled'
-  | 'in-progress'
-  | 'completed'
-  | 'cancelled'
-  | 'pending'
-  | 'paid'
-  | 'overdue'
-  | 'fault'
-  | 'non-fault'
-  | 'settled'
-  | 'won'
-  | 'lost'
-  | 'hired'
-  | 'daily'
-  | 'weekly'
   | 'sold';
 
 interface StatusBadgeProps {
-  status: StatusType | undefined;
+  status: StatusType;
   className?: string;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
-  if (!status) return null;
-
   const getStatusColor = (status: StatusType) => {
     switch (status) {
       case 'active':
         return 'bg-green-100 text-green-800';
       case 'maintenance':
         return 'bg-yellow-100 text-yellow-800';
+      case 'scheduled-maintenance':
+        return 'bg-yellow-50 text-yellow-600';
       case 'rented':
-      case 'hired':
         return 'bg-blue-100 text-blue-800';
+      case 'scheduled-rental':
+        return 'bg-blue-50 text-blue-600';
       case 'claim':
         return 'bg-purple-100 text-purple-800';
       case 'unavailable':
-        return 'bg-red-100 text-red-700';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
-      case 'in-progress':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-700';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'overdue':
-        return 'bg-red-100 text-red-700';
-      case 'fault':
-        return 'bg-red-100 text-red-700';
-      case 'non-fault':
-        return 'bg-blue-100 text-blue-800';
-      case 'settled':
-        return 'bg-green-100 text-green-800';
-      case 'won':
-        return 'bg-green-100 text-green-800';
-      case 'lost':
-        return 'bg-red-100 text-red-700';
-      case 'daily':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'weekly':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-red-100 text-red-800';
       case 'sold':
         return 'bg-gray-100 text-gray-800';
       default:
@@ -88,7 +48,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
         className
       )}
     >
-      {status.replace(/-/g, ' ')}
+      {status.replace('-', ' ')}
     </span>
   );
 };

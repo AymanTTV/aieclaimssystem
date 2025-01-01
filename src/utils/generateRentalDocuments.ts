@@ -5,20 +5,29 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createElement } from 'react';
 
-/**
- * Generates all rental documents
- */
 export const generateRentalDocuments = async (
   rental: Rental,
   vehicle: Vehicle,
   customer: Customer
 ): Promise<{ agreement: Blob; invoice: Blob }> => {
   try {
-    // Get company details including signature
-    const companyDetails = await getDoc(doc(db, 'companySettings', 'details'));
-    if (!companyDetails.exists()) {
+    // Get company details
+    const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+    if (!companyDoc.exists()) {
       throw new Error('Company details not found');
     }
+
+    const companyDetails = {
+      fullName: companyDoc.data().fullName || 'AIE SKYLINE',
+      name: companyDoc.data().name || '',
+      officialAddress: companyDoc.data().officialAddress || '',
+      phone: companyDoc.data().phone || '',
+      email: companyDoc.data().email || '',
+      vatNumber: companyDoc.data().vatNumber || '',
+      registrationNumber: companyDoc.data().registrationNumber || '',
+      termsAndConditions: companyDoc.data().termsAndConditions || '',
+      signature: companyDoc.data().signature || ''
+    };
 
     // Generate both documents in parallel
     const [agreementBlob, invoiceBlob] = await Promise.all([
@@ -26,14 +35,13 @@ export const generateRentalDocuments = async (
         rental,
         vehicle,
         customer,
-        companySignature: companyDetails.data().signature,
-        customerSignature: rental.signature
+        companyDetails
       })).toBlob(),
       pdf(createElement(RentalInvoice, {
         rental,
         vehicle,
         customer,
-        companyDetails: companyDetails.data()
+        companyDetails
       })).toBlob()
     ]);
 

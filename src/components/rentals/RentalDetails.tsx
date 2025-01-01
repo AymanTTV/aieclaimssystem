@@ -30,25 +30,39 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     <div className="space-y-6">
       {/* Documents Section */}
       <div className="flex justify-end space-x-4">
-        {rental.documents?.agreement && (
-          <button
-            onClick={onDownloadAgreement}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Hire Agreement
-          </button>
-        )}
-        {rental.documents?.invoice && (
-          <button
-            onClick={onDownloadInvoice}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Invoice
-          </button>
-        )}
-      </div>
+  {rental.documents?.agreement && (
+    <button
+      onClick={() => {
+        try {
+          window.open(rental.documents?.agreement, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+          console.error('Error opening agreement:', error);
+          toast.error('Failed to open agreement. Please try downloading it instead.');
+        }
+      }}
+      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+    >
+      <FileText className="h-4 w-4 mr-2" />
+      Hire Agreement
+    </button>
+  )}
+  {rental.documents?.invoice && (
+    <button
+      onClick={() => {
+        try {
+          window.open(rental.documents?.invoice, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+          console.error('Error opening invoice:', error);
+          toast.error('Failed to open invoice. Please try downloading it instead.');
+        }
+      }}
+      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+    >
+      <Download className="h-4 w-4 mr-2" />
+      Invoice
+    </button>
+  )}
+</div>
 
       {/* Vehicle Information */}
       <div className="border-b pb-4">

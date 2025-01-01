@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { calculateRentalCost } from '../../utils/rentalCalculations';
-import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'; // Added updateDoc import
+import { calculateRentalCost, calculateWeeklyEndDate } from '../../utils/rentalCalculations';
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { generateRentalAgreement, generateRentalInvoice } from '../../utils/pdfGeneration';
+import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadPDF } from '../../utils/pdfStorage';
 import FormField from '../ui/FormField';
 import VehicleSelect from '../VehicleSelect';
@@ -40,72 +40,100 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
   // Calculate total cost
   const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-  const endDateTime = formData.endDate ? new Date(`${formData.endDate}T${formData.endTime}`) : null;
+  let endDateTime: Date;
+
+  if (formData.type === 'weekly') {
+    endDateTime = calculateWeeklyEndDate(startDateTime, formData.numberOfWeeks);
+  } else {
+    endDateTime = formData.endDate ? new Date(`${formData.endDate}T${formData.endTime}`) : startDateTime;
+  }
   
-  const totalCost = (startDateTime && endDateTime) ? 
-    calculateRentalCost(startDateTime, endDateTime, formData.type, formData.reason) : 0;
+  const totalCost = formData.customRate ? 
+    parseFloat(formData.customRate) : 
+    calculateRentalCost(startDateTime, endDateTime, formData.type, formData.reason, formData.numberOfWeeks);
 
   const remainingAmount = Math.max(0, totalCost - formData.paidAmount);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setLoading(true);
-
-    try {
-      // Create rental record
-      const rentalData = {
-        ...formData,
-        startDate: startDateTime,
-        endDate: endDateTime,
-        cost: totalCost,
-        remainingAmount,
-        paymentStatus: formData.paidAmount >= totalCost ? 'paid' : 'pending',
-        status: 'scheduled',
-        createdAt: new Date(),
-        createdBy: user.id
-      };
-
-      const rentalRef = await addDoc(collection(db, 'rentals'), rentalData);
-      const rental = { id: rentalRef.id, ...rentalData };
-
-      // Get vehicle and customer details
-      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-      const selectedCustomer = customers.find(c => c.id === formData.customerId);
-
-      if (!selectedVehicle || !selectedCustomer) {
-        throw new Error('Vehicle or customer not found');
-      }
-
-      // Generate PDFs
-      const [agreementPDF, invoicePDF] = await Promise.all([
-        generateRentalAgreement(rental, selectedVehicle, selectedCustomer),
-        generateRentalInvoice(rental, selectedVehicle, selectedCustomer)
-      ]);
-
-      // Upload PDFs
-      const [agreementURL, invoiceURL] = await Promise.all([
-        uploadPDF(agreementPDF, `rentals/${rental.id}/agreement.pdf`),
-        uploadPDF(invoicePDF, `rentals/${rental.id}/invoice.pdf`)
-      ]);
-
-      // Update rental with document URLs
-      await updateDoc(doc(db, 'rentals', rental.id), {
-        documents: {
-          agreement: agreementURL,
-          invoice: invoiceURL
-        }
-      });
-
-      toast.success('Rental created successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error creating rental:', error);
-      toast.error('Failed to create rental');
-    } finally {
-      setLoading(false);
+  // Update end date when rental type changes
+  useEffect(() => {
+    if (formData.type === 'weekly') {
+      const endDate = calculateWeeklyEndDate(startDateTime, formData.numberOfWeeks);
+      setFormData(prev => ({
+        ...prev,
+        endDate: endDate.toISOString().split('T')[0],
+        endTime: formData.startTime
+      }));
     }
-  };
+  }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
+  // Update handleSubmit function in RentalForm.tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!user) return;
+  setLoading(true);
+
+  try {
+    // Get vehicle and customer details
+    const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+    const selectedCustomer = customers.find(c => c.id === formData.customerId);
+
+    if (!selectedVehicle || !selectedCustomer) {
+      throw new Error('Vehicle or customer not found');
+    }
+
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime = formData.type === 'weekly' 
+      ? calculateWeeklyEndDate(startDateTime, formData.numberOfWeeks)
+      : new Date(`${formData.endDate}T${formData.endTime}`);
+
+    const totalCost = formData.customRate ? 
+      parseFloat(formData.customRate) : 
+      calculateRentalCost(startDateTime, endDateTime, formData.type, formData.reason, formData.numberOfWeeks);
+
+    const remainingAmount = Math.max(0, totalCost - formData.paidAmount);
+
+    const rentalData = {
+      ...formData,
+      startDate: startDateTime,
+      endDate: endDateTime,
+      cost: totalCost,
+      remainingAmount,
+      paymentStatus: formData.paidAmount >= totalCost ? 'paid' : 'pending',
+      status: 'scheduled',
+      createdAt: new Date(),
+      createdBy: user.id
+    };
+
+    // Create rental record
+    const rentalRef = await addDoc(collection(db, 'rentals'), rentalData);
+    const rental = { id: rentalRef.id, ...rentalData };
+
+    // Generate and upload documents
+    const documents = await generateRentalDocuments(rental, selectedVehicle, selectedCustomer);
+
+    // Upload documents
+    const [agreementURL, invoiceURL] = await Promise.all([
+      uploadPDF(documents.agreement, `rentals/${rental.id}/agreement.pdf`),
+      uploadPDF(documents.invoice, `rentals/${rental.id}/invoice.pdf`)
+    ]);
+
+    // Update rental with document URLs
+    await updateDoc(doc(db, 'rentals', rental.id), {
+      documents: {
+        agreement: agreementURL,
+        invoice: invoiceURL
+      }
+    });
+
+    toast.success('Rental created successfully');
+    onClose();
+  } catch (error) {
+    console.error('Error creating rental:', error);
+    toast.error('Failed to create rental');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -217,6 +245,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           </>
         )}
       </div>
+
+      {/* Display calculated end date for weekly rentals */}
+      {formData.type === 'weekly' && endDateTime && (
+        <div className="text-sm text-gray-500">
+          End Date: {endDateTime.toLocaleDateString()} {endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
 
       {/* Payment Details */}
       <div className="space-y-4">

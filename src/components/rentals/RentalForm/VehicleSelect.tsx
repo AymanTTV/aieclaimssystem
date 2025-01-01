@@ -22,14 +22,18 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({
   // Filter available vehicles and search
   const availableVehicles = useMemo(() => {
     return vehicles
-      .filter(vehicle => 
-        // Only show available vehicles
-        vehicle.status === 'available' &&
+      .filter(vehicle => {
+        // Only show truly available vehicles (not rented or scheduled)
+        const isAvailable = vehicle.status === 'available';
+        
         // Search by make, model, or registration
-        (vehicle.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         vehicle.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
+        const matchesSearch = 
+          vehicle.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          vehicle.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        return isAvailable && matchesSearch;
+      })
       .sort((a, b) => a.make.localeCompare(b.make));
   }, [vehicles, searchQuery]);
 
@@ -47,7 +51,7 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({
         <input
           type="text"
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          placeholder="Search vehicles..."
+          placeholder="Search by make, model or registration..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           disabled={disabled}

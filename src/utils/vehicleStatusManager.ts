@@ -1,4 +1,4 @@
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
 
@@ -27,7 +27,7 @@ export const checkVehicleStatus = async (vehicleId: string): Promise<Vehicle['st
   
   if (!rentalDocs.empty) {
     const rental = rentalDocs.docs[0].data();
-    return rental.status === 'active' ? 'rented' : 'scheduled';
+    return rental.status === 'active' ? 'rented' : 'scheduled-rental';
   }
 
   // Check maintenance
@@ -40,7 +40,7 @@ export const checkVehicleStatus = async (vehicleId: string): Promise<Vehicle['st
 
   if (!maintenanceDocs.empty) {
     const maintenance = maintenanceDocs.docs[0].data();
-    return maintenance.status === 'in-progress' ? 'maintenance' : 'scheduled';
+    return maintenance.status === 'in-progress' ? 'maintenance' : 'scheduled-maintenance';
   }
 
   // Default to available

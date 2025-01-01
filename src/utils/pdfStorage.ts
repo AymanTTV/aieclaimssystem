@@ -1,11 +1,8 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
-export const uploadPDF = async (pdfBase64: string, path: string): Promise<string> => {
+export const uploadPDF = async (pdfBlob: Blob, path: string): Promise<string> => {
   try {
-    // Convert base64 to blob
-    const pdfBlob = await fetch(pdfBase64).then(res => res.blob());
-    
     // Create storage reference
     const storageRef = ref(storage, path);
     

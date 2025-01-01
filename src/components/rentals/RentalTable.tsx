@@ -98,8 +98,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const rental = row.original;
         const totalCost = rental.cost;
         const paidAmount = rental.paidAmount || 0;
-        const remainingAmount = rental.remainingAmount || (totalCost - paidAmount);
-
+        const remainingAmount = totalCost - paidAmount;
+    
         return (
           <div>
             <div className="font-medium">£{totalCost.toFixed(2)}</div>
@@ -111,18 +111,16 @@ const RentalTable: React.FC<RentalTableProps> = ({
             {rental.negotiated && (
               <div className="text-xs text-amber-600">Negotiated rate</div>
             )}
-            {rental.paymentStatus !== 'pending' && (
-              <div className="text-xs space-y-0.5 mt-1">
-                <div className="text-green-600">
-                  Paid: £{paidAmount.toFixed(2)}
-                </div>
-                {remainingAmount > 0 && (
-                  <div className="text-amber-600">
-                    Due: £{remainingAmount.toFixed(2)}
-                  </div>
-                )}
+            <div className="text-xs space-y-0.5 mt-1">
+              <div className="text-green-600">
+                Paid: £{paidAmount.toFixed(2)}
               </div>
-            )}
+              {remainingAmount > 0 && (
+                <div className="text-amber-600">
+                  Due: £{remainingAmount.toFixed(2)}
+                </div>
+              )}
+            </div>
           </div>
         );
       },

@@ -26,7 +26,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   // Calculate end date for weekly rentals
   const handleWeeklyRental = (e: React.ChangeEvent<HTMLInputElement>) => {
     const weeks = parseInt(e.target.value) || 1;
-    const startDate = new Date(formData.startDate);
+    const startDate = new Date(`${formData.startDate}T${formData.startTime}`);
     const endDate = addWeeks(startDate, weeks);
     
     onChange({
@@ -37,6 +37,11 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     onChange({
       ...e,
       target: { name: 'endDate', value: endDate.toISOString().split('T')[0] }
+    } as React.ChangeEvent<HTMLInputElement>);
+
+    onChange({
+      ...e,
+      target: { name: 'endTime', value: formData.startTime }
     } as React.ChangeEvent<HTMLInputElement>);
   };
 
@@ -57,9 +62,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             <option value="weekly">Weekly</option>
             <option value="claim">Claim</option>
           </select>
-          {errors.type && (
-            <p className="mt-1 text-sm text-red-600">{errors.type}</p>
-          )}
         </div>
 
         <div>
@@ -80,9 +82,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             <option value="c-substitute">C Substitute</option>
             <option value="h-substitute">H Substitute</option>
           </select>
-          {errors.reason && (
-            <p className="mt-1 text-sm text-red-600">{errors.reason}</p>
-          )}
         </div>
       </div>
 
@@ -116,9 +115,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             name="numberOfWeeks"
             value={formData.numberOfWeeks}
             onChange={handleWeeklyRental}
-            disabled={disabled}
-            required
             min="1"
+            required
             error={errors.numberOfWeeks}
           />
         ) : (
@@ -129,7 +127,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               name="endDate"
               value={formData.endDate}
               onChange={onChange}
-              disabled={disabled || formData.type === 'weekly'}
+              disabled={disabled}
               required
               min={formData.startDate}
               error={errors.endDate}

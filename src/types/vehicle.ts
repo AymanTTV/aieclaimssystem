@@ -1,7 +1,9 @@
 export type VehicleStatus = 
   | 'available' 
   | 'maintenance' 
+  | 'scheduled-maintenance'
   | 'rented'
+  | 'scheduled-rental'
   | 'claim'
   | 'unavailable'
   | 'sold';
@@ -32,6 +34,5 @@ export interface Vehicle {
   createdBy: string;
   soldDate?: Date;
   salePrice?: number;
-  activeStatuses: VehicleStatus[];
   owner: VehicleOwner;
 }

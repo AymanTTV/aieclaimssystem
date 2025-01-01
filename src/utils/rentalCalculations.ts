@@ -1,3 +1,5 @@
+import { addWeeks } from 'date-fns';
+
 // Rental rates in GBP
 export const RENTAL_RATES = {
   daily: 60,    // £60 per day
@@ -16,12 +18,6 @@ export type RentalReason =
   | 'c-substitute' 
   | 'h-substitute';
 
-export type RentalStatus = 
-  | 'urgent'
-  | 'awaiting'
-  | 'levc-loan'
-  | 'completed';
-
 /**
  * Calculate the total rental cost based on type and duration
  */
@@ -29,32 +25,31 @@ export const calculateRentalCost = (
   startDate: Date,
   endDate: Date,
   type: RentalType,
-  reason?: RentalReason
+  reason?: RentalReason,
+  numberOfWeeks?: number
 ): number => {
-  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
   // Special rates based on reason
-  if (reason === 'staff') return days * 30; // £30 per day
+  if (reason === 'staff') return 30; // £30 per day
   if (reason === 'workshop') return 0; // Free
-  if (reason === 'wfw-c-substitute' || reason === 'h-substitute') {
-    return days * 45; // £45 per day
+  if (reason === 'c-substitute' || reason === 'h-substitute') {
+    return 45; // £45 per day
   }
 
   switch (type) {
     case 'weekly':
-      const weeks = Math.ceil(days / 7);
-      return weeks * RENTAL_RATES.weekly;
+      return (numberOfWeeks || 1) * RENTAL_RATES.weekly;
     case 'claim':
-      return days * RENTAL_RATES.claim;
+      return RENTAL_RATES.claim;
     case 'daily':
     default:
+      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       return days * RENTAL_RATES.daily;
   }
 };
 
 /**
- * Validate if a rental period is valid
+ * Calculate end date for weekly rentals
  */
-export const isValidRentalPeriod = (startDate: Date, endDate: Date): boolean => {
-  return startDate <= endDate && startDate >= new Date();
+export const calculateWeeklyEndDate = (startDate: Date, numberOfWeeks: number): Date => {
+  return addWeeks(startDate, numberOfWeeks);
 };

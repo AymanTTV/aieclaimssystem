@@ -17,9 +17,11 @@ import toast from 'react-hot-toast';
 import { Plus, Download } from 'lucide-react';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
 import { useVehicleStatusTracking } from '../hooks/useVehicleStatusTracking';
+import { useVehicleStatusUpdates } from '../hooks/useVehicleStatusUpdates';
 
 
 const Vehicles = () => {
+  useVehicleStatusUpdates();
   useVehicleStatusTracking();
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();

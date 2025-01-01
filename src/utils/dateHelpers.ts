@@ -1,32 +1,34 @@
 import { format, isValid, parseISO } from 'date-fns';
 
 /**
- * Formats a date for HTML input elements
- */
-export const formatDateForInput = (date: Date | string | undefined | null): string => {
-  if (!date) return new Date().toISOString().split('T')[0];
-
-  try {
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(dateObj) ? format(dateObj, 'yyyy-MM-dd') : new Date().toISOString().split('T')[0];
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return new Date().toISOString().split('T')[0];
-  }
-};
-
-/**
  * Ensures a date value is a valid Date object
  */
-export const ensureValidDate = (date: any): Date => {
-  if (!date) return new Date();
-  
+export const ensureValidDate = (value: any): Date | null => {
+  if (!value) return null;
+
   try {
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(dateObj) ? dateObj : new Date();
+    // Handle Firestore Timestamp
+    if (value?.toDate) {
+      return value.toDate();
+    }
+
+    // Handle Date objects
+    if (value instanceof Date && isValid(value)) {
+      return value;
+    }
+
+    // Handle ISO strings
+    if (typeof value === 'string') {
+      const parsed = parseISO(value);
+      if (isValid(parsed)) {
+        return parsed;
+      }
+    }
+
+    return null;
   } catch (error) {
     console.error('Error parsing date:', error);
-    return new Date();
+    return null;
   }
 };
 
@@ -41,13 +43,16 @@ export const formatDate = (date: Date | null | undefined): string => {
 };
 
 /**
- * Validates a date string
+ * Formats a date for HTML input elements
  */
-export const isValidDateString = (dateString: string): boolean => {
+export const formatDateForInput = (date: Date | string | undefined | null): string => {
+  if (!date) return '';
+
   try {
-    const date = parseISO(dateString);
-    return isValid(date);
-  } catch {
-    return false;
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(dateObj) ? format(dateObj, 'yyyy-MM-dd') : '';
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
   }
 };

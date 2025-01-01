@@ -10,7 +10,7 @@ export interface Rental {
   paymentStatus: PaymentStatus;
   cost: number;
   paidAmount?: number;
-  remainingAmount?: number;
+  remainingAmount: number; // Added this field
   paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'cheque';
   paymentReference?: string;
   standardCost?: number;
