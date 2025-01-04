@@ -1,106 +1,52 @@
-import React from 'react';
-import { Vehicle, Customer } from '../../../types';
-import VehicleSelect from './VehicleSelect';
-import CustomerSelect from './CustomerSelect';
-import RentalDetails from './RentalDetails';
-import PaymentDetails from './PaymentDetails';
-import SignatureCapture from './SignatureCapture';
-import { useRentalForm } from './useRentalForm';
-import { calculateRentalCost } from '../../../utils/rentalCalculations';
+// Update the form data state to include negotiation fields
+const [formData, setFormData] = useState({
+  // ... existing fields ...
+  customRate: '',
+  negotiationNotes: '',
+});
 
-interface RentalFormProps {
-  vehicles: Vehicle[];
-  customers: Customer[];
-  onClose: () => void;
-}
+// Update the cost calculation
+const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+const endDateTime = formData.endDate ? 
+  new Date(`${formData.endDate}T${formData.endTime}`) : 
+  startDateTime;
 
-const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose }) => {
-  const {
-    formData,
-    loading,
-    handleSubmit,
-    handleInputChange,
-    handleSignatureCapture,
-    errors
-  } = useRentalForm(onClose);
+const standardCost = calculateRentalCost(
+  startDateTime,
+  endDateTime,
+  formData.type,
+  formData.reason,
+  formData.numberOfWeeks
+);
 
-  // Calculate costs
-  const totalCost = formData.startDate && formData.endDate ? 
-    calculateRentalCost(
-      new Date(`${formData.startDate}T${formData.startTime}`),
-      new Date(`${formData.endDate}T${formData.endTime}`),
-      formData.type,
-      formData.reason
-    ) : 0;
+const totalCost = formData.customRate ? 
+  parseFloat(formData.customRate) : 
+  standardCost;
 
-  const remainingAmount = Math.max(0, totalCost - formData.paidAmount);
+// Add the negotiation section to the form JSX
+<div className="space-y-6">
+  {/* ... existing form fields ... */}
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Vehicle Selection */}
-      <VehicleSelect
-        vehicles={vehicles.filter(v => v.status === 'available')}
-        selectedVehicleId={formData.vehicleId}
-        onSelect={(id) => handleInputChange({ 
-          target: { name: 'vehicleId', value: id }
-        } as any)}
-        error={errors.vehicleId}
-      />
+  <NegotiationSection
+    standardRate={standardCost}
+    customRate={formData.customRate}
+    onCustomRateChange={(value) => setFormData({ ...formData, customRate: value })}
+    negotiationNotes={formData.negotiationNotes}
+    onNotesChange={(value) => setFormData({ ...formData, negotiationNotes: value })}
+  />
 
-      {/* Customer Selection */}
-      <CustomerSelect
-        customers={customers}
-        selectedCustomerId={formData.customerId}
-        onSelect={(id) => handleInputChange({ 
-          target: { name: 'customerId', value: id }
-        } as any)}
-        error={errors.customerId}
-      />
-
-      {/* Rental Details */}
-      <RentalDetails
-        formData={formData}
-        onChange={handleInputChange}
-        disabled={loading}
-        errors={errors}
-      />
-
-      {/* Payment Details */}
-      <PaymentDetails
-        formData={formData}
-        totalCost={totalCost}
-        remainingAmount={remainingAmount}
-        onChange={handleInputChange}
-        disabled={loading}
-        errors={errors}
-      />
-
-      {/* Signature Capture */}
-      <SignatureCapture
-        onCapture={handleSignatureCapture}
-        disabled={loading}
-        error={errors.signature}
-      />
-
-      {/* Form Actions */}
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:opacity-50"
-        >
-          {loading ? 'Creating...' : 'Create Rental'}
-        </button>
+  {/* Payment Summary */}
+  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+    <div className="flex justify-between text-sm">
+      <span>Standard Rate:</span>
+      <span className="font-medium">£{standardCost.toFixed(2)}</span>
+    </div>
+    {formData.customRate && (
+      <div className="flex justify-between text-sm text-primary">
+        <span>Negotiated Rate:</span>
+        <span className="font-medium">£{formData.customRate}</span>
       </div>
-    </form>
-  );
-};
-
-export default RentalForm;
+    )}
+    {/* ... rest of the payment summary ... */}
+  </div>
+</div>

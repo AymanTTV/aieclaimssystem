@@ -1,6 +1,6 @@
 import React from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { formatDate } from '../../utils/dateHelpers';
+import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { Wrench, DollarSign, MapPin, Calendar } from 'lucide-react';
 
@@ -10,18 +10,21 @@ interface MaintenanceDetailsProps {
 }
 
 const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle }) => {
+  const serviceDate = ensureValidDate(log.date);
+  const nextServiceDate = ensureValidDate(log.nextServiceDate);
+
   return (
     <div className="space-y-6">
       {/* Basic Information */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-medium text-gray-500">Vehicle</h3>
-          <div className="mt-1 flex items-center space-x-2">
+          <div className="mt-1 flex items-center">
             {vehicle.image && (
               <img 
                 src={vehicle.image} 
                 alt={`${vehicle.make} ${vehicle.model}`}
-                className="h-10 w-10 object-cover rounded-md"
+                className="h-10 w-10 object-cover rounded-md mr-2"
               />
             )}
             <div>
@@ -52,8 +55,12 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
             <p className="mt-1 capitalize">{log.type.replace('-', ' ')}</p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500">Date</h4>
-            <p className="mt-1">{formatDate(log.date)}</p>
+            <h4 className="text-sm font-medium text-gray-500">Service Date</h4>
+            <p className="mt-1">{formatDate(serviceDate)}</p>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-gray-500">Next Service Date</h4>
+            <p className="mt-1">{formatDate(nextServiceDate)}</p>
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Service Provider</h4>
@@ -76,22 +83,6 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
             <p className="mt-1">{log.notes}</p>
           </div>
         )}
-      </div>
-
-      {/* Mileage Information */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h4 className="text-sm font-medium text-gray-500">Current Mileage</h4>
-          <p className="mt-1">{log.currentMileage.toLocaleString()}</p>
-        </div>
-        <div>
-          <h4 className="text-sm font-medium text-gray-500">Next Service Mileage</h4>
-          <p className="mt-1">{log.nextServiceMileage.toLocaleString()}</p>
-        </div>
-        <div>
-          <h4 className="text-sm font-medium text-gray-500">Next Service Date</h4>
-          <p className="mt-1">{formatDate(log.nextServiceDate)}</p>
-        </div>
       </div>
 
       {/* Cost Breakdown */}
@@ -140,7 +131,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           </div>
         </div>
 
-        {/* Payment Information */}
+        {/* Payment Summary */}
         <div className="border-t pt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span>Total Amount:</span>
@@ -154,22 +145,6 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
             <div className="flex justify-between text-sm">
               <span>Remaining Amount:</span>
               <span className="text-amber-600">£{log.remainingAmount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Payment Status:</span>
-            <StatusBadge status={log.paymentStatus} />
-          </div>
-          {log.paymentMethod && (
-            <div className="flex justify-between text-sm">
-              <span>Payment Method:</span>
-              <span className="capitalize">{log.paymentMethod.replace('_', ' ')}</span>
-            </div>
-          )}
-          {log.paymentReference && (
-            <div className="flex justify-between text-sm">
-              <span>Reference:</span>
-              <span>{log.paymentReference}</span>
             </div>
           )}
         </div>

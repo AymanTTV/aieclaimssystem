@@ -17,33 +17,23 @@ export const generateRentalDocuments = async (
       throw new Error('Company details not found');
     }
 
-    const companyDetails = {
-      fullName: companyDoc.data().fullName || 'AIE SKYLINE',
-      name: companyDoc.data().name || '',
-      officialAddress: companyDoc.data().officialAddress || '',
-      phone: companyDoc.data().phone || '',
-      email: companyDoc.data().email || '',
-      vatNumber: companyDoc.data().vatNumber || '',
-      registrationNumber: companyDoc.data().registrationNumber || '',
-      termsAndConditions: companyDoc.data().termsAndConditions || '',
-      signature: companyDoc.data().signature || ''
-    };
+    const companyDetails = companyDoc.data();
 
-    // Generate both documents in parallel
-    const [agreementBlob, invoiceBlob] = await Promise.all([
-      pdf(createElement(RentalAgreement, {
-        rental,
-        vehicle,
-        customer,
-        companyDetails
-      })).toBlob(),
-      pdf(createElement(RentalInvoice, {
-        rental,
-        vehicle,
-        customer,
-        companyDetails
-      })).toBlob()
-    ]);
+    // Generate agreement PDF
+    const agreementBlob = await pdf(createElement(RentalAgreement, {
+      rental,
+      vehicle,
+      customer,
+      companyDetails
+    })).toBlob();
+
+    // Generate invoice PDF
+    const invoiceBlob = await pdf(createElement(RentalInvoice, {
+      rental,
+      vehicle,
+      customer,
+      companyDetails
+    })).toBlob();
 
     return {
       agreement: agreementBlob,

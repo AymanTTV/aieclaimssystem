@@ -11,7 +11,7 @@ export const checkDuplicateVehicle = async (
     // Check registration number
     const regQuery = query(
       collection(db, 'vehicles'),
-      where('registrationNumber', '==', registrationNumber)
+      where('registrationNumber', '==', registrationNumber.toUpperCase())
     );
     const regDocs = await getDocs(regQuery);
     
@@ -23,7 +23,7 @@ export const checkDuplicateVehicle = async (
     // Check VIN
     const vinQuery = query(
       collection(db, 'vehicles'),
-      where('vin', '==', vin)
+      where('vin', '==', vin.toUpperCase())
     );
     const vinDocs = await getDocs(vinQuery);
     
@@ -35,6 +35,7 @@ export const checkDuplicateVehicle = async (
     return false;
   } catch (error) {
     console.error('Error checking for duplicates:', error);
+    toast.error('Error checking for duplicate vehicles');
     return false;
   }
 };

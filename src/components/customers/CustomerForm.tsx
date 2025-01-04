@@ -6,6 +6,7 @@ import { Customer, Gender, calculateAge } from '../../types/customer';
 import { Upload } from 'lucide-react';
 import FormField from '../ui/FormField';
 import toast from 'react-hot-toast';
+import CustomerSignature from './CustomerSignature';
 
 interface CustomerFormProps {
   customer?: Customer;
@@ -15,6 +16,7 @@ interface CustomerFormProps {
 const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    signature: '',
     name: customer?.name || '',
     mobile: customer?.mobile || '',
     email: customer?.email || '',
@@ -305,6 +307,14 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
             </label>
           </div>
         </div>
+      </div>
+
+      <div>
+        <CustomerSignature
+          value={formData.signature}
+          onChange={(signature) => setFormData({ ...formData, signature })}
+          disabled={loading}
+        />
       </div>
 
       <div className="flex justify-end space-x-3">

@@ -17,15 +17,22 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle.image || null);
   const [formData, setFormData] = useState({
-    ...vehicle,
-    motExpiry: formatDateForInput(vehicle.motExpiry),
-    nslExpiry: formatDateForInput(vehicle.nslExpiry),
-    roadTaxExpiry: formatDateForInput(vehicle.roadTaxExpiry),
-    insuranceExpiry: formatDateForInput(vehicle.insuranceExpiry),
-    lastMaintenance: formatDateForInput(vehicle.lastMaintenance),
-    nextMaintenance: formatDateForInput(vehicle.nextMaintenance),
-    image: null as File | null,
-  });
+  vin: vehicle?.vin || '',
+  make: vehicle?.make || '',
+  model: vehicle?.model || '',
+  year: vehicle?.year?.toString() || new Date().getFullYear().toString(),
+  registrationNumber: vehicle?.registrationNumber || '',
+  mileage: vehicle?.mileage?.toString() || '0',
+  insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
+  motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
+  nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
+  roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
+  lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
+  nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
+  image: null as File | null,
+});
+
+
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,40 +48,74 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  e.preventDefault();
+  if (!user) return;
 
-    try {
-      let imageUrl = vehicle.image || '';
-      
-      if (formData.image) {
-        const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
-        const snapshot = await uploadBytes(imageRef, formData.image);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
+  setLoading(true);
 
-      const vehicleRef = doc(db, 'vehicles', vehicle.id);
-      await updateDoc(vehicleRef, {
-        ...formData,
-        image: imageUrl,
-        insuranceExpiry: new Date(formData.insuranceExpiry),
-        motExpiry: new Date(formData.motExpiry),
-        nslExpiry: new Date(formData.nslExpiry),
-        roadTaxExpiry: new Date(formData.roadTaxExpiry),
-        lastMaintenance: new Date(formData.lastMaintenance),
-        nextMaintenance: new Date(formData.nextMaintenance),
-        updatedAt: new Date(),
-      });
-
-      toast.success('Vehicle updated successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error updating vehicle:', error);
-      toast.error('Failed to update vehicle');
-    } finally {
-      setLoading(false);
+  try {
+    let imageUrl = vehicle?.image || '';
+    
+    if (formData.image) {
+      const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
+      const snapshot = await uploadBytes(imageRef, formData.image);
+      imageUrl = await getDownloadURL(snapshot.ref);
     }
+
+    const vehicleData = {
+      ...formData,
+      image: imageUrl,
+      status: vehicle?.status || 'available', // Preserve existing status or set default for new vehicles
+      mileage: parseInt(formData.mileage.toString()),
+      year: parseInt(formData.year.toString()),
+      insuranceExpiry: new Date(formData.insuranceExpiry),
+      motExpiry: new Date(formData.motExpiry),
+      nslExpiry: new Date(formData.nslExpiry),
+      roadTaxExpiry: new Date(formData.roadTaxExpiry),
+      lastMaintenance: new Date(formData.lastMaintenance),
+      nextMaintenance: new Date(formData.nextMaintenance),
+      updatedAt: new Date()
+    };
+
+    if (vehicle) {
+      await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
+    } else {
+      await addDoc(collection(db, 'vehicles'), {
+        ...vehicleData,
+        createdAt: new Date(),
+        createdBy: user.id,
+      });
+    }
+
+    toast.success(`Vehicle ${vehicle ? 'updated' : 'added'} successfully`);
+    onClose();
+  } catch (error) {
+    console.error('Error saving vehicle:', error);
+    toast.error(`Failed to ${vehicle ? 'update' : 'add'} vehicle`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+  // Add this function inside the VehicleForm component
+const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (!validateImage(file)) {
+    return;
+  }
+
+  setFormData({ ...formData, image: file });
+  
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    setImagePreview(reader.result as string);
   };
+  reader.readAsDataURL(file);
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,19 +166,21 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Status</label>
-        <select
-          value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        >
-          <option value="active">Active</option>
-          <option value="maintenance">Maintenance</option>
-          <option value="rented">Rented</option>
-          <option value="claim">In Claim</option>
-          <option value="unavailable">Unavailable</option>
-        </select>
-      </div>
+  <label className="block text-sm font-medium text-gray-700">Status</label>
+  <select
+    value={formData.status}
+    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+  >
+    <option value="available">Available</option>
+    <option value="maintenance">Maintenance</option>
+    <option value="rented">Rented</option>
+    <option value="claim">In Claim</option>
+    <option value="unavailable">Unavailable</option>
+    <option value="sold">Sold</option>
+  </select>
+</div>
+
 
       <div className="grid grid-cols-2 gap-4">
         <FormField

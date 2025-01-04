@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
+import { MaintenanceLog, Vehicle } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { MaintenanceLog, Vehicle } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
-import toast from 'react-hot-toast';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
-import VehicleSelect from '../VehicleSelect';
+import SearchableSelect from '../ui/SearchableSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
+import toast from 'react-hot-toast';
+import { formatDateForInput, ensureValidDate } from '../../utils/dateHelpers';
+import { addYears } from 'date-fns';
 
 interface MaintenanceEditModalProps {
   log: MaintenanceLog;
@@ -15,18 +18,14 @@ interface MaintenanceEditModalProps {
   onClose: () => void;
 }
 
-const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
-  log,
-  vehicles,
-  onClose
-}) => {
+const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicles, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [parts, setParts] = useState<(Part & { includeVAT: boolean })[]>(
     log.parts.map(part => ({
       ...part,
       includeVAT: log.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false
-    }))
+    })) || []
   );
   const [includeVATOnLabor, setIncludeVATOnLabor] = useState(log.vatDetails?.laborVAT || false);
   const [paidAmount, setPaidAmount] = useState(log.paidAmount || 0);
@@ -38,18 +37,20 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
     description: log.description,
     serviceProvider: log.serviceProvider,
     location: log.location,
-    date: log.date.toISOString().split('T')[0],
+    date: formatDateForInput(log.date),
     currentMileage: log.currentMileage,
     laborHours: log.laborHours,
     laborRate: log.laborRate,
     nextServiceMileage: log.nextServiceMileage,
-    nextServiceDate: log.nextServiceDate.toISOString().split('T')[0],
+    nextServiceDate: formatDateForInput(log.nextServiceDate) || formatDateForInput(addYears(log.date, 1)),
     notes: log.notes || '',
     status: log.status,
   });
 
   const costs = calculateCosts(parts, formData.laborHours, formData.laborRate, includeVATOnLabor);
   const remainingAmount = costs.totalAmount - paidAmount;
+  const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' : 
+                       paidAmount > 0 ? 'partially_paid' : 'unpaid';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +65,7 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
         cost: costs.totalAmount,
         paidAmount,
         remainingAmount,
-        paymentStatus: paidAmount >= costs.totalAmount ? 'paid' : 
-                      paidAmount > 0 ? 'partially_paid' : 'unpaid',
+        paymentStatus,
         paymentMethod,
         paymentReference,
         vatDetails: {
@@ -75,11 +75,30 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
           })),
           laborVAT: includeVATOnLabor
         },
+        date: ensureValidDate(formData.date),
+        nextServiceDate: ensureValidDate(formData.nextServiceDate),
         updatedAt: new Date(),
         updatedBy: user.id
       };
 
       await updateDoc(doc(db, 'maintenanceLogs', log.id), maintenanceData);
+
+      // Create finance transaction if payment changed
+      if (paidAmount !== log.paidAmount) {
+        const vehicle = vehicles.find(v => v.id === log.vehicleId);
+        await createFinanceTransaction({
+          type: 'expense',
+          category: 'maintenance',
+          amount: paidAmount,
+          description: `Maintenance payment update for ${formData.description}`,
+          referenceId: log.id,
+          vehicleId: log.vehicleId,
+          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+          paymentMethod,
+          paymentReference
+        });
+      }
+
       toast.success('Maintenance log updated successfully');
       onClose();
     } catch (error) {
@@ -92,12 +111,18 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <VehicleSelect
-        vehicles={vehicles}
-        selectedVehicleId={log.vehicleId}
-        onSelect={() => {}}
-        disabled={true}
-      />
+      <SearchableSelect
+              label="Vehicle"
+              options={vehicles.map(v => ({
+                id: v.id,
+                label: `${v.make} ${v.model}`,
+                subLabel: v.registrationNumber
+              }))}
+              value={log.vehicleId}
+              onChange={() => {}}
+              placeholder="Search vehicles by make, model or registration..."
+              disabled={true}
+            />
 
       <div>
         <label className="block text-sm font-medium text-gray-700">Type</label>
@@ -341,31 +366,106 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
           </div>
         </div>
 
-        {/* Payment Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Total Amount:</span>
-            <span className="font-medium">£{costs.totalAmount.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Amount Paid:</span>
-            <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
-          </div>
-          {remainingAmount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span>Remaining Amount:</span>
-              <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Payment Status:</span>
-            <span className="font-medium capitalize">
-              {paidAmount >= costs.totalAmount ? 'Paid' : 
-               paidAmount > 0 ? 'Partially Paid' : 'Unpaid'}
-            </span>
-          </div>
-        </div>
+        {/* Payment Section */}
+<div className="border-t pt-4 space-y-4">
+  <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+  
+  <div className="grid grid-cols-2 gap-4">
+    <FormField
+      type="number"
+      label="Amount Paid"
+      value={paidAmount}
+      onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
+      min="0"
+      max={costs.totalAmount}
+      step="0.01"
+    />
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+      <select
+        value={paymentMethod}
+        onChange={(e) => setPaymentMethod(e.target.value)}
+        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+      >
+        <option value="cash">Cash</option>
+        <option value="card">Card</option>
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="cheque">Cheque</option>
+      </select>
+    </div>
+
+    <div className="col-span-2">
+      <FormField
+        label="Payment Reference"
+        value={paymentReference}
+        onChange={(e) => setPaymentReference(e.target.value)}
+        placeholder="Enter payment reference or transaction ID"
+      />
+    </div>
+  </div>
+
+  {/* Cost Summary */}
+  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+    {/* Parts Summary */}
+    <div className="border-b pb-2">
+      <div className="flex justify-between text-sm">
+        <span>Parts (NET):</span>
+        <span>£{costs.partsTotal.toFixed(2)}</span>
       </div>
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>VAT on Parts:</span>
+        <span>£{(costs.partsTotal * 0.2).toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Labor Summary */}
+    <div className="border-b pb-2 pt-2">
+      <div className="flex justify-between text-sm">
+        <span>Labor (NET):</span>
+        <span>£{costs.laborTotal.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>VAT on Labor:</span>
+        <span>£{(costs.laborTotal * 0.2).toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Total Summary */}
+    <div className="pt-2 space-y-1">
+      <div className="flex justify-between text-sm font-medium">
+        <span>Total NET:</span>
+        <span>£{costs.netAmount.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-sm font-medium">
+        <span>Total VAT:</span>
+        <span>£{costs.vatAmount.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-lg font-bold pt-2 border-t">
+        <span>Total Amount:</span>
+        <span>£{costs.totalAmount.toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Payment Status */}
+    <div className="pt-4 border-t space-y-2">
+      <div className="flex justify-between text-sm">
+        <span>Amount Paid:</span>
+        <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+      </div>
+      {remainingAmount > 0 && (
+        <div className="flex justify-between text-sm">
+          <span>Remaining Amount:</span>
+          <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
+        </div>
+      )}
+      <div className="flex justify-between text-sm pt-2 border-t">
+        <span>Payment Status:</span>
+        <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
+      </div>
+    </div>
+  </div>
+</div>
 
       <div className="flex justify-end space-x-3">
         <button
@@ -385,6 +485,12 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({
       </div>
     </form>
   );
+};
+
+export default MaintenanceEditModal;
+
+  // Rest of the component remains the same...
+  // ... (keep existing JSX)
 };
 
 export default MaintenanceEditModal;

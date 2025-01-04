@@ -1,66 +1,65 @@
 import React from 'react';
 import { Vehicle } from '../../types';
-import { format, isBefore, addDays } from 'date-fns';
 import { Car, AlertTriangle, Calendar } from 'lucide-react';
 import Card from '../Card';
+import { format } from 'date-fns';
 
 interface VehicleReportProps {
   vehicles: Vehicle[];
 }
 
 const VehicleReport: React.FC<VehicleReportProps> = ({ vehicles }) => {
-  const upcomingMaintenance = vehicles
-    .filter(v => isBefore(new Date(), addDays(v.nextMaintenance, 30)))
-    .sort((a, b) => a.nextMaintenance.getTime() - b.nextMaintenance.getTime())
-    .slice(0, 3);
-
+  // Get vehicles with highest mileage
   const highMileageVehicles = [...vehicles]
     .sort((a, b) => b.mileage - a.mileage)
     .slice(0, 3);
 
-  return (
-    <Card title="Vehicle Reports">
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-
-            3">Upcoming Maintenance</h3>
-          <div className="space-y-3">
-            {upcomingMaintenance.map(vehicle => (
-              <div key={vehicle.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center">
-                  <Calendar className="w-5 h-5 text-primary mr-3" />
-                  <div>
-                    <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-                    <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium">Next Service</p>
-                  <p className="text-sm text-gray-500">
-                    {format(vehicle.nextMaintenance, 'MMM dd, yyyy')}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+  // Get vehicles with upcoming maintenance
+  const upcomingMaintenance = vehicles
+    .filter(v => v.nextMaintenance > new Date())
+    .sort((a, b) => a.nextMaintenance.getTime() - b.nextMaintenance.getTime())
+    .slice(0, 3);
 
+  return (
+    <Card title="Vehicle Report">
+      <div className="space-y-6">
+        {/* High Mileage Vehicles */}
         <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-3">High Mileage Vehicles</h3>
-          <div className="space-y-3">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">High Mileage Vehicles</h3>
+          <div className="space-y-2">
             {highMileageVehicles.map(vehicle => (
               <div key={vehicle.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                 <div className="flex items-center">
-                  <Car className="w-5 h-5 text-secondary mr-3" />
+                  <Car className="w-5 h-5 text-gray-400 mr-3" />
                   <div>
                     <p className="font-medium">{vehicle.make} {vehicle.model}</p>
                     <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium">Mileage</p>
-                  <p className="text-sm text-gray-500">
-                    {vehicle.mileage.toLocaleString()} km
+                  <p className="text-sm font-medium">{vehicle.mileage.toLocaleString()} km</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Upcoming Maintenance */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Upcoming Maintenance</h3>
+          <div className="space-y-2">
+            {upcomingMaintenance.map(vehicle => (
+              <div key={vehicle.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center">
+                  <Calendar className="w-5 h-5 text-gray-400 mr-3" />
+                  <div>
+                    <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                    <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">
+                    {format(vehicle.nextMaintenance, 'dd/MM/yyyy')}
                   </p>
                 </div>
               </div>
@@ -68,8 +67,9 @@ const VehicleReport: React.FC<VehicleReportProps> = ({ vehicles }) => {
           </div>
         </div>
 
+        {/* Status Overview */}
         <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Status Overview</h3>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Status Overview</h3>
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-green-50 p-4 rounded-lg">
               <p className="text-sm text-green-600">Active</p>

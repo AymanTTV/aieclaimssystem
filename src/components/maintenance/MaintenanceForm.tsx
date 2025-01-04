@@ -13,6 +13,7 @@ import { createMileageHistoryRecord } from '../../utils/mileageUtils';
 import { usePermissions } from '../../hooks/usePermissions';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
 import { useAuth } from '../../context/AuthContext';
+import SearchableSelect from '../ui/SearchableSelect';
 
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
@@ -41,12 +42,12 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     description: editLog?.description || '',
     serviceProvider: editLog?.serviceProvider || '',
     location: editLog?.location || '',
-    date: formatDateForInput(editLog?.date),
+    date: formatDateForInput(editLog?.date) || new Date().toISOString().split('T')[0],
     currentMileage: editLog?.currentMileage || 0,
     laborHours: editLog?.laborHours || 0,
     laborRate: editLog?.laborRate || 75,
     nextServiceMileage: editLog?.nextServiceMileage || 0,
-    nextServiceDate: formatDateForInput(editLog?.nextServiceDate),
+    nextServiceDate: formatDateForInput(editLog?.nextServiceDate) || addYears(new Date(), 1).toISOString().split('T')[0],
     notes: editLog?.notes || '',
     status: editLog?.status || 'scheduled',
   });
@@ -55,6 +56,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const remainingAmount = costs.totalAmount - paidAmount;
   const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' : 
                        paidAmount > 0 ? 'partially_paid' : 'unpaid';
+
+                       
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -68,6 +71,16 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       }
     }
   }, [selectedVehicleId, vehicles]);
+  useEffect(() => {
+    if (!editLog) {
+      const serviceDate = new Date(formData.date);
+      const nextServiceDate = addYears(serviceDate, 1);
+      setFormData(prev => ({
+        ...prev,
+        nextServiceDate: nextServiceDate.toISOString().split('T')[0]
+      }));
+    }
+  }, [formData.date, editLog]);
 
   const handleServiceCenterSelect = (center: {
     name: string;
@@ -83,107 +96,119 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    if (!selectedVehicleId) {
-      toast.error('Please select a vehicle');
-      return;
+  // Update the handleSubmit function in MaintenanceForm.tsx
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selectedVehicleId || !user) {
+    toast.error('Please select a vehicle');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (!selectedVehicle) {
+      throw new Error('Vehicle not found');
     }
 
-    setLoading(true);
+    const maintenanceData = {
+      vehicleId: selectedVehicleId,
+      type: formData.type,
+      description: formData.description,
+      serviceProvider: formData.serviceProvider,
+      location: formData.location,
+      date: new Date(formData.date),
+      currentMileage: formData.currentMileage,
+      nextServiceMileage: formData.nextServiceMileage,
+      nextServiceDate: new Date(formData.nextServiceDate),
+      parts: parts.map(({ includeVAT, ...part }) => part),
+      laborHours: formData.laborHours,
+      laborRate: formData.laborRate,
+      laborCost: costs.laborTotal,
+      cost: costs.totalAmount,
+      paidAmount,
+      remainingAmount,
+      paymentStatus,
+      paymentMethod,
+      paymentReference,
+      status: formData.status,
+      notes: formData.notes,
+      vatDetails: {
+        partsVAT: parts.map(part => ({
+          partName: part.name,
+          includeVAT: part.includeVAT
+        })),
+        laborVAT: includeVATOnLabor
+      }
+    };
 
-    try {
-      const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
-      if (!selectedVehicle) {
-        throw new Error('Vehicle not found');
+    if (editLog) {
+      await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+        ...maintenanceData,
+        updatedAt: new Date(),
+        updatedBy: user.id
+      });
+    } else {
+      const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+        ...maintenanceData,
+        createdAt: new Date(),
+        createdBy: user.id,
+        updatedAt: new Date()
+      });
+
+      // Create finance transaction if payment was made
+      if (paidAmount > 0) {
+        await createFinanceTransaction({
+          type: 'expense',
+          category: 'maintenance',
+          amount: paidAmount,
+          description: `Maintenance payment for ${formData.description}`,
+          referenceId: docRef.id,
+          vehicleId: selectedVehicleId,
+          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+          vehicleOwner: selectedVehicle.owner || { name: 'AIE Skyline', isDefault: true },
+          paymentMethod,
+          paymentReference,
+          status: 'completed'
+        });
       }
 
-      const maintenanceData = {
-        vehicleId: selectedVehicleId,
-        type: formData.type,
-        description: formData.description,
-        serviceProvider: formData.serviceProvider,
-        location: formData.location,
-        date: new Date(formData.date),
-        currentMileage: formData.currentMileage,
-        nextServiceMileage: formData.nextServiceMileage,
-        nextServiceDate: new Date(formData.nextServiceDate),
-        parts: parts.map(({ includeVAT, ...part }) => part),
-        laborHours: formData.laborHours,
-        laborRate: formData.laborRate,
-        laborCost: costs.laborTotal,
-        cost: costs.totalAmount,
-        paidAmount,
-        remainingAmount,
-        paymentStatus,
-        paymentMethod,
-        paymentReference,
-        status: formData.status,
-        notes: formData.notes,
-        vatDetails: {
-          partsVAT: parts.map(part => ({
-            partName: part.name,
-            includeVAT: part.includeVAT
-          })),
-          laborVAT: includeVATOnLabor
-        }
-      };
-      
-
-      if (editLog) {
-        await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
-          ...maintenanceData,
-          updatedAt: new Date(),
-          updatedBy: user.id
-        });
-      } else {
-        const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
-          ...maintenanceData,
-          createdAt: new Date(),
-          createdBy: user.id,
-          updatedAt: new Date()
-        });
-
-        if (paidAmount > 0) {
-          await createFinanceTransaction({
-            type: 'expense',
-            category: 'maintenance',
-            amount: paidAmount,
-            description: `Maintenance payment for ${formData.description}`,
-            referenceId: docRef.id,
-            vehicleId: selectedVehicleId,
-            vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-            status: formData.status === 'completed' ? 'completed' : 'pending'
-          });
-        }
-
-        if (formData.currentMileage !== selectedVehicle.mileage) {
-          await createMileageHistoryRecord(
-            selectedVehicle,
-            formData.currentMileage,
-            user.name,
-            'Updated during maintenance'
-          );
-        }
+      // Update vehicle mileage if changed
+      if (formData.currentMileage !== selectedVehicle.mileage) {
+        await createMileageHistoryRecord(
+          selectedVehicle,
+          formData.currentMileage,
+          user.name,
+          'Updated during maintenance'
+        );
       }
-
-      toast.success(`Maintenance ${editLog ? 'updated' : 'scheduled'} successfully`);
-      onClose();
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error(`Failed to ${editLog ? 'update' : 'schedule'} maintenance`);
-    } finally {
-      setLoading(false);
     }
-  };
+
+    toast.success(`Maintenance ${editLog ? 'updated' : 'scheduled'} successfully`);
+    onClose();
+  } catch (error) {
+    console.error('Error:', error);
+    toast.error(`Failed to ${editLog ? 'update' : 'schedule'} maintenance`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <VehicleSelect
-        vehicles={vehicles}
-        selectedVehicleId={selectedVehicleId}
-        onSelect={setSelectedVehicleId}
+      <SearchableSelect
+        label="Vehicle"
+        options={vehicles.map(v => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`,
+          subLabel: v.registrationNumber
+        }))}
+        value={selectedVehicleId}
+        onChange={setSelectedVehicleId}
+        placeholder="Search vehicles by make, model or registration..."
+        required
         disabled={!!editLog}
       />
 
@@ -384,66 +409,105 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       </div>
 
       {/* Payment Section */}
-      <div className="border-t pt-4 space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            type="number"
-            label="Amount Paid"
-            value={paidAmount}
-            onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-            min="0"
-            max={costs.totalAmount}
-            step="0.01"
-          />
+<div className="border-t pt-4 space-y-4">
+  <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+  
+  <div className="grid grid-cols-2 gap-4">
+    <FormField
+      type="number"
+      label="Amount Paid"
+      value={paidAmount}
+      onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
+      min="0"
+      max={costs.totalAmount}
+      step="0.01"
+    />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
-          </div>
+    <div>
+      <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+      <select
+        value={paymentMethod}
+        onChange={(e) => setPaymentMethod(e.target.value)}
+        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+      >
+        <option value="cash">Cash</option>
+        <option value="card">Card</option>
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="cheque">Cheque</option>
+      </select>
+    </div>
 
-          <div className="col-span-2">
-            <FormField
-              label="Payment Reference"
-              value={paymentReference}
-              onChange={(e) => setPaymentReference(e.target.value)}
-              placeholder="Enter payment reference or transaction ID"
-            />
-          </div>
-        </div>
+    <div className="col-span-2">
+      <FormField
+        label="Payment Reference"
+        value={paymentReference}
+        onChange={(e) => setPaymentReference(e.target.value)}
+        placeholder="Enter payment reference or transaction ID"
+      />
+    </div>
+  </div>
 
-        {/* Payment Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Total Amount:</span>
-            <span className="font-medium">£{costs.totalAmount.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Amount Paid:</span>
-            <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
-          </div>
-          {remainingAmount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span>Remaining Amount:</span>
-              <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Payment Status:</span>
-            <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
-          </div>
-        </div>
+  {/* Cost Summary */}
+  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+    {/* Parts Summary */}
+    <div className="border-b pb-2">
+      <div className="flex justify-between text-sm">
+        <span>Parts (NET):</span>
+        <span>£{costs.partsTotal.toFixed(2)}</span>
       </div>
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>VAT on Parts:</span>
+        <span>£{(costs.partsTotal * 0.2).toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Labor Summary */}
+    <div className="border-b pb-2 pt-2">
+      <div className="flex justify-between text-sm">
+        <span>Labor (NET):</span>
+        <span>£{costs.laborTotal.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>VAT on Labor:</span>
+        <span>£{(costs.laborTotal * 0.2).toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Total Summary */}
+    <div className="pt-2 space-y-1">
+      <div className="flex justify-between text-sm font-medium">
+        <span>Total NET:</span>
+        <span>£{costs.netAmount.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-sm font-medium">
+        <span>Total VAT:</span>
+        <span>£{costs.vatAmount.toFixed(2)}</span>
+      </div>
+      <div className="flex justify-between text-lg font-bold pt-2 border-t">
+        <span>Total Amount:</span>
+        <span>£{costs.totalAmount.toFixed(2)}</span>
+      </div>
+    </div>
+
+    {/* Payment Status */}
+    <div className="pt-4 border-t space-y-2">
+      <div className="flex justify-between text-sm">
+        <span>Amount Paid:</span>
+        <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+      </div>
+      {remainingAmount > 0 && (
+        <div className="flex justify-between text-sm">
+          <span>Remaining Amount:</span>
+          <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
+        </div>
+      )}
+      <div className="flex justify-between text-sm pt-2 border-t">
+        <span>Payment Status:</span>
+        <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
+      </div>
+    </div>
+  </div>
+</div>
 
       <div className="flex justify-end space-x-3">
         <button

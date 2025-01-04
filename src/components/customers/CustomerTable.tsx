@@ -77,6 +77,20 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       },
     },
     {
+      header: 'Signature',
+      cell: ({ row }) => (
+        row.original.signature ? (
+          <img 
+            src={row.original.signature} 
+            alt="Signature" 
+            className="h-8 object-contain"
+          />
+        ) : (
+          <span className="text-gray-400">Not signed</span>
+        )
+      ),
+    },
+    {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">

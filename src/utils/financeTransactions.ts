@@ -1,6 +1,5 @@
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Vehicle } from '../types';
 
 interface FinanceTransactionParams {
   type: 'income' | 'expense';
@@ -15,6 +14,8 @@ interface FinanceTransactionParams {
     isDefault: boolean;
   };
   status?: 'pending' | 'completed';
+  paymentMethod?: string;
+  paymentReference?: string;
 }
 
 export const createFinanceTransaction = async ({
@@ -26,7 +27,9 @@ export const createFinanceTransaction = async ({
   vehicleId,
   vehicleName,
   vehicleOwner,
-  status = 'completed'
+  status = 'completed',
+  paymentMethod,
+  paymentReference
 }: FinanceTransactionParams) => {
   try {
     const transaction = {
@@ -39,6 +42,8 @@ export const createFinanceTransaction = async ({
       vehicleName,
       vehicleOwner,
       status,
+      paymentMethod,
+      paymentReference,
       date: new Date(),
       createdAt: new Date(),
     };

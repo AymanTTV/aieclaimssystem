@@ -120,6 +120,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       columns={columns}
       onRowClick={(transaction) => onView(transaction)}
     />
+  
   );
 };
 

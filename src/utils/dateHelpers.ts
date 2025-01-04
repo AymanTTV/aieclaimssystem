@@ -1,8 +1,5 @@
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid, parseISO, addYears } from 'date-fns';
 
-/**
- * Ensures a date value is a valid Date object
- */
 export const ensureValidDate = (value: any): Date | null => {
   if (!value) return null;
 
@@ -32,9 +29,6 @@ export const ensureValidDate = (value: any): Date | null => {
   }
 };
 
-/**
- * Formats a date for display
- */
 export const formatDate = (date: Date | null | undefined): string => {
   if (!date || !isValid(date)) {
     return 'Not set';
@@ -42,17 +36,31 @@ export const formatDate = (date: Date | null | undefined): string => {
   return format(date, 'dd/MM/yyyy');
 };
 
-/**
- * Formats a date for HTML input elements
- */
 export const formatDateForInput = (date: Date | string | undefined | null): string => {
   if (!date) return '';
 
   try {
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(dateObj) ? format(dateObj, 'yyyy-MM-dd') : '';
+    let dateObj: Date;
+    
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      dateObj = parseISO(date);
+    } else {
+      return '';
+    }
+
+    if (!isValid(dateObj)) {
+      return '';
+    }
+
+    return format(dateObj, 'yyyy-MM-dd');
   } catch (error) {
     console.error('Error formatting date:', error);
     return '';
   }
+};
+
+export const getDefaultNextServiceDate = (currentDate: Date = new Date()): Date => {
+  return addYears(currentDate, 1);
 };

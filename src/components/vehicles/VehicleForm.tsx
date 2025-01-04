@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Vehicle, VehicleOwner } from '../../types';
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
+import { Vehicle } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { checkDuplicateVehicle } from '../../utils/vehicleValidation';
@@ -7,6 +10,7 @@ import { validateImage } from '../../utils/imageUpload';
 import { Upload } from 'lucide-react';
 import FormField from '../ui/FormField';
 import toast from 'react-hot-toast';
+
 
 interface VehicleFormProps {
   vehicle?: Vehicle;
@@ -29,78 +33,93 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   const [isCustomOwner, setIsCustomOwner] = useState(!vehicle?.owner?.isDefault);
 
   const [formData, setFormData] = useState({
-    vin: vehicle?.vin || '',
-    make: vehicle?.make || '',
-    model: vehicle?.model || '',
-    year: vehicle?.year?.toString() || new Date().getFullYear().toString(),
-    registrationNumber: vehicle?.registrationNumber || '',
-    mileage: vehicle?.mileage?.toString() || '0',
-    insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
-    motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
-    nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
-    roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
-    lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
-    nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
-    image: null as File | null,
-  });
+  vin: vehicle?.vin || '',
+  make: vehicle?.make || '',
+  model: vehicle?.model || '',
+  year: vehicle?.year?.toString() || new Date().getFullYear().toString(),
+  registrationNumber: vehicle?.registrationNumber || '',
+  mileage: vehicle?.mileage?.toString() || '0',
+  insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
+  motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
+  nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
+  roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
+  lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
+  nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
+  image: null as File | null,
+});
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!validateImage(file)) {
-      return;
-    }
-
-    setFormData({ ...formData, image: file });
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setLoading(true);
+  e.preventDefault();
+  if (!user) return;
 
-    try {
-      // Check for duplicates
-      const isDuplicate = await checkDuplicateVehicle(
-        formData.registrationNumber,
-        formData.vin,
-        vehicle?.id
-      );
+  setLoading(true);
 
-      if (isDuplicate) {
-        setLoading(false);
-        return;
-      }
-
-      await onSubmit({
-        ...formData,
-        year: parseInt(formData.year),
-        mileage: parseInt(formData.mileage),
-        insuranceExpiry: new Date(formData.insuranceExpiry),
-        motExpiry: new Date(formData.motExpiry),
-        nslExpiry: new Date(formData.nslExpiry),
-        roadTaxExpiry: new Date(formData.roadTaxExpiry),
-        lastMaintenance: new Date(formData.lastMaintenance),
-        nextMaintenance: new Date(formData.nextMaintenance),
-        image: formData.image,
-        owner: isCustomOwner ? owner : DEFAULT_OWNER
-      });
-
-      onClose();
-    } catch (error) {
-      console.error('Error saving vehicle:', error);
-      toast.error('Failed to save vehicle');
-    } finally {
-      setLoading(false);
+  try {
+    let imageUrl = vehicle?.image || '';
+    
+    if (formData.image) {
+      const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
+      const snapshot = await uploadBytes(imageRef, formData.image);
+      imageUrl = await getDownloadURL(snapshot.ref);
     }
+
+    const vehicleData = {
+      ...formData,
+      image: imageUrl,
+      status: vehicle?.status || 'available', // Preserve existing status or set default for new vehicles
+      mileage: parseInt(formData.mileage.toString()),
+      year: parseInt(formData.year.toString()),
+      insuranceExpiry: new Date(formData.insuranceExpiry),
+      motExpiry: new Date(formData.motExpiry),
+      nslExpiry: new Date(formData.nslExpiry),
+      roadTaxExpiry: new Date(formData.roadTaxExpiry),
+      lastMaintenance: new Date(formData.lastMaintenance),
+      nextMaintenance: new Date(formData.nextMaintenance),
+      updatedAt: new Date()
+    };
+
+    if (vehicle) {
+      await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
+    } else {
+      await addDoc(collection(db, 'vehicles'), {
+        ...vehicleData,
+        createdAt: new Date(),
+        createdBy: user.id,
+      });
+    }
+
+    toast.success(`Vehicle ${vehicle ? 'updated' : 'added'} successfully`);
+    onClose();
+  } catch (error) {
+    console.error('Error saving vehicle:', error);
+    toast.error(`Failed to ${vehicle ? 'update' : 'add'} vehicle`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  // Add this function inside the VehicleForm component
+const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (!validateImage(file)) {
+    return;
+  }
+
+  setFormData({ ...formData, image: file });
+  
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    setImagePreview(reader.result as string);
   };
+  reader.readAsDataURL(file);
+};
+
+
+
 
   if (!can('vehicles', vehicle ? 'update' : 'create')) {
     return <div>You don't have permission to {vehicle ? 'edit' : 'add'} vehicles.</div>;

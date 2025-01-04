@@ -119,6 +119,20 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
               </div>
             )}
 
+            {/* Add signature section */}
+            {customer.signature && (
+              <div className="col-span-2 mt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Signature</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <img 
+                    src={customer.signature} 
+                    alt="Customer Signature" 
+                    className="max-h-24 object-contain bg-white rounded border"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Bill Document */}
             {customer.billDocumentUrl && (
               <div className="border rounded-lg p-4">

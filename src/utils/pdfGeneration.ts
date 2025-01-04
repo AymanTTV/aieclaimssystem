@@ -1,13 +1,14 @@
+// src/utils/pdfGeneration.ts
+
 import { pdf } from '@react-pdf/renderer';
 import { RentalAgreement, RentalInvoice } from '../components/pdf';
-import { Rental, Vehicle, Customer } from '../types';
+import { Rental, Vehicle, Customer, Invoice } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createElement } from 'react';
+import { InvoicePDF } from '../components/pdf/InvoicePDF';
 
-/**
- * Gets company details including signature
- */
+// Get company details including signature
 const getCompanyDetails = async () => {
   const docRef = doc(db, 'companySettings', 'details');
   const docSnap = await getDoc(docRef);
@@ -17,9 +18,7 @@ const getCompanyDetails = async () => {
   return docSnap.data();
 };
 
-/**
- * Generates rental agreement PDF
- */
+// Generate rental agreement PDF
 export const generateRentalAgreement = async (
   rental: Rental,
   vehicle: Vehicle,
@@ -31,14 +30,11 @@ export const generateRentalAgreement = async (
     rental,
     vehicle,
     customer,
-    companySignature: companyDetails.signature,
-    customerSignature: rental.signature
+    companyDetails
   })).toBlob();
 };
 
-/**
- * Generates rental invoice PDF
- */
+// Generate rental invoice PDF
 export const generateRentalInvoice = async (
   rental: Rental,
   vehicle: Vehicle,
@@ -50,6 +46,17 @@ export const generateRentalInvoice = async (
     rental,
     vehicle,
     customer,
+    companyDetails
+  })).toBlob();
+};
+
+// Generate invoice PDF
+export const generateInvoicePDF = async (invoice: Invoice, vehicle?: Vehicle): Promise<Blob> => {
+  const companyDetails = await getCompanyDetails();
+  
+  return pdf(createElement(InvoicePDF, {
+    invoice,
+    vehicle,
     companyDetails
   })).toBlob();
 };

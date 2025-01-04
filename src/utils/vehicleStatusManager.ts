@@ -1,48 +1,48 @@
-import { doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
 
-export const updateVehicleStatus = async (vehicleId: string, status: Vehicle['status']) => {
+export const addVehicleStatus = async (vehicleId: string, status: Vehicle['status'], activeStatuses: string[] = []) => {
   try {
     const vehicleRef = doc(db, 'vehicles', vehicleId);
+    
+    // Add new status if it doesn't exist
+    if (!activeStatuses.includes(status)) {
+      activeStatuses.push(status);
+    }
+
     await updateDoc(vehicleRef, {
-      status,
+      status: getEffectiveStatus(activeStatuses),
+      activeStatuses,
       updatedAt: new Date()
     });
-    return true;
   } catch (error) {
-    console.error('Error updating vehicle status:', error);
-    return false;
+    console.error('Error adding vehicle status:', error);
   }
 };
 
-export const checkVehicleStatus = async (vehicleId: string): Promise<Vehicle['status']> => {
-  // Check rentals
-  const rentalsQuery = query(
-    collection(db, 'rentals'),
-    where('vehicleId', '==', vehicleId),
-    where('status', 'in', ['active', 'scheduled'])
-  );
-  const rentalDocs = await getDocs(rentalsQuery);
-  
-  if (!rentalDocs.empty) {
-    const rental = rentalDocs.docs[0].data();
-    return rental.status === 'active' ? 'rented' : 'scheduled-rental';
+export const removeVehicleStatus = async (vehicleId: string, status: Vehicle['status'], activeStatuses: string[] = []) => {
+  try {
+    const vehicleRef = doc(db, 'vehicles', vehicleId);
+    
+    // Remove status
+    const updatedStatuses = activeStatuses.filter(s => s !== status);
+    
+    await updateDoc(vehicleRef, {
+      status: getEffectiveStatus(updatedStatuses),
+      activeStatuses: updatedStatuses,
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Error removing vehicle status:', error);
   }
+};
 
-  // Check maintenance
-  const maintenanceQuery = query(
-    collection(db, 'maintenanceLogs'),
-    where('vehicleId', '==', vehicleId),
-    where('status', 'in', ['scheduled', 'in-progress'])
-  );
-  const maintenanceDocs = await getDocs(maintenanceQuery);
-
-  if (!maintenanceDocs.empty) {
-    const maintenance = maintenanceDocs.docs[0].data();
-    return maintenance.status === 'in-progress' ? 'maintenance' : 'scheduled-maintenance';
-  }
-
-  // Default to available
+// Helper function to determine effective status
+const getEffectiveStatus = (statuses: string[]): Vehicle['status'] => {
+  if (statuses.includes('maintenance')) return 'maintenance';
+  if (statuses.includes('rented')) return 'rented';
+  if (statuses.includes('scheduled-rental')) return 'scheduled-rental';
+  if (statuses.includes('scheduled-maintenance')) return 'scheduled-maintenance';
   return 'available';
 };

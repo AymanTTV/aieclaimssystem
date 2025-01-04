@@ -1,21 +1,21 @@
 import React from 'react';
-import { MaintenanceLog } from '../../types';
-import { Wrench, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Rental } from '../../types';
+import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
 
-interface MaintenanceOverviewProps {
-  logs: MaintenanceLog[];
+interface RentalOverviewProps {
+  rentals: Rental[];
 }
 
-const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
-  const completedCount = logs.filter(log => log.status === 'completed').length;
-  const inProgressCount = logs.filter(log => log.status === 'in-progress').length;
-  const scheduledCount = logs.filter(log => log.status === 'scheduled').length;
+const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
+  const completedCount = rentals.filter(rental => rental.status === 'completed').length;
+  const activeCount = rentals.filter(rental => rental.status === 'active').length;
+  const scheduledCount = rentals.filter(rental => rental.status === 'scheduled').length;
 
-  const totalExpenses = logs.reduce((sum, log) => sum + log.cost, 0);
+  const totalIncome = rentals.reduce((sum, rental) => sum + rental.cost, 0);
 
   return (
-    <Card title="Maintenance Overview">
+    <Card title="Rental Overview">
       <div className="space-y-6">
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
@@ -28,13 +28,13 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
           <div className="text-center">
             <div className="flex items-center justify-center">
               <Clock className="w-5 h-5 text-yellow-500" />
-              <span className="ml-2 text-xl font-semibold text-gray-900">{inProgressCount}</span>
+              <span className="ml-2 text-xl font-semibold text-gray-900">{activeCount}</span>
             </div>
-            <p className="mt-1 text-sm text-gray-600">In Progress</p>
+            <p className="mt-1 text-sm text-gray-600">Active</p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-blue-500" />
+              <Calendar className="w-5 h-5 text-blue-500" />
               <span className="ml-2 text-xl font-semibold text-gray-900">{scheduledCount}</span>
             </div>
             <p className="mt-1 text-sm text-gray-600">Scheduled</p>
@@ -43,9 +43,9 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
 
         <div className="pt-4 border-t">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Total Maintenance Expenses</span>
+            <span className="text-sm text-gray-600">Total Rental Income</span>
             <span className="text-lg font-semibold text-gray-900">
-              £{totalExpenses.toFixed(2)}
+              £{totalIncome.toFixed(2)}
             </span>
           </div>
         </div>
@@ -54,4 +54,4 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
   );
 };
 
-export default MaintenanceOverview;
+export default RentalOverview;

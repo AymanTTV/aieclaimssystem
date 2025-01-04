@@ -5,6 +5,7 @@ import { Eye, Edit, Trash2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
+import { ensureValidDate } from '../../utils/dateHelpers';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -22,6 +23,26 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onDelete,
 }) => {
   const { can } = usePermissions();
+
+  const calculateVAT = (log: MaintenanceLog) => {
+    // Calculate parts VAT
+    const partsVAT = log.parts.reduce((sum, part) => {
+      const hasVAT = log.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT;
+      if (hasVAT) {
+        return sum + (part.cost * part.quantity * 0.2);
+      }
+      return sum;
+    }, 0);
+
+    // Calculate labor VAT
+    const laborVAT = log.vatDetails?.laborVAT ? log.laborCost * 0.2 : 0;
+
+    return {
+      partsVAT,
+      laborVAT,
+      totalVAT: partsVAT + laborVAT
+    };
+  };
 
   const columns = [
     {
@@ -49,7 +70,22 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
     {
       header: 'Date',
-      cell: ({ row }) => formatDate(row.original.date),
+      cell: ({ row }) => {
+        const log = row.original;
+        const serviceDate = ensureValidDate(log.date);
+        const nextServiceDate = ensureValidDate(log.nextServiceDate);
+        
+        return (
+          <div>
+            <div className="text-sm">
+              Service: {formatDate(serviceDate)}
+            </div>
+            <div className="text-sm text-gray-500">
+              Next: {formatDate(nextServiceDate)}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: 'Status',
@@ -76,18 +112,38 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const totalCost = log.cost;
         const paidAmount = log.paidAmount || 0;
         const remainingAmount = totalCost - paidAmount;
-
+        
+        // Calculate VAT amounts
+        const { partsVAT, laborVAT, totalVAT } = calculateVAT(log);
+        
+        // Calculate NET amount
+        const netAmount = totalCost - totalVAT;
+    
         return (
           <div>
             <div className="font-medium">£{totalCost.toFixed(2)}</div>
-            {log.paymentStatus === 'partially_paid' && (
-              <div className="text-xs space-y-0.5">
-                <div className="text-green-600">Paid: £{paidAmount.toFixed(2)}</div>
-                <div className="text-amber-600">Due: £{remainingAmount.toFixed(2)}</div>
+            <div className="text-xs space-y-0.5">
+              <div className="text-gray-600">
+                NET: £{netAmount.toFixed(2)}
               </div>
-            )}
-            <div className="text-xs text-gray-500">
-              {log.vatDetails && 'Inc. VAT'}
+              <div className="text-gray-600">
+                VAT: £{totalVAT.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-500">
+                Parts VAT: £{partsVAT.toFixed(2)}
+                <br />
+                Labor VAT: £{laborVAT.toFixed(2)}
+              </div>
+            </div>
+            <div className="text-xs space-y-0.5 mt-1">
+              <div className="text-green-600">
+                Paid: £{paidAmount.toFixed(2)}
+              </div>
+              {remainingAmount > 0 && (
+                <div className="text-amber-600">
+                  Due: £{remainingAmount.toFixed(2)}
+                </div>
+              )}
             </div>
           </div>
         );

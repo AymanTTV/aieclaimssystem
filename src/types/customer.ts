@@ -14,9 +14,11 @@ export interface Customer {
   driverLicenseNumber: string;
   licenseValidFrom: Date;
   licenseExpiry: Date;
+  isExpired: Date;
   badgeNumber: string;
   billExpiry: Date;
   age: number;
+  signature?: string;
   createdAt: Date;
   updatedAt: Date;
 }
