@@ -7,7 +7,7 @@ interface FinanceTransactionParams {
   amount: number;
   description: string;
   referenceId: string;
-  vehicleId: string;
+  vehicleId?: string;
   vehicleName?: string;
   vehicleOwner?: {
     name: string;
@@ -16,6 +16,7 @@ interface FinanceTransactionParams {
   status?: 'pending' | 'completed';
   paymentMethod?: string;
   paymentReference?: string;
+  paymentStatus?: 'paid' | 'unpaid' | 'partially_paid';
 }
 
 export const createFinanceTransaction = async ({
@@ -29,21 +30,28 @@ export const createFinanceTransaction = async ({
   vehicleOwner,
   status = 'completed',
   paymentMethod,
-  paymentReference
+  paymentReference,
+  paymentStatus = 'paid'
 }: FinanceTransactionParams) => {
   try {
+    // Validate required fields
+    if (!amount || !category || !description || !referenceId) {
+      throw new Error('Missing required fields for finance transaction');
+    }
+
     const transaction = {
       type,
       category,
       amount,
       description,
       referenceId,
-      vehicleId,
-      vehicleName,
-      vehicleOwner,
+      ...(vehicleId && { vehicleId }),
+      ...(vehicleName && { vehicleName }),
+      ...(vehicleOwner && { vehicleOwner }),
+      ...(paymentMethod && { paymentMethod }),
+      ...(paymentReference && { paymentReference }),
       status,
-      paymentMethod,
-      paymentReference,
+      paymentStatus,
       date: new Date(),
       createdAt: new Date(),
     };
@@ -52,6 +60,6 @@ export const createFinanceTransaction = async ({
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error creating finance transaction:', error);
-    return { success: false, error };
+    throw error;
   }
 };

@@ -1,4 +1,3 @@
-// src/components/pdf/InvoicePDF.tsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { Invoice, Vehicle } from '../../types';
@@ -32,6 +31,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontWeight: 'bold',
+  },
+  paymentSection: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: '#f3f4f6',
+  },
+  paymentHistory: {
+    marginTop: 10,
+    borderTop: '1 solid #e5e7eb',
+    paddingTop: 10,
+  },
+  paymentRecord: {
+    marginBottom: 5,
+    paddingLeft: 10,
   },
   footer: {
     position: 'absolute',
@@ -79,6 +92,12 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, vehicle, compan
         </View>
       </View>
 
+      {/* Customer Details */}
+      <View style={styles.section}>
+        <Text style={styles.label}>Bill To:</Text>
+        <Text>{invoice.customerName || 'Customer'}</Text>
+      </View>
+
       {/* Vehicle Details if applicable */}
       {vehicle && (
         <View style={styles.section}>
@@ -95,13 +114,46 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, vehicle, compan
         <Text>Description: {invoice.description}</Text>
       </View>
 
-      {/* Amount */}
-      <View style={styles.section}>
+      {/* Payment Summary */}
+      <View style={styles.paymentSection}>
         <View style={styles.row}>
-          <Text style={styles.label}>Amount:</Text>
+          <Text style={styles.label}>Total Amount:</Text>
           <Text>£{invoice.amount.toFixed(2)}</Text>
         </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Amount Paid:</Text>
+          <Text>£{invoice.paidAmount.toFixed(2)}</Text>
+        </View>
+        {invoice.remainingAmount > 0 && (
+          <View style={styles.row}>
+            <Text style={styles.label}>Balance Due:</Text>
+            <Text>£{invoice.remainingAmount.toFixed(2)}</Text>
+          </View>
+        )}
+        <View style={styles.row}>
+          <Text style={styles.label}>Status:</Text>
+          <Text>{invoice.paymentStatus.replace('_', ' ').toUpperCase()}</Text>
+        </View>
       </View>
+
+      {/* Payment History */}
+      {invoice.payments && invoice.payments.length > 0 && (
+        <View style={styles.paymentHistory}>
+          <Text style={styles.label}>Payment History:</Text>
+          {invoice.payments.map((payment, index) => (
+            <View key={index} style={styles.paymentRecord}>
+              <Text>
+                {format(payment.date, 'dd/MM/yyyy HH:mm')} - £{payment.amount.toFixed(2)} - 
+                {payment.method.replace('_', ' ').toUpperCase()}
+                {payment.reference && ` (Ref: ${payment.reference})`}
+              </Text>
+              {payment.notes && (
+                <Text style={{ color: '#666', fontSize: 9 }}>Note: {payment.notes}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Payment Details */}
       <View style={styles.section}>

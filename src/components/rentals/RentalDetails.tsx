@@ -1,9 +1,9 @@
 import React from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format, isValid } from 'date-fns';
+import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
+import RentalPaymentHistory from './RentalPaymentHistory';
 import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Clock, PenTool } from 'lucide-react';
-
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -20,49 +20,29 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   onDownloadAgreement,
   onDownloadInvoice
 }) => {
-  // Helper function to safely format dates
-  const formatDateTime = (date: Date | null | undefined): string => {
-    if (!date || !isValid(date)) return 'N/A';
-    return format(date, 'dd/MM/yyyy HH:mm');
-  };
-
   return (
     <div className="space-y-6">
       {/* Documents Section */}
       <div className="flex justify-end space-x-4">
-  {rental.documents?.agreement && (
-    <button
-      onClick={() => {
-        try {
-          window.open(rental.documents?.agreement, '_blank', 'noopener,noreferrer');
-        } catch (error) {
-          console.error('Error opening agreement:', error);
-          toast.error('Failed to open agreement. Please try downloading it instead.');
-        }
-      }}
-      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-    >
-      <FileText className="h-4 w-4 mr-2" />
-      Hire Agreement
-    </button>
-  )}
-  {rental.documents?.invoice && (
-    <button
-      onClick={() => {
-        try {
-          window.open(rental.documents?.invoice, '_blank', 'noopener,noreferrer');
-        } catch (error) {
-          console.error('Error opening invoice:', error);
-          toast.error('Failed to open invoice. Please try downloading it instead.');
-        }
-      }}
-      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-    >
-      <Download className="h-4 w-4 mr-2" />
-      Invoice
-    </button>
-  )}
-</div>
+        {rental.documents?.agreement && (
+          <button
+            onClick={onDownloadAgreement}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Hire Agreement
+          </button>
+        )}
+        {rental.documents?.invoice && (
+          <button
+            onClick={onDownloadInvoice}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Invoice
+          </button>
+        )}
+      </div>
 
       {/* Vehicle Information */}
       <div className="border-b pb-4">
@@ -145,14 +125,14 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             <Calendar className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <p className="text-sm text-gray-500">Start Date & Time</p>
-              <p className="font-medium">{formatDateTime(rental.startDate)}</p>
+              <p className="font-medium">{formatDate(rental.startDate, true)}</p>
             </div>
           </div>
           <div className="flex items-center">
             <Calendar className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <p className="text-sm text-gray-500">End Date & Time</p>
-              <p className="font-medium">{formatDateTime(rental.endDate)}</p>
+              <p className="font-medium">{formatDate(rental.endDate, true)}</p>
             </div>
           </div>
           {rental.numberOfWeeks && (
@@ -183,7 +163,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Amount Paid</span>
-            <span className="text-green-600">£{(rental.paidAmount || 0).toFixed(2)}</span>
+            <span className="text-green-600">£{rental.paidAmount.toFixed(2)}</span>
           </div>
 
           {rental.remainingAmount > 0 && (
@@ -198,20 +178,18 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               <span className="text-gray-600">Payment Status</span>
               <StatusBadge status={rental.paymentStatus} />
             </div>
-            {rental.paymentMethod && (
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-gray-600">Payment Method</span>
-                <span className="capitalize">{rental.paymentMethod.replace('_', ' ')}</span>
-              </div>
-            )}
-            {rental.paymentReference && (
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-gray-600">Reference</span>
-                <span>{rental.paymentReference}</span>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Payment History */}
+        {rental.payments && rental.payments.length > 0 && (
+          <div className="mt-6">
+            <RentalPaymentHistory 
+              payments={rental.payments}
+              onDownloadDocument={(url) => window.open(url, '_blank')}
+            />
+          </div>
+        )}
       </div>
 
       {/* Customer Signature */}
@@ -242,11 +220,11 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Original End Date</p>
-                    <p className="font-medium">{formatDateTime(extension.originalEndDate)}</p>
+                    <p className="font-medium">{formatDate(extension.originalEndDate, true)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">New End Date</p>
-                    <p className="font-medium">{formatDateTime(extension.newEndDate)}</p>
+                    <p className="font-medium">{formatDate(extension.newEndDate, true)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Extension Cost</p>
@@ -268,8 +246,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       {/* Audit Information */}
       <div className="text-sm text-gray-500">
         <div className="flex justify-between">
-          <div>Created: {formatDateTime(rental.createdAt)}</div>
-          <div>Last Updated: {formatDateTime(rental.updatedAt)}</div>
+          <div>Created: {formatDate(rental.createdAt, true)}</div>
+          <div>Last Updated: {formatDate(rental.updatedAt, true)}</div>
         </div>
       </div>
     </div>

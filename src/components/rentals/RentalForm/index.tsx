@@ -1,52 +1,116 @@
-// Update the form data state to include negotiation fields
-const [formData, setFormData] = useState({
-  // ... existing fields ...
-  customRate: '',
-  negotiationNotes: '',
-});
+import React, { useState } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { claimFormSchema, type ClaimFormData } from './schema';
+import { useAuth } from '../../../context/AuthContext';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { calculateRentalCost } from '../../../utils/rentalCalculations';
+import { generateRentalDocuments } from '../../../utils/generateRentalDocuments';
+import { uploadRentalDocuments } from '../../../utils/documentUpload';
+import toast from 'react-hot-toast';
 
-// Update the cost calculation
-const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-const endDateTime = formData.endDate ? 
-  new Date(`${formData.endDate}T${formData.endTime}`) : 
-  startDateTime;
+interface RentalFormProps {
+  onClose: () => void;
+}
 
-const standardCost = calculateRentalCost(
-  startDateTime,
-  endDateTime,
-  formData.type,
-  formData.reason,
-  formData.numberOfWeeks
-);
+const RentalForm: React.FC<RentalFormProps> = ({ onClose }) => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-const totalCost = formData.customRate ? 
-  parseFloat(formData.customRate) : 
-  standardCost;
+  const methods = useForm<ClaimFormData>({
+    resolver: zodResolver(claimFormSchema),
+    defaultValues: {
+      type: 'daily',
+      reason: 'hired',
+      numberOfWeeks: 1,
+      paidAmount: 0,
+      paymentMethod: 'cash',
+      payments: []
+    }
+  });
 
-// Add the negotiation section to the form JSX
-<div className="space-y-6">
-  {/* ... existing form fields ... */}
+  const handleSubmit = async (data: ClaimFormData) => {
+    if (!user) return;
+    setLoading(true);
 
-  <NegotiationSection
-    standardRate={standardCost}
-    customRate={formData.customRate}
-    onCustomRateChange={(value) => setFormData({ ...formData, customRate: value })}
-    negotiationNotes={formData.negotiationNotes}
-    onNotesChange={(value) => setFormData({ ...formData, negotiationNotes: value })}
-  />
+    try {
+      const startDateTime = new Date(`${data.startDate}T${data.startTime}`);
+      const endDateTime = new Date(`${data.endDate}T${data.endTime}`);
+      
+      // Calculate costs
+      const standardCost = calculateRentalCost(
+        startDateTime,
+        endDateTime,
+        data.type,
+        data.reason,
+        data.numberOfWeeks
+      );
 
-  {/* Payment Summary */}
-  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-    <div className="flex justify-between text-sm">
-      <span>Standard Rate:</span>
-      <span className="font-medium">£{standardCost.toFixed(2)}</span>
-    </div>
-    {formData.customRate && (
-      <div className="flex justify-between text-sm text-primary">
-        <span>Negotiated Rate:</span>
-        <span className="font-medium">£{formData.customRate}</span>
-      </div>
-    )}
-    {/* ... rest of the payment summary ... */}
-  </div>
-</div>
+      const finalCost = data.customRate ? parseFloat(data.customRate) : standardCost;
+      const remainingAmount = finalCost - (data.paidAmount || 0);
+
+      // Create initial payment record if amount paid
+      const payments = [];
+      if (data.paidAmount > 0) {
+        payments.push({
+          id: Date.now().toString(),
+          date: new Date(),
+          amount: data.paidAmount,
+          method: data.paymentMethod,
+          reference: data.paymentReference,
+          notes: data.paymentNotes,
+          createdAt: new Date(),
+          createdBy: user.id
+        });
+      }
+
+      // Create rental record
+      const rentalData = {
+        ...data,
+        startDate: startDateTime,
+        endDate: endDateTime,
+        cost: finalCost,
+        standardCost,
+        paidAmount: data.paidAmount || 0,
+        remainingAmount,
+        paymentStatus: data.paidAmount >= finalCost ? 'paid' : 
+                      data.paidAmount > 0 ? 'partially_paid' : 'pending',
+        status: 'scheduled',
+        payments,
+        createdAt: new Date(),
+        createdBy: user.id,
+        updatedAt: new Date()
+      };
+
+      const docRef = await addDoc(collection(db, 'rentals'), rentalData);
+
+      // Generate and upload documents
+      const documents = await generateRentalDocuments(
+        { id: docRef.id, ...rentalData },
+        vehicle,
+        customer
+      );
+      await uploadRentalDocuments(docRef.id, documents);
+
+      toast.success('Rental created successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error creating rental:', error);
+      toast.error('Failed to create rental');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <FormProvider {...methods}>
+      <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-6">
+        {/* Form sections */}
+        {/* ... rest of your form JSX ... */}
+      </form>
+    </FormProvider>
+  );
+};
+
+export default RentalForm;

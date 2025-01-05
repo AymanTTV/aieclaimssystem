@@ -1,7 +1,19 @@
-import { format, isValid, parseISO, addYears } from 'date-fns';
+import { format, isValid, parseISO, addDays } from 'date-fns';
 
-export const ensureValidDate = (value: any): Date | null => {
-  if (!value) return null;
+// Common date formats
+export const DATE_FORMATS = {
+  DISPLAY: 'dd/MM/yyyy',
+  DISPLAY_WITH_TIME: 'dd/MM/yyyy HH:mm',
+  INPUT: 'yyyy-MM-dd',
+  ISO: "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
+  TIME: 'HH:mm'
+} as const;
+
+/**
+ * Ensures a valid date is returned from any date-like input
+ */
+export const ensureValidDate = (value: any): Date => {
+  if (!value) return new Date();
 
   try {
     // Handle Firestore Timestamp
@@ -22,45 +34,72 @@ export const ensureValidDate = (value: any): Date | null => {
       }
     }
 
-    return null;
+    // Handle numeric timestamps
+    if (typeof value === 'number') {
+      const date = new Date(value);
+      if (isValid(date)) {
+        return date;
+      }
+    }
+
+    return new Date();
   } catch (error) {
     console.error('Error parsing date:', error);
-    return null;
+    return new Date();
   }
 };
 
-export const formatDate = (date: Date | null | undefined): string => {
-  if (!date || !isValid(date)) {
-    return 'Not set';
+/**
+ * Format a date for display
+ */
+export const formatDate = (date: Date | string | null | undefined, includeTime = false): string => {
+  if (!date) return 'Not set';
+
+  try {
+    const validDate = ensureValidDate(date);
+    return format(validDate, includeTime ? DATE_FORMATS.DISPLAY_WITH_TIME : DATE_FORMATS.DISPLAY);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid date';
   }
-  return format(date, 'dd/MM/yyyy');
 };
 
+/**
+ * Format a date for input fields
+ */
 export const formatDateForInput = (date: Date | string | undefined | null): string => {
   if (!date) return '';
 
   try {
-    let dateObj: Date;
-    
-    if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'string') {
-      dateObj = parseISO(date);
-    } else {
-      return '';
-    }
-
-    if (!isValid(dateObj)) {
-      return '';
-    }
-
-    return format(dateObj, 'yyyy-MM-dd');
+    const validDate = ensureValidDate(date);
+    return format(validDate, DATE_FORMATS.INPUT);
   } catch (error) {
-    console.error('Error formatting date:', error);
+    console.error('Error formatting date for input:', error);
     return '';
   }
 };
 
-export const getDefaultNextServiceDate = (currentDate: Date = new Date()): Date => {
-  return addYears(currentDate, 1);
+/**
+ * Check if a date is expired
+ */
+export const isExpired = (date: Date | null | undefined): boolean => {
+  if (!date) return false;
+  return new Date() > ensureValidDate(date);
+};
+
+/**
+ * Check if a date is expiring soon (within days)
+ */
+export const isExpiringSoon = (date: Date | null | undefined, days = 30): boolean => {
+  if (!date) return false;
+  const validDate = ensureValidDate(date);
+  const warningDate = addDays(new Date(), days);
+  return validDate <= warningDate;
+};
+
+/**
+ * Get default expiry date (1 year from now)
+ */
+export const getDefaultExpiryDate = (): Date => {
+  return addDays(new Date(), 365);
 };

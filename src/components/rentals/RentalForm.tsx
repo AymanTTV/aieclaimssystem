@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Vehicle, Customer } from '../../types';
-import { useAuth } from '../../context/AuthContext';
-import { calculateRentalCost, calculateWeeklyEndDate } from '../../utils/rentalCalculations';
+import React, { useState } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import FormField from '../ui/FormField';
-import SearchableSelect from './SearchableSelect';
-import SignaturePad from '../ui/SignaturePad';
-import TextArea from '../ui/TextArea';
-import toast from 'react-hot-toast';
+import { Vehicle, Customer } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
-import { createFinanceTransaction } from '../../utils/financeTransactions';
+import FormField from '../ui/FormField';
+import SearchableSelect from '../ui/SearchableSelect';
+import SignaturePad from '../ui/SignaturePad';
+import toast from 'react-hot-toast';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -32,34 +30,24 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     type: 'daily' as const,
     reason: 'hired' as const,
     numberOfWeeks: 1,
-    signature: '',
     paidAmount: 0,
     paymentMethod: 'cash' as const,
     paymentReference: '',
+    paymentNotes: '',
     customRate: '',
     negotiationNotes: '',
-    status: 'scheduled' as const
+    signature: ''
   });
 
-  // Update end date when rental type or number of weeks changes
-  useEffect(() => {
-    if (formData.type === 'weekly') {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      const endDate = calculateWeeklyEndDate(startDateTime, formData.numberOfWeeks);
-      setFormData(prev => ({
-        ...prev,
-        endDate: endDate.toISOString().split('T')[0],
-        endTime: formData.startTime
-      }));
-    }
-  }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+  // Calculate if user can negotiate rates
+  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
 
-  // Calculate total cost
+  // Calculate costs
   const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
   const endDateTime = formData.endDate ? 
     new Date(`${formData.endDate}T${formData.endTime}`) : 
     startDateTime;
-  
+
   const standardCost = calculateRentalCost(
     startDateTime,
     endDateTime,
@@ -68,42 +56,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     formData.numberOfWeeks
   );
 
-  const totalCost = formData.customRate ? 
-    parseFloat(formData.customRate) : 
-    standardCost;
-
-  const remainingAmount = formData.paidAmount >= totalCost ? 0 : totalCost - formData.paidAmount;
-  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+  const totalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
+  const remainingAmount = totalCost - formData.paidAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
-    // Validate signature
-    if (!formData.signature) {
-      toast.error('Customer signature is required');
-      return;
-    }
-
-    // Validate number of weeks for weekly rentals
-    if (formData.type === 'weekly' && (!formData.numberOfWeeks || formData.numberOfWeeks < 1)) {
-      toast.error('Please enter a valid number of weeks');
-      return;
-    }
-
-    // Validate negotiated rate
-    if (formData.customRate) {
-      const negotiatedAmount = parseFloat(formData.customRate);
-      if (negotiatedAmount <= 0) {
-        toast.error('Negotiated rate must be greater than 0');
-        return;
-      }
-      if (!formData.negotiationNotes) {
-        toast.error('Please provide negotiation notes');
-        return;
-      }
-    }
-
     setLoading(true);
 
     try {
@@ -114,46 +72,57 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         throw new Error('Vehicle or customer not found');
       }
 
-      const rentalData = {
-        ...formData,
-        startDate: startDateTime,
-        endDate: endDateTime,
-        cost: totalCost,
-        standardCost: formData.customRate ? standardCost : undefined,
-        remainingAmount,
-        paymentStatus: formData.paidAmount >= totalCost ? 'paid' : 'pending',
-        status: formData.status,
-        negotiated: !!formData.customRate,
-        createdAt: new Date(),
-        createdBy: user.id,
-        documents: {},
-        extensionHistory: []
-      };
-
-      // Create rental record
-      const rentalRef = await addDoc(collection(db, 'rentals'), rentalData);
-      const rental = { id: rentalRef.id, ...rentalData };
-
-      // Create financial transaction if payment was made
+      // Create initial payment record if amount paid
+      const payments = [];
       if (formData.paidAmount > 0) {
-        await createFinanceTransaction({
-          type: 'income',
-          category: 'rental',
+        payments.push({
+          id: Date.now().toString(),
+          date: new Date(),
           amount: formData.paidAmount,
-          description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model}`,
-          referenceId: rental.id,
-          vehicleId: selectedVehicle.id,
-          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          vehicleOwner: selectedVehicle.owner || { name: 'AIE Skyline', isDefault: true },
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          status: 'completed'
+          method: formData.paymentMethod,
+          reference: formData.paymentReference,
+          notes: formData.paymentNotes,
+          createdAt: new Date(),
+          createdBy: user.id
         });
       }
 
+      // Create rental record
+      const rentalData = {
+        vehicleId: formData.vehicleId,
+        customerId: formData.customerId,
+        startDate: startDateTime,
+        endDate: endDateTime,
+        type: formData.type,
+        reason: formData.reason,
+        numberOfWeeks: formData.type === 'weekly' ? formData.numberOfWeeks : undefined,
+        cost: totalCost,
+        standardCost,
+        paidAmount: formData.paidAmount,
+        remainingAmount,
+        paymentStatus: formData.paidAmount >= totalCost ? 'paid' : 
+                      formData.paidAmount > 0 ? 'partially_paid' : 'pending',
+        paymentMethod: formData.paymentMethod,
+        paymentReference: formData.paymentReference,
+        negotiated: !!formData.customRate,
+        negotiationNotes: formData.negotiationNotes,
+        signature: formData.signature,
+        status: 'scheduled',
+        payments,
+        createdAt: new Date(),
+        createdBy: user.id,
+        updatedAt: new Date()
+      };
+
+      const docRef = await addDoc(collection(db, 'rentals'), rentalData);
+
       // Generate and upload documents
-      const documents = await generateRentalDocuments(rental, selectedVehicle, selectedCustomer);
-      await uploadRentalDocuments(rental.id, documents);
+      const documents = await generateRentalDocuments(
+        { id: docRef.id, ...rentalData },
+        selectedVehicle,
+        selectedCustomer
+      );
+      await uploadRentalDocuments(docRef.id, documents);
 
       toast.success('Rental created successfully');
       onClose();
@@ -167,19 +136,17 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Vehicle and Customer Selection */}
+     {/* Vehicle and Customer Selection */}
       <SearchableSelect
         label="Vehicle"
-        options={vehicles
-          .filter(v => v.status !== 'rented')
-          .map(v => ({
-            id: v.id,
-            label: `${v.make} ${v.model}`,
-            subLabel: v.registrationNumber
-          }))}
+        options={vehicles.map(v => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`,
+          subLabel: v.registrationNumber
+        }))}
         value={formData.vehicleId}
         onChange={(id) => setFormData({ ...formData, vehicleId: id })}
-        placeholder="Search by make, model or registration..."
+        placeholder="Search vehicles..."
         required
       />
 
@@ -199,7 +166,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             signature: customer?.signature || ''
           });
         }}
-        placeholder="Search by name, mobile or email..."
+        placeholder="Search customers..."
         required
       />
 
@@ -255,16 +222,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
           required
         />
-        
+
         {formData.type === 'weekly' ? (
           <FormField
             type="number"
             label="Number of Weeks"
             value={formData.numberOfWeeks}
-            onChange={(e) => setFormData({ 
-              ...formData, 
-              numberOfWeeks: Math.max(1, parseInt(e.target.value) || 1)
-            })}
+            onChange={(e) => setFormData({ ...formData, numberOfWeeks: parseInt(e.target.value) })}
             min="1"
             required
           />
@@ -324,7 +288,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
               <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
                 <p className="text-sm text-yellow-800">
-                  Custom rate will be approved by {user.name} ({user.role})
+                  Custom rate will be approved by {user?.name} ({user?.role})
                 </p>
               </div>
             </>
@@ -332,8 +296,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         </div>
       )}
 
-      {/* Payment Details */}
-      <div className="space-y-4">
+      {/* Payment Section */}
+      <div className="space-y-4 border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
         
         <div className="grid grid-cols-2 gap-4">
@@ -351,7 +315,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             <label className="block text-sm font-medium text-gray-700">Payment Method</label>
             <select
               value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as typeof formData.paymentMethod })}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             >
               <option value="cash">Cash</option>
@@ -369,20 +333,25 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               placeholder="Enter payment reference or transaction ID"
             />
           </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
+            <textarea
+              value={formData.paymentNotes}
+              onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
+              rows={2}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              placeholder="Add any notes about this payment"
+            />
+          </div>
         </div>
 
         {/* Payment Summary */}
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Standard Rate:</span>
-            <span className="font-medium">£{standardCost.toFixed(2)}</span>
+            <span>Total Cost:</span>
+            <span className="font-medium">£{totalCost.toFixed(2)}</span>
           </div>
-          {formData.customRate && (
-            <div className="flex justify-between text-sm text-primary">
-              <span>Negotiated Rate:</span>
-              <span className="font-medium">£{formData.customRate}</span>
-            </div>
-          )}
           <div className="flex justify-between text-sm">
             <span>Amount Paid:</span>
             <span className="text-green-600">£{formData.paidAmount.toFixed(2)}</span>

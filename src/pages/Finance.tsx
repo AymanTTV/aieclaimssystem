@@ -16,11 +16,12 @@ import InvoiceForm from '../components/finance/InvoiceForm';
 import InvoiceDetails from '../components/finance/InvoiceDetails';
 import InvoiceEditModal from '../components/finance/InvoiceEditModal';
 import InvoiceDeleteModal from '../components/finance/InvoiceDeleteModal';
+import InvoicePaymentModal from '../components/finance/InvoicePaymentModal';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
 import { exportFinanceData } from '../utils/FinanceExport';
 import { Transaction, Invoice } from '../types';
-import { markInvoiceAsPaid } from '../utils/invoiceUtils';
+import { markInvoiceAsPaid, deleteInvoicePayment } from '../utils/invoiceUtils';
 import toast from 'react-hot-toast';
 
 const Finance = () => {
@@ -68,6 +69,7 @@ const Finance = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
 
   // Loading state
   if (transactionsLoading || vehiclesLoading || invoicesLoading || customersLoading) {
@@ -89,13 +91,13 @@ const Finance = () => {
     }
   };
 
-  const handleMarkAsPaid = async (invoice: Invoice) => {
+  const handleDeletePayment = async (invoice: Invoice, paymentId: string) => {
     try {
-      await markInvoiceAsPaid(invoice);
-      toast.success('Invoice marked as paid successfully');
+      await deleteInvoicePayment(invoice, paymentId);
+      toast.success('Payment deleted successfully');
     } catch (error) {
-      console.error('Error marking invoice as paid:', error);
-      toast.error('Failed to mark invoice as paid');
+      console.error('Error deleting payment:', error);
+      toast.error('Failed to delete payment');
     }
   };
 
@@ -181,11 +183,12 @@ const Finance = () => {
           onEdit={setEditingInvoice}
           onDelete={(invoice) => setDeletingInvoiceId(invoice.id)}
           onDownload={(invoice) => window.open(invoice.documentUrl, '_blank')}
-          onMarkAsPaid={handleMarkAsPaid}
+          onRecordPayment={setPayingInvoice}
+          onDeletePayment={handleDeletePayment}
         />
       </div>
 
-      {/* Transaction Modals */}
+      {/* Modals */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -234,7 +237,6 @@ const Finance = () => {
         )}
       </Modal>
 
-      {/* Invoice Modals */}
       <Modal
         isOpen={showInvoiceForm}
         onClose={() => setShowInvoiceForm(false)}
@@ -286,6 +288,20 @@ const Finance = () => {
           <InvoiceDeleteModal
             invoiceId={deletingInvoiceId}
             onClose={() => setDeletingInvoiceId(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!payingInvoice}
+        onClose={() => setPayingInvoice(null)}
+        title="Record Payment"
+      >
+        {payingInvoice && (
+          <InvoicePaymentModal
+            invoice={payingInvoice}
+            vehicle={vehicles.find(v => v.id === payingInvoice.vehicleId)}
+            onClose={() => setPayingInvoice(null)}
           />
         )}
       </Modal>

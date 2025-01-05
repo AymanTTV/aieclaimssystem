@@ -49,6 +49,11 @@ const styles = StyleSheet.create({
   value: {
     flex: 1,
   },
+  paymentSection: {
+    marginTop: 10,
+    padding: 5,
+    backgroundColor: '#f3f4f6',
+  },
   signatureSection: {
     marginTop: 30,
     flexDirection: 'row',
@@ -116,7 +121,6 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
         <View style={styles.header}>
           <Image src={logo} style={styles.logo} />
           <View style={styles.companyInfo}>
-            
             <Text>{companyDetails.fullName || 'AIE SKYLINE'}</Text>
             <Text>{companyDetails.officialAddress || ''}</Text>
             <Text>Tel: {companyDetails.phone || ''}</Text>
@@ -133,7 +137,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           <Text>Date: {formatDate(rental.createdAt)}</Text>
         </View>
 
-        {/* Customer Details */}
+        {/* Hirer Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>HIRER DETAILS</Text>
           <View style={styles.row}>
@@ -151,6 +155,10 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           <View style={styles.row}>
             <Text style={styles.label}>License Number:</Text>
             <Text style={styles.value}>{customer.driverLicenseNumber}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>License Expiry:</Text>
+            <Text style={styles.value}>{format(customer.licenseExpiry, 'dd/MM/yyyy')}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Badge Number:</Text>
@@ -175,50 +183,21 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           </View>
         </View>
 
-        {/* Rental Period */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>RENTAL PERIOD</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Start Date & Time:</Text>
-            <Text style={styles.value}>{formatDate(rental.startDate)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>End Date & Time:</Text>
-            <Text style={styles.value}>{formatDate(rental.endDate)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Rental Type:</Text>
-            <Text style={styles.value}>{rental.type.toUpperCase()} - {rental.reason.toUpperCase()}</Text>
-          </View>
-        </View>
-
         {/* Payment Details */}
-        <View style={styles.section}>
+        <View style={styles.paymentSection}>
           <Text style={styles.sectionTitle}>PAYMENT DETAILS</Text>
           <View style={styles.row}>
-            <Text style={styles.label}>Total Cost:</Text>
-            <Text style={styles.value}>£{rental.cost.toFixed(2)}</Text>
+            <Text style={styles.label}>Payment Type:</Text>
+            <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Amount Paid:</Text>
-            <Text style={styles.value}>£{rental.paidAmount?.toFixed(2) || '0.00'}</Text>
+            <Text style={styles.label}>Rate:</Text>
+            <Text style={styles.value}>£{rental.type === 'claim' ? '340' : rental.type === 'weekly' ? '360' : '60'} per {rental.type === 'weekly' ? 'week' : 'day'}</Text>
           </View>
-          {rental.remainingAmount > 0 && (
-            <View style={styles.row}>
-              <Text style={styles.label}>Balance Due:</Text>
-              <Text style={styles.value}>£{rental.remainingAmount.toFixed(2)}</Text>
-            </View>
-          )}
           <View style={styles.row}>
-            <Text style={styles.label}>Payment Method:</Text>
-            <Text style={styles.value}>{rental.paymentMethod?.replace('_', ' ').toUpperCase() || 'N/A'}</Text>
+            <Text style={styles.label}>Payment Due:</Text>
+            <Text style={styles.value}>{format(rental.dueDate || rental.endDate, 'dd/MM/yyyy')}</Text>
           </View>
-        </View>
-
-        {/* Terms and Conditions */}
-        <View style={styles.terms}>
-          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          <Text>{companyDetails.termsAndConditions || 'Standard terms and conditions apply.'}</Text>
         </View>
 
         {/* Signatures */}

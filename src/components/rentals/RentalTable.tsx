@@ -1,10 +1,10 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, Clock, FileText, Download } from 'lucide-react';
+import { Eye, Edit, Trash2, Clock, FileText, Download, DollarSign } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
-import { format } from 'date-fns';
+import { formatDate } from '../../utils/dateHelpers';
 
 interface RentalTableProps {
   rentals: Rental[];
@@ -16,6 +16,8 @@ interface RentalTableProps {
   onExtend: (rental: Rental) => void;
   onDownloadAgreement: (rental: Rental) => void;
   onDownloadInvoice: (rental: Rental) => void;
+  onRecordPayment: (rental: Rental) => void;
+  onDeletePayment: (rental: Rental, paymentId: string) => void;
 }
 
 const RentalTable: React.FC<RentalTableProps> = ({
@@ -28,10 +30,13 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onExtend,
   onDownloadAgreement,
   onDownloadInvoice,
+  onRecordPayment,
+  onDeletePayment,
 }) => {
   const { can } = usePermissions();
 
   const columns = [
+    // ... other columns ...
     {
       header: 'Vehicle',
       cell: ({ row }) => {
@@ -70,10 +75,10 @@ const RentalTable: React.FC<RentalTableProps> = ({
       cell: ({ row }) => (
         <div>
           <div className="text-sm">
-            {format(row.original.startDate, 'dd/MM/yyyy HH:mm')}
+            {formatDate(row.original.startDate)}
           </div>
           <div className="text-sm text-gray-500">
-            {format(row.original.endDate, 'dd/MM/yyyy HH:mm')}
+            {formatDate(row.original.endDate)}
           </div>
           {row.original.numberOfWeeks && (
             <div className="text-xs text-gray-500">
@@ -96,13 +101,9 @@ const RentalTable: React.FC<RentalTableProps> = ({
       header: 'Cost',
       cell: ({ row }) => {
         const rental = row.original;
-        const totalCost = rental.cost;
-        const paidAmount = rental.paidAmount || 0;
-        const remainingAmount = totalCost - paidAmount;
-    
         return (
           <div>
-            <div className="font-medium">£{totalCost.toFixed(2)}</div>
+            <div className="font-medium">£{rental.cost.toFixed(2)}</div>
             {rental.standardCost && rental.standardCost !== rental.cost && (
               <div className="text-xs text-gray-500 line-through">
                 £{rental.standardCost.toFixed(2)}
@@ -113,15 +114,51 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
             <div className="text-xs space-y-0.5 mt-1">
               <div className="text-green-600">
-                Paid: £{paidAmount.toFixed(2)}
+                Paid: £{rental.paidAmount.toFixed(2)}
               </div>
-              {remainingAmount > 0 && (
+              {rental.remainingAmount > 0 && (
                 <div className="text-amber-600">
-                  Due: £{remainingAmount.toFixed(2)}
+                  Due: £{rental.remainingAmount.toFixed(2)}
                 </div>
               )}
             </div>
           </div>
+        );
+      },
+    },
+    {
+      header: 'Payment History',
+      cell: ({ row }) => {
+        const payments = row.original.payments || [];
+        return payments.length > 0 ? (
+          <div className="space-y-1">
+            {payments.map((payment) => (
+              <div key={payment.id} className="text-sm flex items-center justify-between">
+                <div>
+                  <div className="flex items-center">
+                    <span>£{payment.amount.toFixed(2)}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeletePayment(row.original, payment.id);
+                      }}
+                      className="ml-2 text-red-600 hover:text-red-800"
+                      title="Delete Payment"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    <span className="capitalize">{payment.method.replace('_', ' ')}</span>
+                    <span className="mx-1">•</span>
+                    <span>{formatDate(payment.date, true)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span className="text-gray-500">No payments</span>
         );
       },
     },
@@ -198,7 +235,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
               </button>
             </>
           )}
-          {can('rentals', 'delete') && row.original.status !== 'rented' && (
+          {can('rentals', 'delete') && row.original.status !== 'active' && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -210,9 +247,22 @@ const RentalTable: React.FC<RentalTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {row.original.remainingAmount > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRecordPayment(row.original);
+              }}
+              className="text-primary hover:text-primary-600"
+              title="Record Payment"
+            >
+              <DollarSign className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
+    // ... rest of the columns ...
   ];
 
   return (

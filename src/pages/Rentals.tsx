@@ -3,7 +3,6 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
 import { useRentalFilters } from '../hooks/useRentalFilters';
-import { useRentalStatusUpdates } from '../hooks/useRentalStatusUpdates';
 import RentalFilters from '../components/rentals/RentalFilters';
 import RentalTable from '../components/rentals/RentalTable';
 import RentalForm from '../components/rentals/RentalForm';
@@ -11,10 +10,12 @@ import RentalDetails from '../components/rentals/RentalDetails';
 import RentalEditModal from '../components/rentals/RentalEditModal';
 import RentalExtendModal from '../components/rentals/RentalExtendModal';
 import RentalDeleteModal from '../components/rentals/RentalDeleteModal';
+import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
+import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
 
 const Rentals = () => {
@@ -33,13 +34,12 @@ const Rentals = () => {
     filteredRentals
   } = useRentalFilters(rentals, vehicles, customers);
 
-  useRentalStatusUpdates();
-
   const [showForm, setShowForm] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [editingRental, setEditingRental] = useState<Rental | null>(null);
   const [extendingRental, setExtendingRental] = useState<Rental | null>(null);
   const [deletingRental, setDeletingRental] = useState<Rental | null>(null);
+  const [payingRental, setPayingRental] = useState<Rental | null>(null);
 
   const handleExport = () => {
     try {
@@ -64,6 +64,16 @@ const Rentals = () => {
       window.open(rental.documents.invoice, '_blank');
     } else {
       toast.error('No invoice available');
+    }
+  };
+
+  const handleDeletePayment = async (rental: Rental, paymentId: string) => {
+    try {
+      await deleteRentalPayment(rental, paymentId);
+      toast.success('Payment deleted successfully');
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      toast.error('Failed to delete payment');
     }
   };
 
@@ -119,6 +129,8 @@ const Rentals = () => {
         onExtend={setExtendingRental}
         onDownloadAgreement={handleDownloadAgreement}
         onDownloadInvoice={handleDownloadInvoice}
+        onRecordPayment={setPayingRental}
+        onDeletePayment={handleDeletePayment}
       />
 
       {/* Modals */}
@@ -189,6 +201,19 @@ const Rentals = () => {
           <RentalDeleteModal
             rental={deletingRental}
             onClose={() => setDeletingRental(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!payingRental}
+        onClose={() => setPayingRental(null)}
+        title="Record Payment"
+      >
+        {payingRental && (
+          <RentalPaymentModal
+            rental={payingRental}
+            onClose={() => setPayingRental(null)}
           />
         )}
       </Modal>

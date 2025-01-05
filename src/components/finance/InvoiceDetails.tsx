@@ -1,11 +1,9 @@
 import React from 'react';
-import { Invoice } from '../../types';
-import { format } from 'date-fns';
+import { Invoice, Vehicle, Customer } from '../../types';
+import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { Calendar, DollarSign, FileText, Car } from 'lucide-react';
-// Add this import at the top of these files:
-import { Customer } from '../../types/customer';
-
+import { Calendar, DollarSign, Car, User, FileText } from 'lucide-react';
+import InvoicePaymentHistory from './InvoicePaymentHistory';
 
 interface InvoiceDetailsProps {
   invoice: Invoice;
@@ -14,7 +12,19 @@ interface InvoiceDetailsProps {
   onDownload: () => void;
 }
 
-const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, vehicle, customer, onDownload }) => {
+const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
+  invoice,
+  vehicle,
+  customer,
+  onDownload
+}) => {
+  const formatDate = (date: Date | null | undefined): string => {
+    if (!date || !isValid(date)) {
+      return 'Not set';
+    }
+    return format(date, 'MMM dd, yyyy');
+  };
+
   return (
     <div className="space-y-6">
       {/* Status and Actions */}
@@ -31,53 +41,43 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, vehicle, custo
         )}
       </div>
 
-      {/* Customer Information */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-500">Customer</h3>
-        {invoice.customerName ? (
-          <p className="mt-1">{invoice.customerName}</p>
-        ) : customer ? (
-          <div className="mt-1">
-            <p className="font-medium">{customer.name}</p>
-            <p className="text-sm text-gray-500">{customer.mobile}</p>
-            <p className="text-sm text-gray-500">{customer.email}</p>
-          </div>
-        ) : (
-          <p className="mt-1 text-gray-500">No customer information</p>
-        )}
-      </div>
-
       {/* Basic Information */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-medium text-gray-500">Invoice Date</h3>
           <p className="mt-1 flex items-center">
             <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-            {format(invoice.date, 'MMM dd, yyyy')}
+            {formatDate(invoice.date)}
           </p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Due Date</h3>
           <p className="mt-1 flex items-center">
             <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-            {format(invoice.dueDate, 'MMM dd, yyyy')}
+            {formatDate(invoice.dueDate)}
           </p>
         </div>
       </div>
 
-      {/* Amount and Category */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-gray-500">Amount</h3>
-          <p className="mt-1 flex items-center text-lg font-medium">
-            <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
-            £{invoice.amount.toFixed(2)}
-          </p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-gray-500">Category</h3>
-          <p className="mt-1 capitalize">{invoice.category}</p>
-        </div>
+      {/* Customer Information */}
+      <div>
+        <h3 className="text-sm font-medium text-gray-500">Customer</h3>
+        {customer ? (
+          <div className="mt-1">
+            <div className="flex items-center">
+              <User className="h-4 w-4 text-gray-400 mr-2" />
+              <div>
+                <p className="font-medium">{customer.name}</p>
+                <p className="text-sm text-gray-500">{customer.mobile}</p>
+                <p className="text-sm text-gray-500">{customer.email}</p>
+              </div>
+            </div>
+          </div>
+        ) : invoice.customerName ? (
+          <p className="mt-1">{invoice.customerName}</p>
+        ) : (
+          <p className="mt-1 text-gray-500">No customer information</p>
+        )}
       </div>
 
       {/* Vehicle Information */}
@@ -94,6 +94,36 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, vehicle, custo
         </div>
       )}
 
+      {/* Payment Summary */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="flex justify-between text-sm">
+          <span>Total Amount:</span>
+          <span className="font-medium">£{invoice.amount.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Amount Paid:</span>
+          <span className="text-green-600">£{(invoice.paidAmount || 0).toFixed(2)}</span>
+        </div>
+        {(invoice.remainingAmount || 0) > 0 && (
+          <div className="flex justify-between text-sm">
+            <span>Remaining Amount:</span>
+            <span className="text-amber-600">£{invoice.remainingAmount.toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm pt-2 border-t">
+          <span>Payment Status:</span>
+          <span className="font-medium capitalize">{invoice.paymentStatus.replace('_', ' ')}</span>
+        </div>
+      </div>
+
+      {/* Payment History */}
+      {invoice.payments && invoice.payments.length > 0 && (
+        <InvoicePaymentHistory 
+          payments={invoice.payments}
+          onDownloadDocument={(url) => window.open(url, '_blank')}
+        />
+      )}
+
       {/* Description */}
       <div>
         <h3 className="text-sm font-medium text-gray-500">Description</h3>
@@ -102,8 +132,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, vehicle, custo
 
       {/* Creation Info */}
       <div className="text-sm text-gray-500 border-t pt-4">
-        <p>Created: {format(invoice.createdAt, 'MMM dd, yyyy HH:mm')}</p>
-        <p>Last Updated: {format(invoice.updatedAt, 'MMM dd, yyyy HH:mm')}</p>
+        <p>Created: {formatDate(invoice.createdAt)}</p>
+        <p>Last Updated: {formatDate(invoice.updatedAt)}</p>
       </div>
     </div>
   );
