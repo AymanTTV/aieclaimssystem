@@ -34,6 +34,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     endTime: new Date(rental.endDate).toTimeString().slice(0, 5),
     type: rental.type,
     reason: rental.reason,
+    status: rental.status,
     numberOfWeeks: rental.numberOfWeeks || 1,
     amountToPay: '0',
     paymentMethod: 'cash' as const,
@@ -44,8 +45,18 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     signature: rental.signature || ''
   });
 
-  // Calculate if user can negotiate rates
-  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+  // Calculate end date for weekly rentals
+  const handleWeeklyRental = (weeks: number) => {
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime = addWeeks(startDateTime, weeks);
+    
+    setFormData({
+      ...formData,
+      numberOfWeeks: weeks,
+      endDate: endDateTime.toISOString().split('T')[0],
+      endTime: formData.startTime
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,11 +98,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
       // Update rental record
       const rentalRef = doc(db, 'rentals', rental.id);
-      await updateDoc(rentalRef, {
+      const updateData = {
         startDate: startDateTime,
         endDate: endDateTime,
         type: formData.type,
         reason: formData.reason,
+        status: formData.status,
         numberOfWeeks: formData.numberOfWeeks,
         cost: finalCost,
         standardCost,
@@ -105,14 +117,16 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         payments,
         updatedAt: new Date(),
         updatedBy: user.id
-      });
+      };
+
+      await updateDoc(rentalRef, updateData);
 
       // Generate and upload new documents
       const selectedVehicle = vehicles.find(v => v.id === rental.vehicleId);
       const selectedCustomer = customers.find(c => c.id === rental.customerId);
       if (selectedVehicle && selectedCustomer) {
         const documents = await generateRentalDocuments(
-          { ...rental, ...formData, cost: finalCost },
+          { ...rental, ...updateData },
           selectedVehicle,
           selectedCustomer
         );
@@ -129,9 +143,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     }
   };
 
+  // Calculate if user can negotiate rates
+  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Vehicle and Customer Selection - Disabled for existing rentals */}
       <SearchableSelect
         label="Vehicle"
         options={vehicles.map(v => ({
@@ -156,7 +172,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         disabled={true}
       />
 
-      {/* Rental Type and Reason */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Rental Type</label>
@@ -191,7 +206,21 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         </div>
       </div>
 
-      {/* Rental Period */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <select
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="scheduled">Scheduled</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <FormField
           type="date"
@@ -214,7 +243,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
             type="number"
             label="Number of Weeks"
             value={formData.numberOfWeeks}
-            onChange={(e) => setFormData({ ...formData, numberOfWeeks: parseInt(e.target.value) })}
+            onChange={(e) => handleWeeklyRental(parseInt(e.target.value))}
             min="1"
             required
           />
@@ -239,7 +268,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           </>
         )}
       </div>
-
       {/* Rate Negotiation */}
       {canNegotiate && (
         <div className="space-y-4 border-t pt-4">
@@ -362,7 +390,15 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         )}
       </div>
 
-      {/* Form Actions */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Customer Signature</label>
+        <SignaturePad
+          value={formData.signature}
+          onChange={(signature) => setFormData({ ...formData, signature })}
+          className="mt-1 border rounded-md"
+        />
+      </div>
+
       <div className="flex justify-end space-x-3">
         <button
           type="button"

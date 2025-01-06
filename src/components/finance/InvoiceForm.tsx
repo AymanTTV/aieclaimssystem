@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Vehicle } from '../../types';
+import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
+import { uploadPDF } from '../../utils/pdfStorage';
 import toast from 'react-hot-toast';
-import { Customer } from '../../types/customer';
 
 interface InvoiceFormProps {
   vehicles: Vehicle[];
@@ -22,7 +23,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     date: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     amount: '',
-    amountPaid: '0',
+    amountToPay: '0',
+    isPaid: false,
     category: '',
     customCategory: '',
     vehicleId: '',
@@ -42,40 +44,44 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
 
     try {
       const amount = parseFloat(formData.amount);
-      const amountPaid = parseFloat(formData.amountPaid);
+      const amountToPay = parseFloat(formData.amountToPay) || 0;
 
-      if (amountPaid > amount) {
-        toast.error('Paid amount cannot exceed total amount');
+      if (amountToPay > amount) {
+        toast.error('Amount to pay cannot exceed total amount');
         return;
       }
 
-      const remainingAmount = amount - amountPaid;
-      const paymentStatus = amountPaid === 0 ? 'pending' : 
-                          amountPaid === amount ? 'paid' : 
+      const remainingAmount = amount - amountToPay;
+      const paymentStatus = amountToPay === 0 ? 'pending' : 
+                          amountToPay === amount ? 'paid' : 
                           'partially_paid';
 
-      // Get vehicle details if selected
-      const vehicle = formData.vehicleId ? vehicles.find(v => v.id === formData.vehicleId) : undefined;
-      const vehicleName = vehicle ? `${vehicle.make} ${vehicle.model}` : undefined;
+      // Create initial payment record if amount is paid
+      const payments = [];
+      if (amountToPay > 0) {
+        payments.push({
+          id: Date.now().toString(),
+          date: new Date(),
+          amount: amountToPay,
+          method: formData.paymentMethod,
+          reference: formData.paymentReference,
+          notes: formData.paymentNotes,
+          createdAt: new Date(),
+          createdBy: user.id
+        });
+      }
 
-      // Create initial payment if any amount is paid
-      const payments = amountPaid > 0 ? [{
-        id: Date.now().toString(),
-        date: new Date(),
-        amount: amountPaid,
-        method: formData.paymentMethod,
-        reference: formData.paymentReference,
-        notes: formData.paymentNotes,
-        createdAt: new Date(),
-        createdBy: user.id
-      }] : [];
+      // Get selected vehicle and customer for PDF generation
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const selectedCustomer = formData.useCustomCustomer ? null : 
+        customers.find(c => c.id === formData.customerId);
 
-      // Create invoice
-      const docRef = await addDoc(collection(db, 'invoices'), {
+      // Create invoice data
+      const invoiceData = {
         date: new Date(formData.date),
         dueDate: new Date(formData.dueDate),
         amount,
-        paidAmount: amountPaid,
+        paidAmount: amountToPay,
         remainingAmount,
         category: formData.category === 'other' ? 'other' : formData.category,
         customCategory: formData.category === 'other' ? formData.customCategory : null,
@@ -87,18 +93,30 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
         payments,
         createdAt: new Date(),
         updatedAt: new Date()
+      };
+
+      // Create invoice document
+      const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
+
+      // Generate and upload PDF
+      const pdfBlob = await generateInvoicePDF({ id: docRef.id, ...invoiceData }, selectedVehicle);
+      const documentUrl = await uploadPDF(pdfBlob, `invoices/${docRef.id}/invoice.pdf`);
+
+      // Update invoice with document URL
+      await updateDoc(doc(db, 'invoices', docRef.id), {
+        documentUrl
       });
 
       // Create finance transaction for paid amount
-      if (amountPaid > 0) {
+      if (amountToPay > 0) {
         await createFinanceTransaction({
           type: 'income',
           category: formData.category,
-          amount: amountPaid,
-          description: `Initial payment for invoice #${docRef.id.slice(-8).toUpperCase()}`,
+          amount: amountToPay,
+          description: `Payment for invoice #${docRef.id.slice(-8).toUpperCase()}`,
           referenceId: docRef.id,
           vehicleId: formData.vehicleId || undefined,
-          vehicleName,
+          vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : undefined,
           paymentMethod: formData.paymentMethod,
           paymentReference: formData.paymentReference,
           paymentStatus
@@ -186,46 +204,34 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
           min="0.01"
           step="0.01"
         />
-
-        <FormField
-          type="number"
-          label="Amount Paid"
-          value={formData.amountPaid}
-          onChange={(e) => setFormData({ ...formData, amountPaid: e.target.value })}
-          min="0"
-          max={formData.amount || 0}
-          step="0.01"
-        />
       </div>
 
       {/* Category */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
-          <select
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-          >
-            <option value="">Select category</option>
-            <option value="service">Service</option>
-            <option value="repair">Repair</option>
-            <option value="parts">Parts</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        {formData.category === 'other' && (
-          <FormField
-            label="Custom Category"
-            value={formData.customCategory}
-            onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
-            required
-            placeholder="Enter custom category"
-          />
-        )}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Category</label>
+        <select
+          value={formData.category}
+          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="">Select category</option>
+          <option value="service">Service</option>
+          <option value="repair">Repair</option>
+          <option value="parts">Parts</option>
+          <option value="other">Other</option>
+        </select>
       </div>
+
+      {formData.category === 'other' && (
+        <FormField
+          label="Custom Category"
+          value={formData.customCategory}
+          onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
+          required
+          placeholder="Enter custom category"
+        />
+      )}
 
       {/* Vehicle Selection */}
       <SearchableSelect
@@ -252,8 +258,39 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
         />
       </div>
 
-      {/* Payment Details (if amount paid > 0) */}
-      {parseFloat(formData.amountPaid) > 0 && (
+      {/* Payment Status */}
+      <div>
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={formData.isPaid}
+            onChange={(e) => {
+              const isPaid = e.target.checked;
+              setFormData({ 
+                ...formData, 
+                isPaid,
+                amountToPay: isPaid ? formData.amount : '0'
+              });
+            }}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm text-gray-700">Mark as Paid</span>
+        </label>
+      </div>
+
+      <FormField
+        type="number"
+        label="Amount to Pay"
+        value={formData.amountToPay}
+        onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
+        min="0"
+        max={formData.amount || 0}
+        step="0.01"
+        disabled={!formData.isPaid}
+      />
+
+      {/* Payment Details */}
+      {parseFloat(formData.amountToPay) > 0 && (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Payment Method</label>
@@ -286,36 +323,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
               placeholder="Add any notes about this payment"
             />
-          </div>
-        </div>
-      )}
-
-      {/* Payment Summary */}
-      {formData.amount && (
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Total Amount:</span>
-            <span className="font-medium">£{parseFloat(formData.amount || '0').toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Amount Paid:</span>
-            <span className="text-green-600">£{parseFloat(formData.amountPaid || '0').toFixed(2)}</span>
-          </div>
-          {parseFloat(formData.amount) > parseFloat(formData.amountPaid) && (
-            <div className="flex justify-between text-sm">
-              <span>Remaining Amount:</span>
-              <span className="text-amber-600">
-                 £{((parseFloat(formData.amount) || 0) - (invoice.paidAmount || 0) - (parseFloat(formData.amountToPay) || 0)).toFixed(2)}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Payment Status:</span>
-            <span className="font-medium capitalize">
-              {parseFloat(formData.amountPaid || '0') === 0 ? 'Pending' :
-               parseFloat(formData.amountPaid) === parseFloat(formData.amount) ? 'Paid' :
-               'Partially Paid'}
-            </span>
           </div>
         </div>
       )}

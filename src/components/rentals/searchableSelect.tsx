@@ -1,5 +1,4 @@
-// src/components/ui/SearchableSelect.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { useOnClickOutside } from '../../hooks/useOnClickOutside';
 
@@ -49,10 +48,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       
       <div className="relative">
         <div
-          className="w-full border border-gray-300 rounded-md bg-white cursor-pointer"
+          className={`w-full border border-gray-300 rounded-md bg-white ${!disabled && 'cursor-pointer'}`}
           onClick={() => !disabled && setIsOpen(true)}
         >
-          {/* Selected Value Display */}
           {!isOpen && (
             <div className="px-3 py-2 text-gray-900">
               {selectedOption ? (
@@ -68,7 +66,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             </div>
           )}
 
-          {/* Search Input */}
           {isOpen && (
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -86,7 +83,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           )}
         </div>
 
-        {/* Dropdown */}
         {isOpen && (
           <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
             {filteredOptions.length > 0 ? (

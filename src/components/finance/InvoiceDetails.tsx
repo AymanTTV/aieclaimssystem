@@ -1,9 +1,9 @@
 import React from 'react';
 import { Invoice, Vehicle, Customer } from '../../types';
-import { format, isValid } from 'date-fns';
+import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { Calendar, DollarSign, Car, User, FileText } from 'lucide-react';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
 
 interface InvoiceDetailsProps {
   invoice: Invoice;
@@ -18,11 +18,18 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   customer,
   onDownload
 }) => {
-  const formatDate = (date: Date | null | undefined): string => {
-    if (!date || !isValid(date)) {
-      return 'Not set';
+  const formatDate = (date: any): string => {
+    // Handle Firestore Timestamp
+    if (date?.toDate) {
+      return format(date.toDate(), 'dd/MM/yyyy HH:mm');
     }
-    return format(date, 'MMM dd, yyyy');
+    
+    // Handle regular Date objects
+    if (date instanceof Date) {
+      return format(date, 'dd/MM/yyyy HH:mm');
+    }
+    
+    return 'N/A';
   };
 
   return (

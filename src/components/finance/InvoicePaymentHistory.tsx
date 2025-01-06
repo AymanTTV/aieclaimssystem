@@ -12,13 +12,18 @@ const InvoicePaymentHistory: React.FC<InvoicePaymentHistoryProps> = ({
   payments,
   onDownloadDocument
 }) => {
-  const formatDate = (date: Date): string => {
-    try {
-      return format(new Date(date), 'MMM dd, yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
+  const formatDate = (date: any): string => {
+    // Handle Firestore Timestamp
+    if (date?.toDate) {
+      return format(date.toDate(), 'dd/MM/yyyy HH:mm');
     }
+    
+    // Handle regular Date objects
+    if (date instanceof Date) {
+      return format(date, 'dd/MM/yyyy HH:mm');
+    }
+    
+    return 'N/A';
   };
 
   return (

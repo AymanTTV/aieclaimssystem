@@ -9,6 +9,7 @@ import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import SignaturePad from '../ui/SignaturePad';
+import { addWeeks } from 'date-fns';
 import toast from 'react-hot-toast';
 
 interface RentalFormProps {
@@ -29,35 +30,68 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     endTime: '',
     type: 'daily' as const,
     reason: 'hired' as const,
+    status: 'scheduled' as const,
     numberOfWeeks: 1,
+    signature: '',
     paidAmount: 0,
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
     customRate: '',
-    negotiationNotes: '',
-    signature: ''
+    negotiationNotes: ''
   });
 
-  // Calculate if user can negotiate rates
-  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+  // Calculate end date for weekly rentals
+  const handleWeeklyRental = (weeks: number) => {
+  if (!formData.startDate || !formData.startTime) return;
+  
+  try {
+    const startDateTime = ensureValidDate(formData.startDate, formData.startTime);
+    const endDateTime = addWeeks(startDateTime, weeks);
+    
+    setFormData({
+      ...formData,
+      numberOfWeeks: weeks,
+      endDate: endDateTime.toISOString().split('T')[0],
+      endTime: formData.startTime
+    });
+  } catch (error) {
+    console.error('Error calculating weekly rental dates:', error);
+  }
+};
+
+
 
   // Calculate costs
-  const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-  const endDateTime = formData.endDate ? 
-    new Date(`${formData.endDate}T${formData.endTime}`) : 
-    startDateTime;
+const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+const endDateTime = formData.endDate ? new Date(`${formData.endDate}T${formData.endTime}`) : startDateTime;
 
-  const standardCost = calculateRentalCost(
-    startDateTime,
-    endDateTime,
-    formData.type,
-    formData.reason,
-    formData.numberOfWeeks
-  );
+const standardCost = calculateRentalCost(
+  startDateTime,
+  endDateTime,
+  formData.type,
+  formData.reason,
+  formData.numberOfWeeks
+);
+  const ensureValidDate = (dateStr: string, timeStr: string): Date => {
+  if (!dateStr || !timeStr) {
+    throw new Error('Date and time are required');
+  }
 
-  const totalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
-  const remainingAmount = totalCost - formData.paidAmount;
+  const date = new Date(`${dateStr}T${timeStr}`);
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date/time');
+  }
+
+  // Ensure the date is valid for Firestore by removing milliseconds
+  return new Date(Math.floor(date.getTime() / 1000) * 1000);
+};
+
+
+
+const totalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
+const remainingAmount = totalCost - formData.paidAmount;
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,14 +99,33 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     setLoading(true);
 
     try {
-      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-      const selectedCustomer = customers.find(c => c.id === formData.customerId);
+    let startDateTime, endDateTime;
+    
+    try {
+      startDateTime = ensureValidDate(formData.startDate, formData.startTime);
+      endDateTime = formData.type === 'weekly' 
+        ? addWeeks(startDateTime, formData.numberOfWeeks)
+        : ensureValidDate(formData.endDate, formData.endTime);
+    } catch (error) {
+      toast.error('Please enter valid dates and times');
+      return;
+    }
+      
+      // Calculate costs
+      const standardCost = calculateRentalCost(
+        startDateTime,
+        endDateTime,
+        formData.type,
+        formData.reason,
+        formData.numberOfWeeks
+      );
 
-      if (!selectedVehicle || !selectedCustomer) {
-        throw new Error('Vehicle or customer not found');
-      }
+      const finalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
+      const remainingAmount = finalCost - formData.paidAmount;
+      const paymentStatus = formData.paidAmount >= finalCost ? 'paid' : 
+                          formData.paidAmount > 0 ? 'partially_paid' : 'pending';
 
-      // Create initial payment record if amount paid
+      // Create payment record if amount paid
       const payments = [];
       if (formData.paidAmount > 0) {
         payments.push({
@@ -89,25 +142,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
       // Create rental record
       const rentalData = {
-        vehicleId: formData.vehicleId,
-        customerId: formData.customerId,
+        ...formData,
         startDate: startDateTime,
         endDate: endDateTime,
-        type: formData.type,
-        reason: formData.reason,
-        numberOfWeeks: formData.type === 'weekly' ? formData.numberOfWeeks : undefined,
-        cost: totalCost,
+        cost: finalCost,
         standardCost,
         paidAmount: formData.paidAmount,
         remainingAmount,
-        paymentStatus: formData.paidAmount >= totalCost ? 'paid' : 
-                      formData.paidAmount > 0 ? 'partially_paid' : 'pending',
-        paymentMethod: formData.paymentMethod,
-        paymentReference: formData.paymentReference,
+        paymentStatus,
         negotiated: !!formData.customRate,
-        negotiationNotes: formData.negotiationNotes,
-        signature: formData.signature,
-        status: 'scheduled',
         payments,
         createdAt: new Date(),
         createdBy: user.id,
@@ -117,12 +160,17 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       const docRef = await addDoc(collection(db, 'rentals'), rentalData);
 
       // Generate and upload documents
-      const documents = await generateRentalDocuments(
-        { id: docRef.id, ...rentalData },
-        selectedVehicle,
-        selectedCustomer
-      );
-      await uploadRentalDocuments(docRef.id, documents);
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const selectedCustomer = customers.find(c => c.id === formData.customerId);
+      
+      if (selectedVehicle && selectedCustomer) {
+        const documents = await generateRentalDocuments(
+          { id: docRef.id, ...rentalData },
+          selectedVehicle,
+          selectedCustomer
+        );
+        await uploadRentalDocuments(docRef.id, documents);
+      }
 
       toast.success('Rental created successfully');
       onClose();
@@ -134,9 +182,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     }
   };
 
+  // Calculate if user can negotiate rates
+  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-     {/* Vehicle and Customer Selection */}
       <SearchableSelect
         label="Vehicle"
         options={vehicles.map(v => ({
@@ -170,7 +220,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         required
       />
 
-      {/* Rental Type and Reason */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Rental Type</label>
@@ -205,7 +254,21 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         </div>
       </div>
 
-      {/* Rental Period */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <select
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="scheduled">Scheduled</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <FormField
           type="date"
@@ -228,7 +291,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             type="number"
             label="Number of Weeks"
             value={formData.numberOfWeeks}
-            onChange={(e) => setFormData({ ...formData, numberOfWeeks: parseInt(e.target.value) })}
+            onChange={(e) => handleWeeklyRental(parseInt(e.target.value))}
             min="1"
             required
           />
@@ -254,129 +317,108 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         )}
       </div>
 
-      {/* Rate Negotiation */}
-      {canNegotiate && (
-        <div className="space-y-4 border-t pt-4">
-          <h3 className="text-lg font-medium text-gray-900">Rate Negotiation</h3>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Standard Rate</label>
-              <p className="mt-1 text-lg font-medium">£{standardCost.toFixed(2)}</p>
-            </div>
+     {/* Rate Negotiation */}
+<div className="space-y-4 border-t pt-4">
+  <h3 className="text-lg font-medium text-gray-900">Rate Negotiation</h3>
+  
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700">Standard Rate</label>
+      <p className="mt-1 text-lg font-medium">£{standardCost.toFixed(2)}</p>
+    </div>
 
-            <FormField
-              type="number"
-              label="Negotiated Rate (Optional)"
-              value={formData.customRate}
-              onChange={(e) => setFormData({ ...formData, customRate: e.target.value })}
-              min="0"
-              step="0.01"
-              placeholder="Enter custom rate"
-            />
-          </div>
+    <FormField
+      type="number"
+      label="Negotiated Rate (Optional)"
+      value={formData.customRate}
+      onChange={(e) => setFormData({ ...formData, customRate: e.target.value })}
+      min="0"
+      step="0.01"
+      placeholder="Enter custom rate"
+    />
+  </div>
 
-          {formData.customRate && (
-            <>
-              <TextArea
-                label="Negotiation Notes"
-                value={formData.negotiationNotes}
-                onChange={(e) => setFormData({ ...formData, negotiationNotes: e.target.value })}
-                placeholder="Enter reason for rate negotiation..."
-                required
-              />
+  {formData.customRate && (
+    <div>
+      <label className="block text-sm font-medium text-gray-700">Negotiation Notes</label>
+      <textarea
+        value={formData.negotiationNotes}
+        onChange={(e) => setFormData({ ...formData, negotiationNotes: e.target.value })}
+        rows={3}
+        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+        placeholder="Enter reason for rate negotiation..."
+        required
+      />
+    </div>
+  )}
+</div>
 
-              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                <p className="text-sm text-yellow-800">
-                  Custom rate will be approved by {user?.name} ({user?.role})
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Payment Section */}
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            type="number"
-            label="Amount Paid"
-            value={formData.paidAmount}
-            onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })}
-            min="0"
-            max={totalCost}
-            step="0.01"
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
-          </div>
-
-          <div className="col-span-2">
-            <FormField
-              label="Payment Reference"
-              value={formData.paymentReference}
-              onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
-              placeholder="Enter payment reference or transaction ID"
-            />
-          </div>
-
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
-            <textarea
-              value={formData.paymentNotes}
-              onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
-              rows={2}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              placeholder="Add any notes about this payment"
-            />
-          </div>
-        </div>
-
-        {/* Payment Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Total Cost:</span>
-            <span className="font-medium">£{totalCost.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Amount Paid:</span>
-            <span className="text-green-600">£{formData.paidAmount.toFixed(2)}</span>
-          </div>
-          {remainingAmount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span>Remaining Amount:</span>
-              <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Payment Status:</span>
-            <span className="font-medium capitalize">
-              {formData.paidAmount >= totalCost ? 'Paid' : 
-               formData.paidAmount > 0 ? 'Partially Paid' : 'Pending'}
-            </span>
-          </div>
-        </div>
+{/* Payment Details */}
+<div className="space-y-4 border-t pt-4">
+  <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+  
+  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+    <div className="flex justify-between text-sm">
+      <span>Total Cost:</span>
+      <span className="font-medium">£{totalCost.toFixed(2)}</span>
+    </div>
+    <div className="flex justify-between text-sm">
+      <span>Amount Paid:</span>
+      <span className="text-green-600">£{formData.paidAmount.toFixed(2)}</span>
+    </div>
+    {remainingAmount > 0 && (
+      <div className="flex justify-between text-sm">
+        <span>Remaining Amount:</span>
+        <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
       </div>
+    )}
+  </div>
 
-      {/* Signature */}
+  <FormField
+    type="number"
+    label="Amount to Pay"
+    value={formData.paidAmount}
+    onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })}
+    min="0"
+    max={totalCost}
+    step="0.01"
+  />
+
+  <div>
+    <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+    <select
+      value={formData.paymentMethod}
+      onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
+      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+    >
+      <option value="cash">Cash</option>
+      <option value="card">Card</option>
+      <option value="bank_transfer">Bank Transfer</option>
+      <option value="cheque">Cheque</option>
+    </select>
+  </div>
+
+  <FormField
+    label="Payment Reference"
+    value={formData.paymentReference}
+    onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+    placeholder="Enter payment reference or transaction ID"
+  />
+
+  <div>
+    <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
+    <textarea
+      value={formData.paymentNotes}
+      onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
+      rows={2}
+      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+      placeholder="Add any notes about this payment"
+    />
+  </div>
+</div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          {formData.signature ? 'Customer Signature (Existing)' : 'Add Customer Signature'}
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Customer Signature</label>
         <SignaturePad
           value={formData.signature}
           onChange={(signature) => setFormData({ ...formData, signature })}
@@ -384,7 +426,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         />
       </div>
 
-      {/* Form Actions */}
       <div className="flex justify-end space-x-3">
         <button
           type="button"

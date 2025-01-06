@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Invoice, Vehicle } from '../../types';
+import { Invoice, Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
+import { uploadPDF } from '../../utils/pdfStorage';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
-import { createFinanceTransaction } from '../../utils/financeTransactions';
 import toast from 'react-hot-toast';
-import { Customer } from '../../types/customer';
+import { format } from 'date-fns';
 
 interface InvoiceEditModalProps {
   invoice: Invoice;
@@ -30,6 +32,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
     dueDate: new Date(invoice.dueDate).toISOString().split('T')[0],
     amount: invoice.amount.toString(),
     amountToPay: '0',
+    isPaid: false,
     category: invoice.category === 'other' ? 'other' : invoice.category,
     customCategory: invoice.category === 'other' ? invoice.customCategory || invoice.category : '',
     vehicleId: invoice.vehicleId || '',
@@ -49,7 +52,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
 
     try {
       const amount = parseFloat(formData.amount);
-      const amountToPay = parseFloat(formData.amountToPay);
+      const amountToPay = parseFloat(formData.amountToPay) || 0;
       const totalPaid = invoice.paidAmount + amountToPay;
 
       if (amount < totalPaid) {
@@ -77,9 +80,13 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
         });
       }
 
-      // Update invoice
-      const invoiceRef = doc(db, 'invoices', invoice.id);
-      await updateDoc(invoiceRef, {
+      // Get selected vehicle and customer for PDF generation
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const selectedCustomer = formData.useCustomCustomer ? null : 
+        customers.find(c => c.id === formData.customerId);
+
+      // Update invoice data
+      const invoiceData = {
         date: new Date(formData.date),
         dueDate: new Date(formData.dueDate),
         amount,
@@ -94,11 +101,25 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
         paymentStatus,
         payments,
         updatedAt: new Date()
+      };
+
+      // Update invoice
+      await updateDoc(doc(db, 'invoices', invoice.id), invoiceData);
+
+      // Generate and upload new PDF
+      const pdfBlob = await generateInvoicePDF(
+        { id: invoice.id, ...invoiceData }, 
+        selectedVehicle
+      );
+      const documentUrl = await uploadPDF(pdfBlob, `invoices/${invoice.id}/invoice.pdf`);
+
+      // Update invoice with new document URL
+      await updateDoc(doc(db, 'invoices', invoice.id), {
+        documentUrl
       });
 
       // Create finance transaction for new payment
       if (amountToPay > 0) {
-        const vehicle = vehicles.find(v => v.id === formData.vehicleId);
         await createFinanceTransaction({
           type: 'income',
           category: formData.category,
@@ -106,7 +127,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
           description: `Payment for invoice #${invoice.id.slice(-8).toUpperCase()}`,
           referenceId: invoice.id,
           vehicleId: formData.vehicleId || undefined,
-          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+          vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : undefined,
           paymentMethod: formData.paymentMethod,
           paymentReference: formData.paymentReference,
           paymentStatus
@@ -122,7 +143,19 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       setLoading(false);
     }
   };
-
+  const formatDate = (date: any): string => {
+      // Handle Firestore Timestamp
+      if (date?.toDate) {
+      return format(date.toDate(), 'dd/MM/yyyy HH:mm');
+    }
+    
+    // Handle regular Date objects
+    if (date instanceof Date) {
+      return format(date, 'dd/MM/yyyy HH:mm');
+    }
+    
+    return 'N/A';
+  };                              
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Customer Selection */}
@@ -194,19 +227,93 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
           step="0.01"
           required
         />
+      </div>
 
+      {/* Category */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Category</label>
+        <select
+          value={formData.category}
+          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="">Select category</option>
+          <option value="service">Service</option>
+          <option value="repair">Repair</option>
+          <option value="parts">Parts</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      {formData.category === 'other' && (
         <FormField
-          type="number"
-          label="Amount to Pay"
-          value={formData.amountToPay}
-          onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
-          min="0"
-          max={parseFloat(formData.amount) - invoice.paidAmount}
-          step="0.01"
+          label="Custom Category"
+          value={formData.customCategory}
+          onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
+          required
+          placeholder="Enter custom category"
+        />
+      )}
+
+      {/* Vehicle Selection */}
+      <SearchableSelect
+        label="Related Vehicle (Optional)"
+        options={vehicles.map(v => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`,
+          subLabel: v.registrationNumber
+        }))}
+        value={formData.vehicleId}
+        onChange={(id) => setFormData({ ...formData, vehicleId: id })}
+        placeholder="Search vehicles..."
+      />
+
+      {/* Description */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          rows={3}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
         />
       </div>
 
-      {/* Payment Details (if amount to pay > 0) */}
+      {/* Payment Status */}
+      <div>
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={formData.isPaid}
+            onChange={(e) => {
+              const isPaid = e.target.checked;
+              setFormData({ 
+                ...formData, 
+                isPaid,
+                amountToPay: isPaid ? (invoice.amount - invoice.paidAmount).toString() : '0'
+              });
+            }}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm text-gray-700">Add Payment</span>
+        </label>
+      </div>
+
+      {/* Amount to Pay */}
+      <FormField
+        type="number"
+        label="Amount to Pay"
+        value={formData.amountToPay}
+        onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
+        min="0"
+        max={invoice.amount - invoice.paidAmount}
+        step="0.01"
+        disabled={!formData.isPaid}
+      />
+
+      {/* Payment Details */}
       {parseFloat(formData.amountToPay) > 0 && (
         <div className="space-y-4">
           <div>
@@ -245,34 +352,36 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       )}
 
       {/* Payment Summary */}
-<div className="bg-gray-50 p-4 rounded-lg space-y-2">
-  <div className="flex justify-between text-sm">
-    <span>Total Amount:</span>
-    <span className="font-medium">£{(parseFloat(formData.amount) || 0).toFixed(2)}</span>
-  </div>
-  <div className="flex justify-between text-sm">
-    <span>Previously Paid:</span>
-    <span className="text-green-600">£{(invoice.paidAmount || 0).toFixed(2)}</span>
-  </div>
-  {parseFloat(formData.amountToPay) > 0 && (
-    <div className="flex justify-between text-sm">
-      <span>New Payment:</span>
-      <span className="text-blue-600">£{(parseFloat(formData.amountToPay) || 0).toFixed(2)}</span>
-    </div>
-  )}
-  <div className="flex justify-between text-sm">
-    <span>Remaining After Payment:</span>
-    <span className="text-amber-600">
-      £{((parseFloat(formData.amount) || 0) - (invoice.paidAmount || 0) - (parseFloat(formData.amountToPay) || 0)).toFixed(2)}
-    </span>
-  </div>
-</div>
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="flex justify-between text-sm">
+          <span>Total Amount:</span>
+          <span className="font-medium">£{invoice.amount.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Amount Paid:</span>
+          <span className="text-green-600">£{invoice.paidAmount.toFixed(2)}</span>
+        </div>
+        {parseFloat(formData.amountToPay) > 0 && (
+          <div className="flex justify-between text-sm">
+            <span>New Payment:</span>
+            <span className="text-blue-600">£{parseFloat(formData.amountToPay).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span>Remaining Amount:</span>
+          <span className="text-amber-600">
+            £{(invoice.amount - invoice.paidAmount - parseFloat(formData.amountToPay || '0')).toFixed(2)}
+          </span>
+        </div>
+      </div>
 
       {/* Payment History */}
-      <InvoicePaymentHistory
-        payments={invoice.payments || []}
-        onDownloadDocument={(url) => window.open(url, '_blank')}
-      />
+      {invoice.payments && invoice.payments.length > 0 && (
+        <InvoicePaymentHistory
+          payments={invoice.payments}
+          onDownloadDocument={(url) => window.open(url, '_blank')}
+        />
+      )}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-3">

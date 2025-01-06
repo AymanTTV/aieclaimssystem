@@ -65,6 +65,10 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       cell: ({ row }) => formatDate(row.original.date),
     },
     {
+      header: 'Due Date',
+      cell: ({ row }) => formatDate(row.original.dueDate),
+    },
+    {
       header: 'Status',
       cell: ({ row }) => (
         <StatusBadge status={row.original.paymentStatus} />
@@ -197,7 +201,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         </div>
       ),
     },
-    // ... rest of your columns
   ];
 
   return (
