@@ -200,6 +200,12 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           </View>
         </View>
 
+        {/* Terms and Conditions */}
+        <View style={styles.terms}>
+          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
+          <Text>{companyDetails.termsAndConditions || 'Standard terms and conditions apply.'}</Text>
+        </View>
+
         {/* Signatures */}
         <View style={styles.signatureSection}>
           <View style={styles.signatureBox}>

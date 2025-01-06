@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -9,7 +10,7 @@ import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import { uploadPDF } from '../../utils/pdfStorage';
 import toast from 'react-hot-toast';
-
+import { format } from 'date-fns';
 interface InvoiceFormProps {
   vehicles: Vehicle[];
   customers: Customer[];
@@ -95,6 +96,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
         updatedAt: new Date()
       };
 
+
+      
+
       // Create invoice document
       const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
 
@@ -132,6 +136,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
       setLoading(false);
     }
   };
+
+  const formatDate = (date: any): string => {
+    // Handle Firestore Timestamp
+    if (date?.toDate) {
+    return format(date.toDate(), 'dd/MM/yyyy HH:mm');
+  }
+  
+  // Handle regular Date objects
+  if (date instanceof Date) {
+    return format(date, 'dd/MM/yyyy HH:mm');
+  }
+  
+  return 'N/A';
+};                              
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
