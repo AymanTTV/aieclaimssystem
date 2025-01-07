@@ -17,6 +17,8 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
+  if (!status) return null; // or display a default badge
+
   const getStatusColor = (status: StatusType) => {
     switch (status) {
       case 'active':

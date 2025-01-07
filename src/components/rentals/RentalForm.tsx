@@ -11,6 +11,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import SignaturePad from '../ui/SignaturePad';
 import { addWeeks } from 'date-fns';
 import toast from 'react-hot-toast';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -41,57 +42,45 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     negotiationNotes: ''
   });
 
-  // Calculate end date for weekly rentals
-  const handleWeeklyRental = (weeks: number) => {
-  if (!formData.startDate || !formData.startTime) return;
+  // Ensure valid date helper function
+  const ensureValidDate = (dateStr: string, timeStr?: string): Date => {
+    if (!dateStr) {
+      throw new Error('Date is required');
+    }
+    const time = timeStr || '00:00'; // Default to midnight if time is not provided
+    const date = new Date(`${dateStr}T${time}`);
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date/time');
+    }
+    return new Date(Math.floor(date.getTime() / 1000) * 1000); // Firestore-safe
+  };
   
-  try {
+
+  // Calculate costs based on rental type
+  const calculateCosts = () => {
+    if (!formData.startDate || !formData.startTime) return { standardCost: 0, totalCost: 0, remainingAmount: 0 };
+
     const startDateTime = ensureValidDate(formData.startDate, formData.startTime);
-    const endDateTime = addWeeks(startDateTime, weeks);
-    
-    setFormData({
-      ...formData,
-      numberOfWeeks: weeks,
-      endDate: endDateTime.toISOString().split('T')[0],
-      endTime: formData.startTime
-    });
-  } catch (error) {
-    console.error('Error calculating weekly rental dates:', error);
-  }
-};
+    const endDateTime = formData.type === 'weekly'
+      ? addWeeks(startDateTime, formData.numberOfWeeks)
+      : formData.endDate
+      ? ensureValidDate(formData.endDate, formData.endTime)
+      : startDateTime;
 
+    const standardCost = calculateRentalCost(
+      startDateTime,
+      endDateTime,
+      formData.type,
+      formData.reason,
+      formData.numberOfWeeks
+    );
+    const totalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
+    const remainingAmount = totalCost - formData.paidAmount;
 
+    return { standardCost, totalCost, remainingAmount };
+  };
 
-  // Calculate costs
-const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-const endDateTime = formData.endDate ? new Date(`${formData.endDate}T${formData.endTime}`) : startDateTime;
-
-const standardCost = calculateRentalCost(
-  startDateTime,
-  endDateTime,
-  formData.type,
-  formData.reason,
-  formData.numberOfWeeks
-);
-  const ensureValidDate = (dateStr: string, timeStr: string): Date => {
-  if (!dateStr || !timeStr) {
-    throw new Error('Date and time are required');
-  }
-
-  const date = new Date(`${dateStr}T${timeStr}`);
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date/time');
-  }
-
-  // Ensure the date is valid for Firestore by removing milliseconds
-  return new Date(Math.floor(date.getTime() / 1000) * 1000);
-};
-
-
-
-const totalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
-const remainingAmount = totalCost - formData.paidAmount;
-
+  const { standardCost, totalCost, remainingAmount } = calculateCosts();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,33 +88,27 @@ const remainingAmount = totalCost - formData.paidAmount;
     setLoading(true);
 
     try {
-    let startDateTime, endDateTime;
-    
-    try {
-      startDateTime = ensureValidDate(formData.startDate, formData.startTime);
-      endDateTime = formData.type === 'weekly' 
-        ? addWeeks(startDateTime, formData.numberOfWeeks)
-        : ensureValidDate(formData.endDate, formData.endTime);
-    } catch (error) {
-      toast.error('Please enter valid dates and times');
-      return;
-    }
-      
-      // Calculate costs
-      const standardCost = calculateRentalCost(
-        startDateTime,
-        endDateTime,
-        formData.type,
-        formData.reason,
-        formData.numberOfWeeks
-      );
+      let startDateTime, endDateTime;
 
-      const finalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
-      const remainingAmount = finalCost - formData.paidAmount;
-      const paymentStatus = formData.paidAmount >= finalCost ? 'paid' : 
-                          formData.paidAmount > 0 ? 'partially_paid' : 'pending';
+      try {
+        startDateTime = ensureValidDate(formData.startDate, formData.startTime);
+        endDateTime = formData.type === 'weekly'
+          ? addWeeks(startDateTime, formData.numberOfWeeks)
+          : ensureValidDate(formData.endDate, formData.endTime);
+      } catch (error) {
+        toast.error('Please enter valid dates and times');
+        return;
+      }
 
-      // Create payment record if amount paid
+      // Ensure costs are recalculated
+      const { standardCost, totalCost, remainingAmount } = calculateCosts();
+      const paymentStatus =
+        formData.paidAmount >= totalCost
+          ? 'paid'
+          : formData.paidAmount > 0
+          ? 'partially_paid'
+          : 'pending';
+
       const payments = [];
       if (formData.paidAmount > 0) {
         payments.push({
@@ -140,12 +123,11 @@ const remainingAmount = totalCost - formData.paidAmount;
         });
       }
 
-      // Create rental record
       const rentalData = {
         ...formData,
         startDate: startDateTime,
         endDate: endDateTime,
-        cost: finalCost,
+        cost: totalCost,
         standardCost,
         paidAmount: formData.paidAmount,
         remainingAmount,
@@ -159,10 +141,9 @@ const remainingAmount = totalCost - formData.paidAmount;
 
       const docRef = await addDoc(collection(db, 'rentals'), rentalData);
 
-      // Generate and upload documents
-      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-      const selectedCustomer = customers.find(c => c.id === formData.customerId);
-      
+      const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
+      const selectedCustomer = customers.find((c) => c.id === formData.customerId);
+
       if (selectedVehicle && selectedCustomer) {
         const documents = await generateRentalDocuments(
           { id: docRef.id, ...rentalData },
@@ -170,6 +151,22 @@ const remainingAmount = totalCost - formData.paidAmount;
           selectedCustomer
         );
         await uploadRentalDocuments(docRef.id, documents);
+      }
+
+      if (formData.paidAmount > 0) {
+        await createFinanceTransaction({
+          type: 'income',
+          category: 'rental',
+          amount: formData.paidAmount,
+          description: `Rental payment for ${selectedVehicle?.make} ${selectedVehicle?.model}`,
+          referenceId: docRef.id,
+          vehicleId: selectedVehicle?.id,
+          vehicleName: `${selectedVehicle?.make} ${selectedVehicle?.model}`,
+          vehicleOwner: selectedVehicle?.owner || { name: 'AIE Skyline', isDefault: true },
+          paymentMethod: formData.paymentMethod,
+          paymentReference: formData.paymentReference,
+          status: 'completed'
+        });
       }
 
       toast.success('Rental created successfully');
@@ -182,7 +179,6 @@ const remainingAmount = totalCost - formData.paidAmount;
     }
   };
 
-  // Calculate if user can negotiate rates
   const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
 
   return (

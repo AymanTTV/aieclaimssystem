@@ -20,21 +20,18 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     return Array.from(new Set(owners));
   }, [vehicles]);
 
+  // Filter logic (with debugging)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
-      // Search filter
       const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         transaction.description.toLowerCase().includes(searchLower) ||
         transaction.category.toLowerCase().includes(searchLower);
 
-      // Date range filter
+      // Apply date range filter
       let matchesDateRange = true;
       if (startDate && endDate) {
-        matchesDateRange = isWithinInterval(transaction.date, {
-          start: startDate,
-          end: endDate
-        });
+        matchesDateRange = isWithinInterval(transaction.date, { start: startDate, end: endDate });
       }
 
       // Type filter
@@ -52,21 +49,31 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
       let matchesOwner = true;
       if (owner !== 'all') {
         const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
-        if (owner === 'company') {
-          matchesOwner = !vehicle || vehicle.owner?.isDefault;
-        } else {
-          matchesOwner = vehicle?.owner?.name === owner;
-        }
+        matchesOwner = owner === 'company' ? !vehicle || vehicle.owner?.isDefault : vehicle?.owner?.name === owner;
       }
 
-      return matchesSearch && 
-             matchesDateRange && 
-             matchesType && 
-             matchesCategory &&
-             matchesPaymentStatus &&
-             matchesOwner;
+      // Combine all filters
+      return (
+        matchesSearch &&
+        matchesDateRange &&
+        matchesType &&
+        matchesCategory &&
+        matchesPaymentStatus &&
+        matchesOwner
+      );
     });
   }, [transactions, searchQuery, startDate, endDate, type, category, paymentStatus, owner, vehicles]);
+
+  // Debugging: Log current filter values
+  console.log({
+    searchQuery,
+    startDate,
+    endDate,
+    type,
+    category,
+    paymentStatus,
+    owner
+  });
 
   return {
     searchQuery,

@@ -12,6 +12,7 @@ import SignaturePad from '../ui/SignaturePad';
 import RentalPaymentHistory from './RentalPaymentHistory';
 import toast from 'react-hot-toast';
 
+
 interface RentalEditModalProps {
   rental: Rental;
   vehicles: Vehicle[];
@@ -62,11 +63,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     e.preventDefault();
     if (!user) return;
     setLoading(true);
-
+  
     try {
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-      
+  
       // Calculate costs
       const standardCost = calculateRentalCost(
         startDateTime,
@@ -75,12 +76,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         formData.reason,
         formData.numberOfWeeks
       );
-
+  
       const finalCost = formData.customRate ? parseFloat(formData.customRate) : standardCost;
       const amountToPay = parseFloat(formData.amountToPay) || 0;
       const newPaidAmount = rental.paidAmount + amountToPay;
       const newRemainingAmount = finalCost - newPaidAmount;
-
+  
       // Create new payment record if amount to pay > 0
       const payments = [...(rental.payments || [])];
       if (amountToPay > 0) {
@@ -95,7 +96,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           createdBy: user.id
         });
       }
-
+  
       // Update rental record
       const rentalRef = doc(db, 'rentals', rental.id);
       const updateData = {
@@ -109,8 +110,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         standardCost,
         paidAmount: newPaidAmount,
         remainingAmount: newRemainingAmount,
-        paymentStatus: newPaidAmount >= finalCost ? 'paid' : 
-                      newPaidAmount > 0 ? 'partially_paid' : 'pending',
+        paymentStatus:
+          newPaidAmount >= finalCost
+            ? 'paid'
+            : newPaidAmount > 0
+            ? 'partially_paid'
+            : 'pending',
         negotiated: !!formData.customRate,
         negotiationNotes: formData.negotiationNotes,
         signature: formData.signature,
@@ -118,9 +123,28 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         updatedAt: new Date(),
         updatedBy: user.id
       };
-
+  
       await updateDoc(rentalRef, updateData);
-
+  
+      // Update financial transactions
+      if (amountToPay > 0) {
+        const financialTransactionRef = doc(db, 'financialTransactions', Date.now().toString());
+        const transactionData = {
+          rentalId: rental.id,
+          customerId: rental.customerId,
+          vehicleId: rental.vehicleId,
+          amount: amountToPay,
+          method: formData.paymentMethod,
+          reference: formData.paymentReference,
+          notes: formData.paymentNotes,
+          date: new Date(),
+          createdBy: user.id,
+          createdAt: new Date()
+        };
+  
+        await updateDoc(financialTransactionRef, transactionData);
+      }
+  
       // Generate and upload new documents
       const selectedVehicle = vehicles.find(v => v.id === rental.vehicleId);
       const selectedCustomer = customers.find(c => c.id === rental.customerId);
@@ -132,7 +156,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         );
         await uploadRentalDocuments(rental.id, documents);
       }
-
+  
       toast.success('Rental updated successfully');
       onClose();
     } catch (error) {
@@ -142,6 +166,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       setLoading(false);
     }
   };
+  
 
   // Calculate if user can negotiate rates
   const canNegotiate = user?.role === 'admin' || user?.role === 'manager';

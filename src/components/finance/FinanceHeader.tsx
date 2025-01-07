@@ -83,7 +83,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
           </div>
           <input
             type="text"
-            placeholder="Search transactions..."
+            placeholder="Search Transactions & Invoices..."
             onChange={(e) => onSearch(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           />
