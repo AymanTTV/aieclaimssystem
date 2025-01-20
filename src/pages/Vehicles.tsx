@@ -7,30 +7,30 @@ import VehicleFilters from '../components/vehicles/VehicleFilters';
 import VehicleForm from '../components/vehicles/VehicleForm';
 import VehicleSaleModal from '../components/vehicles/VehicleSaleModal';
 import VehicleDetailsModal from '../components/vehicles/VehicleDetailsModal';
-import DeleteConfirmationModal from '../components/ui/DeleteConfirmationModal';
+import VehicleDeleteModal from '../components/vehicles/VehicleDeleteModal';
 import Modal from '../components/ui/Modal';
-import { Vehicle } from '../types';
-import { doc, deleteDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
-import toast from 'react-hot-toast';
 import { Plus, Download } from 'lucide-react';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
-import { useVehicleStatusTracking } from '../hooks/useVehicleStatusTracking';
 import { useVehicleStatusUpdates } from '../hooks/useVehicleStatusUpdates';
-
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { db, storage } from '../lib/firebase';
+import { Vehicle } from '../types';
+import toast from 'react-hot-toast';
 
 const Vehicles = () => {
-  useVehicleStatusUpdates();
-  useVehicleStatusTracking();
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();
+  useVehicleStatusUpdates();
+
+  // State for modals
+  const [showForm, setShowForm] = React.useState(false);
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);
   const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = React.useState<Vehicle | null>(null);
   const [sellingVehicle, setSellingVehicle] = React.useState<Vehicle | null>(null);
-  const [showForm, setShowForm] = React.useState(false);
 
+  // Filters
   const {
     searchQuery,
     setSearchQuery,
@@ -44,60 +44,41 @@ const Vehicles = () => {
     uniqueMakes,
   } = useVehicleFilters(vehicles);
 
-  const handleDelete = async (vehicle: Vehicle) => {
-    if (!can('vehicles', 'delete')) {
-      toast.error('You do not have permission to delete vehicles');
-      return;
-    }
-
-    if (vehicle.status !== 'sold') {
-      toast.error('Only sold vehicles can be deleted');
-      return;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'vehicles', vehicle.id));
-      toast.success('Vehicle deleted successfully');
-      setDeletingVehicle(null);
-    } catch (error) {
-      console.error('Error deleting vehicle:', error);
-      toast.error('Failed to delete vehicle');
-    }
-  };
-
   const handleSubmit = async (data: Partial<Vehicle>) => {
-    try {
-      let imageUrl = data.image ? data.image : editingVehicle?.image || '';
+  try {
+    let imageUrl = data.image ? data.image : editingVehicle?.image || '';
 
-      if (data.image instanceof File) {
-        const imageRef = ref(storage, `vehicles/${Date.now()}_${data.image.name}`);
-        const snapshot = await uploadBytes(imageRef, data.image);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
-
-      const vehicleData = {
-        ...data,
-        image: imageUrl,
-        updatedAt: new Date(),
-      };
-
-      if (editingVehicle) {
-        await updateDoc(doc(db, 'vehicles', editingVehicle.id), vehicleData);
-      } else {
-        await addDoc(collection(db, 'vehicles'), {
-          ...vehicleData,
-          createdAt: new Date(),
-        });
-      }
-
-      toast.success(`Vehicle ${editingVehicle ? 'updated' : 'added'} successfully`);
-      setEditingVehicle(null);
-      setShowForm(false);
-    } catch (error) {
-      console.error('Error saving vehicle:', error);
-      toast.error(`Failed to ${editingVehicle ? 'update' : 'add'} vehicle`);
+    if (data.image instanceof File) {
+      const imageRef = ref(storage, `vehicles/${Date.now()}_${data.image.name}`);
+      const snapshot = await uploadBytes(imageRef, data.image);
+      imageUrl = await getDownloadURL(snapshot.ref);
     }
-  };
+
+    const vehicleData = {
+      ...data,
+      image: imageUrl,
+      updatedAt: new Date(),
+    };
+
+    if (editingVehicle?.id) {
+      await updateDoc(doc(db, 'vehicles', editingVehicle.id), vehicleData);
+      toast.success('Vehicle updated successfully');
+    } else {
+      await addDoc(collection(db, 'vehicles'), {
+        ...vehicleData,
+        createdAt: new Date(),
+      });
+      toast.success('Vehicle added successfully');
+    }
+    
+    setEditingVehicle(null);
+    setShowForm(false);
+  } catch (error) {
+    console.error('Error saving vehicle:', error);
+    toast.error(`Failed to ${editingVehicle ? 'update' : 'add'} vehicle`);
+  }
+};
+
 
   if (loading) {
     return (
@@ -109,6 +90,7 @@ const Vehicles = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Fleet Management</h1>
         <div className="flex space-x-2">
@@ -133,6 +115,7 @@ const Vehicles = () => {
         </div>
       </div>
 
+      {/* Filters */}
       <VehicleFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -145,6 +128,7 @@ const Vehicles = () => {
         onShowSoldChange={setShowSold}
       />
 
+      {/* Vehicle Table */}
       <VehicleTable
         vehicles={filteredVehicles}
         onView={setSelectedVehicle}
@@ -153,65 +137,50 @@ const Vehicles = () => {
         onMarkAsSold={setSellingVehicle}
       />
 
-      {/* Vehicle Form Modal */}
-      <Modal
-        isOpen={showForm || !!editingVehicle}
-        onClose={() => {
-          setShowForm(false);
-          setEditingVehicle(null);
-        }}
-        title={editingVehicle ? "Edit Vehicle" : "Add Vehicle"}
-      >
-        <VehicleForm
-          vehicle={editingVehicle || undefined}
-          onClose={() => {
-            setShowForm(false);
-            setEditingVehicle(null);
-          }}
-          onSubmit={handleSubmit}
+      {/* Modals */}
+      {selectedVehicle && (
+        <VehicleDetailsModal
+          vehicle={selectedVehicle}
+          onClose={() => setSelectedVehicle(null)}
         />
-      </Modal>
+      )}
 
-      {/* Vehicle Details Modal */}
-      <Modal
-        isOpen={!!selectedVehicle}
-        onClose={() => setSelectedVehicle(null)}
-        title="Vehicle Details"
-      >
-        {selectedVehicle && (
-          <VehicleDetailsModal
-            vehicle={selectedVehicle}
-            onClose={() => setSelectedVehicle(null)}
-          />
-        )}
-      </Modal>
+      {(showForm || editingVehicle) && (
+  <Modal
+    isOpen={true}
+    onClose={() => {
+      setShowForm(false);
+      setEditingVehicle(null);
+    }}
+    title={editingVehicle ? "Edit Vehicle" : "Add Vehicle"}
+    size="xl"
+  >
+    <VehicleForm
+      vehicle={editingVehicle || undefined}
+      onClose={() => {
+        setShowForm(false);
+        setEditingVehicle(null);
+      }}
+      onSubmit={handleSubmit}  // Make sure this prop is passed
+    />
+  </Modal>
+)}
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={!!deletingVehicle}
-        onClose={() => setDeletingVehicle(null)}
-        onConfirm={() => deletingVehicle && handleDelete(deletingVehicle)}
-        title="Delete Vehicle"
-        message={
-          deletingVehicle?.status !== 'sold'
-            ? "Only sold vehicles can be deleted. Please mark the vehicle as sold first."
-            : "Are you sure you want to delete this vehicle? This action cannot be undone."
-        }
-      />
 
-      {/* Sale Modal */}
-      <Modal
-        isOpen={!!sellingVehicle}
-        onClose={() => setSellingVehicle(null)}
-        title="Mark Vehicle as Sold"
-      >
-        {sellingVehicle && (
-          <VehicleSaleModal
-            vehicle={sellingVehicle}
-            onClose={() => setSellingVehicle(null)}
-          />
-        )}
-      </Modal>
+
+      {sellingVehicle && (
+        <VehicleSaleModal
+          vehicle={sellingVehicle}
+          onClose={() => setSellingVehicle(null)}
+        />
+      )}
+
+      {deletingVehicle && (
+        <VehicleDeleteModal
+          vehicle={deletingVehicle}
+          onClose={() => setDeletingVehicle(null)}
+        />
+      )}
     </div>
   );
 };

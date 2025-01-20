@@ -1,4 +1,3 @@
-// src/components/vehicles/VehicleFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
 
@@ -46,12 +45,10 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
       >
         <option value="all">All Status</option>
-        <option value="active">Active</option>
+        <option value="available">Available</option>
+        <option value="hired">Hired/Scheduled</option>
         <option value="maintenance">Maintenance</option>
-        <option value="rented">Rented</option>
-        <option value="claim">In Claim</option>
-        <option value="unavailable">Unavailable</option>
-        <option value="sold">Sold</option>
+        <option value="claims">Claims</option>
       </select>
 
       <select

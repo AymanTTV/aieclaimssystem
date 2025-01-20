@@ -54,6 +54,18 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     }
     return new Date(Math.floor(date.getTime() / 1000) * 1000); // Firestore-safe
   };
+
+  const handleWeeklyRental = (weeks: number) => {
+      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+      const endDateTime = addWeeks(startDateTime, weeks);
+      
+      setFormData({
+        ...formData,
+        numberOfWeeks: weeks,
+        endDate: endDateTime.toISOString().split('T')[0],
+        endTime: formData.startTime
+      });
+    };
   
 
   // Calculate costs based on rental type

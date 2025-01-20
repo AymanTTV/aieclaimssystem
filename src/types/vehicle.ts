@@ -1,11 +1,8 @@
 export type VehicleStatus = 
-  | 'available' 
-  | 'maintenance' 
-  | 'scheduled-maintenance'
-  | 'rented'
-  | 'scheduled-rental'
-  | 'claim'
-  | 'unavailable'
+  | 'hired'
+  | 'maintenance'
+  | 'claims'
+  | 'available'
   | 'sold';
 
 export interface VehicleOwner {
@@ -35,4 +32,25 @@ export interface Vehicle {
   soldDate?: Date;
   salePrice?: number;
   owner: VehicleOwner;
+  // Integer rental prices
+  weeklyRentalPrice: number;
+  dailyRentalPrice: number;
+  claimRentalPrice: number;
 }
+
+// Default rental prices as whole numbers
+export const DEFAULT_RENTAL_PRICES = {
+  weekly: 360,
+  daily: 60,
+  claim: 340
+} as const;
+
+// Default owner address
+export const DEFAULT_OWNER_ADDRESS = "39-41 North Road, London, N7 9DP";
+
+// Default owner object
+export const DEFAULT_OWNER: VehicleOwner = {
+  name: "AIE Skyline",
+  address: DEFAULT_OWNER_ADDRESS,
+  isDefault: true
+};

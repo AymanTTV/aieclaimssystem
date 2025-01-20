@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { Vehicle } from '../../types/vehicle';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Vehicle } from '../../types';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
+import FormField from '../ui/FormField';
+import Modal from '../ui/Modal';
 import toast from 'react-hot-toast';
 
 interface VehicleSaleModalProps {
@@ -11,11 +14,15 @@ interface VehicleSaleModalProps {
 
 const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose }) => {
   const [loading, setLoading] = useState(false);
-  const [salePrice, setSalePrice] = useState('');
+  const [formData, setFormData] = useState({
+    salePrice: '',
+    saleDate: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!salePrice || parseFloat(salePrice) <= 0) {
+    if (!formData.salePrice || parseFloat(formData.salePrice) <= 0) {
       toast.error('Please enter a valid sale price');
       return;
     }
@@ -23,11 +30,29 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
     setLoading(true);
 
     try {
+      const salePrice = parseFloat(formData.salePrice);
+      const saleDate = new Date(formData.saleDate);
+
+      // Update vehicle record
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
         status: 'sold',
-        soldDate: new Date(),
-        salePrice: parseFloat(salePrice),
-        updatedAt: new Date(),
+        soldDate: saleDate,
+        salePrice,
+        notes: formData.notes || null,
+        updatedAt: new Date()
+      });
+
+      // Create finance transaction
+      await createFinanceTransaction({
+        type: 'income',
+        category: 'vehicle-sale',
+        amount: salePrice,
+        description: `Sale of vehicle ${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`,
+        referenceId: vehicle.id,
+        vehicleId: vehicle.id,
+        vehicleName: `${vehicle.make} ${vehicle.model}`,
+        paymentStatus: 'paid',
+        date: saleDate
       });
 
       toast.success('Vehicle marked as sold successfully');
@@ -41,43 +66,61 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Sale Price</label>
-        <div className="mt-1 relative rounded-md shadow-sm">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-500 sm:text-sm">£</span>
-          </div>
-          <input
-            type="number"
-            value={salePrice}
-            onChange={(e) => setSalePrice(e.target.value)}
-            className="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-            min="0"
-            step="0.01"
-            placeholder="Enter sale price"
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Mark Vehicle as Sold"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField
+          type="date"
+          label="Sale Date"
+          value={formData.saleDate}
+          onChange={(e) => setFormData({ ...formData, saleDate: e.target.value })}
+          required
+          max={new Date().toISOString().split('T')[0]}
+        />
+
+        <FormField
+          type="number"
+          label="Sale Price (£)"
+          value={formData.salePrice}
+          onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+          required
+          min="0.01"
+          step="0.01"
+          placeholder="Enter sale price"
+        />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Notes (Optional)</label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            rows={3}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            placeholder="Add any notes about the sale"
           />
         </div>
-      </div>
 
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-        >
-          {loading ? 'Processing...' : 'Mark as Sold'}
-        </button>
-      </div>
-    </form>
+        <div className="flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+          >
+            {loading ? 'Processing...' : 'Mark as Sold'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 

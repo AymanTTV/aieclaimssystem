@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Rental, Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -11,7 +12,9 @@ import SearchableSelect from '../ui/SearchableSelect';
 import SignaturePad from '../ui/SignaturePad';
 import RentalPaymentHistory from './RentalPaymentHistory';
 import toast from 'react-hot-toast';
+import { addWeeks } from 'date-fns';
 
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 
 interface RentalEditModalProps {
   rental: Rental;
@@ -29,6 +32,9 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    vehicleId: '',
+    selectedVehicle: null as Vehicle | null, 
+    customerId: '',
     startDate: new Date(rental.startDate).toISOString().split('T')[0],
     startTime: new Date(rental.startDate).toTimeString().slice(0, 5),
     endDate: new Date(rental.endDate).toISOString().split('T')[0],
@@ -82,7 +88,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       const newPaidAmount = rental.paidAmount + amountToPay;
       const newRemainingAmount = finalCost - newPaidAmount;
   
-      // Create new payment record if amount to pay > 0
+      // Create new payment record only if amount to pay > 0
       const payments = [...(rental.payments || [])];
       if (amountToPay > 0) {
         payments.push({
@@ -123,26 +129,24 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         updatedAt: new Date(),
         updatedBy: user.id
       };
-  
       await updateDoc(rentalRef, updateData);
   
-      // Update financial transactions
+      // Conditionally create financial transaction
       if (amountToPay > 0) {
-        const financialTransactionRef = doc(db, 'financialTransactions', Date.now().toString());
-        const transactionData = {
-          rentalId: rental.id,
-          customerId: rental.customerId,
-          vehicleId: rental.vehicleId,
-          amount: amountToPay,
-          method: formData.paymentMethod,
-          reference: formData.paymentReference,
-          notes: formData.paymentNotes,
-          date: new Date(),
-          createdBy: user.id,
-          createdAt: new Date()
-        };
-  
-        await updateDoc(financialTransactionRef, transactionData);
+        await createFinanceTransaction({
+          type: 'income', 
+          category: 'rental', 
+          amount: amountToPay, 
+          description: `Rental payment for ${selectedVehicle?.make} ${selectedVehicle?.model}`, 
+          referenceId: rental.id, // Use rental.id as referenceId
+          vehicleId: selectedVehicle?.id, 
+          vehicleName: `${selectedVehicle?.make} ${selectedVehicle?.model}`, 
+          paymentMethod: formData.paymentMethod, 
+          paymentReference: formData.paymentReference, 
+          status: 'completed', 
+          createdAt: new Date(), 
+          createdBy: user.id 
+        });
       }
   
       // Generate and upload new documents

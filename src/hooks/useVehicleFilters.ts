@@ -1,4 +1,3 @@
-// src/hooks/useVehicleFilters.ts
 import { useState, useMemo } from 'react';
 import { Vehicle } from '../types';
 
@@ -15,6 +14,7 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
         return false;
       }
 
+      // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
         vehicle.registrationNumber.toLowerCase().includes(searchLower) ||
@@ -23,7 +23,28 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
         vehicle.vin.toLowerCase().includes(searchLower) ||
         vehicle.owner?.name.toLowerCase().includes(searchLower);
 
-      const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
+      // Status filter
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        switch (statusFilter) {
+          case 'hired':
+            matchesStatus = vehicle.status === 'rented' || vehicle.status === 'scheduled-rental';
+            break;
+          case 'maintenance':
+            matchesStatus = vehicle.status === 'maintenance' || vehicle.status === 'scheduled-maintenance';
+            break;
+          case 'claims':
+            matchesStatus = vehicle.status === 'claim';
+            break;
+          case 'available':
+            matchesStatus = vehicle.status === 'available';
+            break;
+          default:
+            matchesStatus = vehicle.status === statusFilter;
+        }
+      }
+
+      // Make filter
       const matchesMake = makeFilter === 'all' || vehicle.make === makeFilter;
 
       return matchesSearch && matchesStatus && matchesMake;

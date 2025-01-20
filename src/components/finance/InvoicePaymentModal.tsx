@@ -57,7 +57,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         method: formData.method,
         reference: formData.reference,
         notes: formData.notes,
-        document: documentUrl,
+        document: documentUrl || null,
         createdAt: new Date(),
         createdBy: user.id
       };

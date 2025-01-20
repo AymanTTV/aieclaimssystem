@@ -2,12 +2,10 @@ import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
 import { Eye, Edit, Trash2, DollarSign } from 'lucide-react';
-import StatusBadge from '../StatusBadge';
+import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
-import { useRentals } from '../../hooks/useRentals';
-import { useMaintenanceLogs } from '../../hooks/useMaintenanceLogs';
+import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
-import { format, isValid } from 'date-fns';
 
 interface VehicleTableProps {
   vehicles: Vehicle[];
@@ -25,45 +23,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onMarkAsSold,
 }) => {
   const { can } = usePermissions();
-  const { rentals } = useRentals();
-  const { logs: maintenanceLogs } = useMaintenanceLogs();
-
-  const getVehicleStatuses = (vehicleId: string): string[] => {
-    const statuses: string[] = [];
-
-    // Check for active rentals
-    const hasActiveRental = rentals.some(
-      rental => 
-        rental.vehicleId === vehicleId && 
-        (rental.status === 'rented' || rental.status === 'active')
-    );
-    if (hasActiveRental) {
-      statuses.push('rented');
-    }
-
-    // Check for active maintenance
-    const hasActiveMaintenance = maintenanceLogs.some(
-      log => 
-        log.vehicleId === vehicleId && 
-        (log.status === 'scheduled' || log.status === 'in-progress')
-    );
-    if (hasActiveMaintenance) {
-      statuses.push('maintenance');
-    }
-
-    // If no active statuses, vehicle is available
-    if (statuses.length === 0) {
-      statuses.push('available');
-    }
-
-    return statuses;
-  };
-
-  const formatDate = (date: Date | string | null | undefined): string => {
-    if (!date) return 'N/A';
-    const parsedDate = new Date(date);
-    return isValid(parsedDate) ? format(parsedDate, 'dd/MM/yyyy') : 'Invalid Date';
-  };
 
   const columns = [
     {
@@ -103,58 +62,62 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     },
     {
       header: 'Status',
-      cell: ({ row }: { row: any }) => {
-        const statuses = getVehicleStatuses(row.original.id);
-        return (
-          <div className="space-y-1">
-            {statuses.map((status, index) => (
-              <StatusBadge key={`${status}-${index}`} status={status} />
-            ))}
-          </div>
-        );
-      },
-    },
-    {
-      header: 'MOT',
-      cell: ({ row }: { row: any }) => (
-        <span className={isExpiringOrExpired(row.original.motExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.motExpiry)}
-        </span>
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.status} />
       ),
     },
     {
-      header: 'Insurance',
-      cell: ({ row }: { row: any }) => (
-        <span className={isExpiringOrExpired(row.original.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.insuranceExpiry)}
-        </span>
-      ),
-    },
+  header: 'Rental Rates',
+  cell: ({ row }) => (
+    <div className="space-y-1 text-sm">
+      <div>Weekly: £{Math.round(row.original.weeklyRentalPrice)}</div>
+      <div>Daily: £{Math.round(row.original.dailyRentalPrice)}</div>
+      <div>Claim: £{Math.round(row.original.claimRentalPrice)}</div>
+    </div>
+  ),
+},
+
     {
-      header: 'Road Tax',
-      cell: ({ row }: { row: any }) => (
-        <span className={isExpiringOrExpired(row.original.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.roadTaxExpiry)}
-        </span>
-      ),
-    },
-    {
-      header: 'NSL',
-      cell: ({ row }: { row: any }) => (
-        <span className={isExpiringOrExpired(row.original.nslExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.nslExpiry)}
-        </span>
-      ),
-    },
+    header: 'MOT Expiry',
+    cell: ({ row }) => (
+      <div className={isExpiringOrExpired(row.original.motExpiry) ? 'text-red-600 font-medium' : ''}>
+        {formatDate(row.original.motExpiry)}
+      </div>
+    ),
+  },
+  {
+    header: 'Insurance Expiry',
+    cell: ({ row }) => (
+      <div className={isExpiringOrExpired(row.original.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
+        {formatDate(row.original.insuranceExpiry)}
+      </div>
+    ),
+  },
+  {
+    header: 'NSL Expiry',
+    cell: ({ row }) => (
+      <div className={isExpiringOrExpired(row.original.nslExpiry) ? 'text-red-600 font-medium' : ''}>
+        {formatDate(row.original.nslExpiry)}
+      </div>
+    ),
+  },
+  {
+    header: 'Road Tax Expiry',
+    cell: ({ row }) => (
+      <div className={isExpiringOrExpired(row.original.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
+        {formatDate(row.original.roadTaxExpiry)}
+      </div>
+    ),
+  },
     {
       header: 'Mileage',
-      cell: ({ row }: { row: any }) => (
+      cell: ({ row }) => (
         <span>{row.original.mileage.toLocaleString()} km</span>
       ),
     },
     {
       header: 'Actions',
-      cell: ({ row }: { row: any }) => (
+      cell: ({ row }) => (
         <div className="flex space-x-2">
           {can('vehicles', 'view') && (
             <button

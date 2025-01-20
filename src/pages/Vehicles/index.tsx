@@ -11,9 +11,13 @@ import VehicleSaleModal from '../../components/vehicles/VehicleSaleModal';
 import VehicleUndoSaleModal from '../../components/vehicles/VehicleUndoSaleModal';
 import VehicleDeleteModal from '../../components/vehicles/VehicleDeleteModal';
 import VehicleHeader from '../../components/vehicles/VehicleHeader';
+import { useVehicleStatusUpdates } from '../../hooks/useVehicleStatusUpdates';
+
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();
+  useVehicleStatusUpdates(); // Add this hook to handle status updates
+
   const {
     searchQuery,
     setSearchQuery,
@@ -38,6 +42,7 @@ const Vehicles = () => {
     setUndoingVehicle,
     deletingVehicle,
     setDeletingVehicle,
+    resetAllModals,
   } = useVehicleActions();
 
   if (loading) {
@@ -71,38 +76,45 @@ const Vehicles = () => {
         vehicles={filteredVehicles}
         onView={setSelectedVehicle}
         onEdit={setEditingVehicle}
-        onDelete={vehicle => setDeletingVehicle(vehicle)}
+        onDelete={setDeletingVehicle}
         onMarkAsSold={setSellingVehicle}
-        onUndoSold={setUndoingVehicle}
       />
 
       {/* Modals */}
-      <VehicleDetailsModal
-        isOpen={!!selectedVehicle}
-        vehicle={selectedVehicle}
-        onClose={() => setSelectedVehicle(null)}
-      />
+      {selectedVehicle && (
+        <VehicleDetailsModal
+          vehicle={selectedVehicle}
+          onClose={() => setSelectedVehicle(null)}
+        />
+      )}
 
-      <VehicleFormModal
-        isOpen={!!editingVehicle}
-        vehicle={editingVehicle}
-        onClose={() => setEditingVehicle(null)}
-      />
+      {editingVehicle && (
+        <VehicleForm
+          vehicle={editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+        />
+      )}
 
-      <VehicleSaleModal
-        vehicle={sellingVehicle}
-        onClose={() => setSellingVehicle(null)}
-      />
+      {sellingVehicle && (
+        <VehicleSaleModal
+          vehicle={sellingVehicle}
+          onClose={() => setSellingVehicle(null)}
+        />
+      )}
 
-      <VehicleUndoSaleModal
-        vehicle={undoingVehicle}
-        onClose={() => setUndoingVehicle(null)}
-      />
+      {undoingVehicle && (
+        <VehicleUndoSaleModal
+          vehicle={undoingVehicle}
+          onClose={() => setUndoingVehicle(null)}
+        />
+      )}
 
-      <VehicleDeleteModal
-        vehicle={deletingVehicle}
-        onClose={() => setDeletingVehicle(null)}
-      />
+      {deletingVehicle && (
+        <VehicleDeleteModal
+          vehicle={deletingVehicle}
+          onClose={() => setDeletingVehicle(null)}
+        />
+      )}
     </div>
   );
 };

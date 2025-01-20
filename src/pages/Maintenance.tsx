@@ -9,7 +9,7 @@ import MaintenanceForm from '../components/maintenance/MaintenanceForm';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
-import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
+import { exportMaintenanceLogs } from '../utils/maintenanceExport';
 import { MaintenanceLog } from '../types';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -19,8 +19,12 @@ const Maintenance = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();
-  const [selectedLog, setSelectedLog] = React.useState<MaintenanceLog | null>(null);
-  const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(null);
+  const [selectedLog, setSelectedLog] = React.useState<MaintenanceLog | null>(
+    null
+  );
+  const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(
+    null
+  );
   const [showForm, setShowForm] = React.useState(false);
 
   const {
@@ -32,13 +36,13 @@ const Maintenance = () => {
     setTypeFilter,
     vehicleFilter,
     setVehicleFilter,
-    filteredLogs
+    filteredLogs,
   } = useMaintenanceFilters(logs);
 
   const vehiclesMap = vehicles.reduce((acc, vehicle) => {
     acc[vehicle.id] = vehicle;
     return acc;
-  }, {} as Record<string, typeof vehicles[0]>);
+  }, {} as Record<string, (typeof vehicles)[0]>);
 
   const handleDelete = async (log: MaintenanceLog) => {
     if (!can('maintenance', 'delete')) {
@@ -115,7 +119,7 @@ const Maintenance = () => {
           setShowForm(false);
           setEditingLog(null);
         }}
-        title={editingLog ? "Edit Maintenance" : "Schedule Maintenance"}
+        title={editingLog ? 'Edit Maintenance' : 'Schedule Maintenance'}
         size="xl"
       >
         <MaintenanceForm
