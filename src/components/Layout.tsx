@@ -21,6 +21,14 @@ import { auth } from '../lib/firebase';
 import logo from '../assets/logo.png';
 import MobileMenu from './navigation/MobileMenu';
 
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  permission?: string;
+  submenu?: { name: string; href: string }[];
+}
+
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -28,25 +36,35 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isIncidentDropdownOpen, setIsIncidentDropdownOpen] = useState(false);
-  const [isUsersDropdownOpen, setIsUsersDropdownOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
 
-  const navigation = [
+  const navigation: NavItem[] = [
     { name: 'Vehicles', href: '/vehicles', icon: Truck, permission: 'vehicles' },
     { name: 'Maintenance', href: '/maintenance', icon: Wrench, permission: 'maintenance' },
     { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
-    { name: 'Finance', href: '/finance', icon: DollarSign, permission: 'finance' },
-    { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },
-  ].filter(item => !item.permission || can(item.permission as any, 'view'));
-
-  const incidentItems = [
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
     { name: 'Claims', href: '/claims', icon: FileText, permission: 'claims' },
-  ].filter(item => !item.permission || can(item.permission as any, 'view'));
-
-  const userItems = [
-    { name: 'Users', href: '/users', icon: Users, permission: 'users' },
-    { name: 'Company', href: '/company-managers', icon: Building, permission: 'users' },
+    { 
+      name: 'Finance', 
+      href: '/finance', 
+      icon: DollarSign, 
+      permission: 'finance',
+      submenu: [
+        { name: 'Overview', href: '/finance' },
+        { name: 'Invoices', href: '/finance/invoices' }
+      ]
+    },
+    { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },
+    { 
+      name: 'Users & Company', 
+      href: '/users', 
+      icon: Users, 
+      permission: 'users',
+      submenu: [
+        { name: 'Users', href: '/users' },
+        { name: 'Company', href: '/company-managers' }
+      ]
+    }
   ].filter(item => !item.permission || can(item.permission as any, 'view'));
 
   const handleLogout = async () => {
@@ -56,6 +74,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     } catch (error) {
       console.error('Error logging out:', error);
     }
+  };
+
+  const isActiveRoute = (href: string, pathname: string) => {
+    // For the finance overview page
+    if (href === '/finance' && pathname === '/finance') {
+      return true;
+    }
+    
+    // For submenu items
+    if (href === '/finance/invoices' && pathname === '/finance/invoices') {
+      return true;
+    }
+    
+    // For other routes
+    return pathname.startsWith(href) && href !== '/finance';
   };
 
   return (
@@ -73,7 +106,46 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <div className="hidden lg:flex items-center space-x-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.href;
+                const isActive = isActiveRoute(item.href, location.pathname);
+
+                if (item.submenu) {
+                  return (
+                    <div key={item.name} className="relative">
+                      <button
+                        onClick={() => setOpenSubmenu(openSubmenu === item.name ? null : item.name)}
+                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          location.pathname.startsWith(item.href)
+                            ? 'text-primary bg-primary/5' 
+                            : 'text-gray-600 hover:text-primary hover:bg-gray-50'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5 mr-1.5" />
+                        <span>{item.name}</span>
+                        <ChevronDown className="w-4 h-4 ml-1" />
+                      </button>
+
+                      {openSubmenu === item.name && (
+                        <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                          {item.submenu.map((subitem) => (
+                            <Link
+                              key={subitem.name}
+                              to={subitem.href}
+                              className={`block px-4 py-2 text-sm ${
+                                location.pathname === subitem.href
+                                  ? 'text-primary bg-primary/5'
+                                  : 'text-gray-700 hover:bg-gray-50'
+                              }`}
+                              onClick={() => setOpenSubmenu(null)}
+                            >
+                              {subitem.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.name}
@@ -89,96 +161,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   </Link>
                 );
               })}
-
-              {/* Incidents Dropdown */}
-              {incidentItems.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setIsIncidentDropdownOpen(!isIncidentDropdownOpen);
-                      setIsUsersDropdownOpen(false);
-                    }}
-                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      location.pathname.includes('/accident') || location.pathname.includes('/claim')
-                        ? 'text-primary bg-primary/5'
-                        : 'text-gray-600 hover:text-primary hover:bg-gray-50'
-                    }`}
-                  >
-                    <AlertTriangle className="w-5 h-5 mr-1.5" />
-                    <span>Incidents</span>
-                    <ChevronDown className="w-4 h-4 ml-1" />
-                  </button>
-
-                  {isIncidentDropdownOpen && (
-                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                      {incidentItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.href;
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            className={`flex items-center px-4 py-2 text-sm ${
-                              isActive
-                                ? 'text-primary bg-primary/5'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
-                            onClick={() => setIsIncidentDropdownOpen(false)}
-                          >
-                            <Icon className="w-5 h-5 mr-2" />
-                            {item.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Users & Company Dropdown */}
-              {userItems.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setIsUsersDropdownOpen(!isUsersDropdownOpen);
-                      setIsIncidentDropdownOpen(false);
-                    }}
-                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      location.pathname.includes('/users') || location.pathname.includes('/company')
-                        ? 'text-primary bg-primary/5'
-                        : 'text-gray-600 hover:text-primary hover:bg-gray-50'
-                    }`}
-                  >
-                    <Users className="w-5 h-5 mr-1.5" />
-                    <span>Users & Company</span>
-                    <ChevronDown className="w-4 h-4 ml-1" />
-                  </button>
-
-                  {isUsersDropdownOpen && (
-                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                      {userItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.href;
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            className={`flex items-center px-4 py-2 text-sm ${
-                              isActive
-                                ? 'text-primary bg-primary/5'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
-                            onClick={() => setIsUsersDropdownOpen(false)}
-                          >
-                            <Icon className="w-5 h-5 mr-2" />
-                            {item.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* User Menu */}
@@ -243,7 +225,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <MobileMenu
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
-        navigation={[...navigation, ...incidentItems, ...userItems]}
+        navigation={navigation}
         currentPath={location.pathname}
       />
 

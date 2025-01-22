@@ -1,66 +1,138 @@
 import { useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Rental } from '../types';
-import { isWithinInterval, isBefore, isAfter } from 'date-fns';
-import toast from 'react-hot-toast';
+import { Vehicle } from '../types';
 
 export const useRentalStatusUpdates = () => {
   useEffect(() => {
-    const updateRentalStatuses = async () => {
-      const now = new Date();
-      const rentalsRef = collection(db, 'rentals');
+    // Monitor rentals
+    const rentalsQuery = query(
+      collection(db, 'rentals'),
+      where('status', 'in', ['active', 'scheduled', 'completed'])
+    );
+
+    // Monitor maintenance
+    const maintenanceQuery = query(
+      collection(db, 'maintenanceLogs'),
+      where('status', 'in', ['scheduled', 'in-progress', 'completed'])
+    );
+
+    const updateVehicleStatuses = async (vehicleId: string, activeStatuses: string[]) => {
+      const vehicleRef = doc(db, 'vehicles', vehicleId);
+      const vehicleDoc = await getDoc(vehicleRef);
       
-      try {
-        // Get scheduled rentals that should be active
-        const scheduledQuery = query(
-          rentalsRef,
-          where('status', '==', 'scheduled')
-        );
-
-        // Get active rentals that should be completed
-        const activeQuery = query(
-          rentalsRef,
-          where('status', 'in', ['hired', 'claim'])
-        );
-
-        // Update scheduled to hired/claim
-        const scheduledSnapshot = await getDocs(scheduledQuery);
-        for (const rentalDoc of scheduledSnapshot.docs) {
-          const rental = { id: rentalDoc.id, ...rentalDoc.data() } as Rental;
-          const startDate = new Date(rental.startDate);
-          const endDate = new Date(rental.endDate);
-
-          if (isWithinInterval(now, { start: startDate, end: endDate })) {
-            await updateDoc(doc(db, 'rentals', rental.id), {
-              status: rental.type === 'claim' ? 'claim' : 'hired',
-              updatedAt: now
-            });
+      if (vehicleDoc.exists()) {
+        const currentStatuses = vehicleDoc.data().activeStatuses || [];
+        
+        // Combine current and new statuses, removing duplicates
+        const updatedStatuses = Array.from(new Set([...currentStatuses, ...activeStatuses]));
+        
+        // Determine primary status
+        let primaryStatus: Vehicle['status'] = 'available';
+        if (updatedStatuses.includes('maintenance')) {
+          primaryStatus = 'maintenance';
+        }
+        if (updatedStatuses.includes('hired')) {
+          // If vehicle is both in maintenance and hired, show both statuses
+          if (primaryStatus === 'maintenance') {
+            primaryStatus = 'maintenance';
+          } else {
+            primaryStatus = 'hired';
           }
         }
-
-        // Update hired/claim to completed
-        const activeSnapshot = await getDocs(activeQuery);
-        for (const rentalDoc of activeSnapshot.docs) {
-          const rental = { id: rentalDoc.id, ...rentalDoc.data() } as Rental;
-          const endDate = new Date(rental.endDate);
-
-          if (isAfter(now, endDate)) {
-            await updateDoc(doc(db, 'rentals', rental.id), {
-              status: 'completed',
-              updatedAt: now
-            });
-          }
+        if (updatedStatuses.includes('scheduled') && primaryStatus === 'available') {
+          primaryStatus = 'scheduled';
         }
-      } catch (error) {
-        console.error('Error updating rental statuses:', error);
+
+        await updateDoc(vehicleRef, {
+          status: primaryStatus,
+          activeStatuses: updatedStatuses,
+          updatedAt: new Date()
+        });
       }
     };
 
-    // Run immediately and then every 5 minutes
-    updateRentalStatuses();
-    const interval = setInterval(updateRentalStatuses, 5 * 60 * 1000);
+    const removeVehicleStatus = async (vehicleId: string, statusToRemove: string) => {
+      const vehicleRef = doc(db, 'vehicles', vehicleId);
+      const vehicleDoc = await getDoc(vehicleRef);
+      
+      if (vehicleDoc.exists()) {
+        const currentStatuses = vehicleDoc.data().activeStatuses || [];
+        const updatedStatuses = currentStatuses.filter((s: string) => s !== statusToRemove);
+        
+        // Determine new primary status
+        let primaryStatus: Vehicle['status'] = 'available';
+        if (updatedStatuses.includes('maintenance')) {
+          primaryStatus = 'maintenance';
+        }
+        if (updatedStatuses.includes('hired')) {
+          if (primaryStatus === 'maintenance') {
+            primaryStatus = 'maintenance';
+          } else {
+            primaryStatus = 'hired';
+          }
+        }
+        if (updatedStatuses.includes('scheduled') && primaryStatus === 'available') {
+          primaryStatus = 'scheduled';
+        }
 
-    return () => clearInterval(interval);
+        await updateDoc(vehicleRef, {
+          status: primaryStatus,
+          activeStatuses: updatedStatuses,
+          updatedAt: new Date()
+        });
+      }
+    };
+
+    // Subscribe to rental changes
+    const unsubscribeRentals = onSnapshot(rentalsQuery, snapshot => {
+      snapshot.docChanges().forEach(async change => {
+        const rental = change.doc.data();
+        const vehicleId = rental.vehicleId;
+
+        if (change.type === 'modified' || change.type === 'added') {
+          switch (rental.status) {
+            case 'active':
+              await updateVehicleStatuses(vehicleId, ['hired']);
+              break;
+            case 'scheduled':
+              await updateVehicleStatuses(vehicleId, ['scheduled']);
+              break;
+            case 'completed':
+              await removeVehicleStatus(vehicleId, 'hired');
+              await removeVehicleStatus(vehicleId, 'scheduled');
+              break;
+          }
+        }
+      });
+    });
+
+    // Subscribe to maintenance changes
+    const unsubscribeMaintenance = onSnapshot(maintenanceQuery, snapshot => {
+      snapshot.docChanges().forEach(async change => {
+        const maintenance = change.doc.data();
+        const vehicleId = maintenance.vehicleId;
+
+        if (change.type === 'modified' || change.type === 'added') {
+          switch (maintenance.status) {
+            case 'in-progress':
+              await updateVehicleStatuses(vehicleId, ['maintenance']);
+              break;
+            case 'scheduled':
+              await updateVehicleStatuses(vehicleId, ['scheduled']);
+              break;
+            case 'completed':
+              await removeVehicleStatus(vehicleId, 'maintenance');
+              await removeVehicleStatus(vehicleId, 'scheduled');
+              break;
+          }
+        }
+      });
+    });
+
+    return () => {
+      unsubscribeRentals();
+      unsubscribeMaintenance();
+    };
   }, []);
 };

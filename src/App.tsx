@@ -13,15 +13,18 @@ import Rentals from './pages/Rentals';
 import Accidents from './pages/Accidents';
 import Claims from './pages/Claims';
 import Finance from './pages/Finance';
+import Invoices from './pages/Invoices'; // Add this import
 import Users from './pages/Users';
 import Customers from './pages/Customers';
 import { CompanyManagers } from './pages/CompanyManagers';
 import { usePermissions } from './hooks/usePermissions';
 
-const PrivateRoute: React.FC<{ 
+interface PrivateRouteProps { 
   element: React.ReactElement;
   permission?: keyof RolePermissions;
-}> = ({ element, permission }) => {
+}
+
+const PrivateRoute: React.FC<PrivateRouteProps> = ({ element, permission }) => {
   const { user, loading } = useAuth();
   const { can } = usePermissions();
 
@@ -33,7 +36,7 @@ const PrivateRoute: React.FC<{
     return <Navigate to="/login" />;
   }
 
-  if (permission && !can(permission, 'view')) {
+  if (permission && !can(permission as any, 'view')) {
     return <Navigate to="/" />;
   }
 
@@ -49,21 +52,21 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/admin-setup" element={<AdminSetup />} />
           
-          <Route path="/" element={
-            <PrivateRoute
-              element={
-                <Layout>
-                  <Dashboard />
-                </Layout>
-              }
-            />
-          } />
-          
           <Route path="/profile" element={
             <PrivateRoute
               element={
                 <Layout>
                   <Profile />
+                </Layout>
+              }
+            />
+          } />
+          
+          <Route path="/" element={
+            <PrivateRoute
+              element={
+                <Layout>
+                  <Dashboard />
                 </Layout>
               }
             />
@@ -134,6 +137,19 @@ function App() {
               permission="finance"
             />
           } />
+
+          {/* Add the new Invoices route */}
+          <Route path="/finance/invoices" element={
+  <PrivateRoute
+    element={
+      <Layout>
+        <Invoices />
+      </Layout>
+    }
+    permission="finance"
+  />
+} />
+
           
           <Route path="/users" element={
             <PrivateRoute

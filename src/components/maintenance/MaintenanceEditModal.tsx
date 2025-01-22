@@ -406,65 +406,44 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
   </div>
 
   {/* Cost Summary */}
-  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-    {/* Parts Summary */}
-    <div className="border-b pb-2">
-      <div className="flex justify-between text-sm">
-        <span>Parts (NET):</span>
-        <span>£{costs.partsTotal.toFixed(2)}</span>
-      </div>
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>VAT on Parts:</span>
-        <span>£{(costs.partsTotal * 0.2).toFixed(2)}</span>
-      </div>
-    </div>
+<div className="bg-gray-50 p-4 rounded-lg space-y-2">
+  {/* NET Amount */}
+  <div className="flex justify-between text-sm font-medium">
+    <span>NET Amount:</span>
+    <span>£{costs.netAmount.toFixed(2)}</span>
+  </div>
 
-    {/* Labor Summary */}
-    <div className="border-b pb-2 pt-2">
-      <div className="flex justify-between text-sm">
-        <span>Labor (NET):</span>
-        <span>£{costs.laborTotal.toFixed(2)}</span>
-      </div>
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>VAT on Labor:</span>
-        <span>£{(costs.laborTotal * 0.2).toFixed(2)}</span>
-      </div>
-    </div>
+  {/* VAT Amount */}
+  <div className="flex justify-between text-sm text-gray-600">
+    <span>VAT (20%):</span>
+    <span>£{costs.vatAmount.toFixed(2)}</span>
+  </div>
 
-    {/* Total Summary */}
-    <div className="pt-2 space-y-1">
-      <div className="flex justify-between text-sm font-medium">
-        <span>Total NET:</span>
-        <span>£{costs.netAmount.toFixed(2)}</span>
-      </div>
-      <div className="flex justify-between text-sm font-medium">
-        <span>Total VAT:</span>
-        <span>£{costs.vatAmount.toFixed(2)}</span>
-      </div>
-      <div className="flex justify-between text-lg font-bold pt-2 border-t">
-        <span>Total Amount:</span>
-        <span>£{costs.totalAmount.toFixed(2)}</span>
-      </div>
-    </div>
+  {/* Total Amount */}
+  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+    <span>Total Amount:</span>
+    <span>£{costs.totalAmount.toFixed(2)}</span>
+  </div>
 
-    {/* Payment Status */}
-    <div className="pt-4 border-t space-y-2">
+  {/* Payment Status */}
+  <div className="pt-4 border-t space-y-2">
+    <div className="flex justify-between text-sm">
+      <span>Amount Paid:</span>
+      <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+    </div>
+    {remainingAmount > 0 && (
       <div className="flex justify-between text-sm">
-        <span>Amount Paid:</span>
-        <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+        <span>Remaining Amount:</span>
+        <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
       </div>
-      {remainingAmount > 0 && (
-        <div className="flex justify-between text-sm">
-          <span>Remaining Amount:</span>
-          <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
-        </div>
-      )}
-      <div className="flex justify-between text-sm pt-2 border-t">
-        <span>Payment Status:</span>
-        <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
-      </div>
+    )}
+    <div className="flex justify-between text-sm pt-2 border-t">
+      <span>Payment Status:</span>
+      <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
     </div>
   </div>
+</div>
+
 </div>
 
       <div className="flex justify-end space-x-3">
@@ -489,8 +468,3 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
 
 export default MaintenanceEditModal;
 
-  // Rest of the component remains the same...
-  // ... (keep existing JSX)
-};
-
-export default MaintenanceEditModal;

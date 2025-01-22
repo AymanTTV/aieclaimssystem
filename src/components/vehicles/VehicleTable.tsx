@@ -62,53 +62,80 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     },
     {
       header: 'Status',
+      cell: ({ row }) => {
+        const vehicle = row.original;
+        const statuses = vehicle.activeStatuses || [];
+        
+        // Map status to display text
+        const getDisplayStatus = (status: string) => {
+          switch (status) {
+            case 'rented':
+              return 'hired';
+            case 'scheduled-rental':
+              return 'scheduled for hire';
+            default:
+              return status.replace('-', ' ');
+          }
+        };
+
+        return (
+          <div className="space-y-1">
+            {statuses.length > 0 ? (
+              statuses.map((status, index) => (
+                <StatusBadge 
+                  key={index} 
+                  status={getDisplayStatus(status)}
+                />
+              ))
+            ) : (
+              <StatusBadge status="available" />
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Rental Rates',
       cell: ({ row }) => (
-        <StatusBadge status={row.original.status} />
+        <div className="space-y-1 text-sm">
+          <div>Weekly: £{Math.round(row.original.weeklyRentalPrice)}</div>
+          <div>Daily: £{Math.round(row.original.dailyRentalPrice)}</div>
+          <div>Claim: £{Math.round(row.original.claimRentalPrice)}</div>
+        </div>
       ),
     },
     {
-  header: 'Rental Rates',
-  cell: ({ row }) => (
-    <div className="space-y-1 text-sm">
-      <div>Weekly: £{Math.round(row.original.weeklyRentalPrice)}</div>
-      <div>Daily: £{Math.round(row.original.dailyRentalPrice)}</div>
-      <div>Claim: £{Math.round(row.original.claimRentalPrice)}</div>
-    </div>
-  ),
-},
-
+      header: 'MOT Expiry',
+      cell: ({ row }) => (
+        <div className={isExpiringOrExpired(row.original.motExpiry) ? 'text-red-600 font-medium' : ''}>
+          {formatDate(row.original.motExpiry)}
+        </div>
+      ),
+    },
     {
-    header: 'MOT Expiry',
-    cell: ({ row }) => (
-      <div className={isExpiringOrExpired(row.original.motExpiry) ? 'text-red-600 font-medium' : ''}>
-        {formatDate(row.original.motExpiry)}
-      </div>
-    ),
-  },
-  {
-    header: 'Insurance Expiry',
-    cell: ({ row }) => (
-      <div className={isExpiringOrExpired(row.original.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
-        {formatDate(row.original.insuranceExpiry)}
-      </div>
-    ),
-  },
-  {
-    header: 'NSL Expiry',
-    cell: ({ row }) => (
-      <div className={isExpiringOrExpired(row.original.nslExpiry) ? 'text-red-600 font-medium' : ''}>
-        {formatDate(row.original.nslExpiry)}
-      </div>
-    ),
-  },
-  {
-    header: 'Road Tax Expiry',
-    cell: ({ row }) => (
-      <div className={isExpiringOrExpired(row.original.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
-        {formatDate(row.original.roadTaxExpiry)}
-      </div>
-    ),
-  },
+      header: 'Insurance Expiry',
+      cell: ({ row }) => (
+        <div className={isExpiringOrExpired(row.original.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
+          {formatDate(row.original.insuranceExpiry)}
+        </div>
+      ),
+    },
+    {
+      header: 'NSL Expiry',
+      cell: ({ row }) => (
+        <div className={isExpiringOrExpired(row.original.nslExpiry) ? 'text-red-600 font-medium' : ''}>
+          {formatDate(row.original.nslExpiry)}
+        </div>
+      ),
+    },
+    {
+      header: 'Road Tax Expiry',
+      cell: ({ row }) => (
+        <div className={isExpiringOrExpired(row.original.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
+          {formatDate(row.original.roadTaxExpiry)}
+        </div>
+      ),
+    },
     {
       header: 'Mileage',
       cell: ({ row }) => (
@@ -177,6 +204,13 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       data={vehicles}
       columns={columns}
       onRowClick={(vehicle) => can('vehicles', 'view') && onView(vehicle)}
+      rowClassName={(vehicle) => {
+        // Highlight rows based on insurance expiry
+        if (isExpiringOrExpired(vehicle.insuranceExpiry)) {
+          return 'bg-red-50';
+        }
+        return '';
+      }}
     />
   );
 };

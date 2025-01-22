@@ -1,3 +1,5 @@
+// src/pages/Maintenance.tsx
+
 import React from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
@@ -10,7 +12,7 @@ import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
 import { exportMaintenanceLogs } from '../utils/maintenanceExport';
-import { MaintenanceLog } from '../types';
+import { MaintenanceLog, Vehicle } from '../types';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
@@ -19,14 +21,19 @@ const Maintenance = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();
-  const [selectedLog, setSelectedLog] = React.useState<MaintenanceLog | null>(
-    null
-  );
-  const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(
-    null
-  );
+  const [selectedLog, setSelectedLog] = React.useState<MaintenanceLog | null>(null);
+  const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(null);
   const [showForm, setShowForm] = React.useState(false);
 
+  // Create vehiclesMap first
+  const vehiclesMap = React.useMemo(() => {
+    return vehicles.reduce((acc, vehicle) => {
+      acc[vehicle.id] = vehicle;
+      return acc;
+    }, {} as Record<string, Vehicle>);
+  }, [vehicles]);
+
+  // Then use it in the filters
   const {
     searchQuery,
     setSearchQuery,
@@ -37,12 +44,7 @@ const Maintenance = () => {
     vehicleFilter,
     setVehicleFilter,
     filteredLogs,
-  } = useMaintenanceFilters(logs);
-
-  const vehiclesMap = vehicles.reduce((acc, vehicle) => {
-    acc[vehicle.id] = vehicle;
-    return acc;
-  }, {} as Record<string, (typeof vehicles)[0]>);
+  } = useMaintenanceFilters(logs, vehiclesMap);
 
   const handleDelete = async (log: MaintenanceLog) => {
     if (!can('maintenance', 'delete')) {

@@ -1,3 +1,5 @@
+// src/routes/index.ts
+
 // Export the main AppRoutes component
 export { default } from './AppRoutes';
 
@@ -19,6 +21,7 @@ export const ROUTES = {
   ACCIDENTS: '/accidents',
   CLAIMS: '/claims',
   FINANCE: '/finance',
+  INVOICES: '/finance/invoices', // Add this line
   USERS: '/users',
   CUSTOMERS: '/customers',
 } as const;
@@ -31,6 +34,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.ACCIDENTS]: { module: 'accidents', action: 'view' },
   [ROUTES.CLAIMS]: { module: 'claims', action: 'view' },
   [ROUTES.FINANCE]: { module: 'finance', action: 'view' },
+  [ROUTES.INVOICES]: { module: 'finance', action: 'view' }, // Add this line
   [ROUTES.USERS]: { module: 'users', action: 'view' },
   [ROUTES.CUSTOMERS]: { module: 'customers', action: 'view' },
 } as const;
@@ -64,6 +68,10 @@ export const ROUTE_METADATA = {
   [ROUTES.FINANCE]: {
     title: 'Finance',
     icon: 'DollarSign',
+  },
+  [ROUTES.INVOICES]: {
+    title: 'Invoices',
+    icon: 'FileText',
   },
   [ROUTES.USERS]: {
     title: 'Users',

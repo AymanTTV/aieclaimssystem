@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import RentalPaymentHistory from './RentalPaymentHistory';
 import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Clock, PenTool } from 'lucide-react';
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
+import { isAfter } from 'date-fns';
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -20,6 +22,20 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   onDownloadAgreement,
   onDownloadInvoice
 }) => {
+  const [ongoingCharges, setOngoingCharges] = useState(0);
+
+  // Calculate ongoing charges if rental is active and past end date
+  useEffect(() => {
+    if (vehicle && rental.status === 'active') {
+      const endDate = new Date(rental.endDate);
+      const now = new Date();
+      if (isAfter(now, endDate)) {
+        const extraCharges = calculateOverdueCost(rental, now, vehicle);
+        setOngoingCharges(extraCharges);
+      }
+    }
+  }, [rental, vehicle]);
+
   return (
     <div className="space-y-6">
       {/* Documents Section */}
@@ -152,13 +168,20 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h3>
         <div className="bg-gray-50 p-4 rounded-lg space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-gray-600">Total Cost</span>
-            <div className="text-right">
-              <span className="text-lg font-medium">£{rental.cost.toFixed(2)}</span>
-              {rental.standardCost && rental.standardCost !== rental.cost && (
-                <div className="text-sm text-gray-500 line-through">£{rental.standardCost.toFixed(2)}</div>
-              )}
+            <span className="text-gray-600">Base Cost</span>
+            <span className="text-lg font-medium">£{rental.cost.toFixed(2)}</span>
+          </div>
+
+          {ongoingCharges > 0 && (
+            <div className="flex justify-between items-center text-red-600">
+              <span>Ongoing Charges</span>
+              <span>+£{ongoingCharges.toFixed(2)}</span>
             </div>
+          )}
+
+          <div className="flex justify-between items-center pt-2 border-t">
+            <span className="text-gray-600">Total Cost</span>
+            <span className="text-lg font-medium">£{(rental.cost + ongoingCharges).toFixed(2)}</span>
           </div>
 
           <div className="flex justify-between items-center">

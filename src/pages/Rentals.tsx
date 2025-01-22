@@ -8,11 +8,12 @@ import RentalTable from '../components/rentals/RentalTable';
 import RentalForm from '../components/rentals/RentalForm';
 import RentalDetails from '../components/rentals/RentalDetails';
 import RentalEditModal from '../components/rentals/RentalEditModal';
-import RentalExtendModal from '../components/rentals/RentalExtendModal';
 import RentalDeleteModal from '../components/rentals/RentalDeleteModal';
 import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
+import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
+import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
 import Modal from '../components/ui/Modal';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, Car } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
@@ -37,9 +38,10 @@ const Rentals = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [editingRental, setEditingRental] = useState<Rental | null>(null);
-  const [extendingRental, setExtendingRental] = useState<Rental | null>(null);
   const [deletingRental, setDeletingRental] = useState<Rental | null>(null);
   const [payingRental, setPayingRental] = useState<Rental | null>(null);
+  const [completingRental, setCompletingRental] = useState<Rental | null>(null);
+  const [showAvailableVehicles, setShowAvailableVehicles] = useState(false);
 
   const handleExport = () => {
     try {
@@ -91,6 +93,13 @@ const Rentals = () => {
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
         <div className="flex space-x-2">
           <button
+            onClick={() => setShowAvailableVehicles(true)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Car className="h-5 w-5 mr-2" />
+            Available Vehicles
+          </button>
+          <button
             onClick={handleExport}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
@@ -126,7 +135,7 @@ const Rentals = () => {
         onView={setSelectedRental}
         onEdit={setEditingRental}
         onDelete={setDeletingRental}
-        onExtend={setExtendingRental}
+        onComplete={setCompletingRental}
         onDownloadAgreement={handleDownloadAgreement}
         onDownloadInvoice={handleDownloadInvoice}
         onRecordPayment={setPayingRental}
@@ -180,19 +189,6 @@ const Rentals = () => {
       </Modal>
 
       <Modal
-        isOpen={!!extendingRental}
-        onClose={() => setExtendingRental(null)}
-        title="Extend Rental"
-      >
-        {extendingRental && (
-          <RentalExtendModal
-            rental={extendingRental}
-            onClose={() => setExtendingRental(null)}
-          />
-        )}
-      </Modal>
-
-      <Modal
         isOpen={!!deletingRental}
         onClose={() => setDeletingRental(null)}
         title="Delete Rental"
@@ -216,6 +212,31 @@ const Rentals = () => {
             onClose={() => setPayingRental(null)}
           />
         )}
+      </Modal>
+
+      <Modal
+        isOpen={!!completingRental}
+        onClose={() => setCompletingRental(null)}
+        title="Complete Rental"
+      >
+        {completingRental && (
+          <RentalCompleteModal
+            rental={completingRental}
+            onClose={() => setCompletingRental(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={showAvailableVehicles}
+        onClose={() => setShowAvailableVehicles(false)}
+        title="Available Vehicles"
+        size="xl"
+      >
+        <AvailableVehiclesModal
+          vehicles={vehicles}
+          onClose={() => setShowAvailableVehicles(false)}
+        />
       </Modal>
     </div>
   );

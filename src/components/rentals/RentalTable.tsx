@@ -1,10 +1,12 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, Clock, FileText, Download, DollarSign } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Download, DollarSign, CheckCircle } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
+import { addDays, isWithinInterval, isBefore, isAfter } from 'date-fns';
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
 
 interface RentalTableProps {
   rentals: Rental[];
@@ -13,7 +15,7 @@ interface RentalTableProps {
   onView: (rental: Rental) => void;
   onEdit: (rental: Rental) => void;
   onDelete: (rental: Rental) => void;
-  onExtend: (rental: Rental) => void;
+  onComplete: (rental: Rental) => void;
   onDownloadAgreement: (rental: Rental) => void;
   onDownloadInvoice: (rental: Rental) => void;
   onRecordPayment: (rental: Rental) => void;
@@ -27,7 +29,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onExtend,
+  onComplete,
   onDownloadAgreement,
   onDownloadInvoice,
   onRecordPayment,
@@ -35,8 +37,42 @@ const RentalTable: React.FC<RentalTableProps> = ({
 }) => {
   const { can } = usePermissions();
 
+  // Sort rentals by end date (closest first)
+  const sortedRentals = [...rentals].sort((a, b) => {
+    const getPriority = (rental: Rental): number => {
+      const isEndingSoon = isWithinInterval(rental.endDate, {
+        start: new Date(),
+        end: addDays(new Date(), 1)
+      });
+
+      if (isEndingSoon && rental.status === 'active') return 1;
+      if (rental.status === 'active') return 2;
+      if (rental.status === 'scheduled') return 3;
+      return 4;
+    };
+
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+
+    if (priorityA === priorityB) {
+      return isBefore(a.endDate, b.endDate) ? -1 : 1;
+    }
+
+    return priorityA - priorityB;
+  });
+
+  // Check if rental ends the day before another rental starts
+  const isConsecutiveRental = (rental: Rental): boolean => {
+    const nextDay = addDays(rental.endDate, 1);
+    return rentals.some(r => 
+      r.id !== rental.id && 
+      r.vehicleId === rental.vehicleId &&
+      r.status !== 'cancelled' &&
+      r.startDate.getTime() === nextDay.getTime()
+    );
+  };
+
   const columns = [
-    // ... other columns ...
     {
       header: 'Vehicle',
       cell: ({ row }) => {
@@ -72,21 +108,28 @@ const RentalTable: React.FC<RentalTableProps> = ({
     },
     {
       header: 'Period',
-      cell: ({ row }) => (
-        <div>
-          <div className="text-sm">
-            {formatDate(row.original.startDate)}
-          </div>
-          <div className="text-sm text-gray-500">
-            {formatDate(row.original.endDate)}
-          </div>
-          {row.original.numberOfWeeks && (
-            <div className="text-xs text-gray-500">
-              {row.original.numberOfWeeks} week{row.original.numberOfWeeks > 1 ? 's' : ''}
+      cell: ({ row }) => {
+        const isEndingSoon = isWithinInterval(row.original.endDate, {
+          start: new Date(),
+          end: addDays(new Date(), 1)
+        });
+
+        return (
+          <div>
+            <div className="text-sm">
+              {formatDate(row.original.startDate)}
             </div>
-          )}
-        </div>
-      ),
+            <div className={`text-sm ${isEndingSoon ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+              {formatDate(row.original.endDate)}
+            </div>
+            {row.original.numberOfWeeks && (
+              <div className="text-xs text-gray-500">
+                {row.original.numberOfWeeks} week{row.original.numberOfWeeks > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'Status',
@@ -101,97 +144,47 @@ const RentalTable: React.FC<RentalTableProps> = ({
       header: 'Cost',
       cell: ({ row }) => {
         const rental = row.original;
+        const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+        const now = new Date();
+        const endDate = new Date(rental.endDate);
+        
+        let overdueCharges = 0;
+        if (rental.status === 'active' && isAfter(now, endDate) && vehicle) {
+          overdueCharges = calculateOverdueCost(rental, now, vehicle);
+        }
+
+        const totalCost = rental.cost + overdueCharges;
+        const remainingAmount = totalCost - rental.paidAmount;
+
         return (
           <div>
             <div className="font-medium">£{rental.cost.toFixed(2)}</div>
-            {rental.standardCost && rental.standardCost !== rental.cost && (
-              <div className="text-xs text-gray-500 line-through">
-                £{rental.standardCost.toFixed(2)}
+            
+            {overdueCharges > 0 && (
+              <div className="text-xs text-red-600">
+                +£{overdueCharges.toFixed(2)} overdue
               </div>
             )}
-            {rental.negotiated && (
-              <div className="text-xs text-amber-600">Negotiated rate</div>
+
+            {overdueCharges > 0 && (
+              <div className="text-sm font-medium border-t mt-1 pt-1">
+                Total: £{totalCost.toFixed(2)}
+              </div>
             )}
+
             <div className="text-xs space-y-0.5 mt-1">
               <div className="text-green-600">
                 Paid: £{rental.paidAmount.toFixed(2)}
               </div>
-              {rental.remainingAmount > 0 && (
+              {remainingAmount > 0 && (
                 <div className="text-amber-600">
-                  Due: £{rental.remainingAmount.toFixed(2)}
+                  Due: £{remainingAmount.toFixed(2)}
                 </div>
               )}
             </div>
           </div>
         );
       },
-    },
-    {
-      header: 'Payment History',
-      cell: ({ row }) => {
-        const payments = row.original.payments || [];
-        return payments.length > 0 ? (
-          <div className="space-y-1">
-            {payments.map((payment) => (
-              <div key={payment.id} className="text-sm flex items-center justify-between">
-                <div>
-                  <div className="flex items-center">
-                    <span>£{payment.amount.toFixed(2)}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeletePayment(row.original, payment.id);
-                      }}
-                      className="ml-2 text-red-600 hover:text-red-800"
-                      title="Delete Payment"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    <span className="capitalize">{payment.method.replace('_', ' ')}</span>
-                    <span className="mx-1">•</span>
-                    <span>{formatDate(payment.date, true)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-500">No payments</span>
-        );
-      },
-    },
-    {
-      header: 'Documents',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {row.original.documents?.agreement && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownloadAgreement(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Download Agreement"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.documents?.invoice && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownloadInvoice(row.original);
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Download Invoice"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
     },
     {
       header: 'Actions',
@@ -211,16 +204,16 @@ const RentalTable: React.FC<RentalTableProps> = ({
           )}
           {can('rentals', 'update') && (
             <>
-              {row.original.status !== 'completed' && (
+              {row.original.status === 'active' && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onExtend(row.original);
+                    onComplete(row.original);
                   }}
                   className="text-green-600 hover:text-green-800"
-                  title="Extend Rental"
+                  title="Complete Rental"
                 >
-                  <Clock className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4" />
                 </button>
               )}
               <button
@@ -247,6 +240,30 @@ const RentalTable: React.FC<RentalTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {row.original.documents?.agreement && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadAgreement(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="Download Agreement"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documents?.invoice && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadInvoice(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Download Invoice"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          )}
           {row.original.remainingAmount > 0 && (
             <button
               onClick={(e) => {
@@ -262,14 +279,24 @@ const RentalTable: React.FC<RentalTableProps> = ({
         </div>
       ),
     },
-    // ... rest of the columns ...
   ];
 
   return (
     <DataTable
-      data={rentals}
+      data={sortedRentals}
       columns={columns}
       onRowClick={(rental) => can('rentals', 'view') && onView(rental)}
+      rowClassName={(rental) => {
+        const isEndingSoon = isWithinInterval(rental.endDate, {
+          start: new Date(),
+          end: addDays(new Date(), 1)
+        });
+        const isConsecutive = isConsecutiveRental(rental);
+        
+        if (isEndingSoon && rental.status === 'active') return 'bg-red-50';
+        if (isConsecutive) return 'bg-yellow-50';
+        return '';
+      }}
     />
   );
 };

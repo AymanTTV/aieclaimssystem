@@ -1,3 +1,5 @@
+// src/components/finance/InvoiceFilters.tsx
+
 import React from 'react';
 import { Search } from 'lucide-react';
 
@@ -24,6 +26,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 }) => {
   return (
     <div className="space-y-4">
+      {/* Search Bar */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
@@ -32,12 +35,14 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search invoices..."
+          placeholder="Search by customer name, invoice number, category or description..."
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
         />
       </div>
 
+      {/* Filter Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {/* Status Filter */}
         <select
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value)}
@@ -45,10 +50,12 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         >
           <option value="all">All Status</option>
           <option value="paid">Paid</option>
-          <option value="unpaid">Unpaid</option>
+          <option value="partially_paid">Partially Paid</option>
+          <option value="pending">Pending</option>
           <option value="overdue">Overdue</option>
         </select>
 
+        {/* Category Filter */}
         <select
           value={categoryFilter}
           onChange={(e) => onCategoryFilterChange(e.target.value)}
@@ -58,9 +65,11 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           <option value="service">Service</option>
           <option value="repair">Repair</option>
           <option value="parts">Parts</option>
+          <option value="rental">Rental</option>
           <option value="other">Other</option>
         </select>
 
+        {/* Date Range Filters */}
         <input
           type="date"
           value={dateRange.start?.toISOString().split('T')[0] || ''}

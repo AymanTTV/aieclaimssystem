@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
-import { MaintenanceLog } from '../types';
+// src/hooks/useMaintenanceFilters.ts
 
-export const useMaintenanceFilters = (logs: MaintenanceLog[]) => {
+import { useState, useMemo } from 'react';
+import { MaintenanceLog, Vehicle } from '../types';
+
+export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<string, Vehicle>) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -9,12 +11,22 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[]) => {
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
+      // Get the vehicle for this log
+      const vehicle = vehicles[log.vehicleId];
+      
       // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        log.description.toLowerCase().includes(searchLower) ||
+        // Search by vehicle registration
+        vehicle?.registrationNumber.toLowerCase().includes(searchLower) ||
+        // Search by vehicle make/model
+        `${vehicle?.make} ${vehicle?.model}`.toLowerCase().includes(searchLower) ||
+        // Search by service provider
         log.serviceProvider.toLowerCase().includes(searchLower) ||
-        log.location.toLowerCase().includes(searchLower);
+        // Search by location
+        log.location.toLowerCase().includes(searchLower) ||
+        // Search by description
+        log.description.toLowerCase().includes(searchLower);
 
       // Status filter
       const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
@@ -27,7 +39,7 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[]) => {
 
       return matchesSearch && matchesStatus && matchesType && matchesVehicle;
     });
-  }, [logs, searchQuery, statusFilter, typeFilter, vehicleFilter]);
+  }, [logs, vehicles, searchQuery, statusFilter, typeFilter, vehicleFilter]);
 
   return {
     searchQuery,

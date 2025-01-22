@@ -1,9 +1,12 @@
 export type VehicleStatus = 
-  | 'hired'
-  | 'maintenance'
-  | 'claims'
   | 'available'
-  | 'sold';
+  | 'hired'
+  | 'scheduled-rental'
+  | 'maintenance'
+  | 'scheduled-maintenance'
+  | 'claim'
+  | 'sold'
+  | 'unavailable';
 
 export interface VehicleOwner {
   name: string;
@@ -19,6 +22,7 @@ export interface Vehicle {
   year: number;
   registrationNumber: string;
   status: VehicleStatus;
+  activeStatuses: VehicleStatus[];
   mileage: number;
   insuranceExpiry: Date;
   motExpiry: Date;
@@ -32,7 +36,6 @@ export interface Vehicle {
   soldDate?: Date;
   salePrice?: number;
   owner: VehicleOwner;
-  // Integer rental prices
   weeklyRentalPrice: number;
   dailyRentalPrice: number;
   claimRentalPrice: number;

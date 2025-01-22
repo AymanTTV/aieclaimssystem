@@ -1,3 +1,6 @@
+import { collection, query, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore'; 
+import { db } from '../lib/firebase';
+
 interface ServiceCenter {
   name: string;
   address: string;
@@ -6,6 +9,42 @@ interface ServiceCenter {
   hourlyRate: number;
   specialties: string[];
 }
+
+let cachedServiceCenters: ServiceCenter[] = [];
+
+// Function to fetch service centers from Firestore
+export const fetchServiceCenters = async (): Promise<ServiceCenter[]> => {
+  const q = query(collection(db, 'serviceCenters'));
+  const snapshot = await getDocs(q);
+  const centers = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as ServiceCenter));
+  
+  // Update cache
+  cachedServiceCenters = centers;
+  return centers;
+};
+
+
+
+// Function to add a new service center
+export const addServiceCenter = async (center: Omit<ServiceCenter, 'id'>): Promise<ServiceCenter> => {
+  const docRef = await addDoc(collection(db, 'serviceCenters'), {
+    ...center,
+    createdAt: new Date()
+  });
+  
+  const newCenter = {
+    id: docRef.id,
+    ...center
+  };
+  
+  // Update cache
+  cachedServiceCenters = [...cachedServiceCenters, newCenter];
+  
+  return newCenter;
+};
 
 export const SERVICE_CENTERS: ServiceCenter[] = [
   // LEVC Service Centers
@@ -70,12 +109,26 @@ export const SERVICE_CENTERS: ServiceCenter[] = [
   }
 ];
 
+// Search function now uses cached data
 export const searchServiceCenters = (query: string): ServiceCenter[] => {
   const searchTerm = query.toLowerCase();
-  return SERVICE_CENTERS.filter(center => 
+  return cachedServiceCenters.filter(center => 
     center.name.toLowerCase().includes(searchTerm) ||
     center.address.toLowerCase().includes(searchTerm) ||
     center.postcode.toLowerCase().includes(searchTerm) ||
     center.specialties.some(specialty => specialty.toLowerCase().includes(searchTerm))
   );
+};
+
+// Add this function
+export const deleteServiceCenter = async (centerId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'serviceCenters', centerId));
+    
+    // Update cache
+    cachedServiceCenters = cachedServiceCenters.filter(center => center.id !== centerId);
+  } catch (error) {
+    console.error('Error deleting service center:', error);
+    throw error;
+  }
 };

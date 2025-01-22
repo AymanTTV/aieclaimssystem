@@ -1,11 +1,10 @@
-// src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
 import { Rental, Vehicle, Customer } from '../types';
 
 export const useRentalFilters = (
-  rentals: Rental[] = [], // Provide default empty array
-  vehicles: Vehicle[] = [], // Provide default empty array  
-  customers: Customer[] = [] // Provide default empty array
+  rentals: Rental[] = [],
+  vehicles: Vehicle[] = [],
+  customers: Customer[] = []
 ) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -36,7 +35,28 @@ export const useRentalFilters = (
         false; // Fallback if no matches
 
       // Status filter
-      const matchesStatus = statusFilter === 'all' || rental.status === statusFilter;
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        switch (statusFilter) {
+          case 'active':
+            matchesStatus = rental.status === 'active';
+            break;
+          case 'scheduled':
+            matchesStatus = rental.status === 'scheduled';
+            break;
+          case 'completed':
+            matchesStatus = rental.status === 'completed';
+            break;
+          case 'cancelled':
+            matchesStatus = rental.status === 'cancelled';
+            break;
+          case 'claim':
+            matchesStatus = rental.reason === 'claim';
+            break;
+          default:
+            matchesStatus = rental.status === statusFilter;
+        }
+      }
 
       // Type filter  
       const matchesType = typeFilter === 'all' || rental.type === typeFilter;

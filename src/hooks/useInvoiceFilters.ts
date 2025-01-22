@@ -1,8 +1,10 @@
+// src/hooks/useInvoiceFilters.ts
+
 import { useState, useMemo } from 'react';
-import { Invoice } from '../types';
+import { Invoice, Customer } from '../types';
 import { isWithinInterval } from 'date-fns';
 
-export const useInvoiceFilters = (invoices: Invoice[]) => {
+export const useInvoiceFilters = (invoices: Invoice[], customers?: Customer[]) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -16,8 +18,15 @@ export const useInvoiceFilters = (invoices: Invoice[]) => {
       // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        invoice.description.toLowerCase().includes(searchLower) ||
-        invoice.category.toLowerCase().includes(searchLower);
+        // Search by invoice number
+        `AIE-INV-${invoice.id.slice(-8)}`.toLowerCase().includes(searchLower) ||
+        // Search by customer name (both direct and through customerId)
+        (invoice.customerName?.toLowerCase().includes(searchLower) || 
+         customers?.find(c => c.id === invoice.customerId)?.name.toLowerCase().includes(searchLower)) ||
+        // Search by category
+        invoice.category.toLowerCase().includes(searchLower) ||
+        // Search by description
+        invoice.description.toLowerCase().includes(searchLower);
 
       // Status filter
       const matchesStatus = statusFilter === 'all' || invoice.paymentStatus === statusFilter;
@@ -36,7 +45,7 @@ export const useInvoiceFilters = (invoices: Invoice[]) => {
 
       return matchesSearch && matchesStatus && matchesCategory && matchesDateRange;
     });
-  }, [invoices, searchQuery, statusFilter, categoryFilter, dateRange]);
+  }, [invoices, customers, searchQuery, statusFilter, categoryFilter, dateRange]);
 
   return {
     searchQuery,

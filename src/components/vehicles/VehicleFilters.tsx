@@ -34,7 +34,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search by registration, make, model, VIN or owner..."
+          placeholder="Search vehicles..."
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
         />
       </div>
@@ -46,9 +46,12 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
       >
         <option value="all">All Status</option>
         <option value="available">Available</option>
-        <option value="hired">Hired/Scheduled</option>
+        <option value="hired">Hired</option>
+        <option value="scheduled-rental">Scheduled for Hire</option>
         <option value="maintenance">Maintenance</option>
-        <option value="claims">Claims</option>
+        <option value="scheduled-maintenance">Scheduled Maintenance</option>
+        <option value="claim">In Claim</option>
+        <option value="unavailable">Unavailable</option>
       </select>
 
       <select

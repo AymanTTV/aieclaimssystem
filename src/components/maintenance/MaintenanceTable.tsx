@@ -5,7 +5,7 @@ import { Eye, Edit, Trash2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { ensureValidDate } from '../../utils/dateHelpers';
+import { isAfter, isBefore } from 'date-fns';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -24,25 +24,27 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 }) => {
   const { can } = usePermissions();
 
-  const calculateVAT = (log: MaintenanceLog) => {
-    // Calculate parts VAT
-    const partsVAT = log.parts.reduce((sum, part) => {
-      const hasVAT = log.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT;
-      if (hasVAT) {
-        return sum + (part.cost * part.quantity * 0.2);
-      }
-      return sum;
-    }, 0);
+  // Sort logs by date
+  const sortedLogs = [...logs].sort((a, b) => {
+    const now = new Date();
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
 
-    // Calculate labor VAT
-    const laborVAT = log.vatDetails?.laborVAT ? log.laborCost * 0.2 : 0;
+    // Helper function to determine if a date is in the future
+    const isFuture = (date: Date) => isAfter(date, now);
 
-    return {
-      partsVAT,
-      laborVAT,
-      totalVAT: partsVAT + laborVAT
-    };
-  };
+    // If both dates are in the future, closest date first
+    if (isFuture(dateA) && isFuture(dateB)) {
+      return dateA.getTime() - dateB.getTime();
+    }
+
+    // If only one date is in the future, it should come first
+    if (isFuture(dateA)) return -1;
+    if (isFuture(dateB)) return 1;
+
+    // If both dates are in the past, most recent first
+    return dateB.getTime() - dateA.getTime();
+  });
 
   const columns = [
     {
@@ -72,16 +74,17 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: 'Date',
       cell: ({ row }) => {
         const log = row.original;
-        const serviceDate = ensureValidDate(log.date);
-        const nextServiceDate = ensureValidDate(log.nextServiceDate);
+        const now = new Date();
+        const maintenanceDate = new Date(log.date);
+        const isFutureDate = isAfter(maintenanceDate, now);
         
         return (
           <div>
-            <div className="text-sm">
-              Service: {formatDate(serviceDate)}
+            <div className={`text-sm ${isFutureDate ? 'text-blue-600 font-medium' : ''}`}>
+              {formatDate(log.date)}
             </div>
             <div className="text-sm text-gray-500">
-              Next: {formatDate(nextServiceDate)}
+              Next: {formatDate(log.nextServiceDate)}
             </div>
           </div>
         );
@@ -109,39 +112,24 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: 'Cost',
       cell: ({ row }) => {
         const log = row.original;
-        const totalCost = log.cost;
-        const paidAmount = log.paidAmount || 0;
-        const remainingAmount = totalCost - paidAmount;
-        
-        // Calculate VAT amounts
-        const { partsVAT, laborVAT, totalVAT } = calculateVAT(log);
-        
-        // Calculate NET amount
-        const netAmount = totalCost - totalVAT;
-    
         return (
           <div>
-            <div className="font-medium">£{totalCost.toFixed(2)}</div>
+            <div className="font-medium">£{log.cost.toFixed(2)}</div>
             <div className="text-xs space-y-0.5">
               <div className="text-gray-600">
-                NET: £{netAmount.toFixed(2)}
+                NET: £{(log.cost / 1.2).toFixed(2)}
               </div>
               <div className="text-gray-600">
-                VAT: £{totalVAT.toFixed(2)}
-              </div>
-              <div className="text-xs text-gray-500">
-                Parts VAT: £{partsVAT.toFixed(2)}
-                <br />
-                Labor VAT: £{laborVAT.toFixed(2)}
+                VAT: £{(log.cost * 0.2).toFixed(2)}
               </div>
             </div>
             <div className="text-xs space-y-0.5 mt-1">
               <div className="text-green-600">
-                Paid: £{paidAmount.toFixed(2)}
+                Paid: £{log.paidAmount.toFixed(2)}
               </div>
-              {remainingAmount > 0 && (
+              {log.remainingAmount > 0 && (
                 <div className="text-amber-600">
-                  Due: £{remainingAmount.toFixed(2)}
+                  Due: £{log.remainingAmount.toFixed(2)}
                 </div>
               )}
             </div>
@@ -196,9 +184,14 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
   return (
     <DataTable
-      data={logs}
+      data={sortedLogs}
       columns={columns}
       onRowClick={(log) => can('maintenance', 'view') && onView(log)}
+      rowClassName={(log) => {
+        const now = new Date();
+        const maintenanceDate = new Date(log.date);
+        return isAfter(maintenanceDate, now) ? 'bg-blue-50' : '';
+      }}
     />
   );
 };
