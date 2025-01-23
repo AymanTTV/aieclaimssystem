@@ -49,9 +49,9 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         <option value="hired">Hired</option>
         <option value="scheduled-rental">Scheduled for Hire</option>
         <option value="maintenance">Maintenance</option>
-        <option value="scheduled-maintenance">Scheduled Maintenance</option>
-        <option value="claim">In Claim</option>
-        <option value="unavailable">Unavailable</option>
+        {/* <option value="scheduled-maintenance">Scheduled Maintenance</option> */}
+        
+        {/* <option value="unavailable">Unavailable</option> */}
       </select>
 
       <select

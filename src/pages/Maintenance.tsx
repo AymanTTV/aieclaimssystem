@@ -1,6 +1,4 @@
-// src/pages/Maintenance.tsx
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
@@ -9,23 +7,19 @@ import MaintenanceTable from '../components/maintenance/MaintenanceTable';
 import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
+import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
 import { exportMaintenanceLogs } from '../utils/maintenanceExport';
-import { MaintenanceLog, Vehicle } from '../types';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { MaintenanceLog } from '../types';
 import toast from 'react-hot-toast';
 
 const Maintenance = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();
-  const [selectedLog, setSelectedLog] = React.useState<MaintenanceLog | null>(null);
-  const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(null);
-  const [showForm, setShowForm] = React.useState(false);
 
-  // Create vehiclesMap first
+  // Create vehiclesMap for efficient lookups
   const vehiclesMap = React.useMemo(() => {
     return vehicles.reduce((acc, vehicle) => {
       acc[vehicle.id] = vehicle;
@@ -33,7 +27,6 @@ const Maintenance = () => {
     }, {} as Record<string, Vehicle>);
   }, [vehicles]);
 
-  // Then use it in the filters
   const {
     searchQuery,
     setSearchQuery,
@@ -46,18 +39,26 @@ const Maintenance = () => {
     filteredLogs,
   } = useMaintenanceFilters(logs, vehiclesMap);
 
+  const [showForm, setShowForm] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<MaintenanceLog | null>(null);
+  const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
+  const [deletingLog, setDeletingLog] = useState<MaintenanceLog | null>(null);
+
   const handleDelete = async (log: MaintenanceLog) => {
     if (!can('maintenance', 'delete')) {
       toast.error('You do not have permission to delete maintenance logs');
       return;
     }
+    setDeletingLog(log);
+  };
 
+  const handleExport = () => {
     try {
-      await deleteDoc(doc(db, 'maintenanceLogs', log.id));
-      toast.success('Maintenance log deleted successfully');
+      exportMaintenanceLogs(logs);
+      toast.success('Maintenance logs exported successfully');
     } catch (error) {
-      console.error('Error deleting maintenance log:', error);
-      toast.error('Failed to delete maintenance log');
+      console.error('Error exporting maintenance logs:', error);
+      toast.error('Failed to export maintenance logs');
     }
   };
 
@@ -77,7 +78,7 @@ const Maintenance = () => {
           {can('maintenance', 'create') && (
             <>
               <button
-                onClick={() => exportMaintenanceLogs(logs)}
+                onClick={handleExport}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 <Download className="h-5 w-5 mr-2" />
@@ -107,14 +108,17 @@ const Maintenance = () => {
         vehicles={vehicles}
       />
 
-      <MaintenanceTable
-        logs={filteredLogs}
-        vehicles={vehiclesMap}
-        onView={setSelectedLog}
-        onEdit={setEditingLog}
-        onDelete={handleDelete}
-      />
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <MaintenanceTable
+          logs={filteredLogs}
+          vehicles={vehiclesMap}
+          onView={setSelectedLog}
+          onEdit={setEditingLog}
+          onDelete={handleDelete}
+        />
+      </div>
 
+      {/* Modals */}
       <Modal
         isOpen={showForm || !!editingLog}
         onClose={() => {
@@ -144,6 +148,19 @@ const Maintenance = () => {
           <MaintenanceDetails
             log={selectedLog}
             vehicle={vehiclesMap[selectedLog.vehicleId]}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!deletingLog}
+        onClose={() => setDeletingLog(null)}
+        title="Delete Maintenance Log"
+      >
+        {deletingLog && (
+          <MaintenanceDeleteModal
+            logId={deletingLog.id}
+            onClose={() => setDeletingLog(null)}
           />
         )}
       </Modal>

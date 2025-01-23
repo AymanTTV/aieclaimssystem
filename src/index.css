@@ -134,3 +134,24 @@
   @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
   transition-colors duration-200;
 }
+
+/* src/index.css */
+
+.signature-canvas {
+  touch-action: none;
+  width: 100% !important;
+  height: 200px !important;
+  background-color: #fff;
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+.signature-canvas canvas {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+

@@ -1,3 +1,5 @@
+// src/components/ui/SignaturePad.tsx
+
 import React, { useRef, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 
@@ -15,6 +17,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
   disabled = false
 }) => {
   const padRef = useRef<SignatureCanvas>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load existing signature if available
   useEffect(() => {
@@ -34,6 +37,31 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
     }
   }, [value]);
 
+  // Resize canvas when container size changes
+  useEffect(() => {
+    const resizeCanvas = () => {
+      if (containerRef.current && padRef.current) {
+        const canvas = padRef.current._canvas;
+        const container = containerRef.current;
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        
+        canvas.width = container.offsetWidth * ratio;
+        canvas.height = 200 * ratio;
+        canvas.style.width = `${container.offsetWidth}px`;
+        canvas.style.height = '200px';
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(ratio, ratio);
+        }
+      }
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
   const clear = () => {
     if (padRef.current) {
       padRef.current.clear();
@@ -41,33 +69,32 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
     }
   };
 
-  // Get current signature data
-  const getSignature = () => {
-    if (padRef.current) {
-      return padRef.current.toDataURL();
-    }
-    return '';
-  };
-
   return (
-    <div className={className}>
-      <SignatureCanvas
-        ref={padRef}
-        canvasProps={{
-          className: `signature-canvas w-full h-48 border border-gray-300 rounded-md ${
-            disabled ? 'opacity-50 pointer-events-none' : ''
-          }`,
-        }}
-        onEnd={() => {
-          const signature = getSignature();
-          onChange(signature);
-        }}
-      />
-      <div className="mt-2 flex justify-end space-x-2">
+    <div className={`w-full ${className}`} ref={containerRef}>
+      <div className="border border-gray-300 rounded-md">
+        <SignatureCanvas
+          ref={padRef}
+          canvasProps={{
+            className: `signature-canvas ${disabled ? 'opacity-50 pointer-events-none' : ''}`,
+            style: {
+              width: '100%',
+              height: '200px',
+              backgroundColor: '#fff'
+            }
+          }}
+          onEnd={() => {
+            if (padRef.current) {
+              const signature = padRef.current.toDataURL();
+              onChange(signature);
+            }
+          }}
+        />
+      </div>
+      <div className="mt-2 flex justify-end">
         <button
           type="button"
           onClick={clear}
-          className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900"
+          className="text-sm text-gray-600 hover:text-gray-900"
         >
           Clear
         </button>

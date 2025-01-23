@@ -1,27 +1,33 @@
+export type SubmitterType = 'company' | 'client';
+
 export interface Claim {
   id: string;
-  accidentId: string;
-  claimDetails: ClaimDetails;
-  status: 'submitted' | 'in-progress' | 'won' | 'lost' | 'settled';
-  type: 'fault' | 'non-fault' | 'pending';
-  assignedTo: string;
-  createdAt: Date;
-  updatedAt: Date;
-  documents: {
-    invoices: ClaimInvoice[];
-    incidentReport?: string;
+  clientRef?: string;
+  submitterType: SubmitterType; // Add this field
+  
+  // Client Information
+  clientInfo: {
+    name: string;
+    phone: string;
+    gender: 'male' | 'female' | 'other';
+    dateOfBirth: Date;
+    nationalInsuranceNumber: string;
+    address: string;
+    email: string;
+    signature?: string;
   };
-  progressNotes: ProgressNote[];
-}
 
-export interface ClaimDetails {
+  // Driver Details
   driverName: string;
   driverAddress: string;
   driverPostCode: string;
-  driverDOB: Date;
-  driverPhone: string;
+  driverDOB: string;
   driverMobile: string;
+  driverEmail: string; // Added email
   driverNIN: string;
+  driverSignature: string; // Added signature
+
+  // Vehicle Details
   registeredKeeperName: string;
   registeredKeeperAddress?: string;
   vehicleMake: string;
@@ -29,67 +35,132 @@ export interface ClaimDetails {
   vehicleVRN: string;
   insuranceCompany: string;
   policyNumber: string;
-  policyExcess?: number;
-  faultPartyName: string;
-  faultPartyAddress?: string;
-  faultPartyPostCode?: string;
-  faultPartyPhone?: string;
-  faultPartyVehicle?: string;
-  faultPartyVRN: string;
-  faultPartyInsurance?: string;
-  accidentDate: Date;
-  accidentTime: string;
-  accidentLocation: string;
-  description: string;
-  damageDetails: string;
-  passengers?: Passenger[];
-  witnessDetails?: Witness;
-  policeDetails?: PoliceDetails;
-  paramedicDetails?: ParamedicDetails;
-}
+  policyExcess?: string;
 
-export interface Passenger {
-  name: string;
-  address: string;
-  postCode: string;
-  dob: Date;
-  contactNumber: string;
-}
+  // Third Party Details
+  thirdParty: {
+    name: string;
+    phone: string;
+    address: string;
+    email: string;
+    registration: string;
+  };
 
-export interface Witness {
-  name: string;
-  address: string;
-  postCode: string;
-  dob: Date;
-  contactNumber: string;
-}
+  // Incident Details
+  incidentDetails: {
+    date: Date;
+    time: string;
+    location: string;
+    description: string;
+    damageDetails: string;
+  };
 
-export interface PoliceDetails {
-  officerName: string;
-  badgeNumber: string;
-  station: string;
-  incidentNumber: string;
-  contactInfo: string;
-}
+  // Passengers (Optional)
+  passengers?: Array<{
+    name: string;
+    phone: string;
+    email: string;
+    gender: 'male' | 'female' | 'other';
+    address: string;
+  }>;
 
-export interface ParamedicDetails {
-  names: string;
-  reference: string;
-  service: string;
-}
+  // Witnesses (Optional)
+  witnesses?: Array<{
+    name: string;
+    phone: string;
+    email: string;
+    address: string;
+  }>;
 
-export interface ClaimInvoice {
-  id: string;
-  type: string;
-  amount: number;
-  date: Date;
-  paid: boolean;
-  document: string;
-}
+  // Police Details (Optional)
+  policeDetails?: {
+    cadNumber?: string;
+    policeStation: string;
+    contactNumber: string;
+    notes?: string;
+  };
 
-export interface ProgressNote {
-  id: string;
-  date: Date;
-  note: string;
-  author: string;
+  // Paramedic Details (Optional)
+  paramedicDetails?: {
+    ambulanceNumber: string;
+    hospital: string;
+    date: Date;
+    time: string;
+    notes?: string;
+  };
+
+  // Evidence & Documents
+  evidence: {
+    images: string[];
+    videos: string[];
+    clientVehiclePhotos: string[];
+    engineerReport: string[];  // Changed to array
+    bankStatement: string[];   // Changed to array
+    adminDocuments: string[];
+  };
+
+  // Hire Details (Optional)
+  hireDetails?: {
+    startDate: Date;
+    startTime: string;
+    endDate: Date;
+    endTime: string;
+    vehicle: {
+      make: string;
+      model: string;
+      registration: string;
+      claimRate: number;
+    };
+  };
+
+  // Recovery Details (Optional)
+  recovery?: {
+    date: Date;
+    locationPickup: string;
+    locationDropoff: string;
+    cost: number;
+  };
+
+  // Storage Details (Optional)
+  storage?: {
+    startDate: Date;
+    endDate: Date;
+    costPerDay: number;
+    totalCost: number;
+  };
+
+  // File Handlers
+  fileHandlers: {
+    aieHandler: string;
+    legalHandler: string;
+  };
+
+  // Status History
+  statusHistory: Array<{
+    status: string;
+    description: string;
+    date: Date;
+  }>;
+
+  // Generated Documents
+  documents?: {
+    conditionOfHire?: string;
+    creditHireMitigation?: string;
+    noticeOfRightToCancel?: string;
+    creditStorageAndRecovery?: string;
+    hireAgreement?: string;
+    satisfactionNotice?: string;
+  };
+
+  // Claim Details
+  claimType: ClaimType;
+  claimReason: ClaimReason;
+  caseProgress: CaseProgress;
+  progress: ClaimProgress;
+
+  // System Fields
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+  updatedBy: string;
 }

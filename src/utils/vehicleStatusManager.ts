@@ -1,38 +1,229 @@
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
+import toast from 'react-hot-toast';
 
-export const checkAndUpdateVehicleStatus = async (vehicleId: string) => {
+
+export const updateVehicleStatus = async (
+  vehicleId: string,
+  newStatus: Vehicle['status'],
+  reason?: string
+): Promise<boolean> => {
   try {
-    // Check active rentals
+    const vehicleRef = doc(db, 'vehicles', vehicleId);
+    
+    await updateDoc(vehicleRef, {
+      status: newStatus,
+      statusReason: reason || null,
+      updatedAt: new Date()
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating vehicle status:', error);
+    toast.error('Failed to update vehicle status');
+    return false;
+  }
+};
+
+export const syncVehicleStatuses = async () => {
+  try {
+    // Get all vehicles
+    const vehiclesRef = collection(db, 'vehicles');
+    const vehiclesSnapshot = await getDocs(vehiclesRef);
+    
+    // Get all active and scheduled rentals
+    const rentalsRef = collection(db, 'rentals');
+    const rentalsQuery = query(rentalsRef, 
+      where('status', 'in', ['active', 'scheduled'])
+    );
+    const rentalsSnapshot = await getDocs(rentalsQuery);
+    
+    // Create a map of vehicle IDs to their rental status
+    const rentalStatusMap = new Map();
+    rentalsSnapshot.forEach(doc => {
+      const rental = doc.data();
+      rentalStatusMap.set(rental.vehicleId, rental.status);
+    });
+
+    // Update each vehicle's status
+    const batch = writeBatch(db);
+    
+    vehiclesSnapshot.forEach(doc => {
+      const vehicle = doc.data();
+      const rentalStatus = rentalStatusMap.get(doc.id);
+      
+      // If vehicle shows as rented/scheduled but has no active rental
+      if ((vehicle.status === 'rented' || vehicle.status === 'scheduled-rental') && !rentalStatus) {
+        batch.update(doc.ref, {
+          status: 'available',
+          activeStatuses: [],
+          updatedAt: new Date()
+        });
+      }
+      // If vehicle has an active rental but shows wrong status
+      else if (rentalStatus && vehicle.status !== (rentalStatus === 'active' ? 'rented' : 'scheduled-rental')) {
+        batch.update(doc.ref, {
+          status: rentalStatus === 'active' ? 'rented' : 'scheduled-rental',
+          activeStatuses: [rentalStatus === 'active' ? 'rented' : 'scheduled-rental'],
+          updatedAt: new Date()
+        });
+      }
+    });
+
+    await batch.commit();
+    toast.success('Vehicle statuses synchronized successfully');
+  } catch (error) {
+    console.error('Error syncing vehicle statuses:', error);
+    toast.error('Failed to sync vehicle statuses');
+  }
+};
+
+
+/**
+ * Add a status to a vehicle's active statuses
+ */
+export const addVehicleStatus = async (
+  vehicleId: string,
+  status: Vehicle['status'],
+  currentStatuses: Vehicle['status'][]
+) => {
+  try {
+    const vehicleRef = doc(db, 'vehicles', vehicleId);
+    const updatedStatuses = Array.from(new Set([...currentStatuses, status]));
+    
+    // Determine primary status based on priority
+    let primaryStatus: Vehicle['status'] = 'available';
+    
+    // Priority order: maintenance > rented > scheduled-maintenance > scheduled-rental
+    if (updatedStatuses.includes('maintenance')) {
+      primaryStatus = 'maintenance';
+    } else if (updatedStatuses.includes('rented')) {
+      primaryStatus = 'rented';
+    } else if (updatedStatuses.includes('scheduled-maintenance')) {
+      primaryStatus = 'scheduled-maintenance';
+    } else if (updatedStatuses.includes('scheduled-rental')) {
+      primaryStatus = 'scheduled-rental';
+    } else if (updatedStatuses.includes('claim')) {
+      primaryStatus = 'claim';
+    } else if (updatedStatuses.includes('sold')) {
+      primaryStatus = 'sold';
+    }
+
+    await updateDoc(vehicleRef, {
+      status: primaryStatus,
+      activeStatuses: updatedStatuses,
+      updatedAt: new Date()
+    });
+
+  } catch (error) {
+    console.error('Error adding vehicle status:', error);
+    toast.error('Failed to update vehicle status');
+  }
+};
+
+/**
+ * Remove a status from a vehicle's active statuses
+ */
+export const removeVehicleStatus = async (
+  vehicleId: string,
+  status: Vehicle['status'],
+  currentStatuses: Vehicle['status'][]
+) => {
+  try {
+    const vehicleRef = doc(db, 'vehicles', vehicleId);
+    const updatedStatuses = currentStatuses.filter(s => s !== status);
+    
+    // Determine new primary status
+    let primaryStatus: Vehicle['status'] = 'available';
+    
+    // Maintain same priority order when removing statuses
+    if (updatedStatuses.includes('maintenance')) {
+      primaryStatus = 'maintenance';
+    } else if (updatedStatuses.includes('rented')) {
+      primaryStatus = 'rented';
+    } else if (updatedStatuses.includes('scheduled-maintenance')) {
+      primaryStatus = 'scheduled-maintenance';
+    } else if (updatedStatuses.includes('scheduled-rental')) {
+      primaryStatus = 'scheduled-rental';
+    } else if (updatedStatuses.includes('claim')) {
+      primaryStatus = 'claim';
+    } else if (updatedStatuses.includes('sold')) {
+      primaryStatus = 'sold';
+    }
+
+    await updateDoc(vehicleRef, {
+      status: primaryStatus,
+      activeStatuses: updatedStatuses,
+      updatedAt: new Date()
+    });
+
+  } catch (error) {
+    console.error('Error removing vehicle status:', error);
+    toast.error('Failed to update vehicle status');
+  }
+};
+
+export const resetAllVehicleStatuses = async (vehicles: Vehicle[]) => {
+  try {
+    for (const vehicle of vehicles) {
+      await checkVehicleStatus(vehicle.id);
+    }
+    toast.success('Vehicle statuses updated successfully');
+  } catch (error) {
+    console.error('Error resetting vehicle statuses:', error);
+    toast.error('Failed to reset vehicle statuses');
+  }
+};
+
+
+/**
+ * Check and update vehicle status based on active rentals and maintenance
+ */
+export const checkVehicleStatus = async (vehicleId: string): Promise<Vehicle['status']> => {
+  try {
+    // Only check for ACTIVE or SCHEDULED records
     const rentalsQuery = query(
       collection(db, 'rentals'),
       where('vehicleId', '==', vehicleId),
       where('status', 'in', ['active', 'scheduled'])
     );
-    const rentalDocs = await getDocs(rentalsQuery);
+    const rentalSnapshot = await getDocs(rentalsQuery);
 
-    // Check maintenance
     const maintenanceQuery = query(
       collection(db, 'maintenanceLogs'),
       where('vehicleId', '==', vehicleId),
       where('status', 'in', ['in-progress', 'scheduled'])
     );
-    const maintenanceDocs = await getDocs(maintenanceQuery);
+    const maintenanceSnapshot = await getDocs(maintenanceQuery);
 
-    // Determine active statuses
-    const activeStatuses: string[] = [];
+    // If no active records are found, the vehicle should be available
+    if (rentalSnapshot.empty && maintenanceSnapshot.empty) {
+      const vehicleRef = doc(db, 'vehicles', vehicleId);
+      await updateDoc(vehicleRef, {
+        status: 'available',
+        activeStatuses: [],
+        updatedAt: new Date()
+      });
+      return 'available';
+    }
 
-    rentalDocs.forEach(doc => {
+    // Collect all active statuses
+    const activeStatuses: Vehicle['status'][] = [];
+
+    // Process rental statuses
+    rentalSnapshot.forEach(doc => {
       const rental = doc.data();
       if (rental.status === 'active') {
-        activeStatuses.push('hired');
+        activeStatuses.push('rented');
       } else if (rental.status === 'scheduled') {
         activeStatuses.push('scheduled-rental');
       }
     });
 
-    maintenanceDocs.forEach(doc => {
+    // Process maintenance statuses
+    maintenanceSnapshot.forEach(doc => {
       const maintenance = doc.data();
       if (maintenance.status === 'in-progress') {
         activeStatuses.push('maintenance');
@@ -41,27 +232,56 @@ export const checkAndUpdateVehicleStatus = async (vehicleId: string) => {
       }
     });
 
-    // Update vehicle status
+    // Determine primary status based on priority
+    let primaryStatus: Vehicle['status'] = 'available';
+    if (activeStatuses.includes('maintenance')) {
+      primaryStatus = 'maintenance';
+    } else if (activeStatuses.includes('rented')) {
+      primaryStatus = 'rented';
+    } else if (activeStatuses.includes('scheduled-maintenance')) {
+      primaryStatus = 'scheduled-maintenance';
+    } else if (activeStatuses.includes('scheduled-rental')) {
+      primaryStatus = 'scheduled-rental';
+    }
+
+    // Update vehicle document
     const vehicleRef = doc(db, 'vehicles', vehicleId);
     await updateDoc(vehicleRef, {
-      status: getEffectiveStatus(activeStatuses),
+      status: primaryStatus,
       activeStatuses,
       updatedAt: new Date()
     });
 
+    return primaryStatus;
   } catch (error) {
     console.error('Error checking vehicle status:', error);
+    toast.error('Failed to check vehicle status');
+    return 'available';
   }
 };
 
-// Helper function to determine effective status
-const getEffectiveStatus = (statuses: string[]): Vehicle['status'] => {
-  if (statuses.includes('maintenance')) return 'maintenance';
-  if (statuses.includes('hired')) return 'hired';
-  if (statuses.includes('scheduled-maintenance')) return 'scheduled-maintenance';
-  if (statuses.includes('scheduled-rental')) return 'scheduled-rental';
-  if (statuses.includes('claim')) return 'claim';
-  if (statuses.includes('sold')) return 'sold';
-  if (statuses.includes('unavailable')) return 'unavailable';
-  return 'available';
+
+/**
+ * Reset vehicle status to available
+ */
+export const resetVehicleStatus = async (vehicleId: string): Promise<void> => {
+  try {
+    const vehicleRef = doc(db, 'vehicles', vehicleId);
+    await updateDoc(vehicleRef, {
+      status: 'available',
+      activeStatuses: [],
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Error resetting vehicle status:', error);
+    toast.error('Failed to reset vehicle status');
+  }
 };
+
+// Export all functions
+// export {
+//   addVehicleStatus,
+//   removeVehicleStatus,
+//   checkVehicleStatus,
+//   resetVehicleStatus
+// };

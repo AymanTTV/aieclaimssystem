@@ -1,7 +1,9 @@
+// src/hooks/useAvailableVehicles.ts
+
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Vehicle, Rental } from '../types';
+import { Vehicle } from '../types';
 import { addDays, isBefore, isAfter, format } from 'date-fns';
 
 interface VehicleAvailability extends Vehicle {
@@ -19,82 +21,89 @@ export const useAvailableVehicles = (
 
   useEffect(() => {
     const fetchAvailability = async () => {
-      try {
-        // Query for rentals that are active or completed
-        const rentalsQuery = query(
-          collection(db, 'rentals'),
-          where('status', 'in', ['active', 'completed'])
-        );
-        const rentalSnapshot = await getDocs(rentalsQuery);
+  try {
+    // Filter vehicles first to only include available and completed rentals
+    const availableVehicles = vehicles.filter(vehicle => 
+      // Only include vehicles that are:
+      // 1. Currently available
+      vehicle.status === 'available' ||
+      // 2. Have completed rentals with an availability date
+      (vehicle.status === 'completed' && vehicle.availableFrom)
+    );
 
-        // Map rentals to their respective vehicles
-        const vehicleRentals = new Map<string, Rental[]>();
-        rentalSnapshot.forEach((doc) => {
-          const data = doc.data();
-          const rental = {
-            ...data,
-            id: doc.id,
-            startDate: data.startDate?.toDate(),
-            endDate: data.endDate?.toDate(),
-          } as Rental;
+    // Query for active and scheduled rentals
+    const rentalsQuery = query(
+      collection(db, 'rentals'),
+      where('status', 'in', ['active', 'scheduled'])
+    );
 
-          if (rental.startDate && rental.endDate) {
-            const rentals = vehicleRentals.get(rental.vehicleId) || [];
-            rentals.push(rental);
-            vehicleRentals.set(rental.vehicleId, rentals);
-          }
-        });
+    const rentalSnapshot = await getDocs(rentalsQuery);
 
-        // Process vehicle availability
-        const available = vehicles
-          .filter(
-            (vehicle) =>
-              vehicle.status === 'available' || vehicle.status === 'completed'
-          )
-          .map((vehicle) => {
-            const rentals = vehicleRentals.get(vehicle.id) || [];
-            const now = new Date();
+    // Map of vehicle IDs to their unavailable periods
+    const unavailablePeriods = new Map<string, Array<{ start: Date; end: Date }>>();
 
-            // Find the most recent completed rental
-            const recentCompletedRental = rentals
-              .filter((r) => r.status === 'completed')
-              .sort(
-                (a, b) =>
-                  new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
-              )[0];
+    // Process rentals
+    rentalSnapshot.forEach(doc => {
+      const rental = doc.data();
+      const periods = unavailablePeriods.get(rental.vehicleId) || [];
+      periods.push({
+        start: rental.startDate.toDate(),
+        end: rental.endDate.toDate()
+      });
+      unavailablePeriods.set(rental.vehicleId, periods);
+    });
 
-            let message = undefined;
-            let availableFrom = now;
+    // Filter and process vehicles
+    const available = availableVehicles
+      .map(vehicle => {
+        // For completed rentals, show availability date
+        if (vehicle.status === 'completed' && vehicle.availableFrom) {
+          return {
+            ...vehicle,
+            availableFrom: vehicle.availableFrom,
+            message: `Available from ${format(vehicle.availableFrom, 'dd/MM/yyyy')}`
+          };
+        }
 
-            // Display "Will be available at" message only for completed rentals
-            if (recentCompletedRental) {
-              const endDate = new Date(recentCompletedRental.endDate);
-              message = `Will be available at ${format(endDate, 'dd/MM/yyyy')}`;
-              availableFrom = endDate;
+        // For currently available vehicles
+        if (vehicle.status === 'available') {
+          const periods = unavailablePeriods.get(vehicle.id) || [];
+          
+          // If dates are specified, check for conflicts
+          if (startDate && endDate) {
+            const hasConflict = periods.some(period => 
+              !(isAfter(startDate, period.end) || isBefore(endDate, period.start))
+            );
+
+            if (hasConflict) {
+              return null; // Vehicle not available for requested period
             }
+          }
 
-            return {
-              ...vehicle,
-              availableFrom,
-              message,
-            };
-          })
-          .filter((vehicle) => {
-            // If no date range is specified, include all available vehicles
-            if (!startDate || !endDate) return true;
+          return {
+            ...vehicle,
+            availableFrom: new Date(),
+            message: 'Available now'
+          };
+        }
 
-            // Check if the vehicle is available during the requested date range
-            const vehicleAvailableFrom = vehicle.availableFrom || new Date();
-            return isBefore(vehicleAvailableFrom, startDate);
-          });
+        return null;
+      })
+      .filter((v): v is VehicleAvailability => v !== null)
+      .sort((a, b) => {
+        // Sort available vehicles first, then by availability date
+        if (a.status === 'available' && b.status !== 'available') return -1;
+        if (a.status !== 'available' && b.status === 'available') return 1;
+        return a.availableFrom.getTime() - b.availableFrom.getTime();
+      });
 
-        setAvailableVehicles(available);
-      } catch (error) {
-        console.error('Error fetching vehicle availability:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setAvailableVehicles(available);
+  } catch (error) {
+    console.error('Error fetching vehicle availability:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
     fetchAvailability();
   }, [vehicles, startDate, endDate]);

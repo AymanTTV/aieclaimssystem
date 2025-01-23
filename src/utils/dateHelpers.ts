@@ -1,4 +1,4 @@
-import { format, isValid, parseISO, addDays } from 'date-fns';
+import { format, isValid, parseISO, addDays, isBefore, isAfter, differenceInDays, startOfDay, endOfDay } from 'date-fns';
 
 // Common date formats
 export const DATE_FORMATS = {
@@ -6,7 +6,10 @@ export const DATE_FORMATS = {
   DISPLAY_WITH_TIME: 'dd/MM/yyyy HH:mm',
   INPUT: 'yyyy-MM-dd',
   ISO: "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
-  TIME: 'HH:mm'
+  TIME: 'HH:mm',
+  MONTH_YEAR: 'MMM yyyy',
+  SHORT_DATE: 'dd MMM',
+  FULL_DATE_TIME: 'dd MMM yyyy HH:mm'
 } as const;
 
 /**
@@ -53,14 +56,14 @@ export const ensureValidDate = (value: any): Date => {
  * Format a date for display
  */
 export const formatDate = (date: Date | string | null | undefined, includeTime = false): string => {
-  if (!date) return 'Not set';
+  if (!date) return 'N/A';
 
   try {
     const validDate = ensureValidDate(date);
     return format(validDate, includeTime ? DATE_FORMATS.DISPLAY_WITH_TIME : DATE_FORMATS.DISPLAY);
   } catch (error) {
     console.error('Error formatting date:', error);
-    return 'Invalid date';
+    return 'N/A';
   }
 };
 
@@ -84,7 +87,7 @@ export const formatDateForInput = (date: Date | string | undefined | null): stri
  */
 export const isExpired = (date: Date | null | undefined): boolean => {
   if (!date) return false;
-  return new Date() > ensureValidDate(date);
+  return isAfter(new Date(), ensureValidDate(date));
 };
 
 /**
@@ -94,7 +97,7 @@ export const isExpiringSoon = (date: Date | null | undefined, days = 30): boolea
   if (!date) return false;
   const validDate = ensureValidDate(date);
   const warningDate = addDays(new Date(), days);
-  return validDate <= warningDate;
+  return isBefore(validDate, warningDate) && !isExpired(validDate);
 };
 
 /**
@@ -102,4 +105,74 @@ export const isExpiringSoon = (date: Date | null | undefined, days = 30): boolea
  */
 export const getDefaultExpiryDate = (): Date => {
   return addDays(new Date(), 365);
+};
+
+/**
+ * Calculate days between two dates
+ */
+export const getDaysBetween = (startDate: Date, endDate: Date): number => {
+  return differenceInDays(endOfDay(endDate), startOfDay(startDate));
+};
+
+/**
+ * Format a date range
+ */
+export const formatDateRange = (startDate: Date, endDate: Date): string => {
+  if (format(startDate, 'MM/yyyy') === format(endDate, 'MM/yyyy')) {
+    return `${format(startDate, 'dd')} - ${format(endDate, DATE_FORMATS.DISPLAY)}`;
+  }
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+};
+
+/**
+ * Parse a date string safely
+ */
+export const parseDateSafe = (dateString: string): Date | null => {
+  try {
+    const parsed = parseISO(dateString);
+    return isValid(parsed) ? parsed : null;
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return null;
+  }
+};
+
+/**
+ * Get start of business day
+ */
+export const getStartOfBusinessDay = (date: Date = new Date()): Date => {
+  const businessStart = new Date(date);
+  businessStart.setHours(9, 0, 0, 0);
+  return businessStart;
+};
+
+/**
+ * Get end of business day
+ */
+export const getEndOfBusinessDay = (date: Date = new Date()): Date => {
+  const businessEnd = new Date(date);
+  businessEnd.setHours(17, 0, 0, 0);
+  return businessEnd;
+};
+
+/**
+ * Check if date is within business hours
+ */
+export const isWithinBusinessHours = (date: Date = new Date()): boolean => {
+  const hours = date.getHours();
+  return hours >= 9 && hours < 17;
+};
+
+/**
+ * Format time only
+ */
+export const formatTime = (date: Date | string | null | undefined): string => {
+  if (!date) return 'N/A';
+  try {
+    const validDate = ensureValidDate(date);
+    return format(validDate, DATE_FORMATS.TIME);
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return 'N/A';
+  }
 };

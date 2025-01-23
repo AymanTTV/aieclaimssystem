@@ -1,7 +1,10 @@
+// src/components/pdf/RentalInvoice.tsx
+
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format, isValid } from 'date-fns';
+import { format } from 'date-fns';
+import logo from '../../assets/logo.png';
 
 const styles = StyleSheet.create({
   page: {
@@ -9,12 +12,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   header: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+  },
+  logo: {
+    width: 120,
+    height: 'auto',
+  },
+  companyInfo: {
+    textAlign: 'right',
   },
   title: {
-    fontSize: 20,
-    marginBottom: 10,
+    fontSize: 24,
+    marginBottom: 20,
     textAlign: 'center',
+    color: '#374151',
+    borderBottom: '1 solid #E5E7EB',
+    paddingBottom: 10,
   },
   section: {
     marginBottom: 15,
@@ -47,10 +62,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     paddingBottom: 5,
     marginBottom: 5,
+    backgroundColor: '#F9FAFB',
   },
   tableRow: {
     flexDirection: 'row',
     paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   col1: { width: '40%' },
   col2: { width: '20%' },
@@ -73,9 +91,26 @@ const styles = StyleSheet.create({
   }
 });
 
-const formatDateTime = (date: Date | null | undefined): string => {
-  if (!date || !isValid(date)) return 'N/A';
-  return format(date, 'dd/MM/yyyy HH:mm');
+// Function to generate invoice number
+const generateInvoiceNumber = (id: string): string => {
+  // Get last 3 characters of ID and pad with zeros if needed
+  const number = id.slice(-3).padStart(3, '0');
+  return `AIE-INV-${number}`;
+};
+
+const formatPDFDate = (date: Date | string | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+      return 'N/A';
+    }
+    return format(dateObj, 'dd/MM/yyyy');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'N/A';
+  }
 };
 
 const RentalInvoice: React.FC<{
@@ -83,105 +118,125 @@ const RentalInvoice: React.FC<{
   vehicle: Vehicle;
   customer: Customer;
   companyDetails: any;
-}> = ({ rental, vehicle, customer, companyDetails }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>INVOICE</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Invoice No:</Text>
-          <Text style={styles.value}>INV-{rental.id.slice(-8).toUpperCase()}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Date:</Text>
-          <Text style={styles.value}>{formatDateTime(rental.createdAt)}</Text>
-        </View>
-      </View>
+}> = ({ rental, vehicle, customer, companyDetails }) => {
+  // Helper function to format dates
+  const formatPDFDate = (date: Date | string | null | undefined): string => {
+    if (!date) return 'N/A';
+    
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+        return 'N/A';
+      }
+      return format(dateObj, 'dd/MM/yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
+  };
 
-      {/* Bill To Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bill To</Text>
-        <Text>{customer.name}</Text>
-        <Text>{customer.address}</Text>
-        <Text>{customer.mobile}</Text>
-      </View>
+  // Generate invoice number
+  const generateInvoiceNumber = (id: string): string => {
+    const number = id.slice(-3).padStart(3, '0');
+    return `AIE-INV-${number}`;
+  };
 
-      {/* Rental Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Rental Details</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Vehicle:</Text>
-          <Text style={styles.value}>{vehicle.make} {vehicle.model}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Registration:</Text>
-          <Text style={styles.value}>{vehicle.registrationNumber}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Period:</Text>
-          <Text style={styles.value}>
-            {formatDateTime(rental.startDate)} - {formatDateTime(rental.endDate)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Charges Table */}
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={styles.col1}>Description</Text>
-          <Text style={styles.col2}>Duration</Text>
-          <Text style={styles.col3}>Rate</Text>
-          <Text style={styles.col4}>Amount</Text>
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Image src={logo} style={styles.logo} />
+          <View style={styles.companyInfo}>
+            <Text>{companyDetails.fullName}</Text>
+            <Text>{companyDetails.officialAddress}</Text>
+            <Text>Tel: {companyDetails.phone}</Text>
+            <Text>Email: {companyDetails.email}</Text>
+            <Text>VAT No: {companyDetails.vatNumber}</Text>
+          </View>
         </View>
 
-        <View style={styles.tableRow}>
-          <Text style={styles.col1}>Vehicle Rental</Text>
-          <Text style={styles.col2}>
-            {rental.type === 'weekly' ? `${rental.numberOfWeeks} weeks` : 'Daily'}
-          </Text>
-          <Text style={styles.col3}>
-            £{(rental.cost / (rental.type === 'weekly' ? rental.numberOfWeeks : 1)).toFixed(2)}
-          </Text>
-          <Text style={styles.col4}>£{rental.cost.toFixed(2)}</Text>
+        {/* Invoice Title and Number */}
+        <View style={styles.section}>
+          <Text style={styles.title}>INVOICE</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Invoice Number:</Text>
+            <Text style={styles.value}>{generateInvoiceNumber(rental.id)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Date:</Text>
+            <Text style={styles.value}>{formatPDFDate(rental.createdAt)}</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Payment Summary */}
-      <View style={styles.total}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Total Amount:</Text>
-          <Text style={styles.value}>£{rental.cost.toFixed(2)}</Text>
+        {/* Bill To Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bill To</Text>
+          <Text>{customer.name}</Text>
+          <Text>{customer.address}</Text>
+          <Text>{customer.mobile}</Text>
+          <Text>{customer.email}</Text>
         </View>
-        {rental.paidAmount > 0 && (
-          <>
-            <View style={styles.row}>
-              <Text style={styles.label}>Amount Paid:</Text>
-              <Text style={styles.value}>£{rental.paidAmount.toFixed(2)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Balance Due:</Text>
-              <Text style={styles.value}>£{(rental.cost - rental.paidAmount).toFixed(2)}</Text>
-            </View>
-          </>
-        )}
-      </View>
 
-      {/* Payment Instructions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payment Details</Text>
-        <Text>Bank: {companyDetails.bankName}</Text>
-        <Text>Sort Code: {companyDetails.sortCode}</Text>
-        <Text>Account Number: {companyDetails.accountNumber}</Text>
-        <Text>Reference: INV-{rental.id.slice(-8).toUpperCase()}</Text>
-      </View>
+        {/* Rental Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Rental Details</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Vehicle:</Text>
+            <Text style={styles.value}>{vehicle.make} {vehicle.model}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Registration:</Text>
+            <Text style={styles.value}>{vehicle.registrationNumber}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Period:</Text>
+            <Text style={styles.value}>
+              {formatPDFDate(rental.startDate)} - {formatPDFDate(rental.endDate)}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Type:</Text>
+            <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
+          </View>
+        </View>
 
-      {/* Footer */}
-      <Text style={styles.footer}>
-        Thank you for your business. Please ensure all payments are made within our standard payment terms.
-      </Text>
-    </Page>
-  </Document>
-);
+        {/* Payment Summary */}
+        <View style={styles.total}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Total Amount:</Text>
+            <Text style={styles.value}>£{rental.cost.toFixed(2)}</Text>
+          </View>
+          {rental.paidAmount > 0 && (
+            <>
+              <View style={styles.row}>
+                <Text style={styles.label}>Amount Paid:</Text>
+                <Text style={styles.value}>£{rental.paidAmount.toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Balance Due:</Text>
+                <Text style={styles.value}>£{rental.remainingAmount.toFixed(2)}</Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Payment Instructions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Details</Text>
+          <Text>Bank: {companyDetails.bankName}</Text>
+          <Text>Sort Code: {companyDetails.sortCode}</Text>
+          <Text>Account Number: {companyDetails.accountNumber}</Text>
+          <Text>Reference: {generateInvoiceNumber(rental.id)}</Text>
+        </View>
+
+        {/* Footer */}
+        <Text style={styles.footer}>
+          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
+        </Text>
+      </Page>
+    </Document>
+  );
+};
 
 export default RentalInvoice;

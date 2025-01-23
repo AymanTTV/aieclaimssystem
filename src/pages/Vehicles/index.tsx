@@ -11,12 +11,13 @@ import VehicleSaleModal from '../../components/vehicles/VehicleSaleModal';
 import VehicleUndoSaleModal from '../../components/vehicles/VehicleUndoSaleModal';
 import VehicleDeleteModal from '../../components/vehicles/VehicleDeleteModal';
 import VehicleHeader from '../../components/vehicles/VehicleHeader';
-import { useVehicleStatusUpdates } from '../../hooks/useVehicleStatusUpdates';
+import { useVehicleStatusManager } from '../../hooks/useVehicleStatusManager';
+
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
   const { can } = usePermissions();
-  useVehicleStatusUpdates(); // Add this hook to handle status updates
+  useVehicleStatusManager(); // Add this hook to manage real-time status updates
 
   const {
     searchQuery,

@@ -8,7 +8,8 @@ import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import SignaturePad from '../ui/SignaturePad';
-import { addWeeks, isMonday, nextMonday, format } from 'date-fns';
+import { addWeeks, isMonday, nextMonday, format, addDays } from 'date-fns';
+
 import toast from 'react-hot-toast';
 import { Search, Car } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
@@ -56,24 +57,28 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
   // Update end date when type or number of weeks changes
   useEffect(() => {
-    if (formData.type === 'weekly' && formData.startDate) {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      let endDateTime;
+  if (formData.type === 'weekly' && formData.startDate) {
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    let endDateTime;
 
-      if (!isMonday(startDateTime)) {
-        const firstMonday = nextMonday(startDateTime);
-        endDateTime = addWeeks(firstMonday, formData.numberOfWeeks - 1);
-      } else {
-        endDateTime = addWeeks(startDateTime, formData.numberOfWeeks);
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        endDate: endDateTime.toISOString().split('T')[0],
-        endTime: formData.startTime
-      }));
+    if (!isMonday(startDateTime)) {
+      // Calculate days until next Monday
+      const firstMonday = nextMonday(startDateTime);
+      // Add (numberOfWeeks - 1) * 7 days to the first Monday
+      endDateTime = addDays(firstMonday, (formData.numberOfWeeks - 1) * 7);
+    } else {
+      // If starting on Monday, simply add numberOfWeeks * 7 days
+      endDateTime = addDays(startDateTime, formData.numberOfWeeks * 7);
     }
-  }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
+    setFormData(prev => ({
+      ...prev,
+      endDate: endDateTime.toISOString().split('T')[0],
+      endTime: formData.startTime
+    }));
+  }
+}, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
 
   // Filter vehicles based on search and availability
   const filteredVehicles = availableVehicles.filter(vehicle => {
@@ -187,13 +192,19 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       // Generate and upload documents
       const selectedCustomer = customers.find(c => c.id === formData.customerId);
       if (selectedVehicle && selectedCustomer) {
+      try {
         const documents = await generateRentalDocuments(
           { id: docRef.id, ...rentalData },
           selectedVehicle,
           selectedCustomer
         );
         await uploadRentalDocuments(docRef.id, documents);
+      } catch (error) {
+        console.error('Error generating documents:', error);
+        // Don't fail the entire rental creation if document generation fails
+        toast.error('Rental created but document generation failed');
       }
+    }
 
       toast.success('Rental created successfully');
       onClose();
@@ -231,55 +242,45 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         {/* Vehicle Search Results */}
 {/* Vehicle Search Results */}
 {showVehicleResults && formData.startDate && (
-  <div
-    className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm"
-  >
+  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
     {loadingVehicles ? (
       <div className="px-4 py-2 text-sm text-gray-500">Loading vehicles...</div>
     ) : filteredVehicles.length > 0 ? (
-      filteredVehicles.map((vehicle) => {
-        const isCurrentlyAvailable = vehicle.status === 'available';
-        const availableFromDate = vehicle.availableFrom && new Date(vehicle.availableFrom);
-        const showAvailabilityInfo = !isCurrentlyAvailable && availableFromDate;
-
-        return (
-          <div
-            key={vehicle.id}
-            className={`cursor-pointer hover:bg-gray-100 px-4 py-2 ${
-              !isCurrentlyAvailable && 'border-l-4 border-amber-500'
-            }`}
-            onClick={() => {
-              setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
-              setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
-              setShowVehicleResults(false);
-            }}
-          >
-            <div className="flex items-center">
-              <Car className="h-5 w-5 text-gray-400 mr-2" />
-              <div>
-                <div className="font-medium">{vehicle.make} {vehicle.model}</div>
-                <div className="text-sm text-gray-500">
-                  {vehicle.registrationNumber}
-                  {vehicle.weeklyRentalPrice && ` - £${vehicle.weeklyRentalPrice}/week`}
-                </div>
-                {showAvailabilityInfo && (
-                  <div className="text-xs text-amber-600 mt-1">
-                    Available from {format(availableFromDate, 'dd/MM/yyyy')}
-                  </div>
-                )}
-                {vehicle.message && ( // Display the message with yellow color
-                  <div className="text-xs text-yellow-500 mt-1">{vehicle.message}</div>
-                )}
+      filteredVehicles.map((vehicle) => (
+        <div
+          key={vehicle.id}
+          className={`cursor-pointer hover:bg-gray-100 px-4 py-2 ${
+            vehicle.status === 'completed' ? 'border-l-4 border-amber-500' : ''
+          }`}
+          onClick={() => {
+            setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
+            setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
+            setShowVehicleResults(false);
+          }}
+        >
+          <div className="flex items-center">
+            <Car className="h-5 w-5 text-gray-400 mr-2" />
+            <div>
+              <div className="font-medium">{vehicle.make} {vehicle.model}</div>
+              <div className="text-sm text-gray-500">
+                {vehicle.registrationNumber}
+                {vehicle.weeklyRentalPrice && ` - £${vehicle.weeklyRentalPrice}/week`}
               </div>
+              {vehicle.message && (
+                <div className="text-xs text-amber-600 mt-1">
+                  {vehicle.message}
+                </div>
+              )}
             </div>
           </div>
-        );
-      })
+        </div>
+      ))
     ) : (
       <div className="px-4 py-2 text-sm text-gray-500">No available vehicles found</div>
     )}
   </div>
 )}
+
 
 
 

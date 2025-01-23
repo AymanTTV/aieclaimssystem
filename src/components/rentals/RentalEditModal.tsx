@@ -1,3 +1,5 @@
+// src/components/rentals/RentalEditModal.tsx
+
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -8,7 +10,7 @@ import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import SignaturePad from '../ui/SignaturePad';
-import { addWeeks, isMonday, nextMonday, isAfter } from 'date-fns';
+import { addWeeks, isMonday, nextMonday, isAfter, format, addDays } from 'date-fns';
 import toast from 'react-hot-toast';
 
 interface RentalEditModalProps {
@@ -61,24 +63,28 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
   // Update end date when type or number of weeks changes
   useEffect(() => {
-    if (formData.type === 'weekly') {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      let endDateTime;
+  if (formData.type === 'weekly' && formData.startDate) {
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    let endDateTime;
 
-      if (!isMonday(startDateTime)) {
-        const firstMonday = nextMonday(startDateTime);
-        endDateTime = addWeeks(firstMonday, formData.numberOfWeeks - 1);
-      } else {
-        endDateTime = addWeeks(startDateTime, formData.numberOfWeeks);
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        endDate: endDateTime.toISOString().split('T')[0],
-        endTime: formData.startTime
-      }));
+    if (!isMonday(startDateTime)) {
+      // Calculate days until next Monday
+      const firstMonday = nextMonday(startDateTime);
+      // Add (numberOfWeeks - 1) * 7 days to the first Monday
+      endDateTime = addDays(firstMonday, (formData.numberOfWeeks - 1) * 7);
+    } else {
+      // If starting on Monday, simply add numberOfWeeks * 7 days
+      endDateTime = addDays(startDateTime, formData.numberOfWeeks * 7);
     }
-  }, [formData.type, formData.numberOfWeeks]);
+
+    setFormData(prev => ({
+      ...prev,
+      endDate: endDateTime.toISOString().split('T')[0],
+      endTime: formData.startTime
+    }));
+  }
+}, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
 
   const selectedVehicle = vehicles.find(v => v.id === rental.vehicleId);
   const selectedCustomer = customers.find(c => c.id === rental.customerId);
@@ -109,19 +115,18 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     if (!user) return;
     setLoading(true);
 
-    // Validate number of weeks
-  if (formData.type === 'weekly' && (!formData.numberOfWeeks || formData.numberOfWeeks < 1)) {
-    toast.error('Number of weeks must be at least 1');
-    return;
-  }
-
     try {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    // Validate dates
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
 
-      if (!selectedVehicle || !selectedCustomer) {
-        throw new Error('Vehicle or customer not found');
-      }
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+      throw new Error('Invalid date/time values');
+    }
+
+    if (!selectedVehicle || !selectedCustomer) {
+      throw new Error('Vehicle or customer not found');
+    }
 
       // Calculate costs
       const standardCost = calculateRentalCost(
@@ -227,6 +232,53 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
       {/* Rental Details */}
       <div className="grid grid-cols-2 gap-4">
+        {/* Start Date/Time */}
+        <FormField
+          type="date"
+          label="Start Date"
+          value={formData.startDate}
+          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+          required
+        />
+
+        <FormField
+          type="time"
+          label="Start Time"
+          value={formData.startTime}
+          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+          required
+        />
+
+        {/* End Date/Time */}
+        {formData.type === 'weekly' ? (
+          <FormField
+            type="number"
+            label="Number of Weeks"
+            value={formData.numberOfWeeks}
+            onChange={(e) => setFormData({ ...formData, numberOfWeeks: parseInt(e.target.value) })}
+            min="1"
+            required
+          />
+        ) : (
+          <>
+            <FormField
+              type="date"
+              label="End Date"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              required
+              min={formData.startDate}
+            />
+            <FormField
+              type="time"
+              label="End Time"
+              value={formData.endTime}
+              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+              required
+            />
+          </>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-gray-700">Rental Type</label>
           <select
@@ -273,63 +325,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-
-        {formData.type === 'weekly' ? (
-          <>
-            <FormField
-              type="number"
-              label="Number of Weeks"
-              value={formData.numberOfWeeks}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                if (value >= 1) {
-                  setFormData({ ...formData, numberOfWeeks: value });
-                }
-              }}
-              min="1"
-              step="1"
-              required
-              onBlur={(e) => {
-                if (!e.target.value) {
-                  setFormData({ ...formData, numberOfWeeks: 1 });
-                }
-              }}
-            />
-
-            <FormField
-              type="date"
-              label="End Date"
-              value={formData.endDate}
-              disabled
-              required
-            />
-            <FormField
-              type="time"
-              label="End Time"
-              value={formData.endTime}
-              disabled
-              required
-            />
-          </>
-        ) : (
-          <>
-            <FormField
-              type="date"
-              label="End Date"
-              value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-              required
-              min={formData.startDate}
-            />
-            <FormField
-              type="time"
-              label="End Time"
-              value={formData.endTime}
-              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-              required
-            />
-          </>
-        )}
       </div>
 
       {/* Payment Details */}

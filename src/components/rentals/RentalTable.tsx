@@ -5,8 +5,10 @@ import { Eye, Edit, Trash2, FileText, Download, DollarSign, CheckCircle } from '
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { addDays, isWithinInterval, isBefore, isAfter } from 'date-fns';
+import { format, isWithinInterval, addDays, differenceInDays, isBefore, isAfter } from 'date-fns';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
+
+
 
 interface RentalTableProps {
   rentals: Rental[];
@@ -107,30 +109,27 @@ const RentalTable: React.FC<RentalTableProps> = ({
       ),
     },
     {
-      header: 'Period',
-      cell: ({ row }) => {
-        const isEndingSoon = isWithinInterval(row.original.endDate, {
-          start: new Date(),
-          end: addDays(new Date(), 1)
-        });
+  header: 'Period',
+  cell: ({ row }) => {
+    const totalDays = differenceInDays(row.original.endDate, row.original.startDate);
+    
+    return (
+      <div>
+        <div className="text-sm">
+          {formatDate(row.original.startDate)}
+        </div>
+        <div className="text-sm text-gray-500">
+          {formatDate(row.original.endDate)}
+        </div>
+        <div className="text-xs text-gray-500">
+          {totalDays} days
+        </div>
+      </div>
+    );
+  },
+},
 
-        return (
-          <div>
-            <div className="text-sm">
-              {formatDate(row.original.startDate)}
-            </div>
-            <div className={`text-sm ${isEndingSoon ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-              {formatDate(row.original.endDate)}
-            </div>
-            {row.original.numberOfWeeks && (
-              <div className="text-xs text-gray-500">
-                {row.original.numberOfWeeks} week{row.original.numberOfWeeks > 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
+
     {
       header: 'Status',
       cell: ({ row }) => (

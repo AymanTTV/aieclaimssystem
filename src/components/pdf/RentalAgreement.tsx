@@ -1,7 +1,7 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import logo from '../../assets/logo.png';
 
 const styles = StyleSheet.create({
@@ -103,7 +103,14 @@ const styles = StyleSheet.create({
   },
 });
 
-interface RentalAgreementProps {
+// Function to generate agreement number
+const generateAgreementNumber = (id: string): string => {
+  // Get last 3 characters of ID and pad with zeros if needed
+  const number = id.slice(-3).padStart(3, '0');
+  return `AIE-${number}`;
+};
+
+const RentalAgreement: React.FC<{
   rental: Rental;
   vehicle: Vehicle;
   customer: Customer;
@@ -118,24 +125,36 @@ interface RentalAgreementProps {
     termsAndConditions?: string;
     signature?: string;
   };
-}
-
-const RentalAgreement: React.FC<RentalAgreementProps> = ({
+}> = ({
   rental,
   vehicle,
   customer,
   companyDetails = {},
 }) => {
-  const formatDate = (date: Date) => format(date, 'dd/MM/yyyy HH:mm');
+  const formatDateTime = (date: Date | string | null | undefined): string => {
+    if (!date) return 'N/A';
+    
+    try {
+      const dateObj = typeof date === 'string' ? parseISO(date) : date;
+      
+      if (!isValid(dateObj)) {
+        console.warn('Invalid date:', date);
+        return 'N/A';
+      }
+      
+      return format(dateObj, 'dd/MM/yyyy HH:mm');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
+  };
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Image src={logo} style={styles.logo} />
-          </View>
+          <Image src={logo} style={styles.logo} />
           <View style={styles.companyInfo}>
             <Text>{companyDetails.fullName || 'AIE SKYLINE'}</Text>
             <Text>{companyDetails.officialAddress || ''}</Text>
@@ -149,7 +168,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
 
         {/* Agreement Number */}
         <Text style={styles.agreementNumber}>
-          Agreement No: AIE-{rental.id.slice(-8).toUpperCase()}
+          Agreement No: {generateAgreementNumber(rental.id)}
         </Text>
 
         {/* Hirer Details */}
@@ -161,7 +180,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Date of Birth:</Text>
-            <Text style={styles.value}>{format(customer.dateOfBirth, 'dd/MM/yyyy')}</Text>
+            <Text style={styles.value}>{formatDateTime(customer.dateOfBirth)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Address:</Text>
@@ -177,7 +196,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>License Valid Until:</Text>
-            <Text style={styles.value}>{format(customer.licenseExpiry, 'dd/MM/yyyy')}</Text>
+            <Text style={styles.value}>{formatDateTime(customer.licenseExpiry)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Badge Number:</Text>
@@ -211,11 +230,11 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Start Date & Time:</Text>
-            <Text style={styles.value}>{formatDate(rental.startDate)}</Text>
+            <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Est. End Date & Time:</Text>
-            <Text style={styles.value}>{formatDate(rental.endDate)}</Text>
+            <Text style={styles.value}>{formatDateTime(rental.endDate)}</Text>
           </View>
         </View>
 
@@ -258,7 +277,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
             )}
             <Text style={styles.signatureLine}>Hirer's Signature</Text>
             <Text>{customer.name}</Text>
-            <Text>{formatDate(rental.createdAt)}</Text>
+            <Text>{formatDateTime(rental.createdAt)}</Text>
           </View>
           <View style={styles.signatureBox}>
             {companyDetails.signature && (
@@ -266,7 +285,7 @@ const RentalAgreement: React.FC<RentalAgreementProps> = ({
             )}
             <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName || 'AIE SKYLINE'}</Text>
             <Text>{companyDetails.name || ''}</Text>
-            <Text>{formatDate(rental.createdAt)}</Text>
+            <Text>{formatDateTime(rental.createdAt)}</Text>
           </View>
         </View>
 

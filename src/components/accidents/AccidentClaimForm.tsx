@@ -226,13 +226,13 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
             label="Insurance Company"
             value={formData.insuranceCompany}
             onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-            required
+            
           />
           <FormField
             label="Policy Number"
             value={formData.policyNumber}
             onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-            required
+            
           />
           <FormField
             type="number"

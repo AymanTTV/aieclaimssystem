@@ -105,10 +105,28 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const remainingAmount = totalCost - formData.paidAmount;
 
   useEffect(() => {
-  if (formData.type === 'weekly') {
-    handleWeeklyRental(formData.numberOfWeeks);
+  if (formData.type === 'weekly' && formData.startDate) {
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    let endDateTime;
+
+    if (!isMonday(startDateTime)) {
+      // Calculate days until next Monday
+      const firstMonday = nextMonday(startDateTime);
+      // Add (numberOfWeeks - 1) * 7 days to the first Monday
+      endDateTime = addDays(firstMonday, (formData.numberOfWeeks - 1) * 7);
+    } else {
+      // If starting on Monday, simply add numberOfWeeks * 7 days
+      endDateTime = addDays(startDateTime, formData.numberOfWeeks * 7);
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      endDate: endDateTime.toISOString().split('T')[0],
+      endTime: formData.startTime
+    }));
   }
-}, [formData.type]);
+}, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
 
 
   // Add this handler function
