@@ -29,26 +29,19 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({ claim, comp
 
         <View style={styles.section}>
           <Text style={styles.text}>
-            I, the undersigned, have entered into this hire agreement understanding the full terms and conditions of contract. I am aware that;
+            {companyDetails.creditHireMitigationText || 
+              "I, the undersigned, have entered into this hire agreement understanding the full terms and conditions of contract. I am aware that:\n\n" +
+              "1. The hire company has carefully explained their procedure in claiming back my credit hire losses.\n" +
+              "2. I have carefully considered the type and specification of the hire vehicle that I am hiring in order to mitigate my losses.\n" +
+              "3. I understand that the reason for this hire vehicle is because my vehicle is no longer fit for purpose or roadworthy.\n" +
+              "4. I will hire the vehicle for the shortest amount of time possible in order to have my vehicle repaired, this will not exceed 3 months.\n" +
+              "5. I shall keep AIE SKYLINE LIMITED informed at all times of progress or delays to handle my claim effectively.\n" +
+              "6. I am ultimately responsible for the hire charges should they remain unpaid after 340 days from the start of the hire.\n" +
+              "7. I have no funds available to repair/replace my vehicle.\n" +
+              "8. Prior to agree into the hire agreement my duty to keep my losses to a minimum has been explained to me.\n" +
+              "9. I have read and understood the above and I believe that the answers that I have given are true."
+            }
           </Text>
-
-          <View style={styles.list}>
-            {[
-              'The hire company has carefully explained their procedure in claiming back my credit hire losses.',
-              'I have carefully considered the type and specification of the hire vehicle that I am hiring in order to mitigate my losses.',
-              'I understand that the reason for this hire vehicle is because my vehicle is no longer fit for purpose or roadworthy.',
-              'I will hire the vehicle for the shortest amount of time possible in order to have my vehicle repaired, this will not exceed 3 months.',
-              'I shall keep AIE SKYLINE LIMITED informed at all times of progress or delays to handle my claim effectively.',
-              'I am ultimately responsible for the hire charges should they remain unpaid after 340 days from the start of the hire.',
-              'I have no funds available to repair/replace my vehicle.',
-              'Prior to agree into the hire agreement my duty to keep my losses to a minimum has been explained to me.',
-              'I have read and understood the above and I believe that the answers that I have given are true.'
-            ].map((item, index) => (
-              <Text key={index} style={styles.listItem}>
-                {index + 1}. {item}
-              </Text>
-            ))}
-          </View>
         </View>
 
         {/* Signature Section */}
@@ -61,6 +54,10 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({ claim, comp
             <Text style={styles.signatureLine}>SIGNED</Text>
           </View>
           <View style={styles.signatureBox}>
+            {companyDetails.signature && (
+              <Image src={companyDetails.signature} style={styles.signature} />
+            )}
+            <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName}</Text>
             <Text>DATE: {format(new Date(), 'dd/MM/yyyy')}</Text>
           </View>
         </View>

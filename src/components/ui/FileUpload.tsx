@@ -1,16 +1,33 @@
-// src/components/ui/FileUpload.tsx
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Update the value prop type to handle arrays
+// Utility function to format file size
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
+// Function to get file size from URL
+const getFileSizeFromURL = async (url: string): Promise<number> => {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return parseInt(response.headers.get('content-length') || '0');
+  } catch (error) {
+    console.error('Error getting file size:', error);
+    return 0;
+  }
+};
+
 interface FileUploadProps {
   label: string;
   accept?: string;
   multiple?: boolean;
   maxSize?: number;
-  value?: File[] | null;
+  value?: (File | string)[] | null;
   onChange: (files: File[] | null) => void;
   onRemove?: (index: number) => void;
   error?: string;
@@ -21,25 +38,92 @@ const FileUpload: React.FC<FileUploadProps> = ({
   label,
   accept = 'image/*',
   multiple = false,
-  maxSize = 50 * 1024 * 1024, // 5MB default
+  maxSize = 100 * 1024 * 1024,
   value,
   onChange,
   error,
   showPreview = true,
 }) => {
-  const [preview, setPreview] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<Array<{ url: string; size: number; type: string }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Update the handleFileChange function
-const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const initializePreviews = async () => {
+      if (!value) return;
+
+      const newPreviews = await Promise.all(
+        (Array.isArray(value) ? value : [value]).map(async (item) => {
+          if (item instanceof File) {
+            return {
+              url: URL.createObjectURL(item),
+              size: item.size,
+              type: item.type,
+            };
+          } else if (typeof item === 'string') {
+            const size = await getFileSizeFromURL(item);
+            const type = item.split('.').pop()?.toLowerCase() || ''; // Infer type from URL
+            return { url: item, size, type };
+          }
+          return null;
+        })
+      );
+
+      setPreviews(newPreviews.filter((p): p is { url: string; size: number; type: string } => p !== null));
+    };
+
+    initializePreviews();
+  }, [value]);
+
+
+  const getFileIcon = (url: string, type: string) => {
+  const extension = url.split('.').pop()?.toLowerCase();
+
+  if (type.startsWith('image/')) {
+    return (
+      <img
+        src={url}
+        alt="Preview"
+        className="w-full h-full object-cover"
+      />
+    );
+  }
+
+  if (type.startsWith('video/')) {
+    return (
+      <video
+        src={url}
+        className="w-full h-full object-cover"
+        controls
+      />
+    );
+  }
+
+  if (extension === 'pdf') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <FileText className="h-8 w-8 text-red-500" />
+        <span className="text-xs text-gray-500 mt-1">PDF Document</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full">
+      <FileText className="h-8 w-8 text-gray-500" />
+      <span className="text-xs text-gray-500 mt-1">File</span>
+    </div>
+  );
+};
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const files = Array.from(e.target.files || []);
   if (files.length === 0) return;
 
   // Validate files
   const validFiles = files.filter((file) => {
     if (file.size > maxSize) {
-      toast.error(`${file.name} is too large. Maximum size is ${maxSize / 1024 / 1024}MB`);
+      toast.error(`${file.name} is too large. Maximum size is ${formatFileSize(maxSize)}`);
       return false;
     }
 
@@ -64,36 +148,27 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   if (validFiles.length === 0) return;
 
   // Update files
-  const newFiles = multiple ? [...(value || []), ...validFiles] : [validFiles[0]];
+  const newFiles = multiple ? validFiles : [validFiles[0]];
   onChange(newFiles);
 
-  // Generate previews for images
-  const newPreviews: string[] = [];
-  validFiles.forEach((file) => {
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newPreviews.push(reader.result as string);
-        if (newPreviews.length === validFiles.length) {
-          setPreview([...preview, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
-    } else {
-      newPreviews.push('');
-    }
-  });
+  // Update previews
+  const newPreviews = newFiles.map((file) => ({
+    url: URL.createObjectURL(file),
+    size: file.size,
+    type: file.type,
+  }));
+  setPreviews(newPreviews);
 };
 
   const removeFile = (index: number) => {
-    const newPreviews = [...preview];
+    const newPreviews = [...previews];
     newPreviews.splice(index, 1);
-    setPreview(newPreviews);
+    setPreviews(newPreviews);
 
     if (value) {
       const files = Array.isArray(value) ? value : [value];
       const newFiles = files.filter((_, i) => i !== index);
-      onChange(newFiles.length > 0 ? newFiles : null);
+      onChange(newFiles.length > 0 ? newFiles.filter((f): f is File => f instanceof File) : null);
     }
   };
 
@@ -120,30 +195,23 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             <p className="pl-1">or drag and drop</p>
           </div>
           <p className="text-xs text-gray-500">
-            {accept.split(',').join(', ')} up to {maxSize / 1024 / 1024}MB
+            {accept.split(',').join(', ')} up to {formatFileSize(maxSize)}
           </p>
         </div>
       </div>
 
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {showPreview && preview.length > 0 && (
-        <div className="mt-4 grid grid-cols-3 gap-4">
-          {preview.map((src, index) => (
-            <div key={index} className="relative">
-              {src.startsWith('data:image') ? (
-                <img
-                  src={src}
-                  alt={`Preview ${index + 1}`}
-                  className="h-24 w-full object-cover rounded-md"
-                />
-              ) : (
-                <div className="h-24 w-full bg-gray-100 rounded-md flex items-center justify-center">
-                  <FileText className="h-8 w-8 text-gray-400" />
-                </div>
-              )}
+      {showPreview && previews.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          {previews.map(({ url, size, type }, index) => (
+            <div key={index} className="relative group">
+              <div className="aspect-video rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                {getFileIcon(url, type)}
+              </div>
+              <div className="absolute inset-x-0 bottom-0 p-2 bg-black bg-opacity-50 text-white text-xs">
+                {formatFileSize(size)}
+              </div>
               <button
                 type="button"
                 onClick={() => removeFile(index)}

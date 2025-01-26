@@ -223,20 +223,29 @@ const RentalAgreement: React.FC<{
 
         {/* Rental Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Rental Type:</Text>
-            <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Start Date & Time:</Text>
-            <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Est. End Date & Time:</Text>
-            <Text style={styles.value}>{formatDateTime(rental.endDate)}</Text>
-          </View>
-        </View>
+  <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
+  <View style={styles.row}>
+    <Text style={styles.label}>Rental Type:</Text>
+    <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
+  </View>
+  <View style={styles.row}>
+    <Text style={styles.label}>Start Date & Time:</Text>
+    <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
+  </View>
+  <View style={styles.row}>
+  <Text style={styles.label}> End Date & Time:</Text>
+  <Text style={styles.value}>
+    {formatDateTime(
+      rental.status === 'completed' && rental.endDate
+        ? rental.endDate // Use the updated end date
+        : new Date(new Date(rental.startDate).setFullYear(new Date(rental.startDate).getFullYear() + 1)) // Default logic
+    )}
+  </Text>
+</View>
+
+
+</View>
+
 
         {/* Payment Details */}
         <View style={styles.paymentSection}>

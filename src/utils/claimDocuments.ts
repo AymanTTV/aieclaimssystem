@@ -6,7 +6,7 @@ import { db, storage } from '../lib/firebase';
 import { createElement } from 'react';
 import { format } from 'date-fns';
 
-// Import PDF components (to be created)
+// Import PDF components
 import { 
   ConditionOfHire,
   CreditHireMitigation,
@@ -16,23 +16,37 @@ import {
   SatisfactionNotice
 } from '../components/pdf/claims';
 
-// In utils/claimDocuments.ts
+// src/utils/claimDocuments.ts
+
 export const generateClaimDocuments = async (claimId: string, claim: Claim) => {
   try {
     // Get company details for documents
     const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+    if (!companyDoc.exists()) {
+      throw new Error('Company details not found');
+    }
     const companyDetails = companyDoc.data();
 
-    // Generate all required documents
-    const documents = await Promise.all([
-      generateConditionOfHire(claim, companyDetails),
-      generateCreditHireMitigation(claim, companyDetails),
-      generateNoticeOfRightToCancel(claim, companyDetails),
-      generateCreditStorageAndRecovery(claim, companyDetails),
-      generateHireAgreement(claim, companyDetails),
-      // Only generate satisfaction notice if claim is completed
-      ...(claim.progress === 'completed' ? [generateSatisfactionNotice(claim, companyDetails)] : [])
-    ]);
+    // Validate required company details
+    if (!companyDetails.fullName || !companyDetails.officialAddress) {
+      throw new Error('Incomplete company details');
+    }
+
+    const documents = [];
+    
+    // Only generate hire-related documents for specific claim reasons
+    if (['VDHS', 'VDH', 'VDHSPI'].includes(claim.claimReason)) {
+      documents.push(await generateConditionOfHire(claim, companyDetails));
+      documents.push(await generateCreditHireMitigation(claim, companyDetails));
+      documents.push(await generateNoticeOfRightToCancel(claim, companyDetails));
+      documents.push(await generateCreditStorageAndRecovery(claim, companyDetails));
+      documents.push(await generateHireAgreement(claim, companyDetails));
+    }
+
+    // Satisfaction notice - only for completed claims
+    if (claim.progress === 'Claim Complete') {
+      documents.push(await generateSatisfactionNotice(claim, companyDetails));
+    }
 
     // Upload documents to storage
     const documentUrls = await Promise.all(
@@ -44,19 +58,30 @@ export const generateClaimDocuments = async (claimId: string, claim: Claim) => {
       })
     );
 
+    // Create document URLs object
+    const documentUpdates: Record<string, string> = {};
+    
+    // Only add document URLs if they were generated
+    if (['VDHS', 'VDH', 'VDHSPI'].includes(claim.claimReason)) {
+      documentUpdates.conditionOfHire = documentUrls[0];
+      documentUpdates.creditHireMitigation = documentUrls[1];
+      documentUpdates.noticeOfRightToCancel = documentUrls[2];
+      documentUpdates.creditStorageAndRecovery = documentUrls[3];
+      documentUpdates.hireAgreement = documentUrls[4];
+    }
+
+    // Add satisfaction notice URL if it was generated
+    if (claim.progress === 'Claim Complete') {
+      documentUpdates.satisfactionNotice = documentUrls[documentUrls.length - 1];
+    }
+
     // Update claim with document URLs
     await updateDoc(doc(db, 'claims', claimId), {
-      documents: {
-        conditionOfHire: documentUrls[0],
-        creditHireMitigation: documentUrls[1],
-        noticeOfRightToCancel: documentUrls[2],
-        creditStorageAndRecovery: documentUrls[3],
-        hireAgreement: documentUrls[4],
-        ...(claim.progress === 'completed' ? { satisfactionNotice: documentUrls[5] } : {})
-      }
+      documents: documentUpdates,
+      updatedAt: new Date()
     });
 
-    return documentUrls;
+    return documentUpdates;
   } catch (error) {
     console.error('Error generating claim documents:', error);
     throw error;
@@ -77,25 +102,31 @@ const getDocumentFilename = (index: number, claimId: string): string => {
 };
 
 const generateConditionOfHire = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(ConditionOfHire, { claim, companyDetails })).toBlob();
+  const element = createElement(ConditionOfHire, { claim, companyDetails });
+  return pdf(element).toBlob();
 };
 
 const generateCreditHireMitigation = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(CreditHireMitigation, { claim, companyDetails })).toBlob();
+  const element = createElement(CreditHireMitigation, { claim, companyDetails });
+  return pdf(element).toBlob();
 };
 
 const generateNoticeOfRightToCancel = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(NoticeOfRightToCancel, { claim, companyDetails })).toBlob();
+  const element = createElement(NoticeOfRightToCancel, { claim, companyDetails });
+  return pdf(element).toBlob();
 };
 
 const generateCreditStorageAndRecovery = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(CreditStorageAndRecovery, { claim, companyDetails })).toBlob();
+  const element = createElement(CreditStorageAndRecovery, { claim, companyDetails });
+  return pdf(element).toBlob();
 };
 
 const generateHireAgreement = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(HireAgreement, { claim, companyDetails })).toBlob();
+  const element = createElement(HireAgreement, { claim, companyDetails });
+  return pdf(element).toBlob();
 };
 
 const generateSatisfactionNotice = async (claim: Claim, companyDetails: any): Promise<Blob> => {
-  return pdf(createElement(SatisfactionNotice, { claim, companyDetails })).toBlob();
+  const element = createElement(SatisfactionNotice, { claim, companyDetails });
+  return pdf(element).toBlob();
 };

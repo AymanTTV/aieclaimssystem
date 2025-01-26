@@ -1,37 +1,47 @@
 import React, { useState } from 'react';
-import { Rental } from '../../types';
+import { Rental, Vehicle } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
-import { Upload } from 'lucide-react';
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
+import { isAfter } from 'date-fns';
 import toast from 'react-hot-toast';
-import { formatDate } from '../../utils/dateHelpers';
-
 interface RentalPaymentModalProps {
   rental: Rental;
+  vehicle?: Vehicle;
   onClose: () => void;
 }
 
-const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose }) => {
+const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
+  rental,
+  vehicle,
+  onClose
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    amountToPay: rental.remainingAmount.toString(),
+    amountToPay: '0',
     method: 'cash' as const,
     reference: '',
-    notes: '',
-    document: null as File | null
+    notes: ''
   });
+
+  // Calculate current costs
+  const now = new Date();
+  const overdueCost = rental.status === 'active' && isAfter(now, rental.endDate) 
+    ? calculateOverdueCost(rental, now, vehicle)
+    : 0;
+  const totalCost = rental.cost + overdueCost;
+  const remainingAmount = totalCost - rental.paidAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     
     const paymentAmount = parseFloat(formData.amountToPay);
-    if (isNaN(paymentAmount) || paymentAmount <= 0 || paymentAmount > rental.remainingAmount) {
+    if (isNaN(paymentAmount) || paymentAmount <= 0 || paymentAmount > remainingAmount) {
       toast.error('Invalid payment amount');
       return;
     }
@@ -39,30 +49,21 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose
     setLoading(true);
 
     try {
-      // Upload document if provided
-      let documentUrl;
-      if (formData.document) {
-        const storageRef = ref(storage, `rentals/${rental.id}/payments/${Date.now()}`);
-        const snapshot = await uploadBytes(storageRef, formData.document);
-        documentUrl = await getDownloadURL(snapshot.ref);
-      }
-
-      // Create payment record with proper date handling
+      // Create payment record
       const payment = {
         id: Date.now().toString(),
-        date: new Date(), // Store as Date object
+        date: new Date(),
         amount: paymentAmount,
         method: formData.method,
         reference: formData.reference || null,
         notes: formData.notes || null,
-        document: documentUrl || null,
-        createdAt: new Date(), // Store as Date object
+        createdAt: new Date(),
         createdBy: user.id
       };
 
       // Calculate new totals
-      const newPaidAmount = (rental.paidAmount || 0) + paymentAmount;
-      const newRemainingAmount = rental.cost - newPaidAmount;
+      const newPaidAmount = rental.paidAmount + paymentAmount;
+      const newRemainingAmount = totalCost - newPaidAmount;
       const newPaymentStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
 
       // Update rental record
@@ -82,6 +83,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose
         description: `Rental payment for ${rental.type} rental`,
         referenceId: rental.id,
         vehicleId: rental.vehicleId,
+        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
         paymentMethod: formData.method,
         paymentReference: formData.reference || undefined,
         paymentStatus: newPaymentStatus
@@ -99,18 +101,33 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      {/* Cost Summary */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
-          <span>Total Cost:</span>
+          <span>Base Cost:</span>
           <span className="font-medium">£{rental.cost.toFixed(2)}</span>
         </div>
+        
+        {overdueCost > 0 && (
+          <div className="flex justify-between text-sm text-red-600">
+            <span>Overdue Charges:</span>
+            <span>+£{overdueCost.toFixed(2)}</span>
+          </div>
+        )}
+        
+        <div className="flex justify-between text-sm font-medium pt-2 border-t">
+          <span>Total Cost:</span>
+          <span>£{totalCost.toFixed(2)}</span>
+        </div>
+        
         <div className="flex justify-between text-sm">
           <span>Amount Paid:</span>
           <span className="text-green-600">£{rental.paidAmount.toFixed(2)}</span>
         </div>
+        
         <div className="flex justify-between text-sm">
           <span>Remaining Amount:</span>
-          <span className="text-amber-600">£{rental.remainingAmount.toFixed(2)}</span>
+          <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
         </div>
       </div>
 
@@ -121,7 +138,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose
         onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
         required
         min="0.01"
-        max={rental.remainingAmount}
+        max={remainingAmount}
         step="0.01"
       />
 
@@ -156,28 +173,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({ rental, onClose
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           placeholder="Add any notes about this payment"
         />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Payment Document</label>
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          <div className="space-y-1 text-center">
-            <Upload className="mx-auto h-12 w-12 text-gray-400" />
-            <div className="flex text-sm text-gray-600">
-              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                <span>Upload a file</span>
-                <input
-                  type="file"
-                  className="sr-only"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => setFormData({ ...formData, document: e.target.files?.[0] || null })}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PDF or image up to 10MB</p>
-          </div>
-        </div>
       </div>
 
       <div className="flex justify-end space-x-3">

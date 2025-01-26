@@ -1,49 +1,42 @@
 export type SubmitterType = 'company' | 'client';
 
+export type ClaimProgress = 
+  | 'Your Claim Has Started'
+  | 'Reported to Legal Team'
+  | 'Engineer Report Pending'
+  | 'Awaiting TPI'
+  | 'Claim in Progress'
+  | 'Claim Complete';
+
 export interface Claim {
   id: string;
   clientRef?: string;
-  submitterType: SubmitterType; // Add this field
+  submitterType: 'company' | 'client';
   
   // Client Information
   clientInfo: {
     name: string;
     phone: string;
-    gender: 'male' | 'female' | 'other';
+    email: string;
     dateOfBirth: Date;
     nationalInsuranceNumber: string;
     address: string;
-    email: string;
     signature?: string;
   };
 
-  // Driver Details
-  driverName: string;
-  driverAddress: string;
-  driverPostCode: string;
-  driverDOB: string;
-  driverMobile: string;
-  driverEmail: string; // Added email
-  driverNIN: string;
-  driverSignature: string; // Added signature
-
   // Vehicle Details
-  registeredKeeperName: string;
-  registeredKeeperAddress?: string;
-  vehicleMake: string;
-  vehicleModel: string;
-  vehicleVRN: string;
-  insuranceCompany: string;
-  policyNumber: string;
-  policyExcess?: string;
-
-  // Third Party Details
-  thirdParty: {
-    name: string;
-    phone: string;
-    address: string;
-    email: string;
+  clientVehicle: {
     registration: string;
+    documents: {
+      licenseFront?: string;
+      licenseBack?: string;
+      logBook?: string;
+      nsl?: string;
+      insuranceCertificate?: string;
+      tflBill?: string;
+    };
+    motExpiry: Date;
+    roadTaxExpiry: Date;
   };
 
   // Incident Details
@@ -55,57 +48,68 @@ export interface Claim {
     damageDetails: string;
   };
 
-  // Passengers (Optional)
+  // Third Party Details
+  thirdParty: {
+    name: string;
+    phone: string;
+    address: string;
+    email: string;
+    registration: string;
+  };
+
+  // Passengers
   passengers?: Array<{
     name: string;
-    phone: string;
-    email: string;
-    gender: 'male' | 'female' | 'other';
     address: string;
+    postCode: string;
+    dob: string;
+    contactNumber: string;
   }>;
 
-  // Witnesses (Optional)
+  // Witnesses
   witnesses?: Array<{
     name: string;
-    phone: string;
-    email: string;
     address: string;
+    postCode: string;
+    dob: string;
+    contactNumber: string;
   }>;
 
-  // Police Details (Optional)
-  policeDetails?: {
-    cadNumber?: string;
-    policeStation: string;
-    contactNumber: string;
-    notes?: string;
-  };
+  // Police Details
+  policeOfficerName?: string;
+  policeBadgeNumber?: string;
+  policeStation?: string;
+  policeIncidentNumber?: string;
+  policeContactInfo?: string;
 
-  // Paramedic Details (Optional)
-  paramedicDetails?: {
-    ambulanceNumber: string;
-    hospital: string;
-    date: Date;
-    time: string;
-    notes?: string;
-  };
+  // Paramedic Details
+  paramedicNames?: string;
+  ambulanceReference?: string;
+  ambulanceService?: string;
 
-  // Evidence & Documents
+  // Evidence
   evidence: {
     images: string[];
     videos: string[];
     clientVehiclePhotos: string[];
-    engineerReport: string[];  // Changed to array
-    bankStatement: string[];   // Changed to array
+    engineerReport: string[];
+    bankStatement: string[];
     adminDocuments: string[];
   };
 
-  // Hire Details (Optional)
+  // Make hireDetails optional with ?
   hireDetails?: {
     startDate: Date;
     startTime: string;
     endDate: Date;
     endTime: string;
-    vehicle: {
+    daysOfHire: number;
+    claimRate: number;
+    deliveryCharge: number;
+    collectionCharge: number;
+    insurancePerDay: number;
+    totalCost: number;
+    vehicle?: {
       make: string;
       model: string;
       registration: string;
@@ -113,7 +117,7 @@ export interface Claim {
     };
   };
 
-  // Recovery Details (Optional)
+  // Recovery Details
   recovery?: {
     date: Date;
     locationPickup: string;
@@ -121,7 +125,7 @@ export interface Claim {
     cost: number;
   };
 
-  // Storage Details (Optional)
+  // Storage Details
   storage?: {
     startDate: Date;
     endDate: Date;
@@ -135,11 +139,20 @@ export interface Claim {
     legalHandler: string;
   };
 
-  // Status History
-  statusHistory: Array<{
-    status: string;
-    description: string;
+  // Status and Progress
+  claimType: 'Domestic' | 'Taxi' | 'PI' | 'PCO';
+  claimReason: 'VD Only' | 'VDHS' | 'VDH' | 'PI' | 'VDHSPI';
+  caseProgress: 'Win' | 'Lost' | 'Awaiting' | '50/50';
+  progress: ClaimProgress;
+  statusDescription: string;
+
+  // Progress History
+  progressHistory: Array<{
+    id: string;
     date: Date;
+    status: string;
+    note: string;
+    author: string;
   }>;
 
   // Generated Documents
@@ -152,15 +165,9 @@ export interface Claim {
     satisfactionNotice?: string;
   };
 
-  // Claim Details
-  claimType: ClaimType;
-  claimReason: ClaimReason;
-  caseProgress: CaseProgress;
-  progress: ClaimProgress;
-
   // System Fields
-  createdAt: Date;
+  submittedBy: string;
+  submittedAt: Date;
   updatedAt: Date;
-  createdBy: string;
-  updatedBy: string;
+  updatedBy?: string;
 }

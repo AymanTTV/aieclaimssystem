@@ -1,5 +1,3 @@
-// src/components/claims/ClaimForm/sections/PassengerDetails.tsx
-
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
@@ -32,70 +30,33 @@ const PassengerDetails: React.FC<PassengerDetailsProps> = ({ count, onCountChang
         <div key={index} className="border rounded-lg p-4 space-y-4">
           <h4 className="font-medium">Passenger {index + 1}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Name */}
             <FormField
               label="Name"
-              error={errors?.passengers?.[index]?.name?.message as string}
               {...register(`passengers.${index}.name`)}
-              required
-              placeholder="Enter passenger's name"
+              error={errors?.passengers?.[index]?.name?.message as string}
             />
-
-            {/* Phone Number */}
+            <FormField
+              label="Address"
+              {...register(`passengers.${index}.address`)}
+              error={errors?.passengers?.[index]?.address?.message as string}
+            />
+            <FormField
+              label="Post Code"
+              {...register(`passengers.${index}.postCode`)}
+              error={errors?.passengers?.[index]?.postCode?.message as string}
+            />
+            <FormField
+              type="date"
+              label="Date of Birth"
+              {...register(`passengers.${index}.dob`)}
+              error={errors?.passengers?.[index]?.dob?.message as string}
+            />
             <FormField
               type="tel"
-              label="Phone Number"
-              error={errors?.passengers?.[index]?.phone?.message as string}
-              {...register(`passengers.${index}.phone`)}
-              required
-              placeholder="Enter contact number"
+              label="Contact Number"
+              {...register(`passengers.${index}.contactNumber`)}
+              error={errors?.passengers?.[index]?.contactNumber?.message as string}
             />
-
-            {/* Email */}
-            <FormField
-              type="email"
-              label="Email"
-              error={errors?.passengers?.[index]?.email?.message as string}
-              {...register(`passengers.${index}.email`)}
-              placeholder="Enter email address"
-            />
-
-            {/* Gender */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Gender</label>
-              <select
-                {...register(`passengers.${index}.gender`)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                required
-              >
-                <option value="">Select gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-              {errors?.passengers?.[index]?.gender && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.passengers[index].gender.message as string}
-                </p>
-              )}
-            </div>
-
-            {/* Address */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Address</label>
-              <textarea
-                {...register(`passengers.${index}.address`)}
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                required
-                placeholder="Enter full address"
-              />
-              {errors?.passengers?.[index]?.address && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.passengers[index].address.message as string}
-                </p>
-              )}
-            </div>
           </div>
         </div>
       ))}

@@ -8,78 +8,57 @@ export const useCustomerFilters = (customers: Customer[]) => {
   const [filterSoonExpiring, setFilterSoonExpiring] = useState(false);
   const [selectedGender, setSelectedGender] = useState<Gender | 'all'>('all');
   const [ageRange, setAgeRange] = useState<{ min: number; max: number } | null>(null);
-  const [sortField, setSortField] = useState<keyof Customer>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const filteredCustomers = useMemo(() => {
-    return customers
-      .filter(customer => {
-        // Search filter
-        const matchesSearch = 
-          customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          customer.mobile.includes(searchQuery) ||
-          customer.badgeNumber.includes(searchQuery) ||
-          customer.driverLicenseNumber.includes(searchQuery);
+    return customers.filter(customer => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = 
+        customer.name.toLowerCase().includes(searchLower) ||
+        customer.email.toLowerCase().includes(searchLower) ||
+        customer.mobile.includes(searchLower) ||
+        customer.badgeNumber.includes(searchLower) ||
+        customer.driverLicenseNumber.includes(searchLower) ||
+        customer.nationalInsuranceNumber.includes(searchLower);
 
-        // Document expiry filter
-        const now = new Date();
-        const soonExpiryDate = addDays(now, 30);
-        const isSoonExpiring = 
-          (customer.licenseExpiry <= soonExpiryDate && customer.licenseExpiry > now) ||
-          (customer.billExpiry <= soonExpiryDate && customer.billExpiry > now);
+      // Document expiry filter
+      const now = new Date();
+      const warningDate = addDays(now, 30);
+      
+      // Check for expired documents
+      const hasExpiredDocuments = 
+        isExpired(customer.licenseExpiry) || 
+        isExpired(customer.billExpiry);
 
-        const passesExpiryFilter = !filterExpired || 
-          (!isExpired(customer.licenseExpiry) && !isExpired(customer.billExpiry));
+      // Check for soon expiring documents
+      const hasSoonExpiringDocuments = 
+        (!isExpired(customer.licenseExpiry) && customer.licenseExpiry <= warningDate) ||
+        (!isExpired(customer.billExpiry) && customer.billExpiry <= warningDate);
 
-        const passesSoonExpiringFilter = !filterSoonExpiring || isSoonExpiring;
+      // Apply filters
+      const passesExpiryFilter = !filterExpired || !hasExpiredDocuments;
+      const passesSoonExpiringFilter = !filterSoonExpiring || hasSoonExpiringDocuments;
 
-        // Gender filter
-        const passesGenderFilter = selectedGender === 'all' || customer.gender === selectedGender;
+      // Gender filter
+      const passesGenderFilter = selectedGender === 'all' || customer.gender === selectedGender;
 
-        // Age filter
-        const passesAgeFilter = !ageRange || 
-          (customer.age >= ageRange.min && customer.age <= ageRange.max);
+      // Age filter
+      const passesAgeFilter = !ageRange || 
+        (customer.age >= ageRange.min && customer.age <= ageRange.max);
 
-        return matchesSearch && 
-               passesExpiryFilter && 
-               passesSoonExpiringFilter && 
-               passesGenderFilter && 
-               passesAgeFilter;
-      })
-      .sort((a, b) => {
-        const aValue = a[sortField];
-        const bValue = b[sortField];
-
-        if (aValue instanceof Date && bValue instanceof Date) {
-          return sortDirection === 'asc' 
-            ? aValue.getTime() - bValue.getTime()
-            : bValue.getTime() - aValue.getTime();
-        }
-
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          return sortDirection === 'asc'
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        }
-
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortDirection === 'asc'
-            ? aValue - bValue
-            : bValue - aValue;
-        }
-
-        return 0;
-      });
+      return matchesSearch && 
+             passesExpiryFilter && 
+             passesSoonExpiringFilter && 
+             passesGenderFilter && 
+             passesAgeFilter;
+    });
   }, [
     customers, 
     searchQuery, 
     filterExpired,
     filterSoonExpiring,
     selectedGender,
-    ageRange,
-    sortField, 
-    sortDirection
+    ageRange
   ]);
 
   return {
@@ -93,10 +72,6 @@ export const useCustomerFilters = (customers: Customer[]) => {
     setSelectedGender,
     ageRange,
     setAgeRange,
-    sortField,
-    setSortField,
-    sortDirection,
-    setSortDirection,
     filteredCustomers
   };
 };

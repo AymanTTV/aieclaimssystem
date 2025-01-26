@@ -5,7 +5,7 @@ import StatusBadge from '../ui/StatusBadge';
 import RentalPaymentHistory from './RentalPaymentHistory';
 import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Clock, PenTool } from 'lucide-react';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
-import { isAfter } from 'date-fns';
+import { isAfter, differenceInDays } from 'date-fns';
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -120,86 +120,110 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       </div>
 
       {/* Rental Details */}
-      <div className="border-b pb-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Details</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Type</p>
-            <div className="mt-1 space-y-1">
-              <StatusBadge status={rental.type} />
-              <StatusBadge status={rental.reason} />
-            </div>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Status</p>
-            <div className="mt-1 space-y-1">
-              <StatusBadge status={rental.status} />
-              <StatusBadge status={rental.paymentStatus} />
-            </div>
-          </div>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Start Date & Time</p>
-              <p className="font-medium">{formatDate(rental.startDate, true)}</p>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">End Date & Time</p>
-              <p className="font-medium">{formatDate(rental.endDate, true)}</p>
-            </div>
-          </div>
-          {rental.numberOfWeeks && (
-            <div className="flex items-center">
-              <Clock className="h-5 w-5 text-gray-400 mr-2" />
-              <div>
-                <p className="text-sm text-gray-500">Duration</p>
-                <p className="font-medium">{rental.numberOfWeeks} week{rental.numberOfWeeks > 1 ? 's' : ''}</p>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Rental Details */}
+<div className="border-b pb-4">
+  <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Details</h3>
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <p className="text-sm text-gray-500">Type</p>
+      <div className="mt-1 space-y-1">
+        <StatusBadge status={rental.type} />
+        <StatusBadge status={rental.reason} />
       </div>
+    </div>
+    <div>
+      <p className="text-sm text-gray-500">Status</p>
+      <div className="mt-1 space-y-1">
+        <StatusBadge status={rental.status} />
+        <StatusBadge status={rental.paymentStatus} />
+      </div>
+    </div>
+    <div className="flex items-center">
+      <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+      <div>
+        <p className="text-sm text-gray-500">Start Date & Time</p>
+        <p className="font-medium">{formatDate(rental.startDate, true)}</p>
+      </div>
+    </div>
+    <div className="flex items-center">
+      <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+      <div>
+        <p className="text-sm text-gray-500">End Date & Time</p>
+        <p className="font-medium">
+          {rental.endDate ? formatDate(rental.endDate, true) : 'Ongoing'}
+        </p>
+      </div>
+    </div>
+    <div className="col-span-2">
+      <p className="text-sm text-gray-500">Duration</p>
+      <p className="font-medium">
+        {(() => {
+          const now = new Date();
+          const startDate = new Date(rental.startDate);
+          const endDate = rental.endDate ? new Date(rental.endDate) : now;
+          const isOngoing = rental.status === 'active' && isAfter(now, endDate);
+
+          const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          const overdueDays = isOngoing
+            ? Math.ceil((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+
+          return (
+            <>
+              {totalDays} days
+              {overdueDays > 0 && (
+                <span className="text-red-600 ml-2">
+                  (Overdue by {overdueDays} days)
+                </span>
+              )}
+            </>
+          );
+        })()}
+      </p>
+    </div>
+  </div>
+</div>
 
       {/* Payment Details */}
       <div className="border-b pb-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h3>
-        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Base Cost</span>
-            <span className="text-lg font-medium">£{rental.cost.toFixed(2)}</span>
-          </div>
+  <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h3>
+  <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+    <div className="flex justify-between items-center">
+      <span className="text-gray-600">Base Cost</span>
+      <span className="text-lg font-medium">£{rental.cost.toFixed(2)}</span>
+    </div>
 
-          {ongoingCharges > 0 && (
-            <div className="flex justify-between items-center text-red-600">
-              <span>Ongoing Charges</span>
-              <span>+£{ongoingCharges.toFixed(2)}</span>
-            </div>
-          )}
+    {rental.status === 'active' && isAfter(new Date(), rental.endDate) && (
+      <div className="flex justify-between items-center text-red-600">
+        <span>Ongoing Charges</span>
+        <span>+£{calculateOverdueCost(rental, new Date(), vehicle).toFixed(2)}</span>
+      </div>
+    )}
 
-          <div className="flex justify-between items-center pt-2 border-t">
-            <span className="text-gray-600">Total Cost</span>
-            <span className="text-lg font-medium">£{(rental.cost + ongoingCharges).toFixed(2)}</span>
-          </div>
+    <div className="flex justify-between items-center pt-2 border-t">
+      <span className="text-gray-600">Total Cost</span>
+      <span className="text-lg font-medium">
+        £{(rental.cost + (rental.status === 'active' ? calculateOverdueCost(rental, new Date(), vehicle) : 0)).toFixed(2)}
+      </span>
+    </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Amount Paid</span>
-            <span className="text-green-600">£{rental.paidAmount.toFixed(2)}</span>
-          </div>
+    <div className="flex justify-between items-center">
+      <span className="text-gray-600">Amount Paid</span>
+      <span className="text-green-600">£{rental.paidAmount.toFixed(2)}</span>
+    </div>
 
-          {rental.remainingAmount > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Remaining Amount</span>
-              <span className="text-amber-600">£{rental.remainingAmount.toFixed(2)}</span>
-            </div>
-          )}
+    <div className="flex justify-between items-center">
+      <span className="text-gray-600">Remaining Amount</span>
+      <span className="text-amber-600">
+        £{(rental.cost + (rental.status === 'active' ? calculateOverdueCost(rental, new Date(), vehicle) : 0) - rental.paidAmount).toFixed(2)}
+      </span>
+    </div>
+          
 
           <div className="pt-3 border-t">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Payment Status</span>
-              <StatusBadge status={rental.paymentStatus} />
+        <StatusBadge status={rental.paymentStatus} />
             </div>
           </div>
         </div>

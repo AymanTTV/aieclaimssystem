@@ -1,5 +1,8 @@
 export interface Accident {
   id: string;
+
+  refNo: number; // Reference number
+  referenceName: string; // Reference name
   // Driver Details
   driverName: string;
   driverAddress: string;

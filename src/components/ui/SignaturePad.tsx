@@ -10,6 +10,8 @@ interface SignaturePadProps {
   disabled?: boolean;
 }
 
+// src/components/ui/SignaturePad.tsx
+
 const SignaturePad: React.FC<SignaturePadProps> = ({
   value,
   onChange,
@@ -17,7 +19,13 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
   disabled = false
 }) => {
   const padRef = useRef<SignatureCanvas>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize points array
+  useEffect(() => {
+    if (padRef.current) {
+      padRef.current._data = []; // Initialize empty points array
+    }
+  }, []);
 
   // Load existing signature if available
   useEffect(() => {
@@ -27,6 +35,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
         const canvas = padRef.current;
         if (canvas) {
           canvas.clear();
+          canvas._data = []; // Reset points array
           const ctx = canvas._canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0);
@@ -37,19 +46,17 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
     }
   }, [value]);
 
-  // Resize canvas when container size changes
+  // Rest of the component remains the same...
+
+
+  // Handle window resize
   useEffect(() => {
-    const resizeCanvas = () => {
-      if (containerRef.current && padRef.current) {
+    const handleResize = () => {
+      if (padRef.current) {
         const canvas = padRef.current._canvas;
-        const container = containerRef.current;
         const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        
-        canvas.width = container.offsetWidth * ratio;
-        canvas.height = 200 * ratio;
-        canvas.style.width = `${container.offsetWidth}px`;
-        canvas.style.height = '200px';
-        
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.scale(ratio, ratio);
@@ -57,37 +64,47 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
       }
     };
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const clear = () => {
     if (padRef.current) {
       padRef.current.clear();
+      padRef.current._data = []; // Add this line
       onChange('');
     }
   };
 
+  const handleEnd = () => {
+    if (padRef.current) {
+      const trimmed = padRef.current.getTrimmedCanvas();
+      const signature = trimmed.toDataURL('image/png');
+      onChange(signature);
+    }
+  };
+
   return (
-    <div className={`w-full ${className}`} ref={containerRef}>
-      <div className="border border-gray-300 rounded-md">
+    <div className={`w-full ${className}`}>
+      <div className={`border border-gray-300 rounded-md ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <SignatureCanvas
           ref={padRef}
           canvasProps={{
-            className: `signature-canvas ${disabled ? 'opacity-50 pointer-events-none' : ''}`,
+            className: 'signature-canvas',
             style: {
               width: '100%',
               height: '200px',
               backgroundColor: '#fff'
             }
           }}
-          onEnd={() => {
-            if (padRef.current) {
-              const signature = padRef.current.toDataURL();
-              onChange(signature);
-            }
-          }}
+          onEnd={handleEnd}
+          dotSize={2}
+          minWidth={2}
+          maxWidth={4}
+          throttle={16}
+          velocityFilterWeight={0.7}
         />
       </div>
       <div className="mt-2 flex justify-end">

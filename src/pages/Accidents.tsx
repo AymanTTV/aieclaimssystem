@@ -15,11 +15,14 @@ import { Accident } from '../types';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
+import { useVehiclesContext } from '../utils/VehicleProvider';
+import { can } from '../hooks/usePermissions';
+
 
 const Accidents = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { accidents, loading: accidentsLoading } = useAccidents();
-  const { can } = usePermissions();
+  const { can } = usePermissions(); // Add this hook
   const {
     searchQuery,
     setSearchQuery,
@@ -27,6 +30,8 @@ const Accidents = () => {
     setStatusFilter,
     typeFilter,
     setTypeFilter,
+    claimStatusFilter,
+    setClaimStatusFilter,
     dateRange,
     setDateRange,
     filteredAccidents
@@ -38,19 +43,41 @@ const Accidents = () => {
   const [deletingAccident, setDeletingAccident] = useState<Accident | null>(null);
 
   const handleExport = () => {
-    const exportData = accidents.map(accident => ({
-      'Driver Name': accident.driverName,
-      'Vehicle': vehicles.find(v => v.id === accident.vehicleId)?.registrationNumber || 'N/A',
-      'Date': new Date(accident.accidentDate).toLocaleDateString(),
-      'Time': accident.accidentTime,
-      'Location': accident.accidentLocation,
-      'Status': accident.status,
-      'Type': accident.type || 'Pending'
-    }));
+  const exportData = accidents.map(accident => ({
+    'Reference No': accident.referenceNo,
+    'Reference Name': accident.referenceName,
+    // Driver Details
+    'Driver Name': accident.driverName,
+    'Driver Address': accident.driverAddress,
+    'Driver Post Code': accident.driverPostCode,
+    'Driver DOB': accident.driverDOB,
+    'Driver Phone': accident.driverPhone,
+    'Driver Mobile': accident.driverMobile,
+    'Driver NIN': accident.driverNIN,
+    // Vehicle Details
+    'Vehicle Make': accident.vehicleMake,
+    'Vehicle Model': accident.vehicleModel,
+    'Vehicle VRN': accident.vehicleVRN,
+    'Insurance Company': accident.insuranceCompany,
+    'Policy Number': accident.policyNumber,
+    'Policy Excess': accident.policyExcess,
+    // Accident Details
+    'Date': accident.accidentDate,
+    'Time': accident.accidentTime,
+    'Location': accident.accidentLocation,
+    'Description': accident.description,
+    'Damage Details': accident.damageDetails,
+    // Status Information
+    'Status': accident.status,
+    'Type': accident.type || 'Pending',
+    // Timestamps
+    'Submitted At': new Date(accident.submittedAt).toLocaleString(),
+    'Updated At': new Date(accident.updatedAt).toLocaleString()
+  }));
 
-    exportToExcel(exportData, 'accidents');
-    toast.success('Accidents exported successfully');
-  };
+  exportToExcel(exportData, 'accidents');
+  toast.success('Accidents exported successfully');
+};
 
   const handleDelete = async (accident: Accident) => {
     try {
@@ -97,13 +124,15 @@ const Accidents = () => {
         </div>
       </div>
 
-      <AccidentFilters
+     <AccidentFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
+        claimStatusFilter={claimStatusFilter}
+        onClaimStatusFilterChange={setClaimStatusFilter}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
       />

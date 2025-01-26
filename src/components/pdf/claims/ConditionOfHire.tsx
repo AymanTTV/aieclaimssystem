@@ -30,16 +30,11 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
         {/* Terms and Conditions */}
         <View style={styles.section}>
           <Text style={styles.text}>
-            (a) For the purpose of this agreement AIE SKYLINE LTD is referred to as the lessor.
+            {companyDetails.conditionOfHireText || 
+              "(a) For the purpose of this agreement AIE SKYLINE LTD is referred to as the lessor.\n\n" +
+              "(b) \"The Hirer\" means the person, firm or organisation by or on behalf of whom this agreement is signed"
+            }
           </Text>
-          <Text style={styles.text}>
-            (b) "The Hirer" means the person, firm or organisation by or on behalf of whom this agreement is signed
-          </Text>
-          {/* Add all terms and conditions */}
-          <Text style={styles.text}>
-            1. The hirer will ensure that any authorised driver will comply with all conditions of this agreement.
-          </Text>
-          {/* Continue with all terms... */}
         </View>
 
         {/* Signature Section */}
@@ -52,6 +47,10 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
             <Text style={styles.signatureLine}>Signature of Hirer</Text>
           </View>
           <View style={styles.signatureBox}>
+            {companyDetails.signature && (
+              <Image src={companyDetails.signature} style={styles.signature} />
+            )}
+            <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName}</Text>
             <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
             <Text>Ref: AIE-{claim.id.slice(-8).toUpperCase()}</Text>
           </View>

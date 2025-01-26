@@ -4,21 +4,22 @@ import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { lazyLoad } from './lazyLoad';
 
-// Lazy load pages
-const Login = lazyLoad('../pages/Login');
-const AdminSetup = lazyLoad('../pages/AdminSetup');
-const Dashboard = lazyLoad('../pages/Dashboard');
-const Profile = lazyLoad('../pages/Profile');
-const Vehicles = lazyLoad('../pages/Vehicles');
-const Maintenance = lazyLoad('../pages/Maintenance');
-const Rentals = lazyLoad('../pages/Rentals');
-const Accidents = lazyLoad('../pages/Accidents');
-const Claims = lazyLoad('../pages/Claims');
-const Finance = lazyLoad('../pages/Finance');
-const Invoices = lazyLoad('../pages/Invoices');
-const Users = lazyLoad('../pages/Users');
-const Customers = lazyLoad('../pages/Customers');
-const CompanyManagers = lazyLoad('../pages/CompanyManagers');
+// Update the lazy imports to use just the component name
+const Login = lazyLoad('Login');
+const AdminSetup = lazyLoad('AdminSetup');
+const Dashboard = lazyLoad('Dashboard');
+const Profile = lazyLoad('Profile');
+const Vehicles = lazyLoad('Vehicles');
+const Maintenance = lazyLoad('Maintenance');
+const Rentals = lazyLoad('Rentals');
+const Accidents = lazyLoad('Accidents');
+const Claims = lazyLoad('Claims');
+const PersonalInjury = lazyLoad('PersonalInjury');
+const Finance = lazyLoad('Finance');
+const Invoices = lazyLoad('Invoices');
+const Users = lazyLoad('Users');
+const Customers = lazyLoad('Customers');
+const CompanyManagers = lazyLoad('CompanyManagers');
 
 const AppRoutes = () => {
   return (
@@ -78,6 +79,14 @@ const AppRoutes = () => {
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
           <Layout>
             <Claims />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/claims/personal-injury" element={
+        <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
+          <Layout>
+            <PersonalInjury />
           </Layout>
         </ProtectedRoute>
       } />

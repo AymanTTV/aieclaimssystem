@@ -1,21 +1,17 @@
-// src/components/claims/ClaimTable.tsx
-
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Claim } from '../../types';
-import { Eye, Edit, Trash2, FileText, Download, Play, CheckCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Download, Play, CheckCircle, Clock } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import toast from 'react-hot-toast';
 
 interface ClaimTableProps {
   claims: Claim[];
   onView: (claim: Claim) => void;
   onEdit: (claim: Claim) => void;
   onDelete: (claim: Claim) => void;
+  onUpdateProgress: (claim: Claim) => void;
 }
 
 const ClaimTable: React.FC<ClaimTableProps> = ({
@@ -23,32 +19,9 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onUpdateProgress,
 }) => {
   const { can } = usePermissions();
-
-  const handleProgressUpdate = async (claim: Claim, newProgress: 'in-progress' | 'completed') => {
-    try {
-      const claimRef = doc(db, 'claims', claim.id);
-      await updateDoc(claimRef, {
-        progress: newProgress,
-        updatedAt: new Date(),
-        progressHistory: [
-          ...claim.progressHistory,
-          {
-            id: Date.now().toString(),
-            date: new Date(),
-            status: newProgress,
-            note: `Claim marked as ${newProgress}`,
-            author: 'System'
-          }
-        ]
-      });
-      toast.success(`Claim marked as ${newProgress}`);
-    } catch (error) {
-      console.error('Error updating claim progress:', error);
-      toast.error('Failed to update claim progress');
-    }
-  };
 
   const columns = [
     {
@@ -71,9 +44,6 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       cell: ({ row }) => (
         <div>
           <div className="font-medium">{row.original.clientVehicle.registration}</div>
-          <div className="text-sm text-gray-500">
-            {row.original.clientVehicle.make} {row.original.clientVehicle.model}
-          </div>
         </div>
       ),
     },
@@ -136,30 +106,16 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          {row.original.progress === 'submitted' && can('claims', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleProgressUpdate(row.original, 'in-progress');
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Start Processing"
-            >
-              <Play className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.progress === 'in-progress' && can('claims', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleProgressUpdate(row.original, 'completed');
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Mark as Completed"
-            >
-              <CheckCircle className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateProgress(row.original);
+            }}
+            className="text-blue-600 hover:text-blue-800"
+            title="Update Progress"
+          >
+            <Clock className="h-4 w-4" />
+          </button>
           {can('claims', 'view') && (
             <button
               onClick={(e) => {
@@ -206,11 +162,6 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       data={claims}
       columns={columns}
       onRowClick={(claim) => can('claims', 'view') && onView(claim)}
-      rowClassName={(claim) => {
-        if (claim.progress === 'completed') return 'bg-green-50';
-        if (claim.progress === 'in-progress') return 'bg-blue-50';
-        return '';
-      }}
     />
   );
 };

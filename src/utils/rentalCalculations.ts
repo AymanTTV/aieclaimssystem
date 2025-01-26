@@ -1,4 +1,4 @@
-import { addDays, differenceInDays, isMonday, nextMonday } from 'date-fns';
+import { addDays, differenceInDays, isMonday, nextMonday, isAfter } from 'date-fns';
 import { Vehicle, Rental } from '../types';
 
 // Default rental rates (whole numbers)
@@ -27,8 +27,8 @@ export const calculateRentalCost = (
   if (reason === 'staff') return 0; // Staff rentals are free
   if (reason === 'claim') return differenceInDays(endDate, startDate) * claimRate;
 
-  // Calculate total days
-  const totalDays = Math.max(1, differenceInDays(endDate, startDate));
+  // Calculate total days (including end date)
+  const totalDays = differenceInDays(endDate, startDate) + 1;
 
   // For claim rentals
   if (type === 'claim') {
@@ -36,82 +36,80 @@ export const calculateRentalCost = (
   }
 
   // For weekly rentals
-  // For weekly rentals
-if (type === 'weekly') {
-  const startDay = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  
-  // If not starting on Monday
-  if (startDay !== 1) {
-    // Calculate days until next Monday
-    const daysUntilMonday = startDay === 0 ? 1 : 8 - startDay;
-    const initialDays = Math.min(daysUntilMonday, totalDays);
+  if (type === 'weekly') {
+    const startDay = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
     
-    // Calculate initial cost (daily rate until Monday)
-    const initialCost = initialDays * dailyRate;
-    
-    // If rental ends before next Monday, return only daily rate
-    if (totalDays <= initialDays) {
-      return initialCost;
+    // If not starting on Monday
+    if (startDay !== 1) {
+      // Calculate days until next Monday
+      const nextMon = nextMonday(startDate);
+      const daysUntilMonday = differenceInDays(nextMon, startDate);
+      
+      // Initial cost (daily rate until Monday)
+      const initialCost = daysUntilMonday * dailyRate;
+      
+      // If rental ends before next Monday
+      if (differenceInDays(endDate, nextMon) < 0) {
+        return initialCost;
+      }
+      
+      // Calculate remaining weeks and days
+      const remainingDays = differenceInDays(endDate, nextMon) + 1;
+      const fullWeeks = Math.floor(remainingDays / 7);
+      const extraDays = remainingDays % 7;
+      
+      return initialCost + 
+             (fullWeeks * weeklyRate) + 
+             (extraDays * dailyRate);
     }
     
-    // Calculate remaining days after reaching Monday
-    const remainingDays = totalDays - initialDays;
-    const fullWeeks = Math.floor(remainingDays / 7);
-    const extraDays = remainingDays % 7;
+    // Starting on Monday - calculate full weeks and remaining days
+    const fullWeeks = Math.floor(totalDays / 7);
+    const extraDays = totalDays % 7;
     
-    return initialCost + 
-           (fullWeeks * weeklyRate) + 
-           (extraDays * dailyRate);
+    return (fullWeeks * weeklyRate) + (extraDays * dailyRate);
   }
-  
-  // Starting on Monday - calculate full weeks and remaining days
-  const fullWeeks = Math.floor(totalDays / 7);
-  const extraDays = totalDays % 7;
-  
-  return (fullWeeks * weeklyRate) + (extraDays * dailyRate);
-}
-
-
 
   // For daily rentals
   if (totalDays >= 7) {
-    const fullWeeks = Math.floor(totalDays / 7);
+    const weeks = Math.floor(totalDays / 7);
     const extraDays = totalDays % 7;
     
     // If extra days cost more than a week, charge weekly rate
     if (extraDays * dailyRate > weeklyRate) {
-      return (fullWeeks + 1) * weeklyRate;
+      return (weeks + 1) * weeklyRate;
     }
     
-    return (fullWeeks * weeklyRate) + (extraDays * dailyRate);
+    return (weeks * weeklyRate) + (extraDays * dailyRate);
   }
 
   // Less than 7 days - charge daily rate
   return totalDays * dailyRate;
 };
 
-
 export const calculateOverdueCost = (
   rental: Rental,
   currentDate: Date,
   vehicle?: Vehicle
 ): number => {
+  if (!isAfter(currentDate, rental.endDate)) return 0;
+
   const dailyRate = vehicle?.dailyRentalPrice || RENTAL_RATES.daily;
   const weeklyRate = vehicle?.weeklyRentalPrice || RENTAL_RATES.weekly;
   const claimRate = vehicle?.claimRentalPrice || RENTAL_RATES.claim;
 
-  const extraDays = differenceInDays(currentDate, rental.endDate);
-  if (extraDays <= 0) return 0;
+  // Calculate overdue days including partial days
+  const overdueDays = Math.ceil((currentDate.getTime() - rental.endDate.getTime()) / (1000 * 60 * 60 * 24));
 
   // For claim rentals, always use claim rate
   if (rental.type === 'claim' || rental.reason === 'claim') {
-    return extraDays * claimRate;
+    return overdueDays * claimRate;
   }
 
   // For weekly rentals
   if (rental.type === 'weekly') {
-    const weeks = Math.floor(extraDays / 7);
-    const remainingDays = extraDays % 7;
+    const weeks = Math.floor(overdueDays / 7);
+    const remainingDays = overdueDays % 7;
 
     // If remaining days cost more than a week, charge weekly rate
     if (remainingDays * dailyRate > weeklyRate) {
@@ -122,9 +120,9 @@ export const calculateOverdueCost = (
   }
 
   // For daily rentals
-  if (extraDays >= 7) {
-    const weeks = Math.floor(extraDays / 7);
-    const remainingDays = extraDays % 7;
+  if (overdueDays >= 7) {
+    const weeks = Math.floor(overdueDays / 7);
+    const remainingDays = overdueDays % 7;
 
     // If remaining days cost more than a week, charge weekly rate
     if (remainingDays * dailyRate > weeklyRate) {
@@ -135,29 +133,31 @@ export const calculateOverdueCost = (
   }
 
   // Less than 7 days overdue - charge daily rate
-  return extraDays * dailyRate;
+  return overdueDays * dailyRate;
 };
 
-export const isDocumentExpiringWithinWeek = (date: Date): boolean => {
-  const oneWeek = addDays(new Date(), 7);
-  return date <= oneWeek;
-};
+// Helper function to get available vehicles
+export const getAvailableVehicles = (
+  vehicles: Vehicle[],
+  startDate: Date,
+  endDate: Date,
+  currentRentals: Rental[]
+): Vehicle[] => {
+  return vehicles.filter(vehicle => {
+    // Only include available vehicles or vehicles with completed rentals
+    if (vehicle.status !== 'available' && vehicle.status !== 'completed') {
+      return false;
+    }
 
-export const checkVehicleDocuments = (vehicle: Vehicle): string[] => {
-  const expiringDocs: string[] = [];
-  
-  if (isDocumentExpiringWithinWeek(vehicle.motExpiry)) {
-    expiringDocs.push('MOT');
-  }
-  if (isDocumentExpiringWithinWeek(vehicle.insuranceExpiry)) {
-    expiringDocs.push('Insurance');
-  }
-  if (isDocumentExpiringWithinWeek(vehicle.nslExpiry)) {
-    expiringDocs.push('NSL');
-  }
-  if (isDocumentExpiringWithinWeek(vehicle.roadTaxExpiry)) {
-    expiringDocs.push('Road Tax');
-  }
+    // Check for rental conflicts
+    const hasConflict = currentRentals.some(rental => {
+      if (rental.vehicleId !== vehicle.id) return false;
+      if (rental.status === 'completed' || rental.status === 'cancelled') return false;
 
-  return expiringDocs;
+      // Check for date overlap
+      return !(endDate <= rental.startDate || startDate >= rental.endDate);
+    });
+
+    return !hasConflict;
+  });
 };

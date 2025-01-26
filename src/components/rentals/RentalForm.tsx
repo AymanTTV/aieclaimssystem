@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Vehicle, Customer } from '../../types';
+import { Vehicle, Customer, Rentals } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import SignaturePad from '../ui/SignaturePad';
-import { addWeeks, isMonday, nextMonday, format, addDays } from 'date-fns';
-
+import { addWeeks, isMonday, nextMonday, format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Search, Car } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
@@ -17,6 +16,7 @@ import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 interface RentalFormProps {
   vehicles: Vehicle[];
   customers: Customer[];
+  rentals: Rental[]; // Add this
   onClose: () => void;
 }
 
@@ -57,28 +57,27 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
   // Update end date when type or number of weeks changes
   useEffect(() => {
-  if (formData.type === 'weekly' && formData.startDate) {
-    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-    let endDateTime;
+    if (formData.type === 'weekly' && formData.startDate) {
+      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+      let endDateTime;
 
-    if (!isMonday(startDateTime)) {
-      // Calculate days until next Monday
-      const firstMonday = nextMonday(startDateTime);
-      // Add (numberOfWeeks - 1) * 7 days to the first Monday
-      endDateTime = addDays(firstMonday, (formData.numberOfWeeks - 1) * 7);
-    } else {
-      // If starting on Monday, simply add numberOfWeeks * 7 days
-      endDateTime = addDays(startDateTime, formData.numberOfWeeks * 7);
+      if (!isMonday(startDateTime)) {
+        // Calculate days until next Monday
+        const firstMonday = nextMonday(startDateTime);
+        // Add (numberOfWeeks - 1) * 7 days to the first Monday
+        endDateTime = addWeeks(firstMonday, formData.numberOfWeeks - 1);
+      } else {
+        // If starting on Monday, simply add numberOfWeeks * 7 days
+        endDateTime = addWeeks(startDateTime, formData.numberOfWeeks);
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        endDate: endDateTime.toISOString().split('T')[0],
+        endTime: formData.startTime
+      }));
     }
-
-    setFormData(prev => ({
-      ...prev,
-      endDate: endDateTime.toISOString().split('T')[0],
-      endTime: formData.startTime
-    }));
-  }
-}, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
-
+  }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
 
   // Filter vehicles based on search and availability
   const filteredVehicles = availableVehicles.filter(vehicle => {
@@ -127,12 +126,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     e.preventDefault();
     if (!user) return;
     setLoading(true);
-
-    // Validate number of weeks
-  if (formData.type === 'weekly' && (!formData.numberOfWeeks || formData.numberOfWeeks < 1)) {
-    toast.error('Number of weeks must be at least 1');
-    return;
-  }
 
     try {
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
@@ -192,19 +185,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       // Generate and upload documents
       const selectedCustomer = customers.find(c => c.id === formData.customerId);
       if (selectedVehicle && selectedCustomer) {
-      try {
         const documents = await generateRentalDocuments(
           { id: docRef.id, ...rentalData },
           selectedVehicle,
           selectedCustomer
         );
         await uploadRentalDocuments(docRef.id, documents);
-      } catch (error) {
-        console.error('Error generating documents:', error);
-        // Don't fail the entire rental creation if document generation fails
-        toast.error('Rental created but document generation failed');
       }
-    }
 
       toast.success('Rental created successfully');
       onClose();
@@ -219,174 +206,173 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Vehicle Search */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Vehicle</label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            value={vehicleSearchQuery}
-            onChange={(e) => {
-              setVehicleSearchQuery(e.target.value);
-              setShowVehicleResults(true);
-            }}
-            onFocus={() => setShowVehicleResults(true)}
-            placeholder="Search vehicles..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-            disabled={!formData.startDate}
-          />
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-gray-700">Vehicle</label>
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
         </div>
+        <input
+          type="text"
+          value={vehicleSearchQuery}
+          onChange={(e) => {
+            setVehicleSearchQuery(e.target.value);
+            setShowVehicleResults(true);
+          }}
+          onFocus={() => setShowVehicleResults(true)}
+          placeholder="Search vehicles..."
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+        />
+      </div>
 
-        {/* Vehicle Search Results */}
-{/* Vehicle Search Results */}
-{showVehicleResults && formData.startDate && (
+      {/* Vehicle Search Results */}
+      {/* Vehicle Search Results */}
+{showVehicleResults && (
   <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
     {loadingVehicles ? (
       <div className="px-4 py-2 text-sm text-gray-500">Loading vehicles...</div>
     ) : filteredVehicles.length > 0 ? (
-      filteredVehicles.map((vehicle) => (
-        <div
-          key={vehicle.id}
-          className={`cursor-pointer hover:bg-gray-100 px-4 py-2 ${
-            vehicle.status === 'completed' ? 'border-l-4 border-amber-500' : ''
-          }`}
-          onClick={() => {
-            setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
-            setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
-            setShowVehicleResults(false);
-          }}
-        >
-          <div className="flex items-center">
-            <Car className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <div className="font-medium">{vehicle.make} {vehicle.model}</div>
-              <div className="text-sm text-gray-500">
-                {vehicle.registrationNumber}
-                {vehicle.weeklyRentalPrice && ` - £${vehicle.weeklyRentalPrice}/week`}
-              </div>
-              {vehicle.message && (
-                <div className="text-xs text-amber-600 mt-1">
-                  {vehicle.message}
+      filteredVehicles.map((vehicle) => {
+        // Get the latest completed rental for this vehicle
+        const completedRental = vehicle.activeStatuses?.includes('completed') && 
+          rentals?.find(r => 
+            r.vehicleId === vehicle.id && 
+            r.status === 'completed'
+          );
+
+        return (
+          <div
+            key={vehicle.id}
+            className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+            onClick={() => {
+              setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
+              setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
+              setShowVehicleResults(false);
+            }}
+          >
+            <div className="flex items-center">
+              <Car className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <div className="font-medium">{vehicle.make} {vehicle.model}</div>
+                <div className="text-sm text-gray-500">
+                  {vehicle.registrationNumber}
+                  {vehicle.weeklyRentalPrice && ` - £${vehicle.weeklyRentalPrice}/week`}
                 </div>
-              )}
+                {/* Only show availability message for completed rentals */}
+                {completedRental && (
+                  <div className="text-xs text-amber-600 mt-1">
+                    Available from {format(completedRental.endDate, 'dd/MM/yyyy HH:mm')}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ))
+        );
+      })
     ) : (
       <div className="px-4 py-2 text-sm text-gray-500">No available vehicles found</div>
     )}
   </div>
 )}
 
+    </div>
 
-
-
-
-
-
-
-
-
-        {/* Selected Vehicle Details */}
-        {selectedVehicle && (
-          <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900">Selected Vehicle</h4>
-            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Make/Model:</span>
-                <span className="ml-2">{selectedVehicle.make} {selectedVehicle.model}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Registration:</span>
-                <span className="ml-2">{selectedVehicle.registrationNumber}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Daily Rate:</span>
-                <span className="ml-2">£{selectedVehicle.dailyRentalPrice || '60'}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Weekly Rate:</span>
-                <span className="ml-2">£{selectedVehicle.weeklyRentalPrice || '360'}</span>
-              </div>
-            </div>
+    {/* Selected Vehicle Details */}
+    {selectedVehicle && (
+      <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+        <h4 className="text-sm font-medium text-gray-900">Selected Vehicle</h4>
+        <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-gray-500">Make/Model:</span>
+            <span className="ml-2">{selectedVehicle.make} {selectedVehicle.model}</span>
           </div>
-        )}
-      </div>
-
-      {/* Customer Search */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Customer</label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+          <div>
+            <span className="text-gray-500">Registration:</span>
+            <span className="ml-2">{selectedVehicle.registrationNumber}</span>
           </div>
-          <input
-            type="text"
-            value={customerSearchQuery}
-            onChange={(e) => {
-              setCustomerSearchQuery(e.target.value);
-              setShowCustomerResults(true);
-            }}
-            onFocus={() => setShowCustomerResults(true)}
-            placeholder="Search customers..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          />
+          <div>
+            <span className="text-gray-500">Daily Rate:</span>
+            <span className="ml-2">£{selectedVehicle.dailyRentalPrice || '60'}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">Weekly Rate:</span>
+            <span className="ml-2">£{selectedVehicle.weeklyRentalPrice || '360'}</span>
+          </div>
         </div>
+      </div>
+    )}
 
-        {/* Customer Search Results */}
-        {showCustomerResults && (
-          <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-            {filteredCustomers.map(customer => (
-              <div
-                key={customer.id}
-                className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                onClick={() => {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    customerId: customer.id,
-                    signature: customer.signature || ''
-                  }));
-                  setCustomerSearchQuery(customer.name);
-                  setShowCustomerResults(false);
-                }}
-              >
-                <div className="font-medium">{customer.name}</div>
-                <div className="text-sm text-gray-500">
-                  {customer.mobile} - {customer.email}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+    {/* Customer Search */}
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-gray-700">Customer</label>
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          value={customerSearchQuery}
+          onChange={(e) => {
+            setCustomerSearchQuery(e.target.value);
+            setShowCustomerResults(true);
+          }}
+          onFocus={() => setShowCustomerResults(true)}
+          placeholder="Search customers..."
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+        />
+      </div>
 
-        {/* Selected Customer Details */}
-        {selectedCustomer && (
-          <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900">Selected Customer</h4>
-            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Name:</span>
-                <span className="ml-2">{selectedCustomer.name}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Mobile:</span>
-                <span className="ml-2">{selectedCustomer.mobile}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Email:</span>
-                <span className="ml-2">{selectedCustomer.email}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">License Expiry:</span>
-                <span className="ml-2">{format(selectedCustomer.licenseExpiry, 'dd/MM/yyyy')}</span>
+      {/* Customer Search Results */}
+      {showCustomerResults && (
+        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+          {filteredCustomers.map(customer => (
+            <div
+              key={customer.id}
+              className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  customerId: customer.id,
+                  signature: customer.signature || ''
+                }));
+                setCustomerSearchQuery(customer.name);
+                setShowCustomerResults(false);
+              }}
+            >
+              <div className="font-medium">{customer.name}</div>
+              <div className="text-sm text-gray-500">
+                {customer.mobile} - {customer.email}
               </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Selected Customer Details */}
+      {selectedCustomer && (
+        <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-900">Selected Customer</h4>
+          <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-500">Name:</span>
+              <span className="ml-2">{selectedCustomer.name}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Mobile:</span>
+              <span className="ml-2">{selectedCustomer.mobile}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Email:</span>
+              <span className="ml-2">{selectedCustomer.email}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">License Expiry:</span>
+              <span className="ml-2">{format(selectedCustomer.licenseExpiry, 'dd/MM/yyyy')}</span>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
 
       {/* Rental Details */}
       <div className="grid grid-cols-2 gap-4">
@@ -416,27 +402,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             <option value="claim">Claim</option>
             <option value="o/d">O/D</option>
             <option value="staff">Staff</option>
-            {/* <option value="workshop">Workshop</option> */}
+            <option value="workshop">Workshop</option>
             <option value="c-substitute">C Substitute</option>
             <option value="h-substitute">H Substitute</option>
           </select>
         </div>
-
-        <div>
-  <label className="block text-sm font-medium text-gray-700">Status</label>
-  <select
-    value={formData.status}
-    onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-    required
-  >
-    <option value="scheduled">Scheduled</option>
-    <option value="active">Active</option>
-    <option value="completed">Completed</option>
-    <option value="cancelled">Cancelled</option>
-  </select>
-</div>
-
 
         <FormField
           type="date"
@@ -455,43 +425,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         />
 
         {formData.type === 'weekly' ? (
-          <>
-            <FormField
-              type="number"
-              label="Number of Weeks"
-              value={formData.numberOfWeeks}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                if (value >= 1) { // Only update if value is 1 or greater
-                  setFormData({ ...formData, numberOfWeeks: value });
-                }
-              }}
-              min="1"
-              step="1"
-              required
-              onBlur={(e) => {
-                // If field is empty, set to 1
-                if (!e.target.value) {
-                  setFormData({ ...formData, numberOfWeeks: 1 });
-                }
-              }}
-            />
-
-            <FormField
-              type="date"
-              label="End Date"
-              value={formData.endDate}
-              disabled
-              required
-            />
-            <FormField
-              type="time"
-              label="End Time"
-              value={formData.endTime}
-              disabled
-              required
-            />
-          </>
+          <FormField
+            type="number"
+            label="Number of Weeks"
+            value={formData.numberOfWeeks}
+            onChange={(e) => setFormData({ ...formData, numberOfWeeks: parseInt(e.target.value) })}
+            min="1"
+            required
+          />
         ) : (
           <>
             <FormField
@@ -539,6 +480,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             <option value="cheque">Cheque</option>
           </select>
         </div>
+        
 
         <FormField
           label="Payment Reference"

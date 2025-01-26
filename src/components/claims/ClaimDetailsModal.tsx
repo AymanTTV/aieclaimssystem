@@ -4,35 +4,63 @@ import React from 'react';
 import { Claim } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { 
-  FileText, 
-  Download, 
-  Car, 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  AlertTriangle,
-  DollarSign,
-  FileCheck,
-  Ambulance,
-  Shield
-} from 'lucide-react';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Clock, AlertTriangle } from 'lucide-react';
 
 interface ClaimDetailsModalProps {
   claim: Claim;
   onClose: () => void;
+  onDownloadDocument?: (url: string) => void;
 }
 
-const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
-  const formatDate = (date: Date): string => {
-    return format(date, 'dd/MM/yyyy');
+const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({
+  claim,
+  onClose,
+  onDownloadDocument
+}) => {
+  const formatDate = (date: Date | null | undefined): string => {
+    if (!date) return 'N/A';
+    
+    try {
+      // Handle Firestore Timestamp
+      if (date?.toDate) {
+        date = date.toDate();
+      }
+      
+      // Ensure we have a valid Date object
+      const dateObj = date instanceof Date ? date : new Date(date);
+      
+      if (isNaN(dateObj.getTime())) {
+        return 'N/A';
+      }
+      
+      return format(dateObj, 'dd/MM/yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
   };
 
-  const formatDateTime = (date: Date): string => {
-    return format(date, 'dd/MM/yyyy HH:mm');
+  const formatDateTime = (date: Date | null | undefined): string => {
+    if (!date) return 'N/A';
+    
+    try {
+      // Handle Firestore Timestamp
+      if (date?.toDate) {
+        date = date.toDate();
+      }
+      
+      // Ensure we have a valid Date object
+      const dateObj = date instanceof Date ? date : new Date(date);
+      
+      if (isNaN(dateObj.getTime())) {
+        return 'N/A';
+      }
+      
+      return format(dateObj, 'dd/MM/yyyy HH:mm');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
   };
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -42,49 +70,58 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
     </div>
   );
 
-  const DocumentLink = ({ url, label }: { url?: string; label: string }) => (
-    url ? (
-      <a 
-        href={url} 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="flex items-center text-primary hover:text-primary-600"
-      >
-        <FileText className="h-4 w-4 mr-2" />
-        {label}
-      </a>
-    ) : null
-  );
-
   return (
     <div className="space-y-6">
+      {/* Header with Status */}
       <div className="flex justify-between items-start">
-  <div>
-    <h2 className="text-2xl font-bold text-gray-900">
-      Claim #{claim.id.slice(-8).toUpperCase()}
-    </h2>
-    <div className="text-sm text-gray-500 mt-1 space-y-1">
-      {claim.clientRef && (
-        <div className="flex items-center">
-          <FileText className="h-4 w-4 text-gray-400 mr-1" />
-          <span>Client Ref: {claim.clientRef}</span>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Claim #{claim.id.slice(-8).toUpperCase()}
+          </h2>
+          <div className="text-sm text-gray-500 mt-1 space-y-1">
+            {claim.clientRef && (
+              <div className="flex items-center">
+                <FileText className="h-4 w-4 text-gray-400 mr-1" />
+                <span>Client Ref: {claim.clientRef}</span>
+              </div>
+            )}
+            <div className="flex items-center">
+              <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+              <span>Submitted on {formatDateTime(claim.submittedAt)}</span>
+            </div>
+            <div className="flex items-center">
+              <User className="h-4 w-4 text-gray-400 mr-1" />
+              <span>Type: {claim.submitterType}</span>
+            </div>
+          </div>
         </div>
+        <div className="space-y-1">
+          <StatusBadge status={claim.claimType} />
+          <StatusBadge status={claim.claimReason} />
+          <StatusBadge status={claim.caseProgress} />
+          <StatusBadge status={claim.progress} />
+        </div>
+      </div>
+
+      {/* Generated Documents */}
+      {claim.documents && Object.keys(claim.documents).length > 0 && (
+        <Section title="Generated Documents">
+          <div className="space-y-2">
+            {Object.entries(claim.documents).map(([key, url]) => (
+              url && (
+                <button
+                  key={key}
+                  onClick={() => onDownloadDocument?.(url)}
+                  className="flex items-center text-primary hover:text-primary-600"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                </button>
+              )
+            ))}
+          </div>
+        </Section>
       )}
-      <div className="flex items-center">
-        <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-        <span>Submitted on {formatDateTime(claim.submittedAt)}</span>
-      </div>
-      <div className="flex items-center">
-        <User className="h-4 w-4 text-gray-400 mr-1" />
-        <span>Type: {claim.submitterType}</span>
-      </div>
-    </div>
-  </div>
-  <div className="space-y-1">
-    <StatusBadge status={claim.claimType} />
-    <StatusBadge status={claim.progress} />
-  </div>
-</div>
 
       {/* Client Information */}
       <Section title="Client Information">
@@ -93,7 +130,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
             <User className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <div className="font-medium">{claim.clientInfo.name}</div>
-              <div className="text-sm text-gray-500 capitalize">{claim.clientInfo.gender}</div>
+              <div className="text-sm text-gray-500">{formatDate(claim.clientInfo.dateOfBirth)}</div>
             </div>
           </div>
           <div className="flex items-center">
@@ -109,11 +146,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
             <div>{claim.clientInfo.address}</div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Date of Birth</div>
-            <div>{formatDate(claim.clientInfo.dateOfBirth)}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-500">NI Number</div>
+            <div className="text-sm text-gray-500">National Insurance Number</div>
             <div>{claim.clientInfo.nationalInsuranceNumber}</div>
           </div>
         </div>
@@ -122,34 +155,40 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
       {/* Vehicle Details */}
       <Section title="Vehicle Details">
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center">
-            <Car className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <div className="font-medium">{claim.clientVehicle.registration}</div>
-              <div className="text-sm text-gray-500">
-                {claim.clientVehicle.make} {claim.clientVehicle.model}
-              </div>
-            </div>
+          <div>
+            <div className="text-sm text-gray-500">Registration</div>
+            <div className="font-medium">{claim.clientVehicle.registration}</div>
           </div>
           <div>
             <div className="text-sm text-gray-500">MOT Expiry</div>
-            <div>{formatDate(claim.clientVehicle.motExpiry)}</div>
+            <div className="font-medium">{formatDate(claim.clientVehicle.motExpiry)}</div>
           </div>
           <div>
             <div className="text-sm text-gray-500">Road Tax Expiry</div>
-            <div>{formatDate(claim.clientVehicle.roadTaxExpiry)}</div>
+            <div className="font-medium">{formatDate(claim.clientVehicle.roadTaxExpiry)}</div>
           </div>
         </div>
 
         {/* Vehicle Documents */}
-        <div className="mt-4 space-y-2">
-          <DocumentLink url={claim.clientVehicle.documents.licenseFront} label="License Front" />
-          <DocumentLink url={claim.clientVehicle.documents.licenseBack} label="License Back" />
-          <DocumentLink url={claim.clientVehicle.documents.logBook} label="Log Book" />
-          <DocumentLink url={claim.clientVehicle.documents.nsl} label="NSL" />
-          <DocumentLink url={claim.clientVehicle.documents.insuranceCertificate} label="Insurance Certificate" />
-          <DocumentLink url={claim.clientVehicle.documents.tflBill} label="TfL Bill" />
-        </div>
+        {claim.clientVehicle.documents && Object.entries(claim.clientVehicle.documents).length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Documents</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {Object.entries(claim.clientVehicle.documents).map(([key, url]) => (
+                url && (
+                  <button
+                    key={key}
+                    onClick={() => onDownloadDocument?.(url)}
+                    className="flex items-center text-primary hover:text-primary-600"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                  </button>
+                )
+              ))}
+            </div>
+          </div>
+        )}
       </Section>
 
       {/* Incident Details */}
@@ -189,7 +228,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-500">Name</div>
-            <div>{claim.thirdParty.name}</div>
+            <div className="font-medium">{claim.thirdParty.name}</div>
           </div>
           <div>
             <div className="text-sm text-gray-500">Phone</div>
@@ -210,152 +249,305 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
         </div>
       </Section>
 
-      {/* Evidence */}
-      <Section title="Evidence">
-        {/* Images */}
-        {claim.evidence.images.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Images</h4>
-            <div className="grid grid-cols-3 gap-4">
-              {claim.evidence.images.map((url, index) => (
-                <img
-                  key={index}
-                  src={url}
-                  alt={`Evidence ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-lg"
-                  onClick={() => window.open(url, '_blank')}
-                  style={{ cursor: 'pointer' }}
-                />
-              ))}
+      {/* Passengers */}
+      {claim.passengers && claim.passengers.length > 0 && (
+        <Section title="Passengers">
+          <div className="space-y-4">
+            {claim.passengers.map((passenger, index) => (
+              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Passenger {index + 1}</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500">Name</div>
+                    <div>{passenger.name}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Contact</div>
+                    <div>{passenger.contactNumber}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Address</div>
+                    <div>{passenger.address}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Post Code</div>
+                    <div>{passenger.postCode}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Date of Birth</div>
+                    <div>{passenger.dob}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Witnesses */}
+      {claim.witnesses && claim.witnesses.length > 0 && (
+        <Section title="Witnesses">
+          <div className="space-y-4">
+            {claim.witnesses.map((witness, index) => (
+              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Witness {index + 1}</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500">Name</div>
+                    <div>{witness.name}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Contact</div>
+                    <div>{witness.contactNumber}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Address</div>
+                    <div>{witness.address}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Post Code</div>
+                    <div>{witness.postCode}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Date of Birth</div>
+                    <div>{witness.dob}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Police Information */}
+      {claim.policeOfficerName && (
+        <Section title="Police Information">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-sm text-gray-500">Officer Name</div>
+              <div>{claim.policeOfficerName}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Badge Number</div>
+              <div>{claim.policeBadgeNumber}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Police Station</div>
+              <div>{claim.policeStation}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Incident Number</div>
+              <div>{claim.policeIncidentNumber}</div>
+            </div>
+            {claim.policeContactInfo && (
+              <div className="col-span-2">
+                <div className="text-sm text-gray-500">Additional Contact Information</div>
+                <div>{claim.policeContactInfo}</div>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Paramedic Information */}
+      {claim.paramedicNames && (
+        <Section title="Paramedic Information">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-sm text-gray-500">Paramedic Names</div>
+              <div>{claim.paramedicNames}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Ambulance Reference</div>
+              <div>{claim.ambulanceReference}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Ambulance Service</div>
+              <div>{claim.ambulanceService}</div>
             </div>
           </div>
-        )}
-
-        {/* Vehicle Photos */}
-        {claim.evidence.clientVehiclePhotos.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Vehicle Photos</h4>
-            <div className="grid grid-cols-3 gap-4">
-              {claim.evidence.clientVehiclePhotos.map((url, index) => (
-                <img
-                  key={index}
-                  src={url}
-                  alt={`Vehicle Photo ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-lg"
-                  onClick={() => window.open(url, '_blank')}
-                  style={{ cursor: 'pointer' }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Documents */}
-        <div className="space-y-2">
-          <DocumentLink url={claim.evidence.engineerReport} label="Engineer Report" />
-          <DocumentLink url={claim.evidence.bankStatement} label="Bank Statement" />
-          {claim.evidence.adminDocuments.map((url, index) => (
-            <DocumentLink key={index} url={url} label={`Admin Document ${index + 1}`} />
-          ))}
-        </div>
-      </Section>
+        </Section>
+      )}
 
       {/* Hire Details */}
-      {claim.hireDetails && (
-        <Section title="Hire Details">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-gray-500">Start Date & Time</div>
-              <div>{formatDateTime(claim.hireDetails.startDate)} {claim.hireDetails.startTime}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">End Date & Time</div>
-              <div>{formatDateTime(claim.hireDetails.endDate)} {claim.hireDetails.endTime}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Vehicle</div>
-              <div>{claim.hireDetails.vehicle.make} {claim.hireDetails.vehicle.model}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Claim Rate</div>
-              <div>£{claim.hireDetails.vehicle.claimRate}/day</div>
-            </div>
-          </div>
-        </Section>
-      )}
+{claim.hireDetails && (
+  <Section title="Hire Details">
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <div className="text-sm text-gray-500">Start Date & Time</div>
+        <div>{formatDateTime(claim.hireDetails.startDate)} {claim.hireDetails.startTime}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">End Date & Time</div>
+        <div>{formatDateTime(claim.hireDetails.endDate)} {claim.hireDetails.endTime}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Days of Hire</div>
+        <div>{claim.hireDetails.daysOfHire || 0} days</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Claim Rate</div>
+        <div>£{(claim.hireDetails.claimRate || 0).toFixed(2)}/day</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Total Cost</div>
+        <div>£{(claim.hireDetails.totalCost || 0).toFixed(2)}</div>
+      </div>
+    </div>
+  </Section>
+)}
 
       {/* Recovery Details */}
-      {claim.recovery && (
-        <Section title="Recovery Details">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-gray-500">Date</div>
-              <div>{formatDate(claim.recovery.date)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Cost</div>
-              <div>£{claim.recovery.cost.toFixed(2)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Pickup Location</div>
-              <div>{claim.recovery.locationPickup}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Dropoff Location</div>
-              <div>{claim.recovery.locationDropoff}</div>
-            </div>
-          </div>
-        </Section>
-      )}
+{claim.recovery && (
+  <Section title="Recovery Details">
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <div className="text-sm text-gray-500">Date</div>
+        <div className="font-medium">{formatDate(claim.recovery.date)}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Cost</div>
+        <div className="font-medium">£{(claim.recovery.cost || 0).toFixed(2)}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Pickup Location</div>
+        <div>{claim.recovery.locationPickup}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Dropoff Location</div>
+        <div>{claim.recovery.locationDropoff}</div>
+      </div>
+    </div>
+  </Section>
+)}
 
       {/* Storage Details */}
-      {claim.storage && (
-        <Section title="Storage Details">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-gray-500">Start Date</div>
-              <div>{formatDate(claim.storage.startDate)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">End Date</div>
-              <div>{formatDate(claim.storage.endDate)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Cost per Day</div>
-              <div>£{claim.storage.costPerDay.toFixed(2)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Total Cost</div>
-              <div>£{claim.storage.totalCost.toFixed(2)}</div>
-            </div>
-          </div>
-        </Section>
-      )}
+{claim.storage && (
+  <Section title="Storage Details">
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <div className="text-sm text-gray-500">Start Date</div>
+        <div className="font-medium">{formatDate(claim.storage.startDate)}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">End Date</div>
+        <div className="font-medium">{formatDate(claim.storage.endDate)}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Cost per Day</div>
+        <div className="font-medium">£{(claim.storage.costPerDay || 0).toFixed(2)}</div>
+      </div>
+      <div>
+        <div className="text-sm text-gray-500">Total Cost</div>
+        <div className="font-medium">£{(claim.storage.totalCost || 0).toFixed(2)}</div>
+      </div>
+    </div>
+  </Section>
+)}
 
-      {/* File Handlers */}
-      <Section title="File Handlers">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-sm text-gray-500">AIE Handler</div>
-            <div>{claim.fileHandlers.aieHandler}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-500">Legal Handler</div>
-            <div>{claim.fileHandlers.legalHandler}</div>
-          </div>
-        </div>
-      </Section>
+      {/* Evidence */}
+<Section title="Evidence">
+  {/* Images */}
+  {claim.evidence.images.length > 0 && (
+    <div className="mb-4">
+      <h4 className="text-sm font-medium text-gray-900 mb-2">Images</h4>
+      <div className="grid grid-cols-3 gap-4">
+        {claim.evidence.images.map((url, index) => (
+          <img
+            key={index}
+            src={url}
+            alt={`Evidence ${index + 1}`}
+            className="w-full h-32 object-cover rounded-lg cursor-pointer"
+            onClick={() => onDownloadDocument?.(url)}
+          />
+        ))}
+      </div>
+    </div>
+  )}
 
-      {/* Generated Documents */}
-      {claim.documents && (
-        <Section title="Generated Documents">
-          <div className="space-y-2">
-            <DocumentLink url={claim.documents.conditionOfHire} label="Condition of Hire" />
-            <DocumentLink url={claim.documents.creditHireMitigation} label="Credit Hire Mitigation" />
-            <DocumentLink url={claim.documents.noticeOfRightToCancel} label="Notice of Right to Cancel" />
-            <DocumentLink url={claim.documents.creditStorageAndRecovery} label="Credit Storage and Recovery" />
-            <DocumentLink url={claim.documents.hireAgreement} label="Hire Agreement" />
-            <DocumentLink url={claim.documents.satisfactionNotice} label="Satisfaction Notice" />
+  {/* Videos */}
+  {claim.evidence.videos.length > 0 && (
+    <div className="mb-4">
+      <h4 className="text-sm font-medium text-gray-900 mb-2">Videos</h4>
+      <div className="grid grid-cols-3 gap-4">
+        {claim.evidence.videos.map((url, index) => (
+          <div key={index} className="relative aspect-video bg-gray-100 rounded-lg">
+            <video
+              src={url}
+              className="w-full h-full object-cover rounded-lg"
+              controls
+            />
+            <button
+              onClick={() => onDownloadDocument?.(url)}
+              className="absolute top-2 right-2 p-1 bg-white rounded-full shadow hover:bg-gray-100"
+            >
+              <Download className="h-4 w-4 text-gray-600" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* Vehicle Photos */}
+  {claim.evidence.clientVehiclePhotos.length > 0 && (
+    <div className="mb-4">
+      <h4 className="text-sm font-medium text-gray-900 mb-2">Vehicle Photos</h4>
+      <div className="grid grid-cols-3 gap-4">
+        {claim.evidence.clientVehiclePhotos.map((url, index) => (
+          <img
+            key={index}
+            src={url}
+            alt={`Vehicle photo ${index + 1}`}
+            className="w-full h-32 object-cover rounded-lg cursor-pointer"
+            onClick={() => onDownloadDocument?.(url)}
+          />
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* Documents */}
+  <div className="space-y-2">
+    {claim.evidence.engineerReport.map((url, index) => (
+      <button
+        key={index}
+        onClick={() => onDownloadDocument?.(url)}
+        className="flex items-center text-primary hover:text-primary-600"
+      >
+        <FileText className="h-4 w-4 mr-2" />
+        <span>Engineer Report {index + 1}</span>
+      </button>
+    ))}
+    {claim.evidence.bankStatement.map((url, index) => (
+      <button
+        key={index}
+        onClick={() => onDownloadDocument?.(url)}
+        className="flex items-center text-primary hover:text-primary-600"
+      >
+        <FileText className="h-4 w-4 mr-2" />
+        <span>Bank Statement {index + 1}</span>
+      </button>
+    ))}
+    {claim.evidence.adminDocuments.map((url, index) => (
+      <button
+        key={index}
+        onClick={() => onDownloadDocument?.(url)}
+        className="flex items-center text-primary hover:text-primary-600"
+      >
+        <FileText className="h-4 w-4 mr-2" />
+        <span>Admin Document {index + 1}</span>
+      </button>
+    ))}
+  </div>
+</Section>
+
+
+      {/* Status Description */}
+      {claim.statusDescription && (
+        <Section title="Status Description">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">{claim.statusDescription}</p>
           </div>
         </Section>
       )}
@@ -364,14 +556,16 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
       <Section title="Progress History">
         <div className="space-y-4">
           {claim.progressHistory.map((progress, index) => (
-            <div key={index} className="flex justify-between items-start p-4 bg-gray-50 rounded-lg">
-              <div>
-                <StatusBadge status={progress.status} />
-                <p className="mt-2 text-sm text-gray-600">{progress.note}</p>
-              </div>
-              <div className="text-right text-sm text-gray-500">
-                <div>{formatDateTime(progress.date)}</div>
-                <div>By {progress.author}</div>
+            <div key={index} className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex justify-between items-start">
+                <div>
+                  <StatusBadge status={progress.status} />
+                  <p className="mt-2 text-sm text-gray-600">{progress.note}</p>
+                </div>
+                <div className="text-right text-sm text-gray-500">
+                  <div>{formatDateTime(progress.date)}</div>
+                  <div>By {progress.author}</div>
+                </div>
               </div>
             </div>
           ))}
@@ -381,7 +575,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsModalProps> = ({ claim }) => {
       {/* Audit Information */}
       <div className="text-sm text-gray-500 border-t pt-4">
         <div className="flex justify-between">
-          <div>Created: {formatDateTime(claim.createdAt)}</div>
+          <div>Created: {formatDateTime(claim.submittedAt)}</div>
           <div>Last Updated: {formatDateTime(claim.updatedAt)}</div>
         </div>
       </div>

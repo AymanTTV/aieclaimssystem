@@ -18,8 +18,10 @@ import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
+import { useVehiclesContext } from '../utils/VehicleProvider';
 
 const Rentals = () => {
+  // const { vehicles, loading } = useVehiclesContext();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { rentals, loading: rentalsLoading } = useRentals();
   const { customers, loading: customersLoading } = useCustomers();

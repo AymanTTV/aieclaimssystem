@@ -13,8 +13,10 @@ import { Plus, Download } from 'lucide-react';
 import { exportMaintenanceLogs } from '../utils/maintenanceExport';
 import { MaintenanceLog } from '../types';
 import toast from 'react-hot-toast';
+import { useVehiclesContext } from '../utils/VehicleProvider';
 
 const Maintenance = () => {
+  // const { vehicles, loading } = useVehiclesContext();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();

@@ -17,6 +17,7 @@ import { doc, updateDoc, collection, query, where, getDocs, writeBatch } from 'f
 import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import toast from 'react-hot-toast';
+import { useVehiclesContext } from '../utils/VehicleProvider';
 
 
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
@@ -24,6 +25,7 @@ import { RefreshCw } from 'lucide-react';
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
+  // const { vehicles, loading } = useVehiclesContext();
   const { can } = usePermissions();
   useVehicleStatusManager();
 

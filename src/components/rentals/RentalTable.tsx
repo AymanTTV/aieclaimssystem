@@ -109,25 +109,41 @@ const RentalTable: React.FC<RentalTableProps> = ({
       ),
     },
     {
-  header: 'Period',
-  cell: ({ row }) => {
-    const totalDays = differenceInDays(row.original.endDate, row.original.startDate);
+      header: 'Period',
+      cell: ({ row }) => {
+        const rental = row.original;
+        const startDate = new Date(rental.startDate);
+        const endDate = new Date(rental.endDate);
+        const now = new Date();
+        
+        // Calculate total days including partial days
+        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Calculate overdue days if rental is active and past end date
+        const overdueDays = rental.status === 'active' && isAfter(now, endDate) 
+          ? Math.ceil((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
     
-    return (
-      <div>
-        <div className="text-sm">
-          {formatDate(row.original.startDate)}
-        </div>
-        <div className="text-sm text-gray-500">
-          {formatDate(row.original.endDate)}
-        </div>
-        <div className="text-xs text-gray-500">
-          {totalDays} days
-        </div>
-      </div>
-    );
-  },
-},
+        return (
+          <div>
+            <div className="text-sm">
+              {formatDate(startDate, true)} {/* Include time */}
+            </div>
+            <div className="text-sm text-gray-500">
+              {formatDate(endDate, true)} {/* Include time */}
+            </div>
+            <div className="text-xs text-gray-500">
+              {totalDays} days
+              {overdueDays > 0 && (
+                <span className="text-red-600 ml-1">
+                  (Overdue by {overdueDays} days)
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
 
 
     {
@@ -161,7 +177,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
             
             {overdueCharges > 0 && (
               <div className="text-xs text-red-600">
-                +£{overdueCharges.toFixed(2)} overdue
+                +£{overdueCharges.toFixed(2)} Ongoing Charges
               </div>
             )}
 

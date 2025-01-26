@@ -23,6 +23,20 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
 
   const columns = [
     {
+    header: 'Reference Info',
+    cell: ({ row }) => (
+      <div className="space-y-1">
+        <div className="flex items-center">
+          <FileText className="w-4 h-4 text-gray-400 mr-2" />
+          <div>
+            <div className="font-medium">No: {row.original.referenceNo}</div>
+            <div className="text-sm text-gray-500">Name: {row.original.referenceName}</div>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+    {
       header: 'Driver Information',
       cell: ({ row }) => (
         <div className="space-y-1">

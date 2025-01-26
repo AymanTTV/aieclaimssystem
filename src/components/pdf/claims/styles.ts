@@ -1,4 +1,3 @@
-
 import { StyleSheet } from '@react-pdf/renderer';
 
 export const styles = StyleSheet.create({
@@ -42,13 +41,35 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 1.4,
   },
-  list: {
-    marginLeft: 20,
+  table: {
+    width: '100%',
     marginBottom: 10,
   },
-  listItem: {
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 5,
+  },
+  tableCell: {
+    flex: 1,
     fontSize: 10,
-    marginBottom: 5,
+  },
+  tableCellRight: {
+    width: 80,
+    textAlign: 'right',
+    fontSize: 10,
+  },
+  tableCellBold: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  totalRow: {
+    borderTopWidth: 2,
+    borderTopColor: '#000',
+    marginTop: 5,
+    paddingTop: 5,
   },
   signatureSection: {
     marginTop: 30,
@@ -61,10 +82,10 @@ export const styles = StyleSheet.create({
   signature: {
     width: '100%',
     height: 50,
-    marginBottom: 5,
+    marginVertical: 10,
   },
   signatureLine: {
-    borderTop: 1,
+    borderTopWidth: 1,
     borderTopColor: '#000',
     marginTop: 5,
     paddingTop: 5,
@@ -78,13 +99,5 @@ export const styles = StyleSheet.create({
     fontSize: 8,
     textAlign: 'center',
     color: '#666',
-  },
-  reference: {
-    fontSize: 10,
-    marginBottom: 10,
-  },
-  date: {
-    fontSize: 10,
-    marginBottom: 20,
   },
 });

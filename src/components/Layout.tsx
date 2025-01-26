@@ -43,7 +43,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Maintenance', href: '/maintenance', icon: Wrench, permission: 'maintenance' },
     { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
-    { name: 'Claims', href: '/claims', icon: FileText, permission: 'claims' },
+    { 
+    name: 'Claims', 
+    href: '/claims', 
+    icon: FileText, 
+    permission: 'claims',
+    submenu: [
+      { name: 'All Claims', href: '/claims' },
+      { name: 'Personal Injury', href: '/claims/personal-injury' }
+    ]
+  },
     { 
       name: 'Finance', 
       href: '/finance', 

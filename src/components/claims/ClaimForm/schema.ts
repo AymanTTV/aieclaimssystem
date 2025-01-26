@@ -1,67 +1,99 @@
-// src/components/claims/ClaimForm/schema.ts
-
 import { z } from 'zod';
 
-export const claimFormSchema = z.object({
+const PROGRESS_OPTIONS = [
+  'Your Claim Has Started',
+  'Reported to Legal Team', 
+  'Engineer Report Pending',
+  'Awaiting TPI',
+  'Claim in Progress',
+  'Claim Complete'
+] as const;
 
+const isValidDateString = (value: string) => {
+  const date = new Date(value);
+  return !isNaN(date.getTime());
+};
+
+// Vehicle schema for hire details
+const hireVehicleSchema = z.object({
+  make: z.string(),
+  model: z.string(),
+  registration: z.string(),
+  claimRate: z.number()
+}).optional();
+
+// Hire Details Schema
+// Hire Details Schema
+const hireDetailsSchema = z.object({
+  enabled: z.boolean().default(false),
+  startDate: z.string().optional(),
+  startTime: z.string().optional(),
+  endDate: z.string().optional(),
+  endTime: z.string().optional(),
+  daysOfHire: z.number().min(0).default(0),
+  claimRate: z.number().min(0).default(340),
+  deliveryCharge: z.number().min(0).default(0),
+  collectionCharge: z.number().min(0).default(0),
+  insurancePerDay: z.number().min(0).default(0),
+  totalCost: z.number().min(0).optional(),
+  vehicle: hireVehicleSchema
+}).optional();
+
+// Recovery Schema
+const recoverySchema = z.object({
+  enabled: z.boolean().default(false),
+  date: z.string().optional(),
+  locationPickup: z.string().optional(),
+  locationDropoff: z.string().optional(),
+  cost: z.number().min(0).optional()
+}).optional();
+
+// Storage Schema
+const storageSchema = z.object({
+  enabled: z.boolean().default(false),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  costPerDay: z.number().min(0).optional(),
+  totalCost: z.number().min(0).optional()
+}).optional();
+
+// Main Claim Form Schema
+export const claimFormSchema = z.object({
+  // Submitter Type
   submitterType: z.enum(['company', 'client']),
-  
-  // Client Information
   clientRef: z.string().optional(),
+
+  // Client Information
   clientInfo: z.object({
     name: z.string().min(1, 'Name is required'),
     phone: z.string().min(1, 'Phone number is required'),
-    gender: z.enum(['male', 'female', 'other']),
-    dateOfBirth: z.string().min(1, 'Date of birth is required'),
+    email: z.string().email('Invalid email address'),
+    dateOfBirth: z.string().refine(isValidDateString, {
+      message: 'Invalid date format'
+    }),
     nationalInsuranceNumber: z.string().min(1, 'NI number is required'),
     address: z.string().min(1, 'Address is required'),
-    email: z.string().email('Invalid email address'),
     signature: z.string().optional()
   }),
 
-  // Vehicle Details
+  // Vehicle Information
   clientVehicle: z.object({
     registration: z.string().min(1, 'Registration number is required'),
-    documents: z.object({
-      licenseFront: z.string().optional(),
-      licenseBack: z.string().optional(),
-      logBook: z.string().optional(),
-      nsl: z.string().optional(),
-      insuranceCertificate: z.string().optional(),
-      tflBill: z.string().optional()
-    }),
+    documents: z.record(z.union([z.string(), z.instanceof(File)]).optional()),
     motExpiry: z.string().min(1, 'MOT expiry date is required'),
     roadTaxExpiry: z.string().min(1, 'Road tax expiry date is required')
   }),
 
   // Incident Details
   incidentDetails: z.object({
-    date: z.string().min(1, 'Incident date is required'),
-    time: z.string().min(1, 'Incident time is required'),
+    date: z.string().refine(isValidDateString, {
+      message: 'Please enter a valid date'
+    }),
+    time: z.string().min(1, 'Time is required'),
     location: z.string().min(1, 'Location is required'),
     description: z.string().min(1, 'Description is required'),
     damageDetails: z.string().min(1, 'Damage details are required')
   }),
-
-  // Evidence
-  // src/components/claims/ClaimForm/schema.ts
-
-evidence: z.object({
-  images: z.array(z.instanceof(File)).default([]),
-  videos: z.array(z.instanceof(File)).default([]),
-  clientVehiclePhotos: z.array(z.instanceof(File)).default([]),
-  engineerReport: z.array(z.instanceof(File)).default([]),
-  bankStatement: z.array(z.instanceof(File)).default([]),
-  adminDocuments: z.array(z.instanceof(File)).default([])
-}).default({
-  images: [],
-  videos: [],
-  clientVehiclePhotos: [],
-  engineerReport: [],
-  bankStatement: [],
-  adminDocuments: []
-}),
-
 
   // Third Party Information
   thirdParty: z.object({
@@ -72,49 +104,37 @@ evidence: z.object({
     registration: z.string().min(1, 'Third party registration is required')
   }),
 
-  // PI Report (Optional)
-  piReport: z.object({
-    injuryDescription: z.string(),
-    nationalSourceNumber: z.string()
-  }).optional(),
-
- // Make hire details completely optional
-  hireDetails: z.object({
-    startDate: z.string(),
-    startTime: z.string(),
-    endDate: z.string(),
-    endTime: z.string(),
-    vehicle: z.object({
-      make: z.string(),
-      model: z.string(),
-      registration: z.string(),
-      claimRate: z.number()
-    })
-  }).optional(),
-
-  // Recovery Details (Optional)
-  recovery: z.object({
-    date: z.string(),
-    locationPickup: z.string(),
-    locationDropoff: z.string(),
-    cost: z.number().min(0, 'Cost must be 0 or greater')
-  }).optional(),
-
-  // Make storage details completely optional
-  storage: z.object({
-    startDate: z.string(),
-    endDate: z.string(),
-    costPerDay: z.number(),
-    totalCost: z.number()
-  }).optional(),
-
-  // Witness Information (Optional)
-  witness: z.object({
+  // Optional Arrays
+  passengers: z.array(z.object({
     name: z.string(),
     address: z.string(),
-    phone: z.string(),
-    email: z.string().email('Invalid email address').optional()
-  }).optional(),
+    postCode: z.string(),
+    dob: z.string(),
+    contactNumber: z.string()
+  })).optional().default([]),
+
+  witnesses: z.array(z.object({
+    name: z.string(),
+    address: z.string(),
+    postCode: z.string(),
+    dob: z.string(),
+    contactNumber: z.string()
+  })).optional().default([]),
+
+  // Evidence
+  evidence: z.object({
+    images: z.array(z.union([z.string(), z.instanceof(File)])),
+    videos: z.array(z.union([z.string(), z.instanceof(File)])),
+    clientVehiclePhotos: z.array(z.union([z.string(), z.instanceof(File)])),
+    engineerReport: z.array(z.union([z.string(), z.instanceof(File)])),
+    bankStatement: z.array(z.union([z.string(), z.instanceof(File)])),
+    adminDocuments: z.array(z.union([z.string(), z.instanceof(File)]))
+  }),
+
+  // Optional Sections
+  hireDetails: hireDetailsSchema,
+  recovery: recoverySchema,
+  storage: storageSchema,
 
   // File Handlers
   fileHandlers: z.object({
@@ -122,20 +142,21 @@ evidence: z.object({
     legalHandler: z.string().min(1, 'Legal handler is required')
   }),
 
-  // Claim Details
-  claimType: z.enum(['Domestic', 'Taxi', 'PI', 'PCO']),
-  claimReason: z.enum(['VD Only', 'VDHS', 'VDH', 'PI', 'VDHSPI']),
-  caseProgress: z.enum(['Win', 'Lost', 'Awaiting', '50/50']),
-  progress: z.enum(['in-progress', 'completed'])
-}).transform((data) => {
-  // Remove empty optional sections
-  if (!data.hireDetails?.startDate) {
-    delete data.hireDetails;
-  }
-  if (!data.storage?.startDate) {
-    delete data.storage;
-  }
-  return data;
+  // Status and Progress
+  claimType: z.enum(['Domestic', 'Taxi', 'PI', 'PCO']).default('Domestic'),
+  claimReason: z.enum(['VD Only', 'VDHS', 'VDH', 'PI', 'VDHSPI']).default('VD Only'),
+  caseProgress: z.enum(['Win', 'Lost', 'Awaiting', '50/50']).default('Awaiting'),
+  progress: z.enum(PROGRESS_OPTIONS),
+  statusDescription: z.string().optional(),
+
+  // Progress History
+  progressHistory: z.array(z.object({
+    id: z.string(),
+    date: z.date(),
+    status: z.string(),
+    note: z.string(),
+    author: z.string()
+  })).optional().default([])
 });
 
 export type ClaimFormData = z.infer<typeof claimFormSchema>;

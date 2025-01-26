@@ -3,7 +3,8 @@ import { Search } from 'lucide-react';
 import { Gender } from '../../types/customer';
 
 interface CustomerFiltersProps {
-  onSearch: (query: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
   filterExpired: boolean;
   onFilterExpired: (filter: boolean) => void;
   filterSoonExpiring: boolean;
@@ -15,7 +16,8 @@ interface CustomerFiltersProps {
 }
 
 const CustomerFilters: React.FC<CustomerFiltersProps> = ({
-  onSearch,
+  searchQuery,
+  onSearchChange,
   filterExpired,
   onFilterExpired,
   filterSoonExpiring,
@@ -34,8 +36,8 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         </div>
         <input
           type="text"
-          placeholder="Search customers..."
-          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search by name, email, phone, badge number..."
+          onChange={(e) => onSearchChange(e.target.value)}
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
         />
       </div>

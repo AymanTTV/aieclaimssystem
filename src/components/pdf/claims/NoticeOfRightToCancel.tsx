@@ -28,40 +28,34 @@ const NoticeOfRightToCancel: React.FC<NoticeOfRightToCancelProps> = ({ claim, co
         <Text style={styles.title}>RIGHT TO CANCEL CREDIT AGREEMENT</Text>
 
         <View style={styles.section}>
-          <Text style={styles.reference}>
-            Ref: AIE-{claim.id.slice(-8).toUpperCase()}
-          </Text>
-          <Text style={styles.date}>
-            Date of issue: {format(new Date(), 'dd/MM/yyyy')}
-          </Text>
-
           <Text style={styles.text}>
-            Name and Address of person to whom the cancellation notice may be given, or an email address to which it may be sent:
+            {companyDetails.noticeOfRightToCancelText || 
+              "You have the right to cancel this contract if you wish, within 14 calendar days starting on the date of issue stated above. " +
+              "Cancellation should be communicated in writing or by email to the person shown above.\n\n" +
+              "You are advised to keep a copy of your cancellation notice. You can use the attached form which is provided for your convenience. " +
+              "You are not obliged to use this form.\n\n" +
+              "Cancellation is deemed to be served as soon as it is posted or sent to AIE SKYLINE LIMITED or in the case of an electronic communication from the day it is sent."
+            }
           </Text>
+        </View>
 
-          <View style={styles.section}>
-            <Text>{companyDetails.fullName}</Text>
-            <Text>{companyDetails.officialAddress}</Text>
-            <Text>Email: {companyDetails.email}</Text>
+        {/* Signature Section */}
+        <View style={styles.signatureSection}>
+          <View style={styles.signatureBox}>
+            <Text>Customer Name: {claim.clientInfo.name}</Text>
+            {claim.clientInfo.signature && (
+              <Image src={claim.clientInfo.signature} style={styles.signature} />
+            )}
+            <Text style={styles.signatureLine}>Customer Signature</Text>
           </View>
-
-          <Text style={styles.sectionTitle}>Customer Cancellation Rights</Text>
-          <Text style={styles.text}>
-            You have the right to cancel this contract if you wish, within 14 calendar days, starting on the date of issue stated above. Cancellation should be given in writing or email to the person shown above.
-          </Text>
-
-          <Text style={styles.text}>
-            Page 2 of this form may be used to exercise this right and can be issued in person or sent by post – in which you should obtain a certificate or a posting or recorded delivery slip. You are advised to take a copy of the cancellation notice before returning it to the hire company.
-          </Text>
-
-          <Text style={styles.text}>
-            Cancellation is deemed to be served as soon as it is posted or sent to AIE SKYLINE LIMITED or in the case of an electronic communication from the day it is sent to AIE SKYLINE LIMITED.
-          </Text>
-
-          <Text style={styles.sectionTitle}>Complaints</Text>
-          <Text style={styles.text}>
-            If you wish to make a complaint then this may be done by posts or email address above.
-          </Text>
+          <View style={styles.signatureBox}>
+            {companyDetails.signature && (
+              <Image src={companyDetails.signature} style={styles.signature} />
+            )}
+            <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName}</Text>
+            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text>Ref: AIE-{claim.id.slice(-8).toUpperCase()}</Text>
+          </View>
         </View>
 
         {/* Footer */}

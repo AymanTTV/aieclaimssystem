@@ -8,6 +8,10 @@ export interface RentalPayment {
   notes?: string;
   createdAt: Date;
   createdBy: string;
+  negotiated?: boolean;
+  negotiationNotes?: string;
+  approvedBy?: string;
+  standardCost?: number;
 }
 
 export interface Rental {

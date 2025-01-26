@@ -20,8 +20,9 @@ export const ROUTES = {
   RENTALS: '/rentals',
   ACCIDENTS: '/accidents',
   CLAIMS: '/claims',
+  PERSONAL_INJURY: '/claims/personal-injury', // Add this line
   FINANCE: '/finance',
-  INVOICES: '/finance/invoices', // Add this line
+  INVOICES: '/finance/invoices',
   USERS: '/users',
   CUSTOMERS: '/customers',
 } as const;
@@ -33,8 +34,9 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.RENTALS]: { module: 'rentals', action: 'view' },
   [ROUTES.ACCIDENTS]: { module: 'accidents', action: 'view' },
   [ROUTES.CLAIMS]: { module: 'claims', action: 'view' },
+  [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' }, // Add this line
   [ROUTES.FINANCE]: { module: 'finance', action: 'view' },
-  [ROUTES.INVOICES]: { module: 'finance', action: 'view' }, // Add this line
+  [ROUTES.INVOICES]: { module: 'finance', action: 'view' },
   [ROUTES.USERS]: { module: 'users', action: 'view' },
   [ROUTES.CUSTOMERS]: { module: 'customers', action: 'view' },
 } as const;
@@ -64,6 +66,10 @@ export const ROUTE_METADATA = {
   [ROUTES.CLAIMS]: {
     title: 'Claims',
     icon: 'FileText',
+  },
+  [ROUTES.PERSONAL_INJURY]: { // Add this section
+    title: 'Personal Injury',
+    icon: 'Activity',
   },
   [ROUTES.FINANCE]: {
     title: 'Finance',

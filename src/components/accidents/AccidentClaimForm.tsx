@@ -19,7 +19,65 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
   const [witnessCount, setWitnessCount] = useState(0);
   const [images, setImages] = useState<FileList | null>(null);
 
+  const [errors, setErrors] = useState({
+    refNo: '',
+    referenceName: '',
+  });
+
+  
+  
+  const handleRefNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, refNo: value });
+
+    // Clear error when user starts typing
+    if (value && !isNaN(Number(value)) && Number(value) > 0) {
+      setErrors({ ...errors, refNo: '' });
+    } else {
+      setErrors({ ...errors, refNo: 'Ref No must be a valid number greater than 0.' });
+    }
+  };
+
+  const handleReferenceNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, referenceName: value });
+
+    // Clear error when user starts typing
+    if (value.trim()) {
+      setErrors({ ...errors, referenceName: '' });
+    } else {
+      setErrors({ ...errors, referenceName: 'Reference Name cannot be empty.' });
+    }
+  };
+
+  const validateForm = (): boolean => {
+    let isValid = true;
+
+    // Validate Ref No - should be a valid number and greater than 0
+    if (!formData.refNo || isNaN(Number(formData.refNo)) || Number(formData.refNo) <= 0) {
+      isValid = false;
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        refNo: "Ref No must be a valid number greater than 0.",
+      }));
+    }
+
+    // Validate Reference Name - should not be empty
+    if (!formData.referenceName.trim()) {
+      isValid = false;
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        referenceName: "Reference Name cannot be empty.",
+      }));
+    }
+
+    return isValid;
+  };
+
+
   const [formData, setFormData] = useState({
+    refNo: '',
+    referenceName: '',
     // Driver Details
     driverName: '',
     driverAddress: '',
@@ -89,6 +147,10 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
     if (!user) return;
     setLoading(true);
 
+    if (!validateForm()) {
+    return; // Prevent submission if validation fails
+  }
+
     try {
       const imageUrls: string[] = [];
 
@@ -103,6 +165,8 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
 
       const accidentData = {
         ...formData,
+        refNo: Number(formData.refNo),
+        referenceName: formData.referenceName,
         passengers: formData.passengers.slice(0, passengerCount),
         witnesses: formData.witnesses.slice(0, witnessCount),
         images: imageUrls,
@@ -137,6 +201,30 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Reference Details */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Reference Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            label="Ref No"
+            type="number"
+            value={formData.refNo}
+            onChange={handleRefNoChange}
+            required
+            
+          />
+          {/* errorMessage={errors.refNo} */}
+          <FormField
+            label="Reference Name"
+            value={formData.referenceName}
+            onChange={handleReferenceNameChange}
+            required
+            
+          />
+        </div>
+        {/* errorMessage={errors.referenceName} */}
+      </div>
+      
       {/* Driver Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Driver Details</h3>

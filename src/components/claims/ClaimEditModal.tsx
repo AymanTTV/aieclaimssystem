@@ -1,5 +1,3 @@
-// src/components/claims/ClaimEditModal.tsx
-
 import React, { useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,8 +7,12 @@ import { Claim } from '../../types';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 import { useAuth } from '../../context/AuthContext';
 import { uploadAllFiles } from '../../utils/uploadAllFiles';
+import { uploadFile } from '../../utils/uploadFile';
 import { generateClaimDocuments } from '../../utils/claimDocuments';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
+import { ensureValidDate } from '../../utils/dateHelpers';
+
 
 // Import all sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
@@ -28,6 +30,7 @@ import StorageDetails from './ClaimForm/sections/StorageDetails';
 import EvidenceUpload from './ClaimForm/sections/EvidenceUpload';
 import FileHandlers from './ClaimForm/sections/FileHandlers';
 import ClaimProgress from './ClaimForm/sections/ClaimProgress';
+import ClientRefField from './ClaimForm/sections/ClientRefField';
 
 interface ClaimEditModalProps {
   claim: Claim;
@@ -39,75 +42,158 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [passengerCount, setPassengerCount] = useState(claim.passengers?.length || 0);
   const [witnessCount, setWitnessCount] = useState(claim.witnesses?.length || 0);
+  
+  const formatDate = (date: Date | null | undefined): string => {
+  if (!date) return '';
+  
+  try {
+    const validDate = ensureValidDate(date);
+    return validDate.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
 
+
+const formatDateTime = (date: Date | null | undefined): string => {
+  if (!date) return '';
+  
+  try {
+    const validDate = ensureValidDate(date);
+    return format(validDate, 'yyyy-MM-dd HH:mm');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+  
   const methods = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
     defaultValues: {
       submitterType: claim.submitterType,
       clientRef: claim.clientRef || '',
-      clientInfo: claim.clientInfo,
-      clientVehicle: claim.clientVehicle,
+      clientInfo: {
+        ...claim.clientInfo,
+        dateOfBirth: formatDate(ensureValidDate(claim.clientInfo.dateOfBirth)),
+        signature: claim.clientInfo.signature || ''
+      },
+      clientVehicle: {
+        ...claim.clientVehicle,
+        documents: {
+          licenseFront: claim.clientVehicle.documents?.licenseFront || '',
+          licenseBack: claim.clientVehicle.documents?.licenseBack || '',
+          logBook: claim.clientVehicle.documents?.logBook || '',
+          nsl: claim.clientVehicle.documents?.nsl || '',
+          insuranceCertificate: claim.clientVehicle.documents?.insuranceCertificate || '',
+          tflBill: claim.clientVehicle.documents?.tflBill || ''
+        },
+        motExpiry: formatDate(ensureValidDate(claim.clientVehicle.motExpiry)),
+        roadTaxExpiry: formatDate(ensureValidDate(claim.clientVehicle.roadTaxExpiry))
+      },
       incidentDetails: {
         ...claim.incidentDetails,
-        date: claim.incidentDetails.date.toISOString().split('T')[0],
+        date: formatDate(ensureValidDate(claim.incidentDetails.date))
       },
       thirdParty: claim.thirdParty,
+      passengers: claim.passengers || [],
+      witnesses: claim.witnesses || [],
       evidence: {
-        images: [],
-        videos: [],
-        clientVehiclePhotos: [],
-        engineerReport: [],
-        bankStatement: [],
-        adminDocuments: []
+        images: claim.evidence.images || [],
+        videos: claim.evidence.videos || [],
+        clientVehiclePhotos: claim.evidence.clientVehiclePhotos || [],
+        engineerReport: claim.evidence.engineerReport || [],
+        bankStatement: claim.evidence.bankStatement || [],
+        adminDocuments: claim.evidence.adminDocuments || []
       },
       hireDetails: claim.hireDetails ? {
+        enabled: true,
         ...claim.hireDetails,
-        startDate: claim.hireDetails.startDate.toISOString().split('T')[0],
-        endDate: claim.hireDetails.endDate.toISOString().split('T')[0],
-      } : undefined,
+        startDate: formatDate(ensureValidDate(claim.hireDetails.startDate)),
+        endDate: formatDate(ensureValidDate(claim.hireDetails.endDate))
+      } : { enabled: false },
       recovery: claim.recovery ? {
+        enabled: true,
         ...claim.recovery,
-        date: claim.recovery.date.toISOString().split('T')[0],
-      } : undefined,
+        date: formatDate(ensureValidDate(claim.recovery.date))
+      } : { enabled: false },
       storage: claim.storage ? {
+        enabled: true,
         ...claim.storage,
-        startDate: claim.storage.startDate.toISOString().split('T')[0],
-        endDate: claim.storage.endDate.toISOString().split('T')[0],
-      } : undefined,
+        startDate: formatDate(ensureValidDate(claim.storage.startDate)),
+        endDate: formatDate(ensureValidDate(claim.storage.endDate))
+      } : { enabled: false },
       fileHandlers: claim.fileHandlers,
       claimType: claim.claimType,
       claimReason: claim.claimReason,
       caseProgress: claim.caseProgress,
-      progress: claim.progress
+      progress: claim.progress,
+      statusDescription: claim.statusDescription || ''
     }
   });
 
   const handleSubmit = async (data: ClaimFormData) => {
-    if (!user) {
-      toast.error('You must be logged in to update a claim');
-      return;
-    }
+    if (!user) return;
+    setLoading(true);
 
     try {
-      setLoading(true);
+      // Upload vehicle documents
+      const vehicleDocumentUrls: Record<string, string> = {};
+      for (const [key, file] of Object.entries(data.clientVehicle.documents)) {
+        if (file instanceof File) {
+          const url = await uploadFile(file, `claims/${claim.id}/vehicle-documents`);
+          vehicleDocumentUrls[key] = url;
+        }
+      }
 
-      // Upload any new evidence files
+      // Upload evidence files
       const evidenceUrls = {
-        images: await uploadAllFiles(data.evidence.images, 'claims/images'),
-        videos: await uploadAllFiles(data.evidence.videos, 'claims/videos'),
-        clientVehiclePhotos: await uploadAllFiles(data.evidence.clientVehiclePhotos, 'claims/vehicle-photos'),
-        engineerReport: await uploadAllFiles(data.evidence.engineerReport, 'claims/engineer-reports'),
-        bankStatement: await uploadAllFiles(data.evidence.bankStatement, 'claims/bank-statements'),
-        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments, 'claims/admin-documents')
+        images: [...claim.evidence.images, ...await uploadAllFiles(
+          data.evidence.images.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/images`
+        )],
+        videos: [...claim.evidence.videos, ...await uploadAllFiles(
+          data.evidence.videos.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/videos`
+        )],
+        clientVehiclePhotos: [...claim.evidence.clientVehiclePhotos, ...await uploadAllFiles(
+          data.evidence.clientVehiclePhotos.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/vehicle-photos`
+        )],
+        engineerReport: [...claim.evidence.engineerReport, ...await uploadAllFiles(
+          data.evidence.engineerReport.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/engineer-reports`
+        )],
+        bankStatement: [...claim.evidence.bankStatement, ...await uploadAllFiles(
+          data.evidence.bankStatement.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/bank-statements`
+        )],
+        adminDocuments: [...claim.evidence.adminDocuments, ...await uploadAllFiles(
+          data.evidence.adminDocuments.filter((f): f is File => f instanceof File),
+          `claims/${claim.id}/admin-documents`
+        )]
+      };
+
+      // Create new progress entry
+      const newProgressEntry = {
+        id: Date.now().toString(),
+        date: new Date(),
+        status: data.progress,
+        note: data.statusDescription || 'Claim updated',
+        author: user.name
       };
 
       // Prepare update data
       const updateData = {
         ...data,
-        evidence: {
-          ...claim.evidence, // Keep existing evidence
-          ...evidenceUrls // Add new evidence
+        clientVehicle: {
+          ...data.clientVehicle,
+          documents: {
+            ...claim.clientVehicle.documents,
+            ...vehicleDocumentUrls
+          }
         },
+        evidence: evidenceUrls,
         clientInfo: {
           ...data.clientInfo,
           dateOfBirth: new Date(data.clientInfo.dateOfBirth)
@@ -116,40 +202,53 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           ...data.incidentDetails,
           date: new Date(data.incidentDetails.date)
         },
-        hireDetails: data.hireDetails ? {
-          ...data.hireDetails,
-          startDate: new Date(data.hireDetails.startDate),
-          endDate: new Date(data.hireDetails.endDate)
-        } : undefined,
-        storage: data.storage ? {
-          ...data.storage,
-          startDate: new Date(data.storage.startDate),
-          endDate: new Date(data.storage.endDate)
-        } : undefined,
+        // Only include optional sections if enabled
+        ...(data.hireDetails?.enabled ? {
+          hireDetails: {
+            startDate: new Date(data.hireDetails.startDate!),
+            endDate: new Date(data.hireDetails.endDate!),
+            startTime: data.hireDetails.startTime || '',
+            endTime: data.hireDetails.endTime || '',
+            daysOfHire: data.hireDetails.daysOfHire || 0,
+            claimRate: data.hireDetails.claimRate || 340,
+            deliveryCharge: data.hireDetails.deliveryCharge || 0,
+            collectionCharge: data.hireDetails.collectionCharge || 0,
+            insurancePerDay: data.hireDetails.insurancePerDay || 0,
+            totalCost: data.hireDetails.totalCost || 0,
+            vehicle: data.hireDetails.vehicle || null
+          }
+        } : null),
+        ...(data.recovery?.enabled ? {
+          recovery: {
+            date: new Date(data.recovery.date!),
+            locationPickup: data.recovery.locationPickup || '',
+            locationDropoff: data.recovery.locationDropoff || '',
+            cost: data.recovery.cost || 0
+          }
+        } : null),
+        ...(data.storage?.enabled ? {
+          storage: {
+            startDate: new Date(data.storage.startDate!),
+            endDate: new Date(data.storage.endDate!),
+            costPerDay: data.storage.costPerDay || 0,
+            totalCost: data.storage.totalCost || 0
+          }
+        } : null),
         updatedAt: new Date(),
         updatedBy: user.id,
-        progressHistory: [
-          ...claim.progressHistory,
-          {
-            id: Date.now().toString(),
-            date: new Date(),
-            note: 'Claim updated',
-            author: user.name,
-            status: data.progress
-          }
-        ]
+        progressHistory: [...claim.progressHistory, newProgressEntry]
       };
 
       // Update claim document
       await updateDoc(doc(db, 'claims', claim.id), updateData);
 
-      // Generate new documents if progress changed to completed
-      if (data.progress === 'completed' && claim.progress !== 'completed') {
+      // Generate new documents if claim is complete
+      
         await generateClaimDocuments(claim.id, {
           id: claim.id,
-          ...updateData as any
+          ...updateData
         });
-      }
+      
 
       toast.success('Claim updated successfully');
       onClose();
@@ -165,42 +264,31 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-6">
         <div className="space-y-6">
-          {/* Submitter Type Section */}
+          {/* All form sections */}
           <div className="bg-white rounded-lg p-6">
             <SubmitterDetails />
           </div>
-         
-            <div className="bg-white rounded-lg p-6">
-              <FormField
-                label="Client Reference (Optional)"
-                {...register('clientRef')}
-                defaultValue={claim.clientRef}
-                placeholder="Enter client reference number"
-              />
-            </div>
 
+          <div className="bg-white rounded-lg p-6">
+            <ClientRefField />
+          </div>
 
-          {/* Driver Details Section */}
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
           </div>
 
-          {/* Vehicle Details Section */}
           <div className="bg-white rounded-lg p-6">
             <VehicleDetails />
           </div>
 
-          {/* Fault Party Details Section */}
           <div className="bg-white rounded-lg p-6">
             <FaultPartyDetails />
           </div>
 
-          {/* Accident Details Section */}
           <div className="bg-white rounded-lg p-6">
             <AccidentDetails />
           </div>
 
-          {/* Passenger Details Section */}
           <div className="bg-white rounded-lg p-6">
             <PassengerDetails 
               count={passengerCount}
@@ -208,7 +296,6 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
             />
           </div>
 
-          {/* Witness Details Section */}
           <div className="bg-white rounded-lg p-6">
             <WitnessDetails 
               count={witnessCount}
@@ -216,42 +303,34 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
             />
           </div>
 
-          {/* Police Details Section */}
           <div className="bg-white rounded-lg p-6">
             <PoliceDetails />
           </div>
 
-          {/* Paramedic Details Section */}
           <div className="bg-white rounded-lg p-6">
             <ParamedicDetails />
           </div>
 
-          {/* Hire Details Section */}
           <div className="bg-white rounded-lg p-6">
             <HireDetails />
           </div>
 
-          {/* Recovery Details Section */}
           <div className="bg-white rounded-lg p-6">
             <RecoveryDetails />
           </div>
 
-          {/* Storage Details Section */}
           <div className="bg-white rounded-lg p-6">
             <StorageDetails />
           </div>
 
-          {/* Evidence Upload Section */}
           <div className="bg-white rounded-lg p-6">
             <EvidenceUpload />
           </div>
 
-          {/* File Handlers Section */}
           <div className="bg-white rounded-lg p-6">
             <FileHandlers />
           </div>
 
-          {/* Claim Progress Section */}
           <div className="bg-white rounded-lg p-6">
             <ClaimProgress />
           </div>

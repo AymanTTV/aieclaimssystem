@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'; // Add setDoc import
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import CompanyLogo from './CompanyLogo';
@@ -8,7 +8,6 @@ import FormField from '../ui/FormField';
 import { Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SignaturePad from "../ui/SignaturePad"
-
 
 interface CompanySettings {
   logoUrl?: string;
@@ -24,8 +23,15 @@ interface CompanySettings {
   accountNumber: string;
   vatNumber: string;
   registrationNumber: string;
-  termsAndConditions: string; // Text area content
-  signature: string; // Base64 encoded signature
+  termsAndConditions: string;
+  signature: string;
+  // Document texts
+  conditionOfHireText: string;
+  creditHireMitigationText: string;
+  noticeOfRightToCancelText: string;
+  creditStorageAndRecoveryText: string;
+  hireAgreementText: string;
+  satisfactionNoticeText: string;
 }
 
 const CompanyDetails = () => {
@@ -46,7 +52,14 @@ const CompanyDetails = () => {
     vatNumber: '',
     registrationNumber: '',
     termsAndConditions: '',
-    signature: ''
+    signature: '',
+    // Initialize document texts
+    conditionOfHireText: '',
+    creditHireMitigationText: '',
+    noticeOfRightToCancelText: '',
+    creditStorageAndRecoveryText: '',
+    hireAgreementText: '',
+    satisfactionNoticeText: ''
   });
 
   useEffect(() => {
@@ -69,7 +82,14 @@ const CompanyDetails = () => {
             vatNumber: '',
             registrationNumber: '',
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            // Default document texts
+            conditionOfHireText: '',
+            creditHireMitigationText: '',
+            noticeOfRightToCancelText: '',
+            creditStorageAndRecoveryText: '',
+            hireAgreementText: '',
+            satisfactionNoticeText: ''
           };
 
           await setDoc(docRef, defaultSettings);
@@ -88,28 +108,9 @@ const CompanyDetails = () => {
     fetchCompanyDetails();
   }, []);
 
-  const handleFileUpload = async (file: File, type: 'terms' | 'signature') => {
-    try {
-      const storageRef = ref(storage, `company/${type}/${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
-      
-      setFormData(prev => ({
-        ...prev,
-        [type === 'terms' ? 'termsAndConditionsUrl' : 'signatureUrl']: url
-      }));
-      
-      toast.success(`${type === 'terms' ? 'Terms & Conditions' : 'Signature'} uploaded successfully`);
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) return;
-
     setLoading(true);
 
     try {
@@ -297,46 +298,112 @@ const CompanyDetails = () => {
           />
         </div>
 
-        {/* Terms & Conditions Upload */}
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Terms & Conditions
-          </label>
-          <textarea
-            value={formData.termsAndConditions}
-            onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-            rows={10}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            disabled={!editing}
-            placeholder="Enter your company's terms and conditions here..."
-          />
+        {/* Document Terms & Conditions */}
+        <div className="md:col-span-2 space-y-6">
+          <h3 className="text-lg font-medium text-gray-900">Document Terms & Conditions</h3>
+          
+          {/* Condition of Hire */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Condition of Hire Terms</label>
+            <textarea
+              value={formData.conditionOfHireText}
+              onChange={(e) => setFormData({ ...formData, conditionOfHireText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Condition of Hire document..."
+            />
+          </div>
+
+          {/* Credit Hire Mitigation */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Credit Hire Mitigation Terms</label>
+            <textarea
+              value={formData.creditHireMitigationText}
+              onChange={(e) => setFormData({ ...formData, creditHireMitigationText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Credit Hire Mitigation document..."
+            />
+          </div>
+
+          {/* Notice of Right to Cancel */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Notice of Right to Cancel Terms</label>
+            <textarea
+              value={formData.noticeOfRightToCancelText}
+              onChange={(e) => setFormData({ ...formData, noticeOfRightToCancelText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Notice of Right to Cancel document..."
+            />
+          </div>
+
+          {/* Credit Storage and Recovery */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Credit Storage and Recovery Terms</label>
+            <textarea
+              value={formData.creditStorageAndRecoveryText}
+              onChange={(e) => setFormData({ ...formData, creditStorageAndRecoveryText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Credit Storage and Recovery document..."
+            />
+          </div>
+
+          {/* Hire Agreement */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Hire Agreement Terms</label>
+            <textarea
+              value={formData.hireAgreementText}
+              onChange={(e) => setFormData({ ...formData, hireAgreementText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Hire Agreement document..."
+            />
+          </div>
+
+          {/* Satisfaction Notice */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Satisfaction Notice Terms</label>
+            <textarea
+              value={formData.satisfactionNoticeText}
+              onChange={(e) => setFormData({ ...formData, satisfactionNoticeText: e.target.value })}
+              rows={6}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              disabled={!editing}
+              placeholder="Enter terms for Satisfaction Notice document..."
+            />
+          </div>
         </div>
 
         {/* E-Signature */}
-      <div className="col-span-2">
-        <label className="block text-sm font-medium text-gray-700">
-          Company E-Signature
-        </label>
-        {editing ? (
-          <SignaturePad
-            value={formData.signature}
-            onChange={(signature) => setFormData({ ...formData, signature })}
-            className="mt-1 border rounded-md"
-          />
-        ) : (
-          formData.signature && (
-            <img 
-              src={formData.signature} 
-              alt="Company Signature" 
-              className="mt-1 h-24 object-contain"
+        <div className="col-span-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Company E-Signature
+          </label>
+          {editing ? (
+            <SignaturePad
+              value={formData.signature}
+              onChange={(signature) => setFormData({ ...formData, signature })}
+              className="mt-1 border rounded-md"
             />
-          )
-        )}
-      </div>
+          ) : (
+            formData.signature && (
+              <img 
+                src={formData.signature} 
+                alt="Company Signature" 
+                className="mt-1 h-24 object-contain"
+              />
+            )
+          )}
         </div>
       </div>
-    
-    
+    </div>
   );
 };
 

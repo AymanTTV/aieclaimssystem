@@ -1,7 +1,10 @@
+// src/routes/lazyLoad.tsx
+
 import React, { lazy, Suspense } from 'react';
 
-export const lazyLoad = (path: string) => {
-  const LazyComponent = lazy(() => import(path));
+export const lazyLoad = (componentName: string) => {
+  // Create the lazy component with a direct import path
+  const LazyComponent = lazy(() => import(`../pages/${componentName}.tsx`));
   
   return (props: any) => (
     <Suspense fallback={

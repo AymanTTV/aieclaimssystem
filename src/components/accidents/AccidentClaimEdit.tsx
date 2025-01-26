@@ -24,6 +24,9 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const [existingImages] = useState<string[]>(accident.images || []);
 
   const [formData, setFormData] = useState({
+
+    referenceNo: accident.referenceNo || '', // Add Reference No field
+  referenceName: accident.referenceName || '', // Add Reference Name field
     // Driver Details
     driverName: accident.driverName,
     driverAddress: accident.driverAddress,
@@ -138,6 +141,8 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
       const accidentRef = doc(db, 'accidents', accident.id);
       await updateDoc(accidentRef, {
         ...formData,
+        referenceNo: formData.referenceNo,
+        referenceName: formData.referenceName,
         passengers: formData.passengers.slice(0, passengerCount),
         witnesses: formData.witnesses.slice(0, witnessCount),
         images: imageUrls,
@@ -157,6 +162,25 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Reference Details */}
+<div className="space-y-4">
+  <h3 className="text-lg font-medium text-gray-900">Reference Details</h3>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <FormField
+      label="Reference No"
+      value={formData.referenceNo}
+      onChange={(e) => setFormData({ ...formData, referenceNo: e.target.value })}
+      required
+    />
+    <FormField
+      label="Reference Name"
+      value={formData.referenceName}
+      onChange={(e) => setFormData({ ...formData, referenceName: e.target.value })}
+      required
+    />
+  </div>
+</div>
+
       {/* Driver Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Driver Details</h3>

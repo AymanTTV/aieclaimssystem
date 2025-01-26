@@ -25,6 +25,19 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
 
   return (
     <div className="space-y-6">
+
+      {/* Reference Details */}
+<Section title="Reference Details">
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <Field label="Reference No" value={accident.referenceNo} />
+    </div>
+    <div>
+      <Field label="Reference Name" value={accident.referenceName} />
+    </div>
+  </div>
+</Section>
+
       {/* Status Information */}
       <div className="flex justify-between items-center">
         <div className="space-y-1">
