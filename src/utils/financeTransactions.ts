@@ -1,5 +1,8 @@
+// src/utils/financeTransactions.ts
+
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { MaintenanceLog, Vehicle } from '../types';
 
 interface FinanceTransactionParams {
   type: 'income' | 'expense';
@@ -17,7 +20,35 @@ interface FinanceTransactionParams {
   paymentMethod?: string;
   paymentReference?: string;
   paymentStatus?: 'paid' | 'unpaid' | 'partially_paid';
+  date?: Date;
 }
+
+export const createMaintenanceTransaction = async (
+  maintenanceLog: MaintenanceLog,
+  vehicle: Vehicle,
+  amount: number,
+  paymentMethod: string,
+  paymentReference?: string
+) => {
+  if (!maintenanceLog.id || !amount || !vehicle) {
+    throw new Error('Missing required fields for maintenance transaction');
+  }
+
+  return createFinanceTransaction({
+    type: 'expense',
+    category: 'maintenance',
+    amount,
+    description: `Maintenance payment for ${maintenanceLog.description}`,
+    referenceId: maintenanceLog.id,
+    vehicleId: vehicle.id,
+    vehicleName: `${vehicle.make} ${vehicle.model}`,
+    vehicleOwner: vehicle.owner || { name: 'AIE Skyline', isDefault: true },
+    paymentMethod,
+    paymentReference,
+    paymentStatus: 'paid',
+    date: new Date()
+  });
+};
 
 export const createFinanceTransaction = async ({
   type,
@@ -31,11 +62,12 @@ export const createFinanceTransaction = async ({
   status = 'completed',
   paymentMethod,
   paymentReference,
-  paymentStatus = 'paid'
+  paymentStatus = 'paid',
+  date = new Date()
 }: FinanceTransactionParams) => {
   try {
     // Validate required fields
-    if (!amount || !category || !description || !referenceId) {
+    if (!type || !category || !amount || !description || !referenceId) {
       throw new Error('Missing required fields for finance transaction');
     }
 
@@ -52,7 +84,7 @@ export const createFinanceTransaction = async ({
       ...(paymentReference && { paymentReference }),
       status,
       paymentStatus,
-      date: new Date(),
+      date,
       createdAt: new Date(),
     };
 

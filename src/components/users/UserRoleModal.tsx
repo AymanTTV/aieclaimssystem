@@ -5,6 +5,8 @@ import { User } from '../../types';
 import { DEFAULT_PERMISSIONS, type RolePermissions } from '../../types/roles';
 import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+
 
 interface UserRoleModalProps {
   user: User;
@@ -12,7 +14,8 @@ interface UserRoleModalProps {
 }
 
 const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
-  const { isManager } = usePermissions();
+  const { user: currentUser } = useAuth();
+  const isManagerRole = currentUser?.role === 'manager';
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState(user.role);
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(
@@ -21,7 +24,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isManager) {
+    if (!isManagerRole) {
       toast.error('Only managers can modify user permissions');
       return;
     }
@@ -56,21 +59,25 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
             setCustomPermissions(DEFAULT_PERMISSIONS[e.target.value as User['role']]);
           }}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          disabled={!isManager}
+          disabled={!isManagerRole}
         >
-          <option value="admin">Admin</option>
           <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
           <option value="finance">Finance</option>
+          <option value="claims">Claims</option>
         </select>
       </div>
 
-      {isManager && (
+      {isManagerRole && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium text-gray-900">Custom Permissions</h3>
           {Object.entries(customPermissions).map(([module, permissions]) => (
             <div key={module} className="border rounded-lg p-4">
               <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">
-                {module === 'company' ? 'Company & Managers' : module}
+                {module === 'personalInjury' ? 'Personal Injury' :
+                 module === 'invoices' ? 'Invoices' :
+                 module === 'company' ? 'Company & Managers' : 
+                 module}
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 {Object.entries(permissions).map(([action, enabled]) => (
@@ -110,7 +117,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         </button>
         <button
           type="submit"
-          disabled={loading || !isManager}
+          disabled={loading || !isManagerRole}
           className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
         >
           {loading ? 'Updating...' : 'Update Permissions'}

@@ -17,6 +17,7 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    reference: injury?.reference || '',
     fullName: injury?.fullName || '',
     dateOfBirth: injury?.dateOfBirth ? injury.dateOfBirth.toISOString().split('T')[0] : '',
     address: injury?.address || '',
@@ -88,6 +89,12 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Personal Details</h3>
         <div className="grid grid-cols-2 gap-4">
+          <FormField
+            label="Reference"
+            value={formData.reference}
+            onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+            placeholder="Enter reference number"
+          />
           <FormField
             label="Full Name"
             value={formData.fullName}

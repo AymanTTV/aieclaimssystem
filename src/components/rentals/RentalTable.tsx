@@ -23,6 +23,7 @@ interface RentalTableProps {
   onRecordPayment: (rental: Rental) => void;
   onDeletePayment: (rental: Rental, paymentId: string) => void;
 }
+ 
 
 const RentalTable: React.FC<RentalTableProps> = ({
   rentals,
@@ -37,7 +38,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onRecordPayment,
   onDeletePayment,
 }) => {
-  const { can } = usePermissions();
+ 
 
   // Sort rentals by end date (closest first)
   const sortedRentals = [...rentals].sort((a, b) => {
@@ -73,6 +74,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
       r.startDate.getTime() === nextDay.getTime()
     );
   };
+
+  const { can } = usePermissions(); // Move hook inside component
 
   const columns = [
     {

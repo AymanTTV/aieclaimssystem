@@ -13,10 +13,14 @@ import { Plus, Download } from 'lucide-react';
 import { exportFinanceData } from '../utils/FinanceExport';
 import { Transaction } from '../types';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
 
 const Finance = () => {
   const { transactions, loading: transactionsLoading } = useFinances();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { can } = usePermissions();
+  const { user } = useAuth();
 
   const {
     searchQuery,
@@ -57,13 +61,19 @@ const Finance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Finance Overview</h1>
         <div className="flex space-x-2">
-          <button
-            onClick={() => exportFinanceData(filteredTransactions)}
-            className="btn btn-outline"
-          >
-            <Download className="h-5 w-5 mr-2" />
-            Export
-          </button>
+          
+          {user?.role === 'manager' && (
+  <button
+    onClick={() => exportFinanceData(filteredTransactions)}
+    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+  >
+    <Download className="h-5 w-5 mr-2" />
+    Export
+  </button>
+)}
+
+          {can('finance', 'create') && (
+      <>
           <button
             onClick={() => {
               setFormType('income');
@@ -84,6 +94,8 @@ const Finance = () => {
             <Plus className="h-5 w-5 mr-2" />
             Add Expense
           </button>
+      </>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,10 @@
+// src/components/personalInjury/PersonalInjuryDetails.tsx
+
 import React from 'react';
 import { PersonalInjury } from '../../types/personalInjury';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
+import { ensureValidDate } from '../../utils/dateHelpers';
 
 interface PersonalInjuryDetailsProps {
   injury: PersonalInjury;
@@ -22,17 +25,35 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
     </div>
   );
 
+  const formatDateTime = (date: Date | null | undefined): string => {
+    if (!date) return 'N/A';
+    try {
+      const validDate = ensureValidDate(date);
+      return format(validDate, 'dd/MM/yyyy HH:mm');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Status */}
+      {/* Header with Reference */}
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">
             Personal Injury Claim
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Reference: PI-{injury.id.slice(-8).toUpperCase()}
-          </p>
+          <div className="mt-1 space-y-1">
+            <p className="text-sm text-gray-500">
+              Reference: #{injury.id.slice(-8).toUpperCase()}
+            </p>
+            {injury.reference && (
+              <p className="text-sm text-gray-500">
+                Client Ref: {injury.reference}
+              </p>
+            )}
+          </div>
         </div>
         <StatusBadge status={injury.status} />
       </div>
@@ -41,7 +62,7 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       <Section title="Personal Details">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Full Name" value={injury.fullName} />
-          <Field label="Date of Birth" value={format(injury.dateOfBirth, 'dd/MM/yyyy')} />
+          <Field label="Date of Birth" value={formatDateTime(injury.dateOfBirth)} />
           <Field label="Contact Number" value={injury.contactNumber} />
           <Field label="Email Address" value={injury.emailAddress} />
           <div className="col-span-2">
@@ -59,10 +80,7 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       {/* Incident Details */}
       <Section title="Incident Details">
         <div className="grid grid-cols-2 gap-4">
-          <Field 
-            label="Date of Incident" 
-            value={format(injury.incidentDate, 'dd/MM/yyyy')} 
-          />
+          <Field label="Date of Incident" value={formatDateTime(injury.incidentDate)} />
           <Field label="Time of Incident" value={injury.incidentTime} />
           <div className="col-span-2">
             <Field label="Location" value={injury.incidentLocation} />
@@ -76,10 +94,7 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       {/* Injury Details */}
       <Section title="Injury Details">
         <Field label="Injuries" value={injury.injuries} />
-        <Field 
-          label="Medical Treatment" 
-          value={injury.receivedMedicalTreatment ? 'Yes' : 'No'} 
-        />
+        <Field label="Medical Treatment" value={injury.receivedMedicalTreatment ? 'Yes' : 'No'} />
         {injury.medicalDetails && (
           <Field label="Medical Details" value={injury.medicalDetails} />
         )}
@@ -102,21 +117,34 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
 
       {/* Additional Information */}
       <Section title="Additional Information">
-        <Field 
-          label="Reported to Authorities" 
-          value={injury.reportedToAuthorities ? 'Yes' : 'No'} 
-        />
+        <Field label="Reported to Authorities" value={injury.reportedToAuthorities ? 'Yes' : 'No'} />
         {injury.policeReferenceNumber && (
-          <Field 
-            label="Police Reference Number" 
-            value={injury.policeReferenceNumber} 
-          />
+          <Field label="Police Reference Number" value={injury.policeReferenceNumber} />
         )}
-        <Field 
-          label="Supporting Evidence" 
-          value={injury.hasEvidence ? 'Yes' : 'No'} 
-        />
+        <Field label="Supporting Evidence" value={injury.hasEvidence ? 'Yes' : 'No'} />
       </Section>
+
+      {/* Status History */}
+      {injury.statusHistory && injury.statusHistory.length > 0 && (
+        <Section title="Status History">
+          <div className="space-y-4">
+            {injury.statusHistory.map((update, index) => (
+              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <StatusBadge status={update.status} />
+                    <p className="mt-2 text-sm text-gray-600">{update.notes}</p>
+                  </div>
+                  <div className="text-right text-sm text-gray-500">
+                    <div>{formatDateTime(update.updatedAt)}</div>
+                    <div>By {update.updatedBy}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Declaration */}
       <Section title="Declaration">
@@ -130,7 +158,7 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
               />
             )}
             <p className="text-sm text-gray-500 mt-2">
-              Signed on {format(injury.signatureDate, 'dd/MM/yyyy')}
+              Signed on {formatDateTime(injury.signatureDate)}
             </p>
           </div>
         </div>
@@ -139,8 +167,8 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       {/* Audit Information */}
       <div className="text-sm text-gray-500 border-t pt-4">
         <div className="flex justify-between">
-          <div>Created: {format(injury.createdAt, 'dd/MM/yyyy HH:mm')}</div>
-          <div>Last Updated: {format(injury.updatedAt, 'dd/MM/yyyy HH:mm')}</div>
+          <div>Created: {formatDateTime(injury.createdAt)}</div>
+          <div>Last Updated: {formatDateTime(injury.updatedAt)}</div>
         </div>
       </div>
     </div>

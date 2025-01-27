@@ -8,7 +8,8 @@ import toast from 'react-hot-toast';
 import VehicleSelect from '../VehicleSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
 import FormField from '../ui/FormField';
-import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { createMaintenanceTransaction } from '../../utils/financeTransactions';
+
 import { createMileageHistoryRecord } from '../../utils/mileageUtils';
 import { usePermissions } from '../../hooks/usePermissions';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
@@ -144,53 +145,43 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
     };
 
-    if (editLog) {
-      await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
-        ...maintenanceData,
-        updatedAt: new Date(),
-        updatedBy: user.id
-      });
-    } else {
-      const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
-        ...maintenanceData,
-        createdAt: new Date(),
-        createdBy: user.id,
-        updatedAt: new Date()
-      });
+    // Create maintenance record
+    const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+      ...maintenanceData,
+      createdAt: new Date(),
+      createdBy: user.id,
+      updatedAt: new Date()
+    });
 
-      // Create finance transaction if payment was made
-      if (paidAmount > 0) {
-        await createFinanceTransaction({
-          type: 'expense',
-          category: 'maintenance',
-          amount: paidAmount,
-          description: `Maintenance payment for ${formData.description}`,
-          referenceId: docRef.id,
-          vehicleId: selectedVehicleId,
-          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          vehicleOwner: selectedVehicle.owner || { name: 'AIE Skyline', isDefault: true },
-          paymentMethod,
-          paymentReference,
-          status: 'completed'
-        });
-      }
-
-      // Update vehicle mileage if changed
-      if (formData.currentMileage !== selectedVehicle.mileage) {
-        await createMileageHistoryRecord(
-          selectedVehicle,
-          formData.currentMileage,
-          user.name,
-          'Updated during maintenance'
-        );
-      }
+    // If there's a payment, create finance transaction
+    if (paidAmount > 0) {
+      await createMaintenanceTransaction(
+        {
+          id: docRef.id,
+          ...maintenanceData
+        },
+        selectedVehicle,
+        paidAmount,
+        paymentMethod,
+        paymentReference
+      );
     }
 
-    toast.success(`Maintenance ${editLog ? 'updated' : 'scheduled'} successfully`);
+    // Update vehicle mileage if changed
+    if (formData.currentMileage !== selectedVehicle.mileage) {
+      await createMileageHistoryRecord(
+        selectedVehicle,
+        formData.currentMileage,
+        user.name,
+        'Updated during maintenance'
+      );
+    }
+
+    toast.success('Maintenance scheduled successfully');
     onClose();
   } catch (error) {
     console.error('Error:', error);
-    toast.error(`Failed to ${editLog ? 'update' : 'schedule'} maintenance`);
+    toast.error('Failed to schedule maintenance');
   } finally {
     setLoading(false);
   }

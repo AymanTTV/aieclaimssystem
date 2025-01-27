@@ -27,6 +27,17 @@ const PersonalInjuryTable: React.FC<PersonalInjuryTableProps> = ({
 
   const columns = [
     {
+    header: 'Reference',
+    cell: ({ row }) => (
+      <div>
+        <div className="font-medium">#{row.original.id.slice(-8).toUpperCase()}</div>
+        {row.original.reference && (
+          <div className="text-sm text-gray-500">{row.original.reference}</div>
+        )}
+      </div>
+    ),
+  },
+    {
       header: 'Name',
       cell: ({ row }) => (
         <div>

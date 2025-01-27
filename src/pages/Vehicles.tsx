@@ -18,6 +18,8 @@ import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import toast from 'react-hot-toast';
 import { useVehiclesContext } from '../utils/VehicleProvider';
+import { useAuth } from '../context/AuthContext';
+
 
 
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
@@ -27,10 +29,12 @@ const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
   // const { vehicles, loading } = useVehiclesContext();
   const { can } = usePermissions();
+  const { user } = useAuth();
   useVehicleStatusManager();
 
   // State for modals
   const [showForm, setShowForm] = React.useState(false);
+  
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);
   const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = React.useState<Vehicle | null>(null);
@@ -112,15 +116,19 @@ const Vehicles = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Fleet Management</h1>
         <div className="flex space-x-2">
-  {can('vehicles', 'create') && (
+  
+      {user?.role === 'manager' && (
+  <button
+    onClick={handleExport}
+    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+  >
+    <Download className="h-5 w-5 mr-2" />
+    Export
+  </button>
+)}
+
+          {can('vehicles', 'create') && (
     <>
-      <button
-        onClick={handleExport}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <Download className="h-5 w-5 mr-2" />
-        Export
-      </button>
       <button
         onClick={syncVehicleStatuses}
         className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"

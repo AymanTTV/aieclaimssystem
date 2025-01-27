@@ -1,76 +1,91 @@
-import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { Transaction, Vehicle } from '../../types';
-import { useVehicles } from '../../hooks/useVehicles';
-import VehicleSelect from '../VehicleSelect';
-import FormField from '../ui/FormField';
-import toast from 'react-hot-toast';
+// src/components/finance/TransactionForm.tsx
 
-const CATEGORIES = {
-  income: [
-    'Rental',
-    'Insurance Claim',
-    'Sale',
-    'Vehicle Income',
-    'Other Income'
-  ],
-  expense: [
-    'Maintenance',
-    'Insurance',
-    'Fuel',
-    'Registration',
-    'Vehicle Test',
-    'Repairs',
-    'Parts',
-    'Cleaning',
-    'Other Expense'
-  ]
-};
+import React, { useState } from 'react';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { useVehicles } from '../../hooks/useVehicles';
+import FormField from '../ui/FormField';
+import TextArea from '../ui/TextArea';
+import SearchableSelect from '../ui/SearchableSelect';
+import toast from 'react-hot-toast';
 
 interface TransactionFormProps {
   type: 'income' | 'expense';
-  transaction?: Transaction;
   onClose: () => void;
 }
 
-const TransactionForm: React.FC<TransactionFormProps> = ({ type, transaction, onClose }) => {
+const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
+  const { user } = useAuth();
   const { vehicles } = useVehicles();
   const [loading, setLoading] = useState(false);
-  const [selectedVehicleId, setSelectedVehicleId] = useState(transaction?.vehicleId || '');
   const [formData, setFormData] = useState({
-    date: transaction?.date ? transaction.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    amount: transaction?.amount.toString() || '',
-    category: transaction?.category || '',
-    description: transaction?.description || '',
+    date: new Date().toISOString().split('T')[0],
+    amount: '',
+    category: '',
+    customCategory: '',
+    description: '',
+    vehicleId: '',
   });
+
+  const categories = {
+    income: [
+      'Rental',
+      'Insurance Claim',
+      'Sale',
+      'Vehicle Income',
+      'Other'
+    ],
+    expense: [
+      'Maintenance',
+      'Insurance',
+      'Fuel',
+      'Registration',
+      'Vehicle Test',
+      'Repairs',
+      'Parts',
+      'Cleaning',
+      'Other'
+    ]
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const transactionData = {
+      const finalCategory = formData.category === 'Other' 
+        ? formData.customCategory 
+        : formData.category;
+
+      if (formData.category === 'Other' && !formData.customCategory.trim()) {
+        toast.error('Please enter a custom category');
+        return;
+      }
+
+      // Get vehicle details if selected
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+
+      await addDoc(collection(db, 'transactions'), {
         type,
         date: new Date(formData.date),
         amount: parseFloat(formData.amount),
-        category: formData.category,
+        category: finalCategory,
         description: formData.description,
-        vehicleId: selectedVehicleId || null,
+        vehicleId: formData.vehicleId || null,
+        vehicleName: selectedVehicle 
+          ? `${selectedVehicle.make} ${selectedVehicle.model}`
+          : null,
+        vehicleOwner: selectedVehicle?.owner || null,
         createdAt: new Date(),
-      };
+        createdBy: user?.id,
+      });
 
-      if (transaction) {
-        await updateDoc(doc(db, 'transactions', transaction.id), transactionData);
-      } else {
-        await addDoc(collection(db, 'transactions'), transactionData);
-      }
-
-      toast.success(`${type === 'income' ? 'Income' : 'Expense'} ${transaction ? 'updated' : 'recorded'} successfully`);
+      toast.success(`${type === 'income' ? 'Income' : 'Expense'} recorded successfully`);
       onClose();
     } catch (error) {
-      console.error('Error saving transaction:', error);
-      toast.error(`Failed to ${transaction ? 'update' : 'record'} transaction`);
+      console.error('Error recording transaction:', error);
+      toast.error('Failed to record transaction');
     } finally {
       setLoading(false);
     }
@@ -96,41 +111,52 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, transaction, on
         required
       />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Category</label>
-        <select
-          value={formData.category}
-          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        >
-          <option value="">Select category</option>
-          {CATEGORIES[type].map(category => (
-            <option key={category} value={category}>{category}</option>
-          ))}
-        </select>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            required
+          >
+            <option value="">Select category</option>
+            {categories[type].map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
+
+        {formData.category === 'Other' && (
+          <FormField
+            label="Custom Category"
+            value={formData.customCategory}
+            onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
+            placeholder="Enter custom category"
+            required
+          />
+        )}
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Related Vehicle (Optional)</label>
-        <VehicleSelect
-          vehicles={vehicles}
-          selectedVehicleId={selectedVehicleId}
-          onSelect={setSelectedVehicleId}
-          required={false}
-        />
-      </div>
+      {/* Vehicle Selector */}
+      <SearchableSelect
+        label="Related Vehicle (Optional)"
+        options={vehicles.map(v => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`,
+          subLabel: v.registrationNumber
+        }))}
+        value={formData.vehicleId}
+        onChange={(id) => setFormData({ ...formData, vehicleId: id })}
+        placeholder="Search vehicles..."
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          rows={3}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        />
-      </div>
+      <TextArea
+        label="Description"
+        value={formData.description}
+        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+        required
+      />
 
       <div className="flex justify-end space-x-3">
         <button
@@ -145,7 +171,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, transaction, on
           disabled={loading}
           className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
         >
-          {loading ? 'Saving...' : transaction ? 'Update' : 'Record'} {type === 'income' ? 'Income' : 'Expense'}
+          {loading ? 'Recording...' : 'Record Transaction'}
         </button>
       </div>
     </form>

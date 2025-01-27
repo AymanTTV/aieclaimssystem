@@ -4,6 +4,8 @@ import { Invoice, Vehicle, Customer } from '../../types';
 import { Eye, FileText, DollarSign, Edit, Trash2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
+import { usePermissions } from '../../hooks/usePermissions';
+
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -41,6 +43,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     
     return 'N/A';
   };
+  const { can } = usePermissions();
 
   const columns = [
     {
@@ -144,61 +147,69 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(row.original);
-            }}
-            className="text-red-600 hover:text-red-800"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          {row.original.documentUrl && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownload(row.original);
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Download Invoice"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.remainingAmount > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRecordPayment(row.original);
-              }}
-              className="text-primary hover:text-primary-600"
-              title="Record Payment"
-            >
-              <DollarSign className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+  {can('invoices', 'view') && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onView(row.original);
+      }}
+      className="text-blue-600 hover:text-blue-800"
+      title="View Details"
+    >
+      <Eye className="h-4 w-4" />
+    </button>
+  )}
+  {can('invoices', 'update') && (
+    <>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(row.original);
+        }}
+        className="text-blue-600 hover:text-blue-800"
+        title="Edit"
+      >
+        <Edit className="h-4 w-4" />
+      </button>
+      {row.original.remainingAmount > 0 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRecordPayment(row.original);
+          }}
+          className="text-primary hover:text-primary-600"
+          title="Record Payment"
+        >
+          <DollarSign className="h-4 w-4" />
+        </button>
+      )}
+    </>
+  )}
+  {can('invoices', 'delete') && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete(row.original);
+      }}
+      className="text-red-600 hover:text-red-800"
+      title="Delete"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  )}
+  {row.original.documentUrl && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onDownload(row.original);
+      }}
+      className="text-green-600 hover:text-green-800"
+      title="Download Invoice"
+    >
+      <FileText className="h-4 w-4" />
+    </button>
+  )}
+</div>
       ),
     },
   ];

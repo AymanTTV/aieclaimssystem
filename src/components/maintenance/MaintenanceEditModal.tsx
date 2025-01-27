@@ -4,7 +4,8 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
-import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { createMaintenanceTransaction } from '../../utils/financeTransactions';
+
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
@@ -58,14 +59,22 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
     setLoading(true);
 
     try {
+    const selectedVehicle = vehicles.find(v => v.id === log.vehicleId);
+    if (!selectedVehicle) {
+      throw new Error('Vehicle not found');
+    }
+
+    
+
+    try {
       const maintenanceData = {
         ...formData,
         parts: parts.map(({ includeVAT, ...part }) => part),
         laborCost: costs.laborTotal,
         cost: costs.totalAmount,
-        paidAmount,
-        remainingAmount,
-        paymentStatus,
+        paidAmount: log.paidAmount + newPayment,
+      remainingAmount: log.cost - (log.paidAmount + newPayment),
+      paymentStatus: log.paidAmount + newPayment >= log.cost ? 'paid' : 'partially_paid',
         paymentMethod,
         paymentReference,
         vatDetails: {
@@ -82,22 +91,20 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
       };
 
       await updateDoc(doc(db, 'maintenanceLogs', log.id), maintenanceData);
-
-      // Create finance transaction if payment changed
-      if (paidAmount !== log.paidAmount) {
-        const vehicle = vehicles.find(v => v.id === log.vehicleId);
-        await createFinanceTransaction({
-          type: 'expense',
-          category: 'maintenance',
-          amount: paidAmount,
-          description: `Maintenance payment update for ${formData.description}`,
-          referenceId: log.id,
-          vehicleId: log.vehicleId,
-          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
-          paymentMethod,
-          paymentReference
-        });
-      }
+// If there's a new payment, create finance transaction
+    const newPayment = parseFloat(formData.amountToPay) || 0;
+    if (newPayment > 0) {
+      await createMaintenanceTransaction(
+        {
+          id: log.id,
+          ...maintenanceData
+        },
+        selectedVehicle,
+        newPayment,
+        formData.paymentMethod,
+        formData.paymentReference
+      );
+    }
 
       toast.success('Maintenance log updated successfully');
       onClose();

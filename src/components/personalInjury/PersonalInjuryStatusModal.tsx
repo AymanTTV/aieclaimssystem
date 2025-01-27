@@ -14,6 +14,8 @@ interface PersonalInjuryStatusModalProps {
   onClose: () => void;
 }
 
+// src/components/personalInjury/PersonalInjuryStatusModal.tsx
+
 const PersonalInjuryStatusModal: React.FC<PersonalInjuryStatusModalProps> = ({
   injury,
   onClose,
@@ -38,8 +40,8 @@ const PersonalInjuryStatusModal: React.FC<PersonalInjuryStatusModalProps> = ({
           {
             status: formData.status,
             notes: formData.notes,
-            updatedAt: new Date(),
-            updatedBy: user.name,
+            date: new Date(),
+            author: user.name,
           }
         ],
         updatedAt: new Date(),
@@ -63,7 +65,7 @@ const PersonalInjuryStatusModal: React.FC<PersonalInjuryStatusModalProps> = ({
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select
           value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value as PersonalInjury['status'] })}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           required
         >
@@ -74,13 +76,17 @@ const PersonalInjuryStatusModal: React.FC<PersonalInjuryStatusModalProps> = ({
         </select>
       </div>
 
-      <TextArea
-        label="Status Update Notes"
-        value={formData.notes}
-        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        placeholder="Add notes about this status update..."
-        required
-      />
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Status Notes</label>
+        <textarea
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          rows={3}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          placeholder="Add notes about this status update..."
+          required
+        />
+      </div>
 
       <div className="flex justify-end space-x-3">
         <button

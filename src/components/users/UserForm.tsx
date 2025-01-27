@@ -83,18 +83,19 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Role</label>
-        <select
-          value={formData.role}
-          onChange={(e) => setFormData({ ...formData, role: e.target.value as User['role'] })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        >
-          <option value="admin">Admin</option>
-          <option value="manager">Manager</option>
-          <option value="finance">Finance</option>
-        </select>
-      </div>
+  <label className="block text-sm font-medium text-gray-700">Role</label>
+  <select
+    value={formData.role}
+    onChange={(e) => setFormData({ ...formData, role: e.target.value as User['role'] })}
+    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+    required
+  >
+    <option value="manager">Manager</option>
+    <option value="admin">Admin</option>
+    <option value="finance">Finance</option>
+    <option value="claims">Claims</option>
+  </select>
+</div>
 
       <FormField
         type="tel"

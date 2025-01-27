@@ -4,6 +4,9 @@ import { Transaction, Vehicle } from '../../types';
 import { Eye, Edit, Trash2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
+import { usePermissions } from '../../hooks/usePermissions';
+
+
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -20,6 +23,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   onEdit,
   onDelete,
 }) => {
+
+  const { can } = usePermissions();
+
+  
   const columns = [
     {
       header: 'Date',
@@ -78,38 +85,47 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     {
       header: 'Actions',
       cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(row.original);
-            }}
-            className="text-red-600 hover:text-red-800"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+       
+<div className="flex space-x-2">
+  {can('finance', 'view') && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onView(row.original);
+      }}
+      className="text-blue-600 hover:text-blue-800"
+      title="View Details"
+    >
+      <Eye className="h-4 w-4" />
+    </button>
+  )}
+  {can('finance', 'update') && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(row.original);
+      }}
+      className="text-blue-600 hover:text-blue-800"
+      title="Edit"
+    >
+      <Edit className="h-4 w-4" />
+    </button>
+  )}
+  {can('finance', 'delete') && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete(row.original);
+      }}
+      className="text-red-600 hover:text-red-800"
+      title="Delete"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  )}
+</div>
+
+
       ),
     },
   ];

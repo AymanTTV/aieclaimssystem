@@ -12,6 +12,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import { exportToExcel } from '../utils/excel';
 import { User } from '../types';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+
 
 const Users = () => {
   const { users, loading } = useUsers();
@@ -20,7 +22,7 @@ const Users = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-
+  const { user } = useAuth();
   const columns = [
     {
       header: 'Name',
@@ -112,8 +114,7 @@ const Users = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
         <div className="flex space-x-2">
-          {can('users', 'create') && (
-            <>
+              {user?.role === 'manager' && (
               <button
                 onClick={handleExport}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -121,6 +122,9 @@ const Users = () => {
                 <Download className="h-5 w-5 mr-2" />
                 Export
               </button>
+      )}
+          {can('users', 'create') && (
+            <>
               <button
                 onClick={() => setShowForm(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
