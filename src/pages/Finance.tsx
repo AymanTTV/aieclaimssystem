@@ -37,6 +37,8 @@ const Finance = () => {
     setPaymentStatus,
     owner,
     setOwner,
+    vehicleRegistration,
+    setVehicleRegistration,
     uniqueOwners,
     filteredTransactions
   } = useFinanceFilters(transactions, vehicles);
@@ -115,6 +117,8 @@ const Finance = () => {
         owner={owner}
         onOwnerChange={setOwner}
         owners={uniqueOwners}
+        vehicleRegistration={vehicleRegistration}
+        onVehicleRegistrationChange={setVehicleRegistration}
       />
 
       <FinancialSummary transactions={filteredTransactions} period="custom" />

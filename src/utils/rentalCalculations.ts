@@ -37,38 +37,37 @@ export const calculateRentalCost = (
 
   // For weekly rentals
   if (type === 'weekly') {
-    const startDay = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    
-    // If not starting on Monday
-    if (startDay !== 1) {
-      // Calculate days until next Monday
-      const nextMon = nextMonday(startDate);
-      const daysUntilMonday = differenceInDays(nextMon, startDate);
-      
-      // Initial cost (daily rate until Monday)
-      const initialCost = daysUntilMonday * dailyRate;
-      
-      // If rental ends before next Monday
-      if (differenceInDays(endDate, nextMon) < 0) {
-        return initialCost;
-      }
-      
-      // Calculate remaining weeks and days
-      const remainingDays = differenceInDays(endDate, nextMon) + 1;
-      const fullWeeks = Math.floor(remainingDays / 7);
-      const extraDays = remainingDays % 7;
-      
-      return initialCost + 
-             (fullWeeks * weeklyRate) + 
-             (extraDays * dailyRate);
-    }
-    
-    // Starting on Monday - calculate full weeks and remaining days
-    const fullWeeks = Math.floor(totalDays / 7);
-    const extraDays = totalDays % 7;
-    
-    return (fullWeeks * weeklyRate) + (extraDays * dailyRate);
+  const fullWeeks = Math.floor(totalDays / 7);
+  const extraDays = totalDays % 7;
+
+  // If total days exactly match full weeks, charge weekly rate only
+  if (extraDays === 0) {
+    return fullWeeks * weeklyRate;
   }
+
+  // Otherwise, handle rentals starting midweek
+  if (startDay !== 1) {
+    const nextMon = nextMonday(startDate);
+    const daysUntilMonday = differenceInDays(nextMon, startDate);
+
+    const initialCost = daysUntilMonday * dailyRate;
+
+    if (differenceInDays(endDate, nextMon) < 0) {
+      return initialCost;
+    }
+
+    const remainingDays = differenceInDays(endDate, nextMon) + 1;
+    const fullWeeks = Math.floor(remainingDays / 7);
+    const extraDays = remainingDays % 7;
+
+    return initialCost + 
+           (fullWeeks * weeklyRate) + 
+           (extraDays * dailyRate);
+  }
+
+  return (fullWeeks * weeklyRate) + (extraDays * dailyRate);
+}
+
 
   // For daily rentals
   if (totalDays >= 7) {

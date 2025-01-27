@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { lazyLoad } from './lazyLoad';
 
+
 // Update the lazy imports to use just the component name
 const Login = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');

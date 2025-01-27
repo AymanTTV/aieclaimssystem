@@ -5,11 +5,14 @@ import { AuthProvider } from './context/AuthContext';
 import { VehicleProvider } from './utils/VehicleProvider';
 import AppRoutes from './routes';
 
+
 function App() {
   return (
+    <VehicleProvider>
     <BrowserRouter>
+       
       <AuthProvider>
-        <VehicleProvider>
+       
           <Toaster 
             position="top-right" 
             toastOptions={{
@@ -35,9 +38,14 @@ function App() {
             }}
           />
           <AppRoutes />
-        </VehicleProvider>
+        
       </AuthProvider>
+         
+         
+       
     </BrowserRouter>
+      </VehicleProvider>
+      
   );
 }
 

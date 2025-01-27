@@ -19,11 +19,11 @@ import { Vehicle } from '../types';
 import toast from 'react-hot-toast';
 import { useVehiclesContext } from '../utils/VehicleProvider';
 import { useAuth } from '../context/AuthContext';
-
-
+import { VehicleProvider } from './utils/VehicleProvider';
+import { RefreshCw } from 'lucide-react';
 
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
-import { RefreshCw } from 'lucide-react';
+
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();

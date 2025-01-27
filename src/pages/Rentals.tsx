@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
@@ -13,15 +13,17 @@ import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
 import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
 import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Car } from 'lucide-react';
+import { Plus, Download, Car, RotateCw } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
-import { useVehiclesContext } from '../utils/VehicleProvider';
+
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
-
+import { useVehiclesContext } from '../utils/VehicleProvider';
+import { RefreshCw } from 'lucide-react';
+import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 
 const Rentals = () => {
   // const { vehicles, loading } = useVehiclesContext();
@@ -87,6 +89,9 @@ const Rentals = () => {
     }
   };
 
+  
+  
+
   if (vehiclesLoading || rentalsLoading || customersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -108,7 +113,20 @@ const Rentals = () => {
     <Download className="h-5 w-5 mr-2" />
     Export
   </button>
-)}
+)}  <button
+            onClick={() => setShowAvailableVehicles(true)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Car className="h-5 w-5 mr-2" />
+            Available Vehicles
+          </button>
+          <button
+        onClick={syncVehicleStatuses}
+        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <RefreshCw className="h-5 w-5 mr-2" />
+        Sync Statuses
+      </button>
 
 
           

@@ -24,7 +24,10 @@ export const useInvoiceFilters = (invoices: Invoice[], customers?: Customer[]) =
         (invoice.customerName?.toLowerCase().includes(searchLower) || 
          customers?.find(c => c.id === invoice.customerId)?.name.toLowerCase().includes(searchLower)) ||
         // Search by category
+       // Search by category
         invoice.category.toLowerCase().includes(searchLower) ||
+        // Search by custom category
+        invoice.customCategory?.toLowerCase().includes(searchLower) ||
         // Search by description
         invoice.description.toLowerCase().includes(searchLower);
 

@@ -10,6 +10,7 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
   const [category, setCategory] = useState('all');
   const [paymentStatus, setPaymentStatus] = useState<'all' | 'paid' | 'unpaid' | 'partially_paid'>('all');
   const [owner, setOwner] = useState('all');
+  const [vehicleRegistration, setVehicleRegistration] = useState('');
 
   // Get unique owners from vehicles
   const uniqueOwners = useMemo(() => {
@@ -20,13 +21,18 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     return Array.from(new Set(owners));
   }, [vehicles]);
 
-  // Filter logic (with debugging)
+  // Filtered transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
       const searchLower = searchQuery.toLowerCase();
+      const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
+      
       const matchesSearch =
         transaction.description.toLowerCase().includes(searchLower) ||
-        transaction.category.toLowerCase().includes(searchLower);
+        transaction.category.toLowerCase().includes(searchLower) ||
+        (vehicle?.registrationNumber?.toLowerCase().includes(searchLower) || false) || // Fixed this line
+        (transaction.paymentReference?.toLowerCase().includes(searchLower) || false) ||
+        (transaction.vehicleName?.toLowerCase().includes(searchLower) || false);
 
       // Apply date range filter
       let matchesDateRange = true;
@@ -38,32 +44,24 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
       const matchesType = type === 'all' || transaction.type === type;
 
       // Category filter
-      const matchesCategory = category === 'all' || 
-        transaction.category.toLowerCase() === category.toLowerCase();
+      const matchesCategory = category === 'all' || transaction.category === category;
 
       // Payment status filter
-      const matchesPaymentStatus = paymentStatus === 'all' || 
-        transaction.paymentStatus === paymentStatus;
+      const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
 
       // Owner filter
-      let matchesOwner = true;
-      if (owner !== 'all') {
-        const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
-        matchesOwner = owner === 'company' ? !vehicle || vehicle.owner?.isDefault : vehicle?.owner?.name === owner;
-      }
+      const matchesOwner = owner === 'all' || 
+        (owner === 'company' ? !transaction.vehicleOwner || transaction.vehicleOwner.isDefault : 
+        transaction.vehicleOwner?.name === owner);
 
-      // Combine all filters
-      return (
-        matchesSearch &&
-        matchesDateRange &&
-        matchesType &&
-        matchesCategory &&
-        matchesPaymentStatus &&
-        matchesOwner
-      );
+      return matchesSearch && 
+             matchesDateRange && 
+             matchesType && 
+             matchesCategory && 
+             matchesPaymentStatus && 
+             matchesOwner;
     });
-  }, [transactions, searchQuery, startDate, endDate, type, category, paymentStatus, owner, vehicles]);
-
+  }, [transactions, vehicles, searchQuery, startDate, endDate, type, category, paymentStatus, owner]);
   // Debugging: Log current filter values
   console.log({
     searchQuery,
@@ -72,7 +70,7 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     type,
     category,
     paymentStatus,
-    owner
+    owner,
   });
 
   return {
@@ -91,6 +89,8 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     owner,
     setOwner,
     uniqueOwners,
-    filteredTransactions
+    vehicleRegistration,
+    setVehicleRegistration,
+    filteredTransactions,
   };
 };
