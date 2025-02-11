@@ -10,8 +10,16 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((vehicle) => {
       // Don't show sold vehicles unless explicitly requested
-      if (vehicle.status === 'sold' && !showSold) {
-        return false;
+      
+      if (showSold) {
+        if (vehicle.status !== 'sold') {
+          return false;
+        }
+      } else {
+        // If showSold is false, hide sold vehicles
+        if (vehicle.status === 'sold') {
+          return false;
+        }
       }
 
       // Search filter

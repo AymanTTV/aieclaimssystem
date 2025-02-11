@@ -3,7 +3,7 @@ import { storage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_SIZE = 100 * 1024 * 1024; // 5MB
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2 seconds
 

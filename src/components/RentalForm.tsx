@@ -30,23 +30,25 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const [showCustomerResults, setShowCustomerResults] = useState(false);
 
   const [formData, setFormData] = useState({
-    vehicleId: '',
-    customerId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    startTime: new Date().toTimeString().slice(0, 5),
-    endDate: '',
-    endTime: '',
-    type: 'daily' as const,
-    reason: 'hired' as const,
-    status: 'scheduled' as const,
-    numberOfWeeks: 1,
-    signature: '',
-    paidAmount: 0,
-    paymentMethod: 'cash' as const,
-    paymentReference: '',
-    paymentNotes: '',
-    customRate: '',
-    negotiationNotes: ''
+vehicleId: '',
+  customerId: '',
+  startDate: new Date().toISOString().split('T')[0],
+  startTime: new Date().toTimeString().slice(0, 5),
+  endDate: '',
+  endTime: '',
+  type: 'daily' as const,
+  reason: 'hired' as const,
+  status: 'scheduled' as const,
+  numberOfWeeks: 1,
+  signature: '',
+  paidAmount: 0,
+  paymentMethod: 'cash' as const,
+  paymentReference: '',
+  paymentNotes: '',
+  negotiatedRate: '',
+  negotiationNotes: '',
+  discountPercentage: 0,
+  discountNotes: ''
   });
 
   // Get available vehicles
@@ -210,21 +212,43 @@ const handleRentalTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 
       // Create rental record
       const rentalData = {
-        ...formData,
-        startDate: startDateTime,
-        endDate: endDateTime,
-        cost: finalCost,
-        standardCost,
-        paidAmount: formData.paidAmount,
-        remainingAmount,
-        paymentStatus: formData.paidAmount >= finalCost ? 'paid' : 
-                      formData.paidAmount > 0 ? 'partially_paid' : 'pending',
-        status: 'scheduled',
-        payments,
-        createdAt: new Date(),
-        createdBy: user.id,
-        updatedAt: new Date()
-      };
+  vehicleId: formData.vehicleId,
+  customerId: formData.customerId,
+  startDate: startDateTime,
+  endDate: endDateTime,
+  type: formData.type,
+  reason: formData.reason,
+  status: formData.status,
+  cost: finalCost,
+  standardCost,
+  paidAmount: formData.paidAmount,
+  remainingAmount,
+  paymentStatus: formData.paidAmount >= finalCost ? 'paid' : 
+                formData.paidAmount > 0 ? 'partially_paid' : 'pending',
+  payments,
+  signature: formData.signature,
+  // Only include negotiation fields if there's a negotiated rate
+  ...(formData.negotiatedRate ? {
+    negotiatedRate: parseFloat(formData.negotiatedRate),
+    negotiationNotes: formData.negotiationNotes
+  } : {
+    negotiatedRate: null,
+    negotiationNotes: null
+  }),
+  // Only include discount fields if there's a discount
+  ...(formData.discountPercentage > 0 ? {
+    discountPercentage: formData.discountPercentage,
+    discountAmount: discountAmount,
+    discountNotes: formData.discountNotes
+  } : {
+    discountPercentage: null,
+    discountAmount: null,
+    discountNotes: null
+  }),
+  createdAt: new Date(),
+  createdBy: user.id,
+  updatedAt: new Date()
+};
 
       const docRef = await addDoc(collection(db, 'rentals'), rentalData);
 

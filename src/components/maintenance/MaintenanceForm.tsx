@@ -9,6 +9,7 @@ import VehicleSelect from '../VehicleSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
 import FormField from '../ui/FormField';
 import { createMaintenanceTransaction } from '../../utils/financeTransactions';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 
 import { createMileageHistoryRecord } from '../../utils/mileageUtils';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -99,9 +100,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
   // Update the handleSubmit function in MaintenanceForm.tsx
 
+// src/components/maintenance/MaintenanceForm.tsx
+
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!selectedVehicleId || !user) {
+  if (!user || !selectedVehicleId) {
     toast.error('Please select a vehicle');
     return;
   }
@@ -123,15 +126,16 @@ const handleSubmit = async (e: React.FormEvent) => {
       date: new Date(formData.date),
       currentMileage: formData.currentMileage,
       nextServiceMileage: formData.nextServiceMileage,
-      nextServiceDate: new Date(formData.nextServiceDate),
+      nextServiceDate: new Date(formData.nextServiceDate || addYears(new Date(formData.date), 1)),
       parts: parts.map(({ includeVAT, ...part }) => part),
       laborHours: formData.laborHours,
       laborRate: formData.laborRate,
       laborCost: costs.laborTotal,
       cost: costs.totalAmount,
-      paidAmount,
-      remainingAmount,
-      paymentStatus,
+      paidAmount: paidAmount,
+      remainingAmount: costs.totalAmount - paidAmount,
+      paymentStatus: paidAmount >= costs.totalAmount ? 'paid' : 
+                    paidAmount > 0 ? 'partially_paid' : 'unpaid',
       paymentMethod,
       paymentReference,
       status: formData.status,
@@ -145,47 +149,71 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
     };
 
-    // Create maintenance record
-    const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
-      ...maintenanceData,
-      createdAt: new Date(),
-      createdBy: user.id,
-      updatedAt: new Date()
-    });
+    if (editLog) {
+      // Update existing maintenance log
+      await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+        ...maintenanceData,
+        updatedAt: new Date(),
+        updatedBy: user.id
+      });
 
-    // If there's a payment, create finance transaction
-    if (paidAmount > 0) {
-      await createMaintenanceTransaction(
-        {
-          id: docRef.id,
-          ...maintenanceData
-        },
-        selectedVehicle,
-        paidAmount,
-        paymentMethod,
-        paymentReference
-      );
+      // Create finance transaction for new payment if any
+      if (paidAmount > 0) {
+        await createMaintenanceTransaction(
+          {
+            id: editLog.id,
+            ...maintenanceData,
+            vehicleId: selectedVehicleId,
+            type: formData.type,
+            cost: costs.totalAmount
+          },
+          selectedVehicle,
+          paidAmount,
+          paymentMethod,
+          paymentReference
+        );
+      }
+
+      toast.success('Maintenance updated successfully');
+    } else {
+      // Create new maintenance log
+      const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+        ...maintenanceData,
+        createdAt: new Date(),
+        createdBy: user.id,
+        updatedAt: new Date()
+      });
+
+      // Create initial finance transaction if payment made
+      if (paidAmount > 0) {
+        await createMaintenanceTransaction(
+          {
+            id: docRef.id,
+            ...maintenanceData,
+            vehicleId: selectedVehicleId,
+            type: formData.type,
+            cost: costs.totalAmount
+          },
+          selectedVehicle,
+          paidAmount,
+          paymentMethod,
+          paymentReference
+        );
+      }
+
+      toast.success('Maintenance scheduled successfully');
     }
 
-    // Update vehicle mileage if changed
-    if (formData.currentMileage !== selectedVehicle.mileage) {
-      await createMileageHistoryRecord(
-        selectedVehicle,
-        formData.currentMileage,
-        user.name,
-        'Updated during maintenance'
-      );
-    }
-
-    toast.success('Maintenance scheduled successfully');
     onClose();
   } catch (error) {
     console.error('Error:', error);
-    toast.error('Failed to schedule maintenance');
+    toast.error(editLog ? 'Failed to update maintenance' : 'Failed to schedule maintenance');
   } finally {
     setLoading(false);
   }
 };
+
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

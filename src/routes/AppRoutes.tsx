@@ -6,6 +6,9 @@ import { lazyLoad } from './lazyLoad';
 
 
 // Update the lazy imports to use just the component name
+
+// Add to imports
+const DriverPay = lazyLoad('DriverPay');
 const Login = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
 const Dashboard = lazyLoad('Dashboard');
@@ -18,6 +21,7 @@ const Claims = lazyLoad('Claims');
 const PersonalInjury = lazyLoad('PersonalInjury');
 const Finance = lazyLoad('Finance');
 const Invoices = lazyLoad('Invoices');
+const PettyCash = lazyLoad('PettyCash');
 const Users = lazyLoad('Users');
 const Customers = lazyLoad('Customers');
 const CompanyManagers = lazyLoad('CompanyManagers');
@@ -35,6 +39,14 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
+
+      <Route path="/skyline-caps/driver-pay" element={
+  <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+    <Layout>
+      <DriverPay />
+    </Layout>
+  </ProtectedRoute>
+} />
       
       <Route path="/profile" element={
         <ProtectedRoute>
@@ -107,6 +119,14 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
+
+      <Route path="/skyline-caps/petty-cash" element={
+       <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+         <Layout>
+           <PettyCash />
+         </Layout>
+       </ProtectedRoute>
+     } />
       
       <Route path="/users" element={
         <ProtectedRoute requiredPermission={{ module: 'users', action: 'view' }}>

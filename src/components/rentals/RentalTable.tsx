@@ -1,11 +1,11 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, FileText, Download, DollarSign, CheckCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Download, DollarSign, Tag } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { format, isWithinInterval, addDays, differenceInDays, isBefore, isAfter } from 'date-fns';
+import { isAfter, differenceInDays, isWithinInterval, isBefore, addDays } from 'date-fns';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
 
 
@@ -21,12 +21,13 @@ interface RentalTableProps {
   onDownloadAgreement: (rental: Rental) => void;
   onDownloadInvoice: (rental: Rental) => void;
   onRecordPayment: (rental: Rental) => void;
+  onApplyDiscount: (rental: Rental) => void;
   onDeletePayment: (rental: Rental, paymentId: string) => void;
 }
  
 
 const RentalTable: React.FC<RentalTableProps> = ({
-  rentals,
+   rentals,
   vehicles,
   customers,
   onView,
@@ -36,8 +37,10 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onDownloadAgreement,
   onDownloadInvoice,
   onRecordPayment,
+  onApplyDiscount,
   onDeletePayment,
 }) => {
+  
  
 
   // Sort rentals by end date (closest first)
@@ -159,37 +162,40 @@ const RentalTable: React.FC<RentalTableProps> = ({
       ),
     },
     {
-      header: 'Cost',
+      header: 'Cost Details',
       cell: ({ row }) => {
         const rental = row.original;
         const vehicle = vehicles.find(v => v.id === rental.vehicleId);
         const now = new Date();
-        const endDate = new Date(rental.endDate);
         
-        let overdueCharges = 0;
-        if (rental.status === 'active' && isAfter(now, endDate) && vehicle) {
-          overdueCharges = calculateOverdueCost(rental, now, vehicle);
-        }
+        // Calculate ongoing charges if rental is active and past end date
+        const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate)
+          ? calculateOverdueCost(rental, now, vehicle)
+          : 0;
 
-        const totalCost = rental.cost + overdueCharges;
-        const remainingAmount = totalCost - rental.paidAmount;
+        const totalCost = rental.cost + ongoingCharges;
+        const remainingAmount = totalCost - rental.paidAmount - (rental.discountAmount || 0);
 
         return (
           <div>
             <div className="font-medium">£{rental.cost.toFixed(2)}</div>
-            
-            {overdueCharges > 0 && (
+            {ongoingCharges > 0 && (
               <div className="text-xs text-red-600">
-                +£{overdueCharges.toFixed(2)} Ongoing Charges
+                +£{ongoingCharges.toFixed(2)} Ongoing
               </div>
             )}
-
-            {overdueCharges > 0 && (
-              <div className="text-sm font-medium border-t mt-1 pt-1">
-                Total: £{totalCost.toFixed(2)}
+            {rental.negotiatedRate && (
+              <div className="text-xs text-blue-600">
+                Negotiated: £{rental.negotiatedRate}/
+                {rental.type === 'weekly' ? 'week' : 'day'}
               </div>
             )}
-
+            {rental.discountAmount > 0 && (
+              <div className="text-xs text-green-600">
+                Discount: £{rental.discountAmount.toFixed(2)}
+                ({rental.discountPercentage}%)
+              </div>
+            )}
             <div className="text-xs space-y-0.5 mt-1">
               <div className="text-green-600">
                 Paid: £{rental.paidAmount.toFixed(2)}
@@ -205,98 +211,99 @@ const RentalTable: React.FC<RentalTableProps> = ({
       },
     },
     {
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {can('rentals', 'view') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View Details"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
-          {can('rentals', 'update') && (
+  header: 'Actions',
+  cell: ({ row }) => (
+    <div className="flex space-x-2">
+      {can('rentals', 'view') && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onView(row.original);
+          }}
+          className="text-blue-600 hover:text-blue-800"
+          title="View Details"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      )}
+      {can('rentals', 'update') && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(row.original);
+            }}
+            className="text-blue-600 hover:text-blue-800"
+            title="Edit"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          {row.original.remainingAmount > 0 && (
             <>
-              {row.original.status === 'active' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onComplete(row.original);
-                  }}
-                  className="text-green-600 hover:text-green-800"
-                  title="Complete Rental"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                </button>
-              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onEdit(row.original);
+                  onRecordPayment(row.original);
                 }}
-                className="text-blue-600 hover:text-blue-800"
-                title="Edit"
+                className="text-primary hover:text-primary-600"
+                title="Record Payment"
               >
-                <Edit className="h-4 w-4" />
+                <DollarSign className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onApplyDiscount(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Apply Discount"
+              >
+                <Tag className="h-4 w-4" />
               </button>
             </>
           )}
-          {can('rentals', 'delete') && row.original.status !== 'active' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
-              className="text-red-600 hover:text-red-800"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.documents?.agreement && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownloadAgreement(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Download Agreement"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.documents?.invoice && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownloadInvoice(row.original);
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Download Invoice"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.remainingAmount > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRecordPayment(row.original);
-              }}
-              className="text-primary hover:text-primary-600"
-              title="Record Payment"
-            >
-              <DollarSign className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
+        </>
+      )}
+      {can('rentals', 'delete') && row.original.status !== 'active' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(row.original);
+          }}
+          className="text-red-600 hover:text-red-800"
+          title="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+      {row.original.documents?.agreement && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownloadAgreement(row.original);
+          }}
+          className="text-blue-600 hover:text-blue-800"
+          title="Download Agreement"
+        >
+          <FileText className="h-4 w-4" />
+        </button>
+      )}
+      {row.original.documents?.invoice && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownloadInvoice(row.original);
+          }}
+          className="text-green-600 hover:text-green-800"
+          title="Download Invoice"
+        >
+          <Download className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  ),
+}
+
   ];
 
   return (

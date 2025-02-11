@@ -32,41 +32,78 @@ export const syncVehicleStatuses = async () => {
     // Get all vehicles
     const vehiclesRef = collection(db, 'vehicles');
     const vehiclesSnapshot = await getDocs(vehiclesRef);
-    
+
     // Get all active and scheduled rentals
     const rentalsRef = collection(db, 'rentals');
-    const rentalsQuery = query(rentalsRef, 
+    const rentalsQuery = query(
+      rentalsRef,
       where('status', 'in', ['active', 'scheduled'])
     );
     const rentalsSnapshot = await getDocs(rentalsQuery);
-    
-    // Create a map of vehicle IDs to their rental status
-    const rentalStatusMap = new Map();
+
+    // Get all active and scheduled maintenance records
+    const maintenanceRef = collection(db, 'maintenanceLogs');
+    const maintenanceQuery = query(
+      maintenanceRef,
+      where('status', 'in', ['in-progress', 'scheduled'])
+    );
+    const maintenanceSnapshot = await getDocs(maintenanceQuery);
+
+    // Create a map of vehicle IDs to their active statuses
+    const statusMap = new Map<string, Vehicle['status'][]>();
+
     rentalsSnapshot.forEach(doc => {
       const rental = doc.data();
-      rentalStatusMap.set(rental.vehicleId, rental.status);
+      const currentStatuses = statusMap.get(rental.vehicleId) || [];
+      if (rental.status === 'active') {
+        statusMap.set(rental.vehicleId, [...currentStatuses, 'rented']);
+      } else if (rental.status === 'scheduled') {
+        statusMap.set(rental.vehicleId, [...currentStatuses, 'scheduled-rental']);
+      }
+    });
+
+    maintenanceSnapshot.forEach(doc => {
+      const maintenance = doc.data();
+      const currentStatuses = statusMap.get(maintenance.vehicleId) || [];
+      if (maintenance.status === 'in-progress') {
+        statusMap.set(maintenance.vehicleId, [...currentStatuses, 'maintenance']);
+      } else if (maintenance.status === 'scheduled') {
+        statusMap.set(maintenance.vehicleId, [...currentStatuses, 'scheduled-maintenance']);
+      }
     });
 
     // Update each vehicle's status
     const batch = writeBatch(db);
-    
+
     vehiclesSnapshot.forEach(doc => {
       const vehicle = doc.data();
-      const rentalStatus = rentalStatusMap.get(doc.id);
       
-      // If vehicle shows as rented/scheduled but has no active rental
-      if ((vehicle.status === 'rented' || vehicle.status === 'scheduled-rental') && !rentalStatus) {
-        batch.update(doc.ref, {
-          status: 'available',
-          activeStatuses: [],
-          updatedAt: new Date()
-        });
+      // Skip updating sold vehicles
+      if (vehicle.status === 'sold') {
+        return;
       }
-      // If vehicle has an active rental but shows wrong status
-      else if (rentalStatus && vehicle.status !== (rentalStatus === 'active' ? 'rented' : 'scheduled-rental')) {
+
+      const activeStatuses = statusMap.get(doc.id) || [];
+      const currentActiveStatuses = vehicle.activeStatuses || [];
+
+      // Determine the primary status based on priority
+      let primaryStatus: Vehicle['status'] = 'available';
+
+      if (activeStatuses.includes('maintenance')) {
+        primaryStatus = 'maintenance';
+      } else if (activeStatuses.includes('rented')) {
+        primaryStatus = 'rented';
+      } else if (activeStatuses.includes('scheduled-maintenance')) {
+        primaryStatus = 'scheduled-maintenance';
+      } else if (activeStatuses.includes('scheduled-rental')) {
+        primaryStatus = 'scheduled-rental';
+      }
+
+      // Update vehicle only if its status needs to change
+      if (vehicle.status !== primaryStatus || !arraysEqual(currentActiveStatuses, activeStatuses)) {
         batch.update(doc.ref, {
-          status: rentalStatus === 'active' ? 'rented' : 'scheduled-rental',
-          activeStatuses: [rentalStatus === 'active' ? 'rented' : 'scheduled-rental'],
+          status: primaryStatus,
+          activeStatuses,
           updatedAt: new Date()
         });
       }
@@ -79,6 +116,15 @@ export const syncVehicleStatuses = async () => {
     toast.error('Failed to sync vehicle statuses');
   }
 };
+
+// Helper function to compare two arrays
+const arraysEqual = (a: any[], b: any[]): boolean => {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false; // Ensure both are arrays
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
+
+
+
 
 
 /**

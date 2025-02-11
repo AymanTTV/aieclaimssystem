@@ -18,6 +18,7 @@ export const useRentalFilters = (
       
       // Get related vehicle and customer
       const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+      if (vehicle?.status === 'sold') return false;
       const customer = customers.find(c => c.id === rental.customerId);
       
       const matchesSearch = 

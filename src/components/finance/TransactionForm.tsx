@@ -1,7 +1,7 @@
 // src/components/finance/TransactionForm.tsx
 
 import React, { useState } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useVehicles } from '../../hooks/useVehicles';
@@ -9,23 +9,29 @@ import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
+import { Transaction, Vehicle } from '../../types';
 
 interface TransactionFormProps {
   type: 'income' | 'expense';
+  transaction?: Transaction;
   onClose: () => void;
 }
 
-const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
+const TransactionForm: React.FC<TransactionFormProps> = ({ type, transaction, onClose }) => {
   const { user } = useAuth();
   const { vehicles } = useVehicles();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    amount: '',
-    category: '',
-    customCategory: '',
-    description: '',
-    vehicleId: '',
+    date: transaction?.date ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    amount: transaction?.amount?.toString() || '',
+    category: transaction?.category || '',
+    customCategory: transaction?.customCategory || '',
+    description: transaction?.description || '',
+    vehicleId: transaction?.vehicleId || '',
+    paymentStatus: transaction?.paymentStatus || 'pending',
+    paymentMethod: transaction?.paymentMethod || 'cash',
+    paymentReference: transaction?.paymentReference || '',
+    status: transaction?.status || 'pending'
   });
 
   const categories = {
@@ -54,38 +60,51 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
     setLoading(true);
 
     try {
-      const finalCategory = formData.category === 'Other' 
-        ? formData.customCategory 
-        : formData.category;
-
       if (formData.category === 'Other' && !formData.customCategory.trim()) {
         toast.error('Please enter a custom category');
         return;
       }
 
-      // Get vehicle details if selected
       const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
 
-      await addDoc(collection(db, 'transactions'), {
+      const transactionData = {
         type,
         date: new Date(formData.date),
         amount: parseFloat(formData.amount),
-        category: finalCategory,
+        category: formData.category === 'Other' ? 'other' : formData.category,
+        customCategory: formData.category === 'Other' ? formData.customCategory : null,
         description: formData.description,
         vehicleId: formData.vehicleId || null,
-        vehicleName: selectedVehicle 
-          ? `${selectedVehicle.make} ${selectedVehicle.model}`
-          : null,
+        vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : null,
         vehicleOwner: selectedVehicle?.owner || null,
-        createdAt: new Date(),
-        createdBy: user?.id,
-      });
+        paymentStatus: formData.paymentStatus,
+        paymentMethod: formData.paymentMethod,
+        paymentReference: formData.paymentReference || null,
+        status: formData.status,
+        updatedAt: new Date()
+      };
 
-      toast.success(`${type === 'income' ? 'Income' : 'Expense'} recorded successfully`);
+      if (transaction) {
+        // Update existing transaction
+        await updateDoc(doc(db, 'transactions', transaction.id), {
+          ...transactionData,
+          updatedBy: user?.id
+        });
+        toast.success('Transaction updated successfully');
+      } else {
+        // Create new transaction
+        await addDoc(collection(db, 'transactions'), {
+          ...transactionData,
+          createdAt: new Date(),
+          createdBy: user?.id
+        });
+        toast.success('Transaction created successfully');
+      }
+
       onClose();
     } catch (error) {
-      console.error('Error recording transaction:', error);
-      toast.error('Failed to record transaction');
+      console.error('Error saving transaction:', error);
+      toast.error('Failed to save transaction');
     } finally {
       setLoading(false);
     }
@@ -138,7 +157,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
         )}
       </div>
 
-      {/* Vehicle Selector */}
       <SearchableSelect
         label="Related Vehicle (Optional)"
         options={vehicles.map(v => ({
@@ -158,6 +176,56 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
         required
       />
 
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+        <select
+          value={formData.paymentStatus}
+          onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="partially_paid">Partially Paid</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <select
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+        <select
+          value={formData.paymentMethod}
+          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          <option value="cash">Cash</option>
+          <option value="card">Card</option>
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="cheque">Cheque</option>
+        </select>
+      </div>
+
+      <FormField
+        label="Payment Reference"
+        value={formData.paymentReference}
+        onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+        placeholder="Enter payment reference or transaction ID"
+      />
+
       <div className="flex justify-end space-x-3">
         <button
           type="button"
@@ -171,7 +239,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ type, onClose }) => {
           disabled={loading}
           className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
         >
-          {loading ? 'Recording...' : 'Record Transaction'}
+          {loading ? 'Saving...' : transaction ? 'Update Transaction' : 'Create Transaction'}
         </button>
       </div>
     </form>

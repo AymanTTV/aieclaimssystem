@@ -3,8 +3,12 @@
 import React, { lazy, Suspense } from 'react';
 
 export const lazyLoad = (componentName: string) => {
-  // Create the lazy component with a direct import path
-  const LazyComponent = lazy(() => import(`../pages/${componentName}.tsx`));
+  // Create the lazy component with dynamic import
+  const LazyComponent = lazy(() => 
+    import(`../pages/${componentName}.tsx`).catch(() => 
+      import(`../pages/${componentName}/index.tsx`)
+    )
+  );
   
   return (props: any) => (
     <Suspense fallback={

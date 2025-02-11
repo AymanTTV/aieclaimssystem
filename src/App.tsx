@@ -8,11 +8,11 @@ import AppRoutes from './routes';
 
 function App() {
   return (
-    <VehicleProvider>
+    
     <BrowserRouter>
        
       <AuthProvider>
-       
+       <VehicleProvider>
           <Toaster 
             position="top-right" 
             toastOptions={{
@@ -38,13 +38,14 @@ function App() {
             }}
           />
           <AppRoutes />
+          </VehicleProvider>
         
       </AuthProvider>
          
          
        
     </BrowserRouter>
-      </VehicleProvider>
+     
       
   );
 }

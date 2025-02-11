@@ -21,6 +21,7 @@ export const ROUTES = {
   ACCIDENTS: '/accidents',
   CLAIMS: '/claims',
   PERSONAL_INJURY: '/claims/personal-injury', // Add this line
+  PETTY_CASH: '/finance/petty-cash',
   FINANCE: '/finance',
   INVOICES: '/finance/invoices',
   USERS: '/users',
@@ -35,6 +36,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.ACCIDENTS]: { module: 'accidents', action: 'view' },
   [ROUTES.CLAIMS]: { module: 'claims', action: 'view' },
   [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' }, // Add this line
+  [ROUTES.PETTY_CASH]: { module: 'finance', action: 'view' },
   [ROUTES.FINANCE]: { module: 'finance', action: 'view' },
   [ROUTES.INVOICES]: { module: 'finance', action: 'view' },
   [ROUTES.USERS]: { module: 'users', action: 'view' },

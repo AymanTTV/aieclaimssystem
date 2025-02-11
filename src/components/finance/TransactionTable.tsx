@@ -32,12 +32,14 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       header: 'Date',
       cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
     },
-    {
-      header: 'Type',
+     {
+      header: 'Status',
       cell: ({ row }) => (
-        <StatusBadge 
-          status={row.original.type === 'income' ? 'completed' : 'pending'}
-        />
+        <div className="space-y-1">
+          <StatusBadge status={row.original.type} />
+          <StatusBadge status={row.original.status} />
+          <StatusBadge status={row.original.paymentStatus} />
+        </div>
       ),
     },
     {

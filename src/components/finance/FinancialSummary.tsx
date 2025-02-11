@@ -27,7 +27,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Income</p>
             <p className="text-2xl font-semibold text-gray-900">
-              ${totalIncome.toFixed(2)}
+              £{totalIncome.toFixed(2)}
             </p>
           </div>
         </div>
@@ -39,7 +39,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Expenses</p>
             <p className="text-2xl font-semibold text-gray-900">
-              ${totalExpenses.toFixed(2)}
+              £{totalExpenses.toFixed(2)}
             </p>
           </div>
         </div>
@@ -51,7 +51,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Net Income</p>
             <p className="text-2xl font-semibold text-gray-900">
-              ${netIncome.toFixed(2)}
+              £{netIncome.toFixed(2)}
             </p>
           </div>
         </div>

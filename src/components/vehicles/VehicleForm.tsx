@@ -316,7 +316,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <p className="text-xs text-gray-500">PNG, JPG, WebP up to 5MB</p>
+            <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
           </div>
         </div>
       </div>

@@ -1,9 +1,10 @@
+// src/components/dashboard/UrgentAlerts.tsx
+
 import React from 'react';
 import { Vehicle, MaintenanceLog } from '../../types';
 import { AlertTriangle, Calendar, Car, Wrench } from 'lucide-react';
-import { isExpiringOrExpired } from '../../utils/vehicleUtils';
-import { format, addDays } from 'date-fns';
 import Card from '../Card';
+import { format, addDays } from 'date-fns';
 
 interface UrgentAlertsProps {
   vehicles: Vehicle[];
@@ -11,54 +12,65 @@ interface UrgentAlertsProps {
 }
 
 const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }) => {
-  // Get vehicles with expiring documents in next 7 days
-  const urgentExpirations = vehicles.filter(vehicle => {
-    const today = new Date();
-    const sevenDays = addDays(today, 7);
+  const today = new Date();
+  const thirtyDays = addDays(today, 30);
+
+  // Get vehicles with expired documents
+  const expiredVehicles = vehicles.filter(vehicle => {
+    if (vehicle.status === 'sold') return false; // Exclude sold vehicles
     
     return (
-      (vehicle.motExpiry <= sevenDays && vehicle.motExpiry > today) ||
-      (vehicle.insuranceExpiry <= sevenDays && vehicle.insuranceExpiry > today) ||
-      (vehicle.roadTaxExpiry <= sevenDays && vehicle.roadTaxExpiry > today) ||
-      (vehicle.nslExpiry <= sevenDays && vehicle.nslExpiry > today)
+      vehicle.motExpiry < today ||
+      vehicle.insuranceExpiry < today ||
+      vehicle.roadTaxExpiry < today ||
+      vehicle.nslExpiry < today
     );
   });
 
-  // Get overdue maintenance
-  const overdueMaintenanceLogs = maintenanceLogs
-    .filter(log => log.status === 'scheduled' && new Date(log.date) < new Date())
-    .slice(0, 3);
-
-  // Get vehicles requiring immediate attention
-  const criticalVehicles = vehicles.filter(vehicle => 
-    isExpiringOrExpired(vehicle.motExpiry) ||
-    isExpiringOrExpired(vehicle.insuranceExpiry) ||
-    vehicle.status === 'maintenance'
-  ).slice(0, 3);
+  // Get vehicles with expiring documents in next 30 days
+  const urgentExpirations = vehicles.filter(vehicle => {
+    if (vehicle.status === 'sold') return false; // Exclude sold vehicles
+    
+    // Don't include already expired vehicles in this section
+    if (expiredVehicles.includes(vehicle)) return false;
+    
+    return (
+      (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry > today) ||
+      (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry > today) ||
+      (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry > today) ||
+      (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry > today)
+    );
+  });
 
   return (
     <Card title="Urgent Alerts">
       <div className="space-y-4">
-        {/* Document Expirations */}
-        {urgentExpirations.length > 0 && (
+        {/* Expired Documents Section */}
+        {expiredVehicles.length > 0 && (
           <div className="space-y-2">
             <h4 className="font-medium text-red-600 flex items-center">
               <AlertTriangle className="w-4 h-4 mr-1" />
-              Urgent Document Expirations
+              Expired Documents ({expiredVehicles.length} vehicles)
             </h4>
-            {urgentExpirations.map(vehicle => (
-              <div key={vehicle.id} className="bg-red-50 p-3 rounded-lg">
+            {expiredVehicles.map(vehicle => (
+              <div key={vehicle.id} className="bg-red-100 p-3 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{vehicle.make} {vehicle.model}</p>
                     <p className="text-sm text-gray-600">{vehicle.registrationNumber}</p>
                   </div>
                   <div className="text-right text-sm">
-                    {isExpiringOrExpired(vehicle.motExpiry) && (
-                      <p className="text-red-600">MOT: {format(vehicle.motExpiry, 'dd/MM/yyyy')}</p>
+                    {vehicle.motExpiry < today && (
+                      <p className="text-red-700">MOT Expired: {format(vehicle.motExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {isExpiringOrExpired(vehicle.insuranceExpiry) && (
-                      <p className="text-red-600">Insurance: {format(vehicle.insuranceExpiry, 'dd/MM/yyyy')}</p>
+                    {vehicle.insuranceExpiry < today && (
+                      <p className="text-red-700">Insurance Expired: {format(vehicle.insuranceExpiry, 'dd/MM/yyyy')}</p>
+                    )}
+                    {vehicle.nslExpiry < today && (
+                      <p className="text-red-700">NSL Expired: {format(vehicle.nslExpiry, 'dd/MM/yyyy')}</p>
+                    )}
+                    {vehicle.roadTaxExpiry < today && (
+                      <p className="text-red-700">Road Tax Expired: {format(vehicle.roadTaxExpiry, 'dd/MM/yyyy')}</p>
                     )}
                   </div>
                 </div>
@@ -67,50 +79,33 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
           </div>
         )}
 
-        {/* Overdue Maintenance */}
-        {overdueMaintenanceLogs.length > 0 && (
+        {/* Expiring Documents Section */}
+        {urgentExpirations.length > 0 && (
           <div className="space-y-2">
             <h4 className="font-medium text-amber-600 flex items-center">
-              <Wrench className="w-4 h-4 mr-1" />
-              Overdue Maintenance
+              <AlertTriangle className="w-4 h-4 mr-1" />
+              Documents Expiring Within 30 Days ({urgentExpirations.length} vehicles)
             </h4>
-            {overdueMaintenanceLogs.map(log => {
-              const vehicle = vehicles.find(v => v.id === log.vehicleId);
-              return (
-                <div key={log.id} className="bg-amber-50 p-3 rounded-lg">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="font-medium">{vehicle?.make} {vehicle?.model}</p>
-                      <p className="text-sm text-gray-600">{log.type}</p>
-                    </div>
-                    <div className="text-right text-sm">
-                      <p>Due: {format(log.date, 'dd/MM/yyyy')}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Critical Vehicles */}
-        {criticalVehicles.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="font-medium text-blue-600 flex items-center">
-              <Car className="w-4 h-4 mr-1" />
-              Vehicles Requiring Attention
-            </h4>
-            {criticalVehicles.map(vehicle => (
-              <div key={vehicle.id} className="bg-blue-50 p-3 rounded-lg">
-                <div className="flex justify-between">
+            {urgentExpirations.map(vehicle => (
+              <div key={vehicle.id} className="bg-amber-50 p-3 rounded-lg">
+                <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{vehicle.make} {vehicle.model}</p>
                     <p className="text-sm text-gray-600">{vehicle.registrationNumber}</p>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {vehicle.status}
-                    </span>
+                  <div className="text-right text-sm">
+                    {vehicle.motExpiry <= thirtyDays && vehicle.motExpiry > today && (
+                      <p className="text-amber-600">MOT: {format(vehicle.motExpiry, 'dd/MM/yyyy')}</p>
+                    )}
+                    {vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry > today && (
+                      <p className="text-amber-600">Insurance: {format(vehicle.insuranceExpiry, 'dd/MM/yyyy')}</p>
+                    )}
+                    {vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry > today && (
+                      <p className="text-amber-600">NSL: {format(vehicle.nslExpiry, 'dd/MM/yyyy')}</p>
+                    )}
+                    {vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry > today && (
+                      <p className="text-amber-600">Road Tax: {format(vehicle.roadTaxExpiry, 'dd/MM/yyyy')}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -118,9 +113,7 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
           </div>
         )}
 
-        {urgentExpirations.length === 0 && 
-         overdueMaintenanceLogs.length === 0 && 
-         criticalVehicles.length === 0 && (
+        {expiredVehicles.length === 0 && urgentExpirations.length === 0 && (
           <p className="text-center text-gray-500 py-4">
             No urgent alerts at this time
           </p>

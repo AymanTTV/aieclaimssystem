@@ -6,6 +6,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import MaintenanceTable from '../components/maintenance/MaintenanceTable';
 import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
+
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import Modal from '../components/ui/Modal';
@@ -127,8 +128,7 @@ const Maintenance = () => {
           onDelete={handleDelete}
         />
       </div>
-
-      {/* Modals */}
+{/* Modals */}
       <Modal
         isOpen={showForm || !!editingLog}
         onClose={() => {
@@ -147,6 +147,7 @@ const Maintenance = () => {
           editLog={editingLog || undefined}
         />
       </Modal>
+
 
       <Modal
         isOpen={!!selectedLog}

@@ -39,6 +39,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
     description: invoice.description,
     customerId: invoice.customerId || '',
     customerName: invoice.customerName || '',
+    customerPhone: invoice.customerPhone || '',
     useCustomCustomer: !!invoice.customerName,
     paymentMethod: 'cash' as const,
     paymentReference: '',
@@ -98,6 +99,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
         description: formData.description,
         customerId: formData.useCustomCustomer ? null : formData.customerId,
         customerName: formData.useCustomCustomer ? formData.customerName : null,
+        customerPhone: formData.useCustomCustomer ? formData.customerPhone : null,
         paymentStatus,
         payments,
         updatedAt: new Date()
@@ -178,13 +180,22 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
         </div>
 
         {formData.useCustomCustomer ? (
-          <FormField
-            label="Customer Name"
-            value={formData.customerName}
-            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-            required
-            placeholder="Enter customer name"
-          />
+          <div className="space-y-4">
+    <FormField
+      label="Customer Name"
+      value={formData.customerName}
+      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+      required
+      placeholder="Enter customer name"
+    />
+    <FormField
+      type="tel"
+      label="Phone Number"
+      value={formData.customerPhone || ''}
+      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+      placeholder="Enter customer phone number"
+    />
+  </div>
         ) : (
           <SearchableSelect
             label="Select Customer"

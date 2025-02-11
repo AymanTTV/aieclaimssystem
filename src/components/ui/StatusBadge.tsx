@@ -1,3 +1,5 @@
+// src/components/ui/StatusBadge.tsx
+
 import React from 'react';
 import clsx from 'clsx';
 
@@ -11,25 +13,18 @@ type StatusType =
   | 'claim'
   | 'unavailable'
   | 'sold'
-  // Maintenance statuses
-  | 'scheduled'
-  | 'in-progress'
-  | 'completed'
-  | 'cancelled'
   // Payment statuses
   | 'pending'
   | 'paid'
   | 'partially_paid'
   | 'overdue'
-  // Claim statuses
-  | 'fault'
-  | 'non-fault'
-  | 'settled'
-  | 'won'
-  | 'lost'
-  // Rental statuses
+  // Progress statuses
+  | 'completed'
+  | 'cancelled'
   | 'active'
-  | 'scheduled';
+  | 'scheduled'
+  // Allow custom statuses
+  | string;
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -37,12 +32,16 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
+  if (!status) return null;
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       // Vehicle statuses
       case 'available':
         return 'bg-green-100 text-green-800';
       case 'hired':
+        case 'overdue':
+        return 'bg-red-100 text-red-800';
       case 'active':
         return 'bg-blue-100 text-blue-800';
       case 'scheduled for hire':
@@ -71,18 +70,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'partially_paid':
         return 'bg-blue-100 text-blue-800';
       case 'overdue':
-        return 'bg-red-100 text-red-800';
-      
-      // Claim statuses
-      case 'fault':
-        return 'bg-red-100 text-red-800';
-      case 'non-fault':
-        return 'bg-blue-100 text-blue-800';
-      case 'settled':
-        return 'bg-green-100 text-green-800';
-      case 'won':
-        return 'bg-green-100 text-green-800';
-      case 'lost':
         return 'bg-red-100 text-red-800';
       
       default:

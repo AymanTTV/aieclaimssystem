@@ -16,6 +16,7 @@ interface InvoiceTableProps {
   onDelete: (invoice: Invoice) => void;
   onDownload: (invoice: Invoice) => void;
   onRecordPayment: (invoice: Invoice) => void;
+  onApplyDiscount: (invoice: Invoice) => void;
   onDeletePayment: (invoice: Invoice, paymentId: string) => void;
 }
 
@@ -28,6 +29,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onDelete,
   onDownload,
   onRecordPayment,
+  onApplyDiscount,
   onDeletePayment,
 }) => {
   const formatDate = (date: any): string => {
@@ -45,37 +47,73 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   };
   const { can } = usePermissions();
 
+  // Add function to check if invoice is overdue
+  const isOverdue = (invoice: Invoice): boolean => {
+    return invoice.paymentStatus !== 'paid' && new Date() > invoice.dueDate;
+  };
+
+  // Sort invoices: overdue first, then by due date ascending
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const aOverdue = isOverdue(a);
+    const bOverdue = isOverdue(b);
+    
+    // If one is overdue and the other isn't, overdue comes first
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+    
+    // If both are overdue or both are not overdue, sort by due date
+    return a.dueDate.getTime() - b.dueDate.getTime();
+  });
+
+
   const columns = [
     {
-      header: 'Customer',
-      cell: ({ row }) => {
-        if (row.original.customerName) {
-          return <span>{row.original.customerName}</span>;
-        }
-        const customer = customers?.find(c => c.id === row.original.customerId);
-        return customer ? (
-          <div>
-            <div className="font-medium">{customer.name}</div>
-            <div className="text-sm text-gray-500">{customer.mobile}</div>
-          </div>
-        ) : (
-          <span className="text-gray-500">No customer</span>
-        );
-      },
-    },
-    {
-      header: 'Date',
-      cell: ({ row }) => formatDate(row.original.date),
-    },
+  header: 'Customer',
+  cell: ({ row }) => {
+    if (row.original.customerName) {
+      return (
+        <div>
+          <div className="font-medium">{row.original.customerName}</div>
+          {row.original.customerPhone && (
+            <div className="text-sm text-gray-500">{row.original.customerPhone}</div>
+          )}
+        </div>
+      );
+    }
+    const customer = customers?.find(c => c.id === row.original.customerId);
+    return customer ? (
+      <div>
+        <div className="font-medium">{customer.name}</div>
+        <div className="text-sm text-gray-500">{customer.mobile}</div>
+      </div>
+    ) : (
+      <span className="text-gray-500">No customer</span>
+    );
+  },
+},
+    // {
+    //   header: 'Date',
+    //   cell: ({ row }) => formatDate(row.original.date),
+    // },
     {
       header: 'Due Date',
       cell: ({ row }) => formatDate(row.original.dueDate),
     },
     {
       header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.paymentStatus} />
-      ),
+      cell: ({ row }) => {
+        const invoice = row.original;
+        // Check if invoice is overdue
+        const overdue = isOverdue(invoice);
+        return (
+          <div className="space-y-1">
+            <StatusBadge 
+              status={overdue ? 'overdue' : invoice.paymentStatus} 
+              className={overdue ? 'bg-red-100 text-red-800' : ''}
+            />
+          </div>
+        );
+      },
     },
     {
       header: 'Category',
@@ -85,10 +123,10 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         </span>
       ),
     },
-    {
-      header: 'Description',
-      accessorKey: 'description',
-    },
+    // {
+    //   header: 'Description',
+    //   accessorKey: 'description',
+    // },
     {
       header: 'Amount',
       cell: ({ row }) => (
@@ -216,9 +254,10 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
 
   return (
     <DataTable
-      data={invoices}
+      data={sortedInvoices}
       columns={columns}
       onRowClick={(invoice) => onView(invoice)}
+      rowClassName={(invoice) => isOverdue(invoice) ? 'bg-red-50' : ''}
     />
   );
 };

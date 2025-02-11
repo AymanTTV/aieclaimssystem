@@ -1,3 +1,5 @@
+// src/components/dashboard/VehicleMetrics.tsx
+
 import React from 'react';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useRentals } from '../../hooks/useRentals';
@@ -8,7 +10,10 @@ const VehicleMetrics = () => {
   const { vehicles } = useVehicles();
   const { rentals } = useRentals();
 
-  // Count active rentals (status is 'rented' or 'active')
+  // Count active vehicles (excluding sold)
+  const activeVehicles = vehicles.filter(v => v.status !== 'sold');
+
+  // Count active rentals
   const activeRentals = rentals.filter(r => 
     r.status === 'rented' || r.status === 'active'
   ).length;
@@ -21,12 +26,14 @@ const VehicleMetrics = () => {
 
   // Count vehicles needing attention (expired or soon expiring documents)
   const needingAttention = vehicles.filter(v => {
+    if (v.status === 'sold') return false; // Exclude sold vehicles
     const today = new Date();
+    const fifteenDays = new Date(today.setDate(today.getDate() + 15));
     return (
-      v.motExpiry <= today ||
-      v.nslExpiry <= today ||
-      v.roadTaxExpiry <= today ||
-      v.insuranceExpiry <= today
+      v.motExpiry <= fifteenDays ||
+      v.nslExpiry <= fifteenDays ||
+      v.roadTaxExpiry <= fifteenDays ||
+      v.insuranceExpiry <= fifteenDays
     );
   }).length;
 
@@ -34,7 +41,7 @@ const VehicleMetrics = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard
         title="Total Vehicles"
-        value={vehicles.length}
+        value={activeVehicles.length}
         icon={Car}
         iconColor="text-primary"
       />

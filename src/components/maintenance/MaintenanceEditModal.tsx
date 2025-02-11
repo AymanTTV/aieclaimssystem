@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
 import { createMaintenanceTransaction } from '../../utils/financeTransactions';
 
+import { createFinanceTransaction } from '../../utils/financeTransactions';
+
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
@@ -54,67 +56,69 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                        paidAmount > 0 ? 'partially_paid' : 'unpaid';
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setLoading(true);
+  e.preventDefault();
+  if (!user) return;
+  setLoading(true);
 
-    try {
-    const selectedVehicle = vehicles.find(v => v.id === log.vehicleId);
-    if (!selectedVehicle) {
-      throw new Error('Vehicle not found');
+  try {
+    const docRef = doc(db, 'maintenanceLogs', log.id);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error('Maintenance log not found');
     }
 
-    
+    const selectedVehicle = vehicles.find(v => v.id === log.vehicleId);
+    if (!selectedVehicle) throw new Error('Vehicle not found');
 
-    try {
-      const maintenanceData = {
-        ...formData,
-        parts: parts.map(({ includeVAT, ...part }) => part),
-        laborCost: costs.laborTotal,
-        cost: costs.totalAmount,
-        paidAmount: log.paidAmount + newPayment,
-      remainingAmount: log.cost - (log.paidAmount + newPayment),
-      paymentStatus: log.paidAmount + newPayment >= log.cost ? 'paid' : 'partially_paid',
-        paymentMethod,
-        paymentReference,
-        vatDetails: {
-          partsVAT: parts.map(part => ({
-            partName: part.name,
-            includeVAT: part.includeVAT
-          })),
-          laborVAT: includeVATOnLabor
-        },
-        date: ensureValidDate(formData.date),
-        nextServiceDate: ensureValidDate(formData.nextServiceDate),
-        updatedAt: new Date(),
-        updatedBy: user.id
-      };
+    // Calculate new payment amounts
+    const amountToPay = parseFloat(formData.amountToPay || '0') || 0;
+    const totalPaidAmount = log.paidAmount + amountToPay;
+    const remainingAmount = costs.totalAmount - totalPaidAmount;
+    const paymentStatus = totalPaidAmount >= costs.totalAmount ? 'paid' : 
+                         totalPaidAmount > 0 ? 'partially_paid' : 'unpaid';
 
-      await updateDoc(doc(db, 'maintenanceLogs', log.id), maintenanceData);
-// If there's a new payment, create finance transaction
-    const newPayment = parseFloat(formData.amountToPay) || 0;
-    if (newPayment > 0) {
+    // Update maintenance log
+    const maintenanceData = {
+      ...formData,
+      paidAmount: totalPaidAmount,
+      remainingAmount,
+      paymentStatus,
+      updatedAt: new Date(),
+      updatedBy: user.id
+    };
+
+    await updateDoc(docRef, maintenanceData);
+
+    // Create finance transaction for new payment if amount is paid
+    if (amountToPay > 0) {
       await createMaintenanceTransaction(
         {
           id: log.id,
-          ...maintenanceData
+          ...maintenanceData,
+          vehicleId: log.vehicleId,
+          type: log.type,
+          cost: costs.totalAmount
         },
         selectedVehicle,
-        newPayment,
+        amountToPay,
         formData.paymentMethod,
         formData.paymentReference
       );
     }
 
-      toast.success('Maintenance log updated successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error updating maintenance:', error);
-      toast.error('Failed to update maintenance log');
-    } finally {
-      setLoading(false);
-    }
-  };
+    toast.success('Maintenance log updated successfully');
+    onClose();
+  } catch (error) {
+    console.error('Error updating maintenance log:', error);
+    toast.error('Failed to update maintenance log');
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

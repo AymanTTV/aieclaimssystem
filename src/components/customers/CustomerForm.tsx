@@ -16,7 +16,6 @@ interface CustomerFormProps {
 const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    signature: '',
     name: customer?.name || '',
     mobile: customer?.mobile || '',
     email: customer?.email || '',
@@ -29,6 +28,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
     licenseExpiry: customer?.licenseExpiry ? customer.licenseExpiry.toISOString().split('T')[0] : '',
     badgeNumber: customer?.badgeNumber || '',
     billExpiry: customer?.billExpiry ? customer.billExpiry.toISOString().split('T')[0] : '',
+    signature: customer?.signature || ''
   });
 
   const [documents, setDocuments] = useState<{
@@ -64,6 +64,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
       setDocumentPreviews(prev => ({ ...prev, [type]: reader.result as string }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSignatureChange = (signature: string) => {
+    setFormData(prev => ({ ...prev, signature }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -309,10 +313,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
         </div>
       </div>
 
+      {/* Customer Signature */}
       <div>
         <CustomerSignature
           value={formData.signature}
-          onChange={(signature) => setFormData({ ...formData, signature })}
+          onChange={handleSignatureChange}
           disabled={loading}
         />
       </div>

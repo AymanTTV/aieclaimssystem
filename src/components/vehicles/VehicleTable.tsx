@@ -6,6 +6,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
+import { addDays } from 'date-fns';
 
 interface VehicleTableProps {
   vehicles: Vehicle[];
@@ -23,6 +24,56 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onMarkAsSold,
 }) => {
   const { can } = usePermissions();
+
+  const sortedVehicles = [...vehicles].sort((a, b) => {
+    const now = new Date();
+    const thirtyDays = addDays(now, 30);
+
+    // Helper function to count expiring/expired documents
+    const countExpiringDocs = (vehicle: Vehicle) => {
+      let count = 0;
+      
+      // Count expired documents (these get higher priority)
+      if (vehicle.motExpiry < now) count += 10;
+      if (vehicle.insuranceExpiry < now) count += 10;
+      if (vehicle.nslExpiry < now) count += 10;
+      if (vehicle.roadTaxExpiry < now) count += 10;
+
+      // Count documents expiring within 30 days
+      if (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) count += 5;
+      if (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) count += 5;
+      if (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry >= now) count += 5;
+      if (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry >= now) count += 5;
+
+      return count;
+    };
+
+    // Get expiring document count for both vehicles
+    const aCount = countExpiringDocs(a);
+    const bCount = countExpiringDocs(b);
+
+    // Sort by number of expiring documents (descending)
+    if (aCount !== bCount) {
+      return bCount - aCount;
+    }
+
+    // If same number of expiring documents, sort by earliest expiry date
+    const aEarliestExpiry = Math.min(
+      a.motExpiry.getTime(),
+      a.insuranceExpiry.getTime(),
+      a.nslExpiry.getTime(),
+      a.roadTaxExpiry.getTime()
+    );
+
+    const bEarliestExpiry = Math.min(
+      b.motExpiry.getTime(),
+      b.insuranceExpiry.getTime(),
+      b.nslExpiry.getTime(),
+      b.roadTaxExpiry.getTime()
+    );
+
+    return aEarliestExpiry - bEarliestExpiry;
+  });
 
   const columns = [
     {
@@ -201,14 +252,33 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
   return (
     <DataTable
-      data={vehicles}
+      data={sortedVehicles}
       columns={columns}
       onRowClick={(vehicle) => can('vehicles', 'view') && onView(vehicle)}
       rowClassName={(vehicle) => {
-        // Highlight rows based on insurance expiry
-        if (isExpiringOrExpired(vehicle.insuranceExpiry)) {
+        const now = new Date();
+        const thirtyDays = addDays(now, 30);
+        
+        // Check for expired documents
+        if (
+          vehicle.motExpiry < now ||
+          vehicle.insuranceExpiry < now ||
+          vehicle.nslExpiry < now ||
+          vehicle.roadTaxExpiry < now
+        ) {
           return 'bg-red-50';
         }
+        
+        // Check for documents expiring within 30 days
+        if (
+          (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) ||
+          (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) ||
+          (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry >= now) ||
+          (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry >= now)
+        ) {
+          return 'bg-yellow-50';
+        }
+        
         return '';
       }}
     />

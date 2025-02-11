@@ -13,7 +13,7 @@ import { Plus, Download, RotateCw } from 'lucide-react'; // Changed from Refresh
 import { handleVehicleExport } from '../utils/vehicleHelpers';
 import { useVehicleStatusManager, resetAllVehicleStatuses } from '../hooks/useVehicleStatusManager';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, writeBatch, addDoc } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import toast from 'react-hot-toast';

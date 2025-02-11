@@ -24,6 +24,8 @@ import { useAuth } from '../context/AuthContext';
 import { useVehiclesContext } from '../utils/VehicleProvider';
 import { RefreshCw } from 'lucide-react';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
+import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
+
 
 const Rentals = () => {
   // const { vehicles, loading } = useVehiclesContext();
@@ -32,6 +34,7 @@ const Rentals = () => {
   const { customers, loading: customersLoading } = useCustomers();
    const { can } = usePermissions();
   const { user } = useAuth();
+  const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
 
   const {
     searchQuery,
@@ -157,7 +160,7 @@ const Rentals = () => {
         vehicles={vehicles}
       />
 
-      <RentalTable
+     <RentalTable
         rentals={filteredRentals}
         vehicles={vehicles}
         customers={customers}
@@ -168,8 +171,22 @@ const Rentals = () => {
         onDownloadAgreement={handleDownloadAgreement}
         onDownloadInvoice={handleDownloadInvoice}
         onRecordPayment={setPayingRental}
+        onApplyDiscount={setDiscountingRental}
         onDeletePayment={handleDeletePayment}
       />
+
+      <Modal
+        isOpen={!!discountingRental}
+        onClose={() => setDiscountingRental(null)}
+        title="Apply Discount"
+      >
+        {discountingRental && (
+          <RentalDiscountModal
+            rental={discountingRental}
+            onClose={() => setDiscountingRental(null)}
+          />
+        )}
+      </Modal>
 
       {/* Modals */}
       <Modal

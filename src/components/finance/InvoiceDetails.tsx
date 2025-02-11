@@ -68,24 +68,34 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
       {/* Customer Information */}
       <div>
-        <h3 className="text-sm font-medium text-gray-500">Customer</h3>
-        {customer ? (
-          <div className="mt-1">
-            <div className="flex items-center">
-              <User className="h-4 w-4 text-gray-400 mr-2" />
-              <div>
-                <p className="font-medium">{customer.name}</p>
-                <p className="text-sm text-gray-500">{customer.mobile}</p>
-                <p className="text-sm text-gray-500">{customer.email}</p>
-              </div>
-            </div>
-          </div>
-        ) : invoice.customerName ? (
-          <p className="mt-1">{invoice.customerName}</p>
-        ) : (
-          <p className="mt-1 text-gray-500">No customer information</p>
-        )}
+  <h3 className="text-sm font-medium text-gray-500">Customer</h3>
+  {customer ? (
+    <div className="mt-1">
+      <div className="flex items-center">
+        <User className="h-4 w-4 text-gray-400 mr-2" />
+        <div>
+          <p className="font-medium">{customer.name}</p>
+          <p className="text-sm text-gray-500">{customer.mobile}</p>
+          {/* <p className="text-sm text-gray-500">{customer.email}</p> */}
+        </div>
       </div>
+    </div>
+  ) : invoice.customerName ? (
+    <div className="mt-1">
+      <div className="flex items-center">
+        <User className="h-4 w-4 text-gray-400 mr-2" />
+        <div>
+          <p className="font-medium">{invoice.customerName}</p>
+          {invoice.customerPhone && (
+            <p className="text-sm text-gray-500">{invoice.customerPhone}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <p className="mt-1 text-gray-500">No customer information</p>
+  )}
+</div>
 
       {/* Vehicle Information */}
       {vehicle && (

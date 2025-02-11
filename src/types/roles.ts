@@ -18,7 +18,9 @@ export interface RolePermissions {
   claims: Permission;
   personalInjury: Permission;
   finance: Permission;
-  invoices: Permission; // Add this line
+  invoices: Permission;
+  pettyCash: Permission;
+  driverPay: Permission; // Add this line
   users: Permission;
   customers: Permission;
   company: Permission;
@@ -35,6 +37,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     personalInjury: { view: true, create: true, update: true, delete: true },
     finance: { view: true, create: true, update: true, delete: true },
     invoices: { view: true, create: true, update: true, delete: true },
+    pettyCash: { view: true, create: true, update: true, delete: true },
+    driverPay: { view: true, create: true, update: true, delete: true }, // Add this line
     users: { view: true, create: true, update: true, delete: true },
     customers: { view: true, create: true, update: true, delete: true },
     company: { view: true, create: true, update: true, delete: true }
@@ -47,8 +51,10 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     accidents: { view: true, create: true, update: true, delete: false },
     claims: { view: true, create: true, update: true, delete: false },
     personalInjury: { view: true, create: true, update: true, delete: false },
-    invoices: { view: true, create: true, update: true, delete: true },
     finance: { view: true, create: false, update: false, delete: false },
+    invoices: { view: true, create: true, update: true, delete: true },
+    pettyCash: { view: true, create: true, update: true, delete: false },
+    driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
     users: { view: true, create: false, update: false, delete: false },
     customers: { view: true, create: true, update: true, delete: false },
     company: { view: true, create: false, update: false, delete: false }
@@ -63,6 +69,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     personalInjury: { view: false, create: false, update: false, delete: false },
     invoices: { view: true, create: true, update: true, delete: true },
     finance: { view: true, create: true, update: true, delete: false },
+    pettyCash: { view: true, create: true, update: true, delete: false },
+    driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
     users: { view: false, create: false, update: false, delete: false },
     customers: { view: true, create: false, update: false, delete: false },
     company: { view: true, create: false, update: false, delete: false }
@@ -77,6 +85,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     personalInjury: { view: true, create: true, update: true, delete: false },
     invoices: { view: true, create: true, update: true, delete: true },
     finance: { view: false, create: false, update: false, delete: false },
+    pettyCash: { view: false, create: false, update: false, delete: false },
+    driverPay: { view: false, create: false, update: false, delete: false }, // Add this line
     users: { view: false, create: false, update: false, delete: false },
     customers: { view: true, create: true, update: true, delete: false },
     company: { view: true, create: false, update: false, delete: false }

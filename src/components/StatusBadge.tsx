@@ -1,15 +1,24 @@
+// src/components/ui/StatusBadge.tsx
+
 import React from 'react';
 import clsx from 'clsx';
 
 type StatusType = 
-  | 'active' 
+  | 'available' 
+  | 'hired'
+  | 'scheduled-rental'
   | 'maintenance'
   | 'scheduled-maintenance'
-  | 'rented'
-  | 'scheduled-rental'
   | 'claim'
   | 'unavailable'
-  | 'sold';
+  | 'sold'
+  | 'pending'
+  | 'paid'
+  | 'partially_paid'
+  | 'overdue'
+  | 'completed'
+  | 'cancelled'
+  | string; // Allow any string to prevent type errors
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -17,26 +26,44 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
-  if (!status) return null; // or display a default badge
+  if (!status) return null; // Return null if status is undefined
 
-  const getStatusColor = (status: StatusType) => {
-    switch (status) {
-      case 'active':
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      // Vehicle statuses
+      case 'available':
         return 'bg-green-100 text-green-800';
-      case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'scheduled-maintenance':
-        return 'bg-yellow-50 text-yellow-600';
-      case 'rented':
+      case 'hired':
+      case 'active':
         return 'bg-blue-100 text-blue-800';
+      case 'scheduled for hire':
       case 'scheduled-rental':
-        return 'bg-blue-50 text-blue-600';
+      case 'scheduled':
+        return 'bg-sky-100 text-sky-800';
+      case 'maintenance':
+      case 'in-progress':
+        return 'bg-red-100 text-red-800';
+      case 'scheduled-maintenance':
+        return 'bg-orange-100 text-orange-800';
       case 'claim':
         return 'bg-purple-100 text-purple-800';
       case 'unavailable':
-        return 'bg-red-100 text-red-800';
-      case 'sold':
+      case 'cancelled':
         return 'bg-gray-100 text-gray-800';
+      case 'sold':
+        return 'bg-yellow-100 text-yellow-800';
+      
+      // Payment statuses
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'paid':
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'partially_paid':
+        return 'bg-blue-100 text-blue-800';
+      case 'overdue':
+        return 'bg-red-100 text-red-800';
+      
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -50,7 +77,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
         className
       )}
     >
-      {status.replace('-', ' ')}
+      {status.replace(/[_-]/g, ' ')}
     </span>
   );
 };

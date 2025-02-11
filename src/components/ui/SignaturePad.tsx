@@ -1,5 +1,3 @@
-// src/components/ui/SignaturePad.tsx
-
 import React, { useRef, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 
@@ -10,8 +8,6 @@ interface SignaturePadProps {
   disabled?: boolean;
 }
 
-// src/components/ui/SignaturePad.tsx
-
 const SignaturePad: React.FC<SignaturePadProps> = ({
   value,
   onChange,
@@ -20,14 +16,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
 }) => {
   const padRef = useRef<SignatureCanvas>(null);
 
-  // Initialize points array
-  useEffect(() => {
-    if (padRef.current) {
-      padRef.current._data = []; // Initialize empty points array
-    }
-  }, []);
-
-  // Load existing signature if available
+  // Load existing signature
   useEffect(() => {
     if (value && padRef.current) {
       const img = new Image();
@@ -35,10 +24,28 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
         const canvas = padRef.current;
         if (canvas) {
           canvas.clear();
-          canvas._data = []; // Reset points array
           const ctx = canvas._canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(img, 0, 0);
+            // Clear any existing content
+            ctx.clearRect(0, 0, canvas._canvas.width, canvas._canvas.height);
+            
+            // Calculate dimensions to fit signature in canvas
+            const padding = 20; // Add padding around signature
+            const maxWidth = canvas._canvas.width - (padding * 2);
+            const maxHeight = canvas._canvas.height - (padding * 2);
+            
+            // Calculate scale to fit while maintaining aspect ratio
+            const scale = Math.min(
+              maxWidth / img.width,
+              maxHeight / img.height
+            );
+            
+            // Calculate centered position
+            const x = (canvas._canvas.width - (img.width * scale)) / 2;
+            const y = (canvas._canvas.height - (img.height * scale)) / 2;
+            
+            // Draw the image centered and scaled
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
           }
         }
       };
@@ -46,43 +53,43 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
     }
   }, [value]);
 
-  // Rest of the component remains the same...
-
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (padRef.current) {
-        const canvas = padRef.current._canvas;
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.scale(ratio, ratio);
-        }
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const clear = () => {
     if (padRef.current) {
       padRef.current.clear();
-      padRef.current._data = []; // Add this line
       onChange('');
     }
   };
 
   const handleEnd = () => {
-    if (padRef.current) {
-      const trimmed = padRef.current.getTrimmedCanvas();
-      const signature = trimmed.toDataURL('image/png');
-      onChange(signature);
+    try {
+      if (padRef.current && !padRef.current.isEmpty()) {
+        // Get the trimmed canvas with just the signature
+        const trimmedCanvas = padRef.current.getTrimmedCanvas();
+        
+        // Create a new canvas with padding
+        const finalCanvas = document.createElement('canvas');
+        const padding = 20; // Padding around signature
+        
+        // Set dimensions with padding
+        finalCanvas.width = trimmedCanvas.width + (padding * 2);
+        finalCanvas.height = trimmedCanvas.height + (padding * 2);
+        
+        const ctx = finalCanvas.getContext('2d');
+        if (ctx) {
+          // Clear canvas and set white background
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+          
+          // Draw signature centered with padding
+          ctx.drawImage(trimmedCanvas, padding, padding);
+          
+          // Convert to data URL and save
+          const signature = finalCanvas.toDataURL('image/png');
+          onChange(signature);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling signature:', error);
     }
   };
 
@@ -100,11 +107,12 @@ const SignaturePad: React.FC<SignaturePadProps> = ({
             }
           }}
           onEnd={handleEnd}
-          dotSize={2}
-          minWidth={2}
-          maxWidth={4}
+          dotSize={1}
+          minWidth={1}
+          maxWidth={2}
           throttle={16}
           velocityFilterWeight={0.7}
+          clearOnResize={false}
         />
       </div>
       <div className="mt-2 flex justify-end">

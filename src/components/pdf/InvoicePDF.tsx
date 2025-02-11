@@ -113,7 +113,32 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
   vehicle, 
   companyDetails 
 }) => {
-  const formatDate = (date: Date) => format(date, 'dd/MM/yyyy');
+  // src/components/pdf/InvoicePDF.tsx
+
+// Update the formatDate function to handle invalid dates
+const formatDate = (date: Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  try {
+    // Handle Firestore Timestamp
+    if (date?.toDate) {
+      date = date.toDate();
+    }
+    
+    // Ensure we have a valid Date object
+    const dateObj = date instanceof Date ? date : new Date(date);
+    
+    if (isNaN(dateObj.getTime())) {
+      return 'N/A';
+    }
+    
+    return format(dateObj, 'dd/MM/yyyy');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'N/A';
+  }
+};
+
   const formatDateTime = (date: Date) => format(date, 'dd/MM/yyyy HH:mm');
 
   return (

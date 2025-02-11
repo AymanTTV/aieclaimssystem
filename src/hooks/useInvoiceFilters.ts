@@ -15,38 +15,39 @@ export const useInvoiceFilters = (invoices: Invoice[], customers?: Customer[]) =
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
-      // Search filter
       const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
-        // Search by invoice number
-        `AIE-INV-${invoice.id.slice(-8)}`.toLowerCase().includes(searchLower) ||
-        // Search by customer name (both direct and through customerId)
-        (invoice.customerName?.toLowerCase().includes(searchLower) || 
-         customers?.find(c => c.id === invoice.customerId)?.name.toLowerCase().includes(searchLower)) ||
-        // Search by category
-       // Search by category
+
+      const matchesCustomerName =
+        (invoice.customerName?.toLowerCase().includes(searchLower)) ||
+        (invoice.customerId && customers?.find(c => c.id === invoice.customerId)?.name?.toLowerCase().includes(searchLower));
+
+      const matchesInvoiceNumber = `AIE-INV-${invoice.id.slice(-8)}`.toLowerCase().includes(searchLower);
+
+      const matchesCategorySearch =
         invoice.category.toLowerCase().includes(searchLower) ||
-        // Search by custom category
-        invoice.customCategory?.toLowerCase().includes(searchLower) ||
-        // Search by description
-        invoice.description.toLowerCase().includes(searchLower);
+        invoice.customCategory?.toLowerCase().includes(searchLower);
 
-      // Status filter
+      // *** CORRECTED LOGIC HERE ***
+      const matchesSearch = searchQuery === "" || (matchesCustomerName || matchesInvoiceNumber || matchesCategorySearch);
+
       const matchesStatus = statusFilter === 'all' || invoice.paymentStatus === statusFilter;
+      const matchesCategoryFilter = categoryFilter === 'all' || invoice.category === categoryFilter;
 
-      // Category filter
-      const matchesCategory = categoryFilter === 'all' || invoice.category === categoryFilter;
-
-      // Date range filter
       let matchesDateRange = true;
       if (dateRange.start && dateRange.end) {
-        matchesDateRange = isWithinInterval(invoice.date, {
-          start: dateRange.start,
-          end: dateRange.end
-        });
+        matchesDateRange = isWithinInterval(invoice.date, { start: dateRange.start, end: dateRange.end });
       }
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesDateRange;
+      return matchesSearch && matchesStatus && matchesCategoryFilter && matchesDateRange;
+    }).sort((a, b) => {
+      // Sort by overdue status first, then by due date
+      const aOverdue = a.paymentStatus !== 'paid' && new Date() > a.dueDate;
+      const bOverdue = b.paymentStatus !== 'paid' && new Date() > b.dueDate;
+      
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      
+      return a.dueDate.getTime() - b.dueDate.getTime();
     });
   }, [invoices, customers, searchQuery, statusFilter, categoryFilter, dateRange]);
 

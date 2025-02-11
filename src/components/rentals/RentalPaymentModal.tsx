@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Rental, Vehicle } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { Rental, Vehicle } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
 import toast from 'react-hot-toast';
+
 interface RentalPaymentModalProps {
   rental: Rental;
   vehicle?: Vehicle;
@@ -30,11 +31,17 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
   // Calculate current costs
   const now = new Date();
-  const overdueCost = rental.status === 'active' && isAfter(now, rental.endDate) 
+  const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate) 
     ? calculateOverdueCost(rental, now, vehicle)
     : 0;
-  const totalCost = rental.cost + overdueCost;
-  const remainingAmount = totalCost - rental.paidAmount;
+
+  // Calculate all cost components
+  const baseCost = rental.cost;
+  const standardCost = rental.standardCost || baseCost;
+  const negotiatedDiscount = rental.standardCost ? rental.standardCost - rental.cost : 0;
+  const discountAmount = rental.discountAmount || 0;
+  const totalCost = baseCost + ongoingCharges;
+  const remainingAmount = totalCost - rental.paidAmount - discountAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +70,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
       // Calculate new totals
       const newPaidAmount = rental.paidAmount + paymentAmount;
-      const newRemainingAmount = totalCost - newPaidAmount;
+      const newRemainingAmount = totalCost - newPaidAmount - discountAmount;
       const newPaymentStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
 
       // Update rental record
@@ -103,34 +110,64 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Cost Summary */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        {/* Base Cost */}
         <div className="flex justify-between text-sm">
           <span>Base Cost:</span>
-          <span className="font-medium">£{rental.cost.toFixed(2)}</span>
+          <span className="font-medium">£{baseCost.toFixed(2)}</span>
         </div>
-        
-        {overdueCost > 0 && (
-          <div className="flex justify-between text-sm text-red-600">
-            <span>Overdue Charges:</span>
-            <span>+£{overdueCost.toFixed(2)}</span>
+
+        {/* Standard Cost (if different) */}
+        {standardCost !== baseCost && (
+          <div className="flex justify-between text-sm text-gray-500">
+            <span>Standard Rate:</span>
+            <span>£{standardCost.toFixed(2)}</span>
+          </div>
+        )}
+
+        {/* Negotiated Discount */}
+        {negotiatedDiscount > 0 && (
+          <div className="flex justify-between text-sm text-blue-600">
+            <span>Negotiated Discount:</span>
+            <span>-£{negotiatedDiscount.toFixed(2)}</span>
           </div>
         )}
         
+        {/* Ongoing Charges */}
+        {ongoingCharges > 0 && (
+          <div className="flex justify-between text-sm text-red-600">
+            <span>Ongoing Charges:</span>
+            <span>+£{ongoingCharges.toFixed(2)}</span>
+          </div>
+        )}
+
+        {/* Applied Discount */}
+        {discountAmount > 0 && (
+          <div className="flex justify-between text-sm text-green-600">
+            <span>Discount ({rental.discountPercentage}%):</span>
+            <span>-£{discountAmount.toFixed(2)}</span>
+          </div>
+        )}
+
+        {/* Total Cost */}
         <div className="flex justify-between text-sm font-medium pt-2 border-t">
           <span>Total Cost:</span>
           <span>£{totalCost.toFixed(2)}</span>
         </div>
-        
-        <div className="flex justify-between text-sm">
+
+        {/* Amount Paid */}
+        <div className="flex justify-between text-sm text-green-600">
           <span>Amount Paid:</span>
-          <span className="text-green-600">£{rental.paidAmount.toFixed(2)}</span>
+          <span>£{rental.paidAmount.toFixed(2)}</span>
         </div>
-        
-        <div className="flex justify-between text-sm">
+
+        {/* Remaining Amount */}
+        <div className="flex justify-between text-sm text-amber-600 pt-2 border-t">
           <span>Remaining Amount:</span>
-          <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
+          <span>£{remainingAmount.toFixed(2)}</span>
         </div>
       </div>
 
+      {/* Payment Form Fields */}
       <FormField
         type="number"
         label="Amount to Pay"

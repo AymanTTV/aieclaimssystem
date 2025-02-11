@@ -1,10 +1,11 @@
+// src/components/auth/ForgotPassword.tsx
+
 import React, { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { passwordResetSettings } from '../../lib/firebase/config';
-import {auth} from '../../lib/firebase';
-
+import { auth } from '../../lib/firebase';
 import toast from 'react-hot-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Mail, Loader } from 'lucide-react';
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -50,47 +51,75 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <button
-          onClick={onBack}
-          className="inline-flex items-center text-sm text-gray-600 hover:text-primary"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to login
-        </button>
-        <h2 className="mt-4 text-2xl font-bold text-gray-900">Reset Password</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Enter your email address and we'll send you instructions to reset your password.
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-            Email address
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            placeholder="Enter your email"
-          />
+          <button
+            onClick={onBack}
+            className="group relative flex items-center text-sm text-gray-600 hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to login
+          </button>
+
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Reset Password
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Enter your email address and we'll send you instructions to reset your password.
+          </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-            loading ? 'bg-gray-400' : 'bg-primary hover:bg-primary-600'
-          } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary`}
-        >
-          {loading ? 'Sending...' : 'Send Reset Link'}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div className="relative">
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="appearance-none rounded-md relative block w-full pl-10 px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                placeholder="Enter your email address"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                loading ? 'bg-gray-400' : 'bg-primary hover:bg-primary-600'
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors`}
+            >
+              {loading ? (
+                <Loader className="animate-spin h-5 w-5" />
+              ) : (
+                'Send Reset Link'
+              )}
+            </button>
+          </div>
+        </form>
+
+        <div className="text-center">
+          <p className="text-sm text-gray-500">
+            Remember your password?{' '}
+            <button
+              onClick={onBack}
+              className="font-medium text-primary hover:text-primary-600 transition-colors"
+            >
+              Sign in
+            </button>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

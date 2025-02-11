@@ -44,6 +44,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
     { 
+    name: 'Skyline Caps', 
+    icon: Building,
+    submenu: [
+      { name: 'Petty Cash', href: '/skyline-caps/petty-cash' },
+      { name: 'Driver Pay', href: '/skyline-caps/driver-pay' }
+    ]
+  },
+    { 
     name: 'Claims', 
     href: '/claims', 
     icon: FileText, 
@@ -60,7 +68,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       permission: 'finance',
       submenu: [
         { name: 'Overview', href: '/finance' },
-        { name: 'Invoices', href: '/finance/invoices' }
+        { name: 'Invoices', href: '/finance/invoices' },
       ]
     },
     { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },

@@ -59,7 +59,7 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       </div>
 
       {/* Personal Details */}
-      <Section title="Personal Details">
+      <Section title="Claim Details">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Full Name" value={injury.fullName} />
           <Field label="Date of Birth" value={formatDateTime(injury.dateOfBirth)} />

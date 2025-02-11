@@ -264,17 +264,27 @@ const formatDateTime = (date: Date | null | undefined): string => {
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-6">
         <div className="space-y-6">
-          {/* All form sections */}
+           {/* All form sections */}
+          <div className="bg-white rounded-lg p-6">
+            <ClientRefField />
+          </div>
+          
           <div className="bg-white rounded-lg p-6">
             <SubmitterDetails />
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <ClientRefField />
+            <ClaimProgress />
           </div>
+
+        
 
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
+          </div>
+
+           <div className="bg-white rounded-lg p-6">
+            <AccidentDetails />
           </div>
 
           <div className="bg-white rounded-lg p-6">
@@ -286,9 +296,22 @@ const formatDateTime = (date: Date | null | undefined): string => {
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <AccidentDetails />
+            <EvidenceUpload />
           </div>
 
+          <div className="bg-white rounded-lg p-6">
+            <HireDetails />
+          </div>
+
+           <div className="bg-white rounded-lg p-6">
+            <StorageDetails />
+          </div>
+
+           <div className="bg-white rounded-lg p-6">
+            <RecoveryDetails />
+          </div>
+
+         
           <div className="bg-white rounded-lg p-6">
             <PassengerDetails 
               count={passengerCount}
@@ -311,28 +334,9 @@ const formatDateTime = (date: Date | null | undefined): string => {
             <ParamedicDetails />
           </div>
 
-          <div className="bg-white rounded-lg p-6">
-            <HireDetails />
-          </div>
-
-          <div className="bg-white rounded-lg p-6">
-            <RecoveryDetails />
-          </div>
-
-          <div className="bg-white rounded-lg p-6">
-            <StorageDetails />
-          </div>
-
-          <div className="bg-white rounded-lg p-6">
-            <EvidenceUpload />
-          </div>
-
+          
           <div className="bg-white rounded-lg p-6">
             <FileHandlers />
-          </div>
-
-          <div className="bg-white rounded-lg p-6">
-            <ClaimProgress />
           </div>
         </div>
 

@@ -1,7 +1,9 @@
+// src/components/vehicles/VehicleSaleModal.tsx
+
 import React, { useState } from 'react';
-import { Vehicle } from '../../types/vehicle';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { Vehicle } from '../../types';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
 import Modal from '../ui/Modal';
@@ -33,9 +35,10 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
       const salePrice = parseFloat(formData.salePrice);
       const saleDate = new Date(formData.saleDate);
 
-      // Update vehicle record
+      // Update vehicle record with sold status
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
         status: 'sold',
+        activeStatuses: ['sold'], // Set activeStatuses to only include 'sold'
         soldDate: saleDate,
         salePrice,
         notes: formData.notes || null,
