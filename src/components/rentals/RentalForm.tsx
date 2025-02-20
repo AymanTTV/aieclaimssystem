@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../lib/firebase';
+
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
@@ -13,6 +16,9 @@ import toast from 'react-hot-toast';
 import { Search, Car } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+
+import FileUpload from '../ui/FileUpload';
+import TextArea from '../ui/TextArea';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -27,6 +33,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showVehicleResults, setShowVehicleResults] = useState(false);
   const [showCustomerResults, setShowCustomerResults] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -49,6 +56,16 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     discountPercentage: 0,
     discountNotes: ''
   });
+
+  const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>({
+    mileage: 0,
+    fuelLevel: '100',
+    isClean: true,
+    hasDamage: false,
+    damageDescription: '',
+    images: []
+  });
+
 
   // Get available vehicles based on selected dates
   const { availableVehicles, loading: loadingVehicles } = useAvailableVehicles(
@@ -111,6 +128,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     try {
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+
+      const imageUrls = await Promise.all(
+        images.map(async (file) => {
+          const timestamp = Date.now();
+          const storageRef = ref(storage, `vehicle-conditions/${timestamp}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          return getDownloadURL(snapshot.ref);
+        })
+      );
 
       const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
       const selectedCustomer = customers.find(c => c.id === formData.customerId);
@@ -186,6 +212,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           discountAmount: null,
           discountNotes: null
         }),
+        checkOutCondition: {
+          ...conditionData,
+          type: 'check-out',
+          date: new Date(),
+          images: imageUrls,
+          createdAt: new Date(),
+          createdBy: user.id
+        },
         createdAt: new Date(),
         createdBy: user.id,
         updatedAt: new Date()
@@ -619,6 +653,84 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           </div>
         </div>
       </div>
+
+       {/* Vehicle Condition Check Section */}
+       {selectedVehicle && (
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Condition Check</h3>
+          <div className="space-y-4">
+            <FormField
+              type="number"
+              label="Current Mileage"
+              value={conditionData.mileage}
+              onChange={(e) => setConditionData({ ...conditionData, mileage: parseInt(e.target.value) })}
+              min={selectedVehicle.mileage}
+              required
+            />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Fuel Level</label>
+              <select
+                value={conditionData.fuelLevel}
+                onChange={(e) => setConditionData({ ...conditionData, fuelLevel: e.target.value as VehicleCondition['fuelLevel'] })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                required
+              >
+                <option value="0">Empty (0%)</option>
+                <option value="25">Quarter (25%)</option>
+                <option value="50">Half (50%)</option>
+                <option value="75">Three Quarters (75%)</option>
+                <option value="100">Full (100%)</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isClean"
+                  checked={conditionData.isClean}
+                  onChange={(e) => setConditionData({ ...conditionData, isClean: e.target.checked })}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="isClean" className="text-sm text-gray-700">
+                  Vehicle is clean
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="hasDamage"
+                  checked={conditionData.hasDamage}
+                  onChange={(e) => setConditionData({ ...conditionData, hasDamage: e.target.checked })}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="hasDamage" className="text-sm text-gray-700">
+                  Vehicle has damage
+                </label>
+              </div>
+
+              {conditionData.hasDamage && (
+                <TextArea
+                  label="Damage Description"
+                  value={conditionData.damageDescription}
+                  onChange={(e) => setConditionData({ ...conditionData, damageDescription: e.target.value })}
+                  required
+                />
+              )}
+            </div>
+
+            <FileUpload
+              label="Vehicle Condition Images"
+              accept="image/*"
+              multiple
+              onChange={setImages}
+              showPreview
+            />
+          </div>
+        </div>
+      )}
 
       {/* Payment Details */}
       <div className="border-t pt-4">

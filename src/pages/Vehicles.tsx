@@ -21,6 +21,7 @@ import { useVehiclesContext } from '../utils/VehicleProvider';
 import { useAuth } from '../context/AuthContext';
 import { VehicleProvider } from './utils/VehicleProvider';
 import { RefreshCw } from 'lucide-react';
+import VehicleUndoSaleModal from '../components/vehicles/VehicleUndoSaleModal';
 
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 
@@ -39,6 +40,7 @@ const Vehicles = () => {
   const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = React.useState<Vehicle | null>(null);
   const [sellingVehicle, setSellingVehicle] = React.useState<Vehicle | null>(null);
+  const [undoingSaleVehicle, setUndoingSaleVehicle] = React.useState<Vehicle | null>(null); 
 
   // Filters
   const {
@@ -167,6 +169,7 @@ const Vehicles = () => {
         onEdit={setEditingVehicle}
         onDelete={setDeletingVehicle}
         onMarkAsSold={setSellingVehicle}
+        onUndoSale={setUndoingSaleVehicle} //
       />
 
       {/* Modals */}
@@ -202,6 +205,13 @@ const Vehicles = () => {
         <VehicleSaleModal
           vehicle={sellingVehicle}
           onClose={() => setSellingVehicle(null)}
+        />
+      )}
+
+{undoingSaleVehicle && ( // Render the undo sale modal
+        <VehicleUndoSaleModal
+          vehicle={undoingSaleVehicle}
+          onClose={() => setUndoingSaleVehicle(null)}
         />
       )}
 

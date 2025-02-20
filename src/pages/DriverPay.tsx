@@ -45,37 +45,30 @@ const DriverPayPage = () => {
   const [recordingPayment, setRecordingPayment] = useState<DriverPay | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<DriverPay | null>(null);
 
-
   const handleExport = () => {
-  try {
-    const exportData = records.map(record => ({
-      'Driver No': record.driverNo,
-      'TID': record.tidNo,
-      'Name': record.name,
-      'Phone Number': record.phoneNumber,
-      'Collection': record.collection === 'OTHER' ? record.customCollection : record.collection,
-      'Period Start': format(record.startDate, 'dd/MM/yyyy'),
-      'Period End': format(record.endDate, 'dd/MM/yyyy'),
-      'Total Amount': record.totalAmount.toFixed(2),
-      'Commission %': Number(record.commissionPercentage).toFixed(2), // Fixed this line
-      'Commission Amount': record.commissionAmount.toFixed(2),
-      'Net Pay': record.netPay.toFixed(2),
-      'Paid Amount': record.paidAmount.toFixed(2),
-      'Remaining': record.remainingAmount.toFixed(2),
-      'Status': record.status,
-      'Created At': format(record.createdAt, 'dd/MM/yyyy HH:mm'),
-      'Last Updated': format(record.updatedAt, 'dd/MM/yyyy HH:mm')
-    }));
+    try {
+      const exportData = records.map(record => ({
+        'Driver No': record.driverNo,
+        'TID': record.tidNo,
+        'Name': record.name,
+        'Phone Number': record.phoneNumber,
+        'Collection': record.collection === 'OTHER' ? record.customCollection : record.collection,
+        'Total Amount': record.paymentPeriods.reduce((sum, period) => sum + period.totalAmount, 0).toFixed(2),
+        'Commission': record.paymentPeriods.reduce((sum, period) => sum + period.commissionAmount, 0).toFixed(2),
+        'Net Pay': record.paymentPeriods.reduce((sum, period) => sum + period.netPay, 0).toFixed(2),
+        'Paid Amount': record.paymentPeriods.reduce((sum, period) => sum + period.paidAmount, 0).toFixed(2),
+        'Remaining': record.paymentPeriods.reduce((sum, period) => sum + period.remainingAmount, 0).toFixed(2),
+        'Created At': format(record.createdAt, 'dd/MM/yyyy HH:mm'),
+        'Last Updated': format(record.updatedAt, 'dd/MM/yyyy HH:mm')
+      }));
 
-    exportToExcel(exportData, 'driver_pay_records');
-    toast.success('Records exported successfully');
-  } catch (error) {
-    console.error('Error exporting records:', error);
-    toast.error('Failed to export records');
-  }
-};
-
-
+      exportToExcel(exportData, 'driver_pay_records');
+      toast.success('Records exported successfully');
+    } catch (error) {
+      console.error('Error exporting records:', error);
+      toast.error('Failed to export records');
+    }
+  };
 
   if (loading) {
     return (
@@ -87,7 +80,7 @@ const DriverPayPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Summary Section */}
+      {/* Summary Cards */}
       <DriverPaySummary
         total={summary.total}
         commission={summary.commission}
@@ -107,7 +100,7 @@ const DriverPayPage = () => {
               Export
             </button>
           )}
-          {can('finance', 'create') && (
+          {can('driverPay', 'create') && (
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
@@ -136,7 +129,7 @@ const DriverPayPage = () => {
         records={filteredRecords}
         onView={setSelectedRecord}
         onEdit={setEditingRecord}
-        onDelete={setDeletingRecord} // Add this line
+        onDelete={setDeletingRecord}
         onRecordPayment={setRecordingPayment}
       />
 
@@ -189,42 +182,41 @@ const DriverPayPage = () => {
       </Modal>
 
       <Modal
-  isOpen={!!deletingRecord}
-  onClose={() => setDeletingRecord(null)}
-  title="Delete Record"
->
-  <div className="space-y-4">
-    <p className="text-sm text-gray-500">
-      Are you sure you want to delete this driver pay record? This action cannot be undone.
-    </p>
-    <div className="flex justify-end space-x-3">
-      <button
-        onClick={() => setDeletingRecord(null)}
-        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        isOpen={!!deletingRecord}
+        onClose={() => setDeletingRecord(null)}
+        title="Delete Record"
       >
-        Cancel
-      </button>
-      <button
-        onClick={async () => {
-          if (deletingRecord) {
-            try {
-              await deleteDoc(doc(db, 'driverPay', deletingRecord.id));
-              toast.success('Record deleted successfully');
-              setDeletingRecord(null);
-            } catch (error) {
-              console.error('Error deleting record:', error);
-              toast.error('Failed to delete record');
-            }
-          }
-        }}
-        className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
-      >
-        Delete Record
-      </button>
-    </div>
-  </div>
-</Modal>
-
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Are you sure you want to delete this driver pay record? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setDeletingRecord(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (deletingRecord) {
+                  try {
+                    await deleteDoc(doc(db, 'driverPay', deletingRecord.id));
+                    toast.success('Record deleted successfully');
+                    setDeletingRecord(null);
+                  } catch (error) {
+                    console.error('Error deleting record:', error);
+                    toast.error('Failed to delete record');
+                  }
+                }
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+            >
+              Delete Record
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

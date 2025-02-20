@@ -1,13 +1,12 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, FileText, Download, DollarSign, Tag } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Download, RotateCw, DollarSign, Tag } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isAfter, differenceInDays, isWithinInterval, isBefore, addDays } from 'date-fns';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
-
 
 
 interface RentalTableProps {
@@ -24,10 +23,9 @@ interface RentalTableProps {
   onApplyDiscount: (rental: Rental) => void;
   onDeletePayment: (rental: Rental, paymentId: string) => void;
 }
- 
 
 const RentalTable: React.FC<RentalTableProps> = ({
-   rentals,
+  rentals,
   vehicles,
   customers,
   onView,
@@ -40,8 +38,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onApplyDiscount,
   onDeletePayment,
 }) => {
-  
- 
+  const { can } = usePermissions();
 
   // Sort rentals by end date (closest first)
   const sortedRentals = [...rentals].sort((a, b) => {
@@ -77,8 +74,6 @@ const RentalTable: React.FC<RentalTableProps> = ({
       r.startDate.getTime() === nextDay.getTime()
     );
   };
-
-  const { can } = usePermissions(); // Move hook inside component
 
   const columns = [
     {
@@ -150,17 +145,16 @@ const RentalTable: React.FC<RentalTableProps> = ({
         );
       },
     },
-
-
     {
-      header: 'Status',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.status} />
-          <StatusBadge status={row.original.paymentStatus} />
-        </div>
-      ),
-    },
+  header: 'Status',
+  cell: ({ row }) => (
+    <div className="space-y-1">
+      <StatusBadge status={row.original.status} />
+      <StatusBadge status={row.original.paymentStatus} />
+    </div>
+  ),
+},
+
     {
       header: 'Cost Details',
       cell: ({ row }) => {
@@ -211,99 +205,113 @@ const RentalTable: React.FC<RentalTableProps> = ({
       },
     },
     {
-  header: 'Actions',
-  cell: ({ row }) => (
-    <div className="flex space-x-2">
-      {can('rentals', 'view') && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(row.original);
-          }}
-          className="text-blue-600 hover:text-blue-800"
-          title="View Details"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-      )}
-      {can('rentals', 'update') && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          {row.original.remainingAmount > 0 && (
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          {can('rentals', 'view') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {can('rentals', 'update') && (
             <>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onRecordPayment(row.original);
+                  onEdit(row.original);
                 }}
-                className="text-primary hover:text-primary-600"
-                title="Record Payment"
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
               >
-                <DollarSign className="h-4 w-4" />
+                <Edit className="h-4 w-4" />
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onApplyDiscount(row.original);
-                }}
-                className="text-green-600 hover:text-green-800"
-                title="Apply Discount"
-              >
-                <Tag className="h-4 w-4" />
-              </button>
+              {row.original.remainingAmount > 0 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRecordPayment(row.original);
+                    }}
+                    className="text-primary hover:text-primary-600"
+                    title="Record Payment"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onApplyDiscount(row.original);
+                    }}
+                    className="text-green-600 hover:text-green-800"
+                    title="Apply Discount"
+                  >
+                    <Tag className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+              {row.original.status === 'completed' && !row.original.returnCondition && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      onComplete(row.original);
+    }}
+    className="text-green-600 hover:text-green-800"
+    title="Complete Return Check"
+  >
+    <RotateCw className="h-4 w-4" />
+  </button>
+)}
+
+
+
             </>
           )}
-        </>
-      )}
-      {can('rentals', 'delete') && row.original.status !== 'active' && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(row.original);
-          }}
-          className="text-red-600 hover:text-red-800"
-          title="Delete"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      )}
-      {row.original.documents?.agreement && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDownloadAgreement(row.original);
-          }}
-          className="text-blue-600 hover:text-blue-800"
-          title="Download Agreement"
-        >
-          <FileText className="h-4 w-4" />
-        </button>
-      )}
-      {row.original.documents?.invoice && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDownloadInvoice(row.original);
-          }}
-          className="text-green-600 hover:text-green-800"
-          title="Download Invoice"
-        >
-          <Download className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  ),
-}
-
+          {can('rentals', 'delete') && row.original.status !== 'active' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
+              className="text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documents?.agreement && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadAgreement(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="Download Agreement"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documents?.invoice && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadInvoice(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Download Invoice"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -312,14 +320,25 @@ const RentalTable: React.FC<RentalTableProps> = ({
       columns={columns}
       onRowClick={(rental) => can('rentals', 'view') && onView(rental)}
       rowClassName={(rental) => {
-        const isEndingSoon = isWithinInterval(rental.endDate, {
-          start: new Date(),
-          end: addDays(new Date(), 1)
-        });
-        const isConsecutive = isConsecutiveRental(rental);
+        const now = new Date();
+        const thirtyDays = addDays(now, 30);
         
-        if (isEndingSoon && rental.status === 'active') return 'bg-red-50';
-        if (isConsecutive) return 'bg-yellow-50';
+        // Check for expired documents
+        if (
+          rental.status === 'active' && 
+          isAfter(now, rental.endDate)
+        ) {
+          return 'bg-red-50';
+        }
+        
+        // Check for rentals ending soon
+        if (
+          rental.status === 'active' &&
+          isWithinInterval(rental.endDate, { start: now, end: thirtyDays })
+        ) {
+          return 'bg-yellow-50';
+        }
+        
         return '';
       }}
     />

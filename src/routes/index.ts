@@ -21,6 +21,7 @@ export const ROUTES = {
   ACCIDENTS: '/accidents',
   CLAIMS: '/claims',
   PERSONAL_INJURY: '/claims/personal-injury', // Add this line
+  VD_FINANCE: '/claims/vd-finance',
   PETTY_CASH: '/finance/petty-cash',
   FINANCE: '/finance',
   INVOICES: '/finance/invoices',
@@ -35,7 +36,8 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.RENTALS]: { module: 'rentals', action: 'view' },
   [ROUTES.ACCIDENTS]: { module: 'accidents', action: 'view' },
   [ROUTES.CLAIMS]: { module: 'claims', action: 'view' },
-  [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' }, // Add this line
+  [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' },
+  [ROUTES.VD_FINANCE]: { module: 'claims', action: 'view' },
   [ROUTES.PETTY_CASH]: { module: 'finance', action: 'view' },
   [ROUTES.FINANCE]: { module: 'finance', action: 'view' },
   [ROUTES.INVOICES]: { module: 'finance', action: 'view' },
@@ -72,6 +74,10 @@ export const ROUTE_METADATA = {
   [ROUTES.PERSONAL_INJURY]: { // Add this section
     title: 'Personal Injury',
     icon: 'Activity',
+  },
+  [ROUTES.VD_FINANCE]: {
+    title: 'VD Finance',
+    icon: 'DollarSign',
   },
   [ROUTES.FINANCE]: {
     title: 'Finance',

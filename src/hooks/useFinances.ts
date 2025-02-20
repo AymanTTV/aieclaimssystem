@@ -1,38 +1,16 @@
+// src/hooks/useFinances.ts
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Transaction } from '../types';
 
-export const useFinances = (type?: 'income' | 'expense', period?: 'week' | 'month' | 'year') => {
+export const useFinances = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
-    
-    if (type) {
-      q = query(q, where('type', '==', type));
-    }
-
-    if (period) {
-      const now = new Date();
-      let startDate = new Date();
-      
-      switch (period) {
-        case 'week':
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'year':
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-      
-      q = query(q, where('date', '>=', startDate));
-    }
+    const q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(
       q,
@@ -44,19 +22,22 @@ export const useFinances = (type?: 'income' | 'expense', period?: 'week' | 'mont
             id: doc.id,
             ...data,
             date: data.date.toDate(),
+            createdAt: data.createdAt.toDate(),
           } as Transaction);
         });
+        console.log('Fetched transactions:', transactionData); // Debug log
         setTransactions(transactionData);
         setLoading(false);
       },
       (err) => {
+        console.error('Error fetching transactions:', err);
         setError(err.message);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [type, period]);
+  }, []);
 
   return { transactions, loading, error };
 };

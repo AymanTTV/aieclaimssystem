@@ -33,6 +33,31 @@ export interface Rental {
   updatedAt: Date;
   createdBy?: string;
   updatedBy?: string;
+  checkOutCondition?: VehicleCondition;
+  checkInCondition?: ReturnCondition;
+  checkOutCondition?: VehicleCondition;
+  returnCondition?: ReturnCondition;
+}
+
+export interface VehicleCondition {
+  id: string;
+  type: 'check-in' | 'check-out';
+  date: Date;
+  mileage: number;
+  fuelLevel: '0' | '25' | '50' | '75' | '100';
+  isClean: boolean;
+  hasDamage: boolean;
+  damageDescription?: string;
+  images: string[];
+  createdAt: Date;
+  createdBy: string;
+}
+
+export interface ReturnCondition extends VehicleCondition {
+  damageCost?: number;
+  fuelCharge?: number;
+  cleaningCharge?: number;
+  totalCharges: number;
 }
 
 export interface RentalPayment {

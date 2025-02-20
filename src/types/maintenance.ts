@@ -1,7 +1,7 @@
 export interface MaintenanceLog {
   id: string;
   vehicleId: string;
-  type: 'yearly-service' | 'mileage-service' | 'repair' | 'emergency-repair' | 'mot' | 'tfl';
+  type : 'yearly-service' | 'mileage-service' | 'repair' | 'emergency-repair' | 'mot' | 'nsl' | 'tfl' | 'service' | 'maintenance' | 'bodywork' | 'accident-repair';
   date: Date;
   description: string;
   cost: number;

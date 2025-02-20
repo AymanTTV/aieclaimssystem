@@ -67,29 +67,34 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
           <option value="OTHER">OTHER</option>
         </select>
 
-        {/* Date Range Filters */}
-        <input
-          type="date"
-          value={dateRange.start?.toISOString().split('T')[0] || ''}
-          onChange={(e) => onDateRangeChange({
-            ...dateRange,
-            start: e.target.value ? new Date(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          placeholder="Start Date"
-        />
-
-        <input
-          type="date"
-          value={dateRange.end?.toISOString().split('T')[0] || ''}
-          onChange={(e) => onDateRangeChange({
-            ...dateRange,
-            end: e.target.value ? new Date(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          placeholder="End Date"
-          min={dateRange.start?.toISOString().split('T')[0]}
-        />
+        {/* Period Date Range Filters */}
+        <div className="flex items-center space-x-2">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Period Start</label>
+            <input
+              type="date"
+              value={dateRange.start?.toISOString().split('T')[0] || ''}
+              onChange={(e) => onDateRangeChange({
+                ...dateRange,
+                start: e.target.value ? new Date(e.target.value) : null
+              })}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Period End</label>
+            <input
+              type="date"
+              value={dateRange.end?.toISOString().split('T')[0] || ''}
+              onChange={(e) => onDateRangeChange({
+                ...dateRange,
+                end: e.target.value ? new Date(e.target.value) : null
+              })}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

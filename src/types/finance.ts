@@ -31,6 +31,7 @@ export interface Transaction {
   paymentReference?: string;
   status?: 'pending' | 'completed' | 'cancelled';
   createdAt: Date;
+}
 
 export interface Invoice {
   id: string;

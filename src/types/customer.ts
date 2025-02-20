@@ -1,4 +1,5 @@
-import { addYears } from 'date-fns';
+
+import { addYears, addDays } from 'date-fns';
 
 export type Gender = 'male' | 'female' | 'other';
 
@@ -33,6 +34,15 @@ export const calculateAge = (dateOfBirth: Date): number => {
   }
   
   return age;
+};
+
+export const isExpiringOrExpired = (date: Date | undefined | null): boolean => {
+  if (!date) return false; // Handle null or undefined dates
+
+  const now = new Date();
+  const thirtyDaysFromNow = addDays(now, 30);
+
+  return date < now || (date <= thirtyDaysFromNow && date >= now); // Expired OR expiring soon
 };
 
 export const isExpired = (date: Date): boolean => {

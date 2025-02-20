@@ -80,10 +80,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         </span>
       ),
     },
-    {
-      header: 'Description',
-      accessorKey: 'description',
-    },
+    // {
+    //   header: 'Description',
+    //   accessorKey: 'description',
+    // },
     {
       header: 'Actions',
       cell: ({ row }) => (

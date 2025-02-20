@@ -35,8 +35,9 @@ const PettyCash = () => {
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
 
   // Calculate summary totals
-  const totalIn = filteredTransactions.reduce((sum, t) => sum + (t.amountIn || 0), 0);
-  const totalOut = filteredTransactions.reduce((sum, t) => sum + (t.amountOut || 0), 0);
+  const totalIn = filteredTransactions.reduce((sum, t) => sum + Number(t.amountIn || 0), 0);
+  const totalOut = filteredTransactions.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
+
   const netIncome = totalIn - totalOut;
   const profitMargin = totalIn > 0 ? (netIncome / totalIn) * 100 : 0;
 
@@ -106,6 +107,7 @@ const PettyCash = () => {
       />
 
       {/* Modals */}
+      {can('pettyCash', 'create') && (
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -113,6 +115,7 @@ const PettyCash = () => {
       >
         <PettyCashForm onClose={() => setShowForm(false)} />
       </Modal>
+      )}
 
       <Modal
         isOpen={!!selectedTransaction}

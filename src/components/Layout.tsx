@@ -15,7 +15,8 @@ import {
   Building,
   Truck,
   UserPlus,
-  FileText
+  FileText,
+  Calculator
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import logo from '../assets/logo.png';
@@ -44,23 +45,24 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
     { 
-    name: 'Skyline Caps', 
-    icon: Building,
-    submenu: [
-      { name: 'Petty Cash', href: '/skyline-caps/petty-cash' },
-      { name: 'Driver Pay', href: '/skyline-caps/driver-pay' }
-    ]
-  },
+      name: 'Claims', 
+      icon: FileText, 
+      permission: 'claims',
+      submenu: [
+        { name: 'All Claims', href: '/claims' },
+        { name: 'Personal Injury', href: '/claims/personal-injury' },
+        { name: 'VD Finance', href: '/claims/vd-finance' }
+      ]
+    },
     { 
-    name: 'Claims', 
-    href: '/claims', 
-    icon: FileText, 
-    permission: 'claims',
-    submenu: [
-      { name: 'All Claims', href: '/claims' },
-      { name: 'Personal Injury', href: '/claims/personal-injury' }
-    ]
-  },
+      name: 'Skyline Cabs', 
+      icon: Building,
+      permission: 'driverPay',
+      submenu: [
+        { name: 'Driver Pay', href: '/skyline-caps/driver-pay' },
+        { name: 'Petty Cash', href: '/skyline-caps/aie-petty-cash' },
+      ]
+    },
     { 
       name: 'Finance', 
       href: '/finance', 
@@ -68,7 +70,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       permission: 'finance',
       submenu: [
         { name: 'Overview', href: '/finance' },
+        { name: 'AIE Petty Cash', href: '/finance/petty-cash' },
         { name: 'Invoices', href: '/finance/invoices' },
+        {
+  name: 'VAT Records',
+  href: '/finance/vat-records',
+  icon: Calculator,
+  permission: 'vatRecord'
+},
       ]
     },
     { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },

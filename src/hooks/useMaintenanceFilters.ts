@@ -1,5 +1,3 @@
-// src/hooks/useMaintenanceFilters.ts
-
 import { useState, useMemo } from 'react';
 import { MaintenanceLog, Vehicle } from '../types';
 
@@ -10,31 +8,27 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<s
   const [vehicleFilter, setVehicleFilter] = useState('');
 
   const filteredLogs = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+
     return logs.filter(log => {
-      // Get the vehicle for this log
       const vehicle = vehicles[log.vehicleId];
-      
-      // Search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
-        // Search by vehicle registration
-        vehicle?.registrationNumber.toLowerCase().includes(searchLower) ||
-        // Search by vehicle make/model
-        `${vehicle?.make} ${vehicle?.model}`.toLowerCase().includes(searchLower) ||
-        // Search by service provider
-        log.serviceProvider.toLowerCase().includes(searchLower) ||
-        // Search by location
-        log.location.toLowerCase().includes(searchLower) ||
-        // Search by description
-        log.description.toLowerCase().includes(searchLower);
 
-      // Status filter
-      const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
+      const matchesSearch = (() => {
+        if (!searchQuery) return true;
 
-      // Type filter
-      const matchesType = typeFilter === 'all' || log.type === typeFilter;
+        return (
+          vehicle?.registrationNumber.toLowerCase().includes(searchLower) ||
+          `${vehicle?.make} ${vehicle?.model}`.toLowerCase().includes(searchLower) ||
+          log.serviceProvider.toLowerCase().includes(searchLower) ||
+          log.location.toLowerCase().includes(searchLower) ||
+          log.description.toLowerCase().includes(searchLower)
+        );
+      })();
 
-      // Vehicle filter
+      const matchesStatus = statusFilter === 'all' || log.status.toLowerCase() === statusFilter.toLowerCase();
+
+      const matchesType = typeFilter === 'all' || log.type.toLowerCase() === typeFilter.toLowerCase();
+
       const matchesVehicle = !vehicleFilter || log.vehicleId === vehicleFilter;
 
       return matchesSearch && matchesStatus && matchesType && matchesVehicle;

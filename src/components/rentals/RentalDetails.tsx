@@ -6,6 +6,14 @@ import RentalPaymentHistory from './RentalPaymentHistory';
 import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Tag } from 'lucide-react';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
+import VehicleConditionDetails from './VehicleConditionDetails';
+import { format } from 'date-fns';
+
+
+interface SectionProps {
+  title: string;
+  children: React.ReactNode;
+}
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -15,6 +23,13 @@ interface RentalDetailsProps {
   onDownloadInvoice: () => void;
 }
 
+const Section: React.FC<SectionProps> = ({ title, children }) => (
+  <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
+    <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
+    {children}
+  </div>
+);
+
 const RentalDetails: React.FC<RentalDetailsProps> = ({
   rental,
   vehicle,
@@ -23,7 +38,16 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   onDownloadInvoice
 }) => {
   const [ongoingCharges, setOngoingCharges] = useState(0);
-
+  const formatDateTime = (date: Date | null | undefined): string => {
+    if (!date) return 'N/A';
+    try {
+      const validDate = ensureValidDate(date);
+      return format(validDate, 'dd/MM/yyyy HH:mm');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
+  };
   // Calculate ongoing charges
   const now = new Date();
   const totalCost = rental.cost + ongoingCharges;
@@ -158,6 +182,24 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       </div>
     </div>
 
+    {rental.checkOutCondition && (
+  <Section title="Check-Out Condition">
+    <VehicleConditionDetails 
+      condition={rental.checkOutCondition}
+      type="check-out"
+    />
+  </Section>
+)}
+
+{rental.returnCondition && (
+  <Section title="Return Condition">
+    <VehicleConditionDetails
+      condition={rental.returnCondition} 
+      type="return"
+    />
+  </Section>
+)}
+
     {/* Cost Details */}
     <div className="border-t pt-4">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Details</h3>
@@ -207,6 +249,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       </div>
     </div>
 
+    
+
     {/* Payment History */}
     {rental.payments && rental.payments.length > 0 && (
       <div className="border-t pt-4">
@@ -216,6 +260,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         />
       </div>
     )}
+
+    
 
     {/* Customer Signature */}
     {rental.signature && (
@@ -230,6 +276,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         </div>
       </div>
     )}
+
+    
 
     {/* Creation Information */}
     <div className="text-sm text-gray-500">

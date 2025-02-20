@@ -40,6 +40,73 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   vehicleRegistration,
   onVehicleRegistrationChange
 }) => {
+  const allCategories = {
+    income: [
+      'Rental',
+      'Maintenance Income',
+      'Refunded Income',
+      'Insurance Income',
+      'Advertising Income',
+      'VD Payment Income',
+      'WINDSCREEN REPLACEMENT',
+      'VD SPLIT JAY',
+      'VD SPLIT AIE',
+      'Road Tax Refund Income',
+      'Commission Income',
+      'Investment Income',
+      'Loan Repayments Income',
+      'AIE Claims VD Income',
+      'AIE Claims Hire Income',
+      'AIE Claims PI Income',
+      'AIE Claims Domestic Income',
+      'AIE Claims PH Income',
+      'Skyline Cabs Commission Income',
+    ],
+    expense: [
+      'Vehicle Insurance',
+      'Road Tax',
+      'VAT Referral',
+      'MOT',
+      'Fuel',
+      'WINDSCREEN REPLACEMENT',
+      'VD SPLIT JAY',
+      'VD SPLIT AIE',
+      'CLIENT VD PAID',
+      'CLEINT REFERRAL FEE',
+      'VD REPAIRE',
+      'Vehicle Finance (Loan or Lease Payments)',
+      'Maintenance',
+      'Registration Fee',
+      'NSL',
+      'Repair',
+      'Parts',
+      'Cleaning',
+      'Breakdown Cover',
+      'Tyres & Wheel Alignment',
+      'Toll Charges & Congestion Fees',
+      'Parking Fees (PCN)',
+      'Fleet Management Software',
+      'Telematics & Tracking System',
+      'Vehicle Depreciation',
+      'Replacement Vehicle Costs',
+      'Taxi Meter',
+      'CCTV Installation & Monitoring',
+      'Office Rent',
+      'Phone & Internet Bill',
+      'Office Stationery & Supplies',
+      'Staff Salaries & Wages',
+      'Staff Travel Expenses',
+      'IT & Software Expenses',
+      'Bank Fees & Transaction Charges',
+      'Loan Repayments & Interest',
+      'Advertising & Marketing',
+      'Legal & Compliance Fees',
+      'Training & Certification for Staff',
+      'Call Centre & Customer Support Costs',
+    ],
+  };
+
+  
   return (
     <div className="space-y-4">
       {/* Search Input */}
@@ -103,11 +170,15 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1"
           >
             <option value="all">All Categories</option>
-            <option value="rental">Rental</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="insurance">Insurance</option>
-            <option value="tax">Tax</option>
-            <option value="other">Other</option>
+            {Object.entries(allCategories).map(([type, categories]) => (
+              <optgroup key={type} label={type === 'income' ? 'Income' : 'Expense'}> {/* Group by Income/Expense */}
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </optgroup>
+            ))}
+             <option value="other">Other</option> {/* Keep "Other" option for custom categories */}
+
           </select>
         </div>
 

@@ -10,12 +10,15 @@ import toast from 'react-hot-toast';
 interface PettyCashHeaderProps {
   onSearch: (query: string) => void;
   onAdd: () => void;
+  title?: string; // Add title prop
 }
 
 const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
   onSearch,
   onAdd,
+  title = 'Petty Cash' // Default title
 }) => {
+  
   const { can } = usePermissions();
   const { user } = useAuth();
 
@@ -33,7 +36,7 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
     <div className="space-y-4">
       {/* Title and Buttons */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Petty Cash</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <div className="flex space-x-2">
           {user?.role === 'manager' && (
             <button

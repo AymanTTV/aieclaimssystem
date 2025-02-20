@@ -3,6 +3,7 @@
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MaintenanceLog, Vehicle } from '../types';
+import toast from 'react-hot-toast';
 
 interface FinanceTransactionParams {
   type: 'income' | 'expense';
@@ -31,7 +32,9 @@ export const createMaintenanceTransaction = async (
   paymentReference?: string
 ) => {
   if (!maintenanceLog.id || !amount || !vehicle) {
-    throw new Error('Missing required fields for maintenance transaction');
+    console.error('Missing required fields for maintenance transaction');
+    toast.error('Missing required fields for transaction');
+    return;
   }
 
   return createFinanceTransaction({
@@ -68,8 +71,17 @@ export const createFinanceTransaction = async ({
   try {
     // Validate required fields
     if (!type || !category || !amount || !description || !referenceId) {
+      console.error('Missing required fields:', { type, category, amount, description, referenceId });
       throw new Error('Missing required fields for finance transaction');
     }
+
+    console.log('Creating finance transaction:', {
+      type,
+      category,
+      amount,
+      description,
+      referenceId
+    });
 
     const transaction = {
       type,
@@ -89,9 +101,13 @@ export const createFinanceTransaction = async ({
     };
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);
+    console.log('Transaction created with ID:', docRef.id);
+    
+    toast.success(`${type === 'income' ? 'Income' : 'Expense'} transaction created successfully`);
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error creating finance transaction:', error);
+    toast.error('Failed to create transaction');
     throw error;
   }
 };

@@ -29,6 +29,16 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
     </div>
   );
 
+  const calculateMotExpiry = (motDate: string | undefined): string | undefined => {
+    if (!motDate) return undefined;
+    const motExpiryDate = new Date(motDate);
+    motExpiryDate.setMonth(motExpiryDate.getMonth() + 6);
+    return motExpiryDate.toISOString();
+  };
+
+  const motExpiry2 = calculateMotExpiry(vehicle.motExpiry);
+
+
   return (
     <Modal
       isOpen={true}
@@ -65,7 +75,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
               <StatusBadge status={vehicle.status} />
             </div>
           </div>
-          <DetailItem label="Mileage" value={`${vehicle.mileage.toLocaleString()} km`} />
+          <DetailItem label="Mileage" value={`${vehicle.mileage.toLocaleString()} Mi`} />
         </div>
 
         {/* Rental Pricing */}
@@ -100,10 +110,16 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
         {/* Document Expiry Dates */}
         <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
           <DetailItem 
-            label="MOT Expiry" 
+            label="MOT Test Date" 
             value={vehicle.motExpiry} 
             isDate 
             isExpiring={isExpiringOrExpired(vehicle.motExpiry)} 
+          />
+          <DetailItem 
+            label="MOT Expiry (6 months)" 
+            value={motExpiry2} 
+            isDate 
+            isExpiring={isExpiringOrExpired(motExpiry2)} // Check if 6-month expiry is also expiring
           />
           <DetailItem 
             label="NSL Expiry" 
@@ -117,6 +133,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             isDate 
             isExpiring={isExpiringOrExpired(vehicle.roadTaxExpiry)} 
           />
+           
           <DetailItem 
             label="Insurance Expiry" 
             value={vehicle.insuranceExpiry} 
@@ -138,41 +155,49 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             isDate 
             isExpiring={isExpiringOrExpired(vehicle.nextMaintenance)} 
           />
+
+          
         </div>
 
         {/* Mileage History */}
-        <div className="border-b border-gray-200 pb-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <Clock className="w-5 h-5 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900">Mileage History</h3>
+        {/* Mileage History */}
+<div className="border-b border-gray-200 pb-4">
+  <div className="flex items-center space-x-2 mb-4">
+    <Clock className="w-5 h-5 text-gray-400" />
+    <h3 className="text-lg font-medium text-gray-900">Mileage History</h3>
+  </div>
+  {historyLoading ? (
+    <div className="text-center py-4">Loading history...</div>
+  ) : (
+    <div className="space-y-2">
+      <div className="font-medium">
+        <span className="text-gray-700">Next Service Mileage:</span> 
+        <span className="text-gray-900 font-semibold"> {vehicle.mileage + 25000} Mi</span>
+      </div>
+      <div className="font-medium">
+        Current Mileage: {vehicle.mileage.toLocaleString()} Mi
+      </div>
+      {history.map((record) => (
+        <div key={record.id} className="flex justify-between text-sm">
+          <div>
+            <span className="text-gray-600">{formatDate(record.date)}</span>
+            <span className="mx-2">•</span>
+            <span>
+              {record.previousMileage.toLocaleString()} → {record.newMileage.toLocaleString()} Mi
+            </span>
           </div>
-          {historyLoading ? (
-            <div className="text-center py-4">Loading history...</div>
-          ) : (
-            <div className="space-y-2">
-              <div className="font-medium">
-                Current Mileage: {vehicle.mileage.toLocaleString()} km
-              </div>
-              {history.map((record) => (
-                <div key={record.id} className="flex justify-between text-sm">
-                  <div>
-                    <span className="text-gray-600">{formatDate(record.date)}</span>
-                    <span className="mx-2">•</span>
-                    <span>
-                      {record.previousMileage.toLocaleString()} → {record.newMileage.toLocaleString()} km
-                    </span>
-                  </div>
-                  <div className="text-gray-500">
-                    {record.recordedBy}
-                    {record.notes && (
-                      <span className="ml-2 text-xs italic">({record.notes})</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="text-gray-500">
+            {record.recordedBy}
+            {record.notes && (
+              <span className="ml-2 text-xs italic">({record.notes})</span>
+            )}
+          </div>
         </div>
+      ))}
+    </div>
+  )}
+</div>
+
 
         {/* Owner Information */}
         <div className="border-b border-gray-200 pb-4">

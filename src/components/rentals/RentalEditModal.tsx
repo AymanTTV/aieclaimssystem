@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Rental, Vehicle, Customer } from '../../types';
+import { Rental, Vehicle, Customer, VehicleCondition } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
+import TextArea from '../ui/TextArea';
+import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
 import { addWeeks, format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../lib/firebase';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 
 interface RentalEditModalProps {
@@ -27,6 +31,19 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
+
+  const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>(
+    rental.checkOutCondition || {
+      mileage: 0,
+      fuelLevel: '100',
+      isClean: true,
+      hasDamage: false,
+      damageDescription: '',
+      images: []
+    }
+  );
+  
   const [formData, setFormData] = useState({
     startDate: format(rental.startDate, 'yyyy-MM-dd'),
     startTime: format(rental.startDate, 'HH:mm'),
@@ -115,6 +132,33 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         });
       }
 
+      const imageUrls = await Promise.all(
+      images.map(async (file) => {
+        const timestamp = Date.now();
+        const storageRef = ref(storage, `vehicle-conditions/${timestamp}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        return getDownloadURL(snapshot.ref);
+      })
+    );
+
+      // Combine existing and new images
+    const allImages = [
+      ...(rental.checkOutCondition?.images || []),
+      ...imageUrls
+    ];
+
+      // Create updated check-out condition
+      // Create updated check-out condition
+    const updatedCondition: VehicleCondition = {
+      ...conditionData,
+      type: 'check-out',
+      date: rental.checkOutCondition?.date || new Date(),
+      images: allImages,
+      createdAt: rental.checkOutCondition?.createdAt || new Date(),
+      createdBy: rental.checkOutCondition?.createdBy || user.id
+    } as VehicleCondition;
+
+
       // Update rental data
       const rentalData = {
         startDate: startDateTime,
@@ -148,6 +192,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           discountAmount: null,
           discountNotes: null
         }),
+        checkOutCondition: updatedCondition,
         updatedAt: new Date(),
         updatedBy: user.id
       };
@@ -438,6 +483,98 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                 placeholder="Add notes about the discount..."
                 
               />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Vehicle Condition Section */}
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Check-Out Condition</h3>
+        <div className="space-y-4">
+          <FormField
+            type="number"
+            label="Current Mileage"
+            value={conditionData.mileage}
+            onChange={(e) => setConditionData({ ...conditionData, mileage: parseInt(e.target.value) })}
+            required
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Fuel Level</label>
+            <select
+              value={conditionData.fuelLevel}
+              onChange={(e) => setConditionData({ ...conditionData, fuelLevel: e.target.value as VehicleCondition['fuelLevel'] })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="0">Empty (0%)</option>
+              <option value="25">Quarter (25%)</option>
+              <option value="50">Half (50%)</option>
+              <option value="75">Three Quarters (75%)</option>
+              <option value="100">Full (100%)</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isClean"
+                checked={conditionData.isClean}
+                onChange={(e) => setConditionData({ ...conditionData, isClean: e.target.checked })}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="isClean" className="text-sm text-gray-700">
+                Vehicle is clean
+              </label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="hasDamage"
+                checked={conditionData.hasDamage}
+                onChange={(e) => setConditionData({ ...conditionData, hasDamage: e.target.checked })}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="hasDamage" className="text-sm text-gray-700">
+                Vehicle has damage
+              </label>
+            </div>
+
+            {conditionData.hasDamage && (
+              <TextArea
+                label="Damage Description"
+                value={conditionData.damageDescription}
+                onChange={(e) => setConditionData({ ...conditionData, damageDescription: e.target.value })}
+                required
+              />
+            )}
+          </div>
+
+          <FileUpload
+            label="Additional Vehicle Condition Images"
+            accept="image/*"
+            multiple
+            onChange={setImages}
+            showPreview
+          />
+
+          {/* Show existing images */}
+          {rental.checkOutCondition?.images && rental.checkOutCondition.images.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Existing Images</h4>
+              <div className="grid grid-cols-3 gap-4">
+                {rental.checkOutCondition.images.map((url, index) => (
+                  <img
+                    key={index}
+                    src={url}
+                    alt={`Condition ${index + 1}`}
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -10,6 +10,7 @@ interface PettyCashTableProps {
   onView: (transaction: PettyCashTransaction) => void;
   onEdit: (transaction: PettyCashTransaction) => void;
   onDelete: (transaction: PettyCashTransaction) => void;
+  collectionName?: string;
 }
 
 const PettyCashTable: React.FC<PettyCashTableProps> = ({
@@ -20,26 +21,22 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
 }) => {
   const { can } = usePermissions();
 
-  // Calculate running balance for each transaction
-  const transactionsWithBalance = transactions.map((transaction, index) => {
-    const previousBalance = index > 0 ? transactions[index - 1].balance : 0;
-    const currentChange = (transaction.amountIn || 0) - (transaction.amountOut || 0);
-    const balance = previousBalance + currentChange;
-    return { ...transaction, balance };
-  });
+  // Sort transactions by date descending (newest first)
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    b.date.getTime() - a.date.getTime()
+  );
 
-  const getStatusColor = (status: PettyCashTransaction['status']) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-50';
-      case 'paid':
-        return 'bg-green-50';
-      case 'unpaid':
-        return 'bg-red-50';
-      default:
-        return '';
-    }
-  };
+  // Calculate running balance from bottom to top
+  let runningBalance = 0;
+  const transactionsWithBalance = [...sortedTransactions]
+    .reverse() // Reverse to calculate from oldest to newest
+    .map(transaction => {
+      const amountIn = Number(transaction.amountIn) || 0;
+      const amountOut = Number(transaction.amountOut) || 0;
+      runningBalance += amountIn - amountOut;
+      return { ...transaction, balance: runningBalance };
+    })
+    .reverse(); // Reverse back to show newest first
 
   const columns = [
     {
@@ -68,23 +65,28 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     },
     {
       header: 'In',
-      cell: ({ row }) => row.original.amountIn > 0 ? (
-        <span className="text-green-600">£{row.original.amountIn.toFixed(2)}</span>
-      ) : null,
+      cell: ({ row }) => {
+        const amountIn = Number(row.original.amountIn) || 0;
+        return amountIn > 0 ? <span className="text-green-600">£{amountIn.toFixed(2)}</span> : null;
+      },
     },
     {
       header: 'Out',
-      cell: ({ row }) => row.original.amountOut > 0 ? (
-        <span className="text-red-600">£{row.original.amountOut.toFixed(2)}</span>
-      ) : null,
+      cell: ({ row }) => {
+        const amountOut = Number(row.original.amountOut) || 0;
+        return amountOut > 0 ? <span className="text-red-600">£{amountOut.toFixed(2)}</span> : null;
+      },
     },
     {
       header: 'Balance',
-      cell: ({ row }) => (
-        <span className={`font-medium ${row.original.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          £{row.original.balance.toFixed(2)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const balance = Number(row.original.balance) || 0;
+        return (
+          <span className={balance >= 0 ? 'text-green-600' : 'text-red-600'}>
+            £{Math.abs(balance).toFixed(2)}
+          </span>
+        );
+      },
     },
     {
       header: 'Status',
@@ -102,7 +104,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          {can('finance', 'view') && (
+          {can('pettyCash', 'view') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -114,7 +116,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
               <Eye className="h-4 w-4" />
             </button>
           )}
-          {can('finance', 'update') && (
+          {can('pettyCash', 'update') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -126,7 +128,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
               <Edit className="h-4 w-4" />
             </button>
           )}
-          {can('finance', 'delete') && (
+          {can('pettyCash', 'delete') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -147,8 +149,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     <DataTable
       data={transactionsWithBalance}
       columns={columns}
-      onRowClick={(transaction) => can('finance', 'view') && onView(transaction)}
-      rowClassName={(transaction) => getStatusColor(transaction.status)}
+      onRowClick={(transaction) => can('pettyCash', 'view') && onView(transaction)}
     />
   );
 };

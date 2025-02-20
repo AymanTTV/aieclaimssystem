@@ -87,29 +87,29 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
         </div>
       ),
     },
-    {
-      header: 'Accident Details',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <div className="flex items-center">
-            <Calendar className="w-4 h-4 text-gray-400 mr-2" />
-            <span>{row.original.accidentDate}</span>
-          </div>
-          <div className="flex items-center">
-            <Clock className="w-4 h-4 text-gray-400 mr-2" />
-            <span>{row.original.accidentTime}</span>
-          </div>
-          <div className="flex items-center">
-            <MapPin className="w-4 h-4 text-gray-400 mr-2" />
-            <span>{row.original.accidentLocation}</span>
-          </div>
-          <div className="text-sm text-gray-500 mt-1">
-            <div className="font-medium">Description:</div>
-            <div className="line-clamp-2">{row.original.description}</div>
-          </div>
-        </div>
-      ),
-    },
+    // {
+    //   header: 'Accident Details',
+    //   cell: ({ row }) => (
+    //     <div className="space-y-1">
+    //       <div className="flex items-center">
+    //         <Calendar className="w-4 h-4 text-gray-400 mr-2" />
+    //         <span>{row.original.accidentDate}</span>
+    //       </div>
+    //       <div className="flex items-center">
+    //         <Clock className="w-4 h-4 text-gray-400 mr-2" />
+    //         <span>{row.original.accidentTime}</span>
+    //       </div>
+    //       <div className="flex items-center">
+    //         <MapPin className="w-4 h-4 text-gray-400 mr-2" />
+    //         <span>{row.original.accidentLocation}</span>
+    //       </div>
+    //       <div className="text-sm text-gray-500 mt-1">
+    //         <div className="font-medium">Description:</div>
+    //         <div className="line-clamp-2">{row.original.description}</div>
+    //       </div>
+    //     </div>
+    //   ),
+    // },
     {
       header: 'Fault Party',
       cell: ({ row }) => (
@@ -161,20 +161,20 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
         </div>
       ),
     },
-    {
-      header: 'Status',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.status} />
-          {row.original.type && row.original.type !== 'pending' && (
-            <StatusBadge status={row.original.type} />
-          )}
-          <div className="text-xs text-gray-500">
-            {format(row.original.submittedAt, 'dd/MM/yyyy HH:mm')}
-          </div>
-        </div>
-      ),
-    },
+    // {
+    //   header: 'Status',
+    //   cell: ({ row }) => (
+    //     <div className="space-y-1">
+    //       <StatusBadge status={row.original.status} />
+    //       {row.original.type && row.original.type !== 'pending' && (
+    //         <StatusBadge status={row.original.type} />
+    //       )}
+    //       <div className="text-xs text-gray-500">
+    //         {format(row.original.submittedAt, 'dd/MM/yyyy HH:mm')}
+    //       </div>
+    //     </div>
+    //   ),
+    // },
     {
       header: 'Actions',
       cell: ({ row }) => (

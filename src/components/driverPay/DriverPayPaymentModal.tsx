@@ -1,13 +1,13 @@
-// src/components/driverPay/DriverPayPaymentModal.tsx
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { DriverPay } from '../../types/driverPay';
+import { DriverPay, PaymentPeriod } from '../../types/driverPay';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
+import { ensureValidDate } from '../../utils/dateHelpers';
 
 interface DriverPayPaymentModalProps {
   record: DriverPay;
@@ -20,19 +20,48 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(record.paymentPeriods[0]?.id || '');
   const [formData, setFormData] = useState({
-    amount: record.remainingAmount.toString(),
+    amount: '',
     method: 'cash' as const,
     reference: '',
     notes: ''
   });
 
+  const selectedPeriod = record.paymentPeriods.find(p => p.id === selectedPeriodId);
+
+  useEffect(() => {
+    if (selectedPeriod) {
+      const roundedRemainingAmount = parseFloat(selectedPeriod.remainingAmount.toFixed(2));
+      setFormData({
+        ...formData,
+        amount: roundedRemainingAmount.toFixed(2)
+      });
+    } else {
+      setFormData({ ...formData, amount: '' });
+    }
+  }, [selectedPeriod, record.paymentPeriods]);
+
+  const formatDate = (date: Date | null | undefined): string => {
+    if (!date) return 'N/A';
+    try {
+      const validDate = ensureValidDate(date);
+      return format(validDate, 'dd/MM/yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    
+    if (!user || !selectedPeriod) return;
+
     const paymentAmount = parseFloat(formData.amount);
-    if (paymentAmount <= 0 || paymentAmount > record.remainingAmount) {
+    const roundedRemainingAmount = selectedPeriod?.remainingAmount ? parseFloat(selectedPeriod.remainingAmount.toFixed(2)) : 0;
+
+
+    if (paymentAmount <= 0 || paymentAmount > roundedRemainingAmount) {
       toast.error('Invalid payment amount');
       return;
     }
@@ -48,18 +77,27 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
         reference: formData.reference || null,
         notes: formData.notes || null,
         createdBy: user.id,
-        createdAt: new Date()
+        createdAt: new Date(),
+        periodId: selectedPeriodId
       };
 
-      const newPaidAmount = record.paidAmount + paymentAmount;
-      const newRemainingAmount = record.netPay - newPaidAmount;
-      const newStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
+      const updatedPeriods = record.paymentPeriods.map(period => {
+        if (period.id === selectedPeriodId) {
+          const newPaidAmount = parseFloat((period.paidAmount + paymentAmount).toFixed(2));
+          const newRemainingAmount = parseFloat((period.netPay - newPaidAmount).toFixed(2));
+          return {
+            ...period,
+            paidAmount: newPaidAmount,
+            remainingAmount: newRemainingAmount,
+            status: newRemainingAmount <= 0 ? 'paid' : 'partially_paid',
+            payments: [...period.payments, payment]
+          };
+        }
+        return period;
+      });
 
       await updateDoc(doc(db, 'driverPay', record.id), {
-        paidAmount: newPaidAmount,
-        remainingAmount: newRemainingAmount,
-        status: newStatus,
-        payments: [...(record.payments || []), payment],
+        paymentPeriods: updatedPeriods,
         updatedAt: new Date()
       });
 
@@ -75,29 +113,57 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
-        <div className="flex justify-between text-sm">
-          <span>Net Pay:</span>
-          <span className="font-medium">£{record.netPay.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>Amount Paid:</span>
-          <span className="text-green-600">£{record.paidAmount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>Remaining Amount:</span>
-          <span className="text-amber-600">£{record.remainingAmount.toFixed(2)}</span>
-        </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Select Payment Period</label>
+        <select
+          value={selectedPeriodId}
+          onChange={(e) => setSelectedPeriodId(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          required
+        >
+          {record.paymentPeriods.map((period) => (
+            <option key={period.id} value={period.id}>
+              {formatDate(period.startDate)} - {formatDate(period.endDate)}
+              {' '}(£{period.remainingAmount.toFixed(2)} remaining)
+            </option>
+          ))}
+        </select>
       </div>
+
+      {selectedPeriod && (
+        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+          <div className="flex justify-between text-sm">
+            <span>Net Pay:</span>
+            <span className="font-medium">£{selectedPeriod.netPay.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Amount Paid:</span>
+            <span className="text-green-600">£{selectedPeriod.paidAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Remaining Amount:</span>
+            <span className="text-amber-600">£{selectedPeriod.remainingAmount.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
 
       <FormField
         type="number"
         label="Amount to Pay"
         value={formData.amount}
-        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+        onChange={(e) => {
+          let value = parseFloat(e.target.value);
+          if (!isNaN(value)) {
+            const roundedRemainingAmount = selectedPeriod?.remainingAmount ? parseFloat(selectedPeriod.remainingAmount.toFixed(2)) : 0;
+            value = Math.min(value, roundedRemainingAmount);
+            setFormData({ ...formData, amount: value.toFixed(2) });
+          } else {
+            setFormData({ ...formData, amount: '' });
+          }
+        }}
         required
-        min="0.01"
-        max={record.remainingAmount}
+        min="0"
+        max={selectedPeriod?.remainingAmount.toFixed(2)}
         step="0.01"
       />
 

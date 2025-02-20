@@ -9,6 +9,7 @@ import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import { Upload } from 'lucide-react';
 import { validateImage } from '../../utils/imageUpload';
+import { X } from 'lucide-react';
 
 interface AccidentClaimEditProps {
   accident: Accident;
@@ -20,8 +21,11 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const [loading, setLoading] = useState(false);
   const [passengerCount, setPassengerCount] = useState(accident.passengers?.length || 0);
   const [witnessCount, setWitnessCount] = useState(accident.witnesses?.length || 0);
+  const [manualVehicleEntry, setManualVehicleEntry] = useState(false);
   const [images, setImages] = useState<FileList | null>(null);
   const [existingImages] = useState<string[]>(accident.images || []);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || []);
 
   const [formData, setFormData] = useState({
 
@@ -108,18 +112,15 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  if (e.target.files) {
+    const filesArray = Array.from(e.target.files);
+    setImageFiles(prev => [...prev, ...filesArray]);
 
-    // Validate each image
-    for (let i = 0; i < files.length; i++) {
-      if (!validateImage(files[i])) {
-        return;
-      }
-    }
-
-    setImages(files);
-  };
+    // Create previews for new images
+    const newPreviews = filesArray.map(file => URL.createObjectURL(file));
+    setImagePreviews(prev => [...prev, ...newPreviews]);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,16 +128,17 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     setLoading(true);
 
     try {
-      const imageUrls = [...existingImages];
+      const newImageUrls = await Promise.all(
+      imageFiles.map(async (file) => {
+        const timestamp = Date.now();
+        const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        return getDownloadURL(snapshot.ref);
+      })
+    );
 
-      if (images) {
-        for (let i = 0; i < images.length; i++) {
-          const imageRef = ref(storage, `accidents/${accident.id}/${Date.now()}_${images[i].name}`);
-          const snapshot = await uploadBytes(imageRef, images[i]);
-          const url = await getDownloadURL(snapshot.ref);
-          imageUrls.push(url);
-        }
-      }
+    // Combine existing and new image URLs
+    const allImages = [...accident.images, ...newImageUrls];
 
       const accidentRef = doc(db, 'accidents', accident.id);
       await updateDoc(accidentRef, {
@@ -145,7 +147,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         referenceName: formData.referenceName,
         passengers: formData.passengers.slice(0, passengerCount),
         witnesses: formData.witnesses.slice(0, witnessCount),
-        images: imageUrls,
+        images: allImages,
         updatedAt: new Date(),
         updatedBy: user.id
       });
@@ -571,39 +573,48 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
 
       {/* Images */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Additional Images</label>
-        {existingImages.length > 0 && (
-          <div className="mt-2 grid grid-cols-3 gap-4 mb-4">
-            {existingImages.map((url, index) => (
-              <img
-                key={index}
-                src={url}
-                alt={`Existing image ${index + 1}`}
-                className="h-24 w-full object-cover rounded-md"
-              />
-            ))}
-          </div>
-        )}
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          <div className="space-y-1 text-center">
-            <Upload className="mx-auto h-12 w-12 text-gray-400" />
-            <div className="flex text-sm text-gray-600">
-              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                <span>Upload images</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="sr-only"
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
-          </div>
-        </div>
+  <label className="block text-sm font-medium text-gray-700">Images</label>
+  <div className="mt-2 flex flex-wrap gap-2">
+  {imagePreviews.map((preview, index) => (
+    <div key={index} className="relative w-24 h-24">
+      <img
+        src={preview}
+        alt={`Selected ${index}`}
+        className="w-full h-full object-cover rounded-md"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          setImageFiles(prev => prev.filter((_, i) => i !== index));
+          setImagePreviews(prev => prev.filter((_, i) => i !== index));
+        }}
+        className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+      >
+        <X className="h-4 w-4 text-red-600" />
+      </button>
+    </div>
+  ))}
+</div>
+  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+    <div className="space-y-1 text-center">
+      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+      <div className="flex text-sm text-gray-600">
+        <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+          <span>Upload images</span>
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleImageChange}
+            className="sr-only"
+          />
+        </label>
+        <p className="pl-1">or drag and drop</p>
       </div>
+      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
+    </div>
+  </div>
+</div>
 
       <div className="flex justify-end space-x-3">
         <button

@@ -57,18 +57,23 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         </select>
 
         <select
-          value={typeFilter}
-          onChange={(e) => onTypeFilterChange(e.target.value)}
-          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
-          <option value="all">All Types</option>
-          <option value="yearly-service">Yearly Service</option>
-          <option value="mileage-service">Mileage Service</option>
-          <option value="repair">Repair</option>
-          <option value="emergency-repair">Emergency Repair</option>
-          <option value="mot">MOT Test</option>
-          <option value="tfl">TfL Test</option>
-        </select>
+  value={typeFilter}
+  onChange={(e) => onTypeFilterChange(e.target.value)}
+  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+>
+  <option value="all">All Types</option>
+  <option value="YEARLY-SERVICE">YEARLY SERVICE</option>
+  <option value="MILEAGE-SERVICE">MILEAGE SERVICE</option>
+  <option value="REPAIR">REPAIR</option>
+  <option value="EMERGENCY-REPAIR">EMERGENCY REPAIR</option>
+  <option value="MOT">MOT</option>
+  <option value="NSL">NSL</option>
+  <option value="TFL">TFL</option>
+  <option value="SERVICE">SERVICE</option>
+  <option value="MAINTENANCE">MAINTENANCE</option>
+  <option value="BODYWORK">BODYWORK</option>
+  <option value="ACCIDENT-REPAIR">ACCIDENT REPAIR</option>
+</select>
 
         <select
           value={vehicleFilter}

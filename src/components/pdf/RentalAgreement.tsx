@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/render
 import { Rental, Vehicle, Customer } from '../../types';
 import { format, isValid, parseISO } from 'date-fns';
 import logo from '../../assets/logo.png';
+import { formatPDFDate } from './dateUtils';
 
 const styles = StyleSheet.create({
   page: {
@@ -101,6 +102,52 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontWeight: 'bold',
   },
+conditionSection: {
+    marginTop: 20,
+    borderTop: 1,
+    borderColor: '#E5E7EB',
+    paddingTop: 10,
+  },
+  conditionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  conditionGrid: {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+  conditionItem: {
+    width: '50%',
+    marginBottom: 5,
+  },
+  conditionLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  conditionValue: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  damageDescription: {
+    fontSize: 10,
+    marginTop: 5,
+    color: '#DC2626',
+  },
+  conditionImages: {
+    marginTop: 10,
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  conditionImage: {
+    width: 150,
+    height: 100,
+    objectFit: 'cover',
+  },
 });
 
 // Function to generate agreement number
@@ -132,22 +179,29 @@ const RentalAgreement: React.FC<{
   companyDetails = {},
 }) => {
   const formatDateTime = (date: Date | string | null | undefined): string => {
-    if (!date) return 'N/A';
-    
-    try {
-      const dateObj = typeof date === 'string' ? parseISO(date) : date;
-      
-      if (!isValid(dateObj)) {
-        console.warn('Invalid date:', date);
-        return 'N/A';
-      }
-      
-      return format(dateObj, 'dd/MM/yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'N/A';
+  if (!date) return 'N/A';
+  
+  try {
+    // Handle Firestore Timestamp
+    if (date?.toDate) {
+      date = date.toDate();
     }
-  };
+    
+    // Handle string dates
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Validate date
+    if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
+      return format(dateObj, 'dd/MM/yyyy HH:mm');
+    }
+    
+    return 'N/A';
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'N/A';
+  }
+};
+
 
   return (
     <Document>
@@ -271,6 +325,63 @@ const RentalAgreement: React.FC<{
         <Text style={styles.maxPeriodWarning}>
           Maximum Period of Hire: 90 Days
         </Text>
+
+        {rental.checkOutCondition && (
+          <View style={styles.conditionSection}>
+            <Text style={styles.conditionTitle}>Vehicle Condition at Check-Out</Text>
+            
+            <View style={styles.conditionGrid}>
+              <View style={styles.conditionItem}>
+                <Text style={styles.conditionLabel}>Check-Out Date & Time:</Text>
+                <Text style={styles.conditionValue}>
+                  {formatDateTime(rental.checkOutCondition.date)}
+                </Text>
+              </View>
+
+              <View style={styles.conditionItem}>
+                <Text style={styles.conditionLabel}>Mileage:</Text>
+                <Text style={styles.conditionValue}>
+                  {rental.checkOutCondition.mileage.toLocaleString()} miles
+                </Text>
+              </View>
+
+              <View style={styles.conditionItem}>
+                <Text style={styles.conditionLabel}>Fuel Level:</Text>
+                <Text style={styles.conditionValue}>
+                  {rental.checkOutCondition.fuelLevel}%
+                </Text>
+              </View>
+
+              <View style={styles.conditionItem}>
+                <Text style={styles.conditionLabel}>Vehicle Condition:</Text>
+                <Text style={styles.conditionValue}>
+                  {rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}
+                </Text>
+              </View>
+            </View>
+
+            {rental.checkOutCondition.hasDamage && (
+              <View>
+                <Text style={styles.conditionLabel}>Existing Damage:</Text>
+                <Text style={styles.damageDescription}>
+                  {rental.checkOutCondition.damageDescription}
+                </Text>
+              </View>
+            )}
+
+            {rental.checkOutCondition.images && rental.checkOutCondition.images.length > 0 && (
+              <View style={styles.conditionImages}>
+                {rental.checkOutCondition.images.map((url, index) => (
+                  <Image
+                    key={index}
+                    src={url}
+                    style={styles.conditionImage}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Terms and Conditions */}
         <View style={styles.terms}>

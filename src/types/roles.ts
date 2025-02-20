@@ -21,6 +21,7 @@ export interface RolePermissions {
   invoices: Permission;
   pettyCash: Permission;
   driverPay: Permission; // Add this line
+  vdFinance: Permission; // Add this line
   users: Permission;
   customers: Permission;
   company: Permission;
@@ -39,6 +40,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices: { view: true, create: true, update: true, delete: true },
     pettyCash: { view: true, create: true, update: true, delete: true },
     driverPay: { view: true, create: true, update: true, delete: true }, // Add this line
+    vatRecord: { view: true, create: true, update: true, delete: true },
+    vdFinance: { view: true, create: true, update: true, delete: true },
     users: { view: true, create: true, update: true, delete: true },
     customers: { view: true, create: true, update: true, delete: true },
     company: { view: true, create: true, update: true, delete: true }
@@ -55,6 +58,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices: { view: true, create: true, update: true, delete: true },
     pettyCash: { view: true, create: true, update: true, delete: false },
     driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
+    vatRecord: { view: true, create: true, update: true, delete: false },
+    vdFinance: { view: true, create: true, update: true, delete: false },
     users: { view: true, create: false, update: false, delete: false },
     customers: { view: true, create: true, update: true, delete: false },
     company: { view: true, create: false, update: false, delete: false }
@@ -71,6 +76,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { view: true, create: true, update: true, delete: false },
     pettyCash: { view: true, create: true, update: true, delete: false },
     driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
+    vatRecord: { view: true, create: true, update: true, delete: false },
+    vdFinance: { view: true, create: true, update: true, delete: false },
     users: { view: false, create: false, update: false, delete: false },
     customers: { view: true, create: false, update: false, delete: false },
     company: { view: true, create: false, update: false, delete: false }
@@ -87,6 +94,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { view: false, create: false, update: false, delete: false },
     pettyCash: { view: false, create: false, update: false, delete: false },
     driverPay: { view: false, create: false, update: false, delete: false }, // Add this line
+    vatRecord: { view: false, create: false, update: false, delete: false },
+    vdFinance: { view: true, create: true, update: true, delete: false },
     users: { view: false, create: false, update: false, delete: false },
     customers: { view: true, create: true, update: true, delete: false },
     company: { view: true, create: false, update: false, delete: false }

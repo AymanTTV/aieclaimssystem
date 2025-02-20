@@ -24,19 +24,26 @@ const PettyCashDetails: React.FC<PettyCashDetailsProps> = ({ transaction }) => {
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Amount In</h3>
-          <p className="mt-1 text-green-600">
-            {transaction.amountIn > 0 ? `£${transaction. amountIn.toFixed(2)}` : '-'}
-          </p>
+         <p className="mt-1 text-green-600">
+  {transaction.amountIn && Number(transaction.amountIn) > 0 
+    ? `£${Number(transaction.amountIn).toFixed(2)}` 
+    : '-'}
+</p>
+
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Amount Out</h3>
           <p className="mt-1 text-red-600">
-            {transaction.amountOut > 0 ? `£${transaction.amountOut.toFixed(2)}` : '-'}
-          </p>
+  {transaction.amountOut && Number(transaction.amountOut) > 0 
+    ? `£${Number(transaction.amountOut).toFixed(2)}` 
+    : '-'}
+</p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Balance</h3>
-          <p className="mt-1 font-medium">£{transaction.balance.toFixed(2)}</p>
+         <p className="mt-1 font-medium">
+  £{Number(transaction.balance || 0).toFixed(2)}
+</p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Status</h3>

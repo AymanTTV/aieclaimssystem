@@ -1,7 +1,7 @@
 // src/components/pettyCash/PettyCashForm.tsx
 
 import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import { useAuth } from '../../context/AuthContext';
@@ -12,11 +12,19 @@ import toast from 'react-hot-toast';
 interface PettyCashFormProps {
   transaction?: PettyCashTransaction;
   onClose: () => void;
+  collectionName?: string;
 }
 
-const PettyCashForm: React.FC<PettyCashFormProps> = ({ transaction, onClose }) => {
+const PettyCashForm: React.FC<PettyCashFormProps> = ({ 
+  transaction, 
+  onClose,
+  collectionName = 'pettyCash'
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  // Initialize form data with current date and time
+  const now = new Date();
   const [formData, setFormData] = useState({
     name: transaction?.name || '',
     telephone: transaction?.telephone || '',
@@ -25,8 +33,12 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({ transaction, onClose }) =
     amountOut: transaction?.amountOut?.toString() || '',
     note: transaction?.note || '',
     status: transaction?.status || 'pending',
-    date: transaction?.date ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    time: transaction?.date ? new Date(transaction.date).toTimeString().slice(0, 5) : new Date().toTimeString().slice(0, 5),
+    date: transaction?.date ? 
+      new Date(transaction.date).toISOString().split('T')[0] : 
+      now.toISOString().split('T')[0],
+    time: transaction?.date ? 
+      new Date(transaction.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 
+      now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,75 +47,46 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({ transaction, onClose }) =
     setLoading(true);
 
     try {
-      const amountIn = parseFloat(formData.amountIn) || 0;
-      const amountOut = parseFloat(formData.amountOut) || 0;
-
-      if (amountIn > 0 && amountOut > 0) {
-        throw new Error('Transaction cannot have both in and out amounts');
-      }
-
-      // Get all previous transactions ordered by date
-      const q = query(collection(db, 'pettyCash'), orderBy('date', 'asc'));
-      const snapshot = await getDocs(q);
-      let runningBalance = 0;
-
-      // Calculate running balance up to this transaction's date
-      const currentDate = new Date(`${formData.date}T${formData.time}`);
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const transactionDate = data.date.toDate();
-        
-        // Only include transactions before or equal to current transaction's date
-        // Skip the current transaction if we're editing
-        if (transactionDate <= currentDate && doc.id !== transaction?.id) {
-          runningBalance += (data.amountIn || 0) - (data.amountOut || 0);
-        }
-      });
-
-      // Calculate new balance for this transaction
-      const newBalance = runningBalance + (amountIn - amountOut);
+      // Create Date object from date and time inputs
+      const [hours, minutes] = formData.time.split(':');
+      const dateTime = new Date(formData.date);
+      dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
       const transactionData = {
         name: formData.name,
         telephone: formData.telephone,
         description: formData.description,
-        amountIn,
-        amountOut,
-        balance: newBalance, // Set the calculated balance
-        note: formData.note,
+        amountIn: formData.amountIn ? parseFloat(formData.amountIn) : 0,
+        amountOut: formData.amountOut ? parseFloat(formData.amountOut) : 0,
+        note: formData.note || null,
         status: formData.status,
-        date: new Date(`${formData.date}T${formData.time}`),
-        updatedAt: new Date(),
+        date: dateTime,
+        updatedAt: new Date()
       };
 
       if (transaction) {
-        await updateDoc(doc(db, 'pettyCash', transaction.id), {
-          ...transactionData,
-          updatedBy: user.id,
-        });
+        await updateDoc(doc(db, collectionName, transaction.id), transactionData);
         toast.success('Transaction updated successfully');
       } else {
-        await addDoc(collection(db, 'pettyCash'), {
+        await addDoc(collection(db, collectionName), {
           ...transactionData,
           createdAt: new Date(),
-          createdBy: user.id,
+          createdBy: user.id
         });
         toast.success('Transaction created successfully');
       }
 
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving transaction:', error);
-      toast.error(error.message || 'Failed to save transaction');
+      toast.error('Failed to save transaction');
     } finally {
       setLoading(false);
     }
   };
 
-  // Rest of the component remains the same...
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Form fields remain the same... */}
       <div className="grid grid-cols-2 gap-4">
         <FormField
           label="Name"

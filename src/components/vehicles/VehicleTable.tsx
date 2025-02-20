@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, Trash2, DollarSign } from 'lucide-react';
+import { Eye, Edit, Trash2, DollarSign, RotateCw } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
@@ -14,6 +14,7 @@ interface VehicleTableProps {
   onEdit: (vehicle: Vehicle) => void;
   onDelete: (vehicle: Vehicle) => void;
   onMarkAsSold: (vehicle: Vehicle) => void;
+  onUndoSale: (vehicle: Vehicle) => void;
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -22,24 +23,30 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onEdit,
   onDelete,
   onMarkAsSold,
+  onUndoSale,
 }) => {
   const { can } = usePermissions();
+
+  const calculateMotExpiry = (motDate: string | undefined): string | undefined => {
+    if (!motDate) return undefined;
+    const motExpiryDate = new Date(motDate);
+    motExpiryDate.setMonth(motExpiryDate.getMonth() + 6);
+    return motExpiryDate.toISOString();
+  };
+
 
   const sortedVehicles = [...vehicles].sort((a, b) => {
     const now = new Date();
     const thirtyDays = addDays(now, 30);
 
-    // Helper function to count expiring/expired documents
     const countExpiringDocs = (vehicle: Vehicle) => {
       let count = 0;
-      
-      // Count expired documents (these get higher priority)
+
       if (vehicle.motExpiry < now) count += 10;
       if (vehicle.insuranceExpiry < now) count += 10;
       if (vehicle.nslExpiry < now) count += 10;
       if (vehicle.roadTaxExpiry < now) count += 10;
 
-      // Count documents expiring within 30 days
       if (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) count += 5;
       if (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) count += 5;
       if (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry >= now) count += 5;
@@ -48,28 +55,25 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       return count;
     };
 
-    // Get expiring document count for both vehicles
     const aCount = countExpiringDocs(a);
     const bCount = countExpiringDocs(b);
 
-    // Sort by number of expiring documents (descending)
     if (aCount !== bCount) {
       return bCount - aCount;
     }
 
-    // If same number of expiring documents, sort by earliest expiry date
     const aEarliestExpiry = Math.min(
-      a.motExpiry.getTime(),
-      a.insuranceExpiry.getTime(),
-      a.nslExpiry.getTime(),
-      a.roadTaxExpiry.getTime()
+      new Date(a.motExpiry).getTime(), // Ensure they are dates
+      new Date(a.insuranceExpiry).getTime(),
+      new Date(a.nslExpiry).getTime(),
+      new Date(a.roadTaxExpiry).getTime()
     );
 
     const bEarliestExpiry = Math.min(
-      b.motExpiry.getTime(),
-      b.insuranceExpiry.getTime(),
-      b.nslExpiry.getTime(),
-      b.roadTaxExpiry.getTime()
+      new Date(b.motExpiry).getTime(), // Ensure they are dates
+      new Date(b.insuranceExpiry).getTime(),
+      new Date(b.nslExpiry).getTime(),
+      new Date(b.roadTaxExpiry).getTime()
     );
 
     return aEarliestExpiry - bEarliestExpiry;
@@ -105,9 +109,9 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           <div className="font-medium">
             {row.original.owner?.name || 'AIE Skyline'}
           </div>
-          {row.original.owner?.address && !row.original.owner?.isDefault && (
+          {/* {row.original.owner?.address && !row.original.owner?.isDefault && (
             <div className="text-sm text-gray-500">{row.original.owner.address}</div>
-          )}
+          )} */}
         </div>
       ),
     },
@@ -130,7 +134,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         };
 
         return (
-          <div className="space-y-1">
+          <div className="flex flex-col space-y-1"> {/* Changed from space-x-1 to space-y-1 */}
             {statuses.length > 0 ? (
               statuses.map((status, index) => (
                 <StatusBadge 
@@ -156,41 +160,36 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       ),
     },
     {
-      header: 'MOT Expiry',
-      cell: ({ row }) => (
-        <div className={isExpiringOrExpired(row.original.motExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.motExpiry)}
-        </div>
-      ),
-    },
-    {
-      header: 'Insurance Expiry',
-      cell: ({ row }) => (
-        <div className={isExpiringOrExpired(row.original.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.insuranceExpiry)}
-        </div>
-      ),
-    },
-    {
-      header: 'NSL Expiry',
-      cell: ({ row }) => (
-        <div className={isExpiringOrExpired(row.original.nslExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.nslExpiry)}
-        </div>
-      ),
-    },
-    {
-      header: 'Road Tax Expiry',
-      cell: ({ row }) => (
-        <div className={isExpiringOrExpired(row.original.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
-          {formatDate(row.original.roadTaxExpiry)}
-        </div>
-      ),
+      header: 'Vehicle Documents',
+      cell: ({ row }) => {
+        const vehicle = row.original;
+        const motExpiry = calculateMotExpiry(vehicle.motExpiry);
+
+        return (
+          <div className="space-y-2">
+            <div className={isExpiringOrExpired(vehicle.motExpiry) ? 'text-red-600 font-medium' : ''}>
+              MOT Test Date: {formatDate(vehicle.motExpiry)}
+            </div>
+            <div className={isExpiringOrExpired(motExpiry) ? 'text-red-600 font-medium' : ''}>
+              MOT Expiry: {formatDate(motExpiry)}
+            </div>
+            <div className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
+              Insurance: {formatDate(vehicle.insuranceExpiry)}
+            </div>
+            <div className={isExpiringOrExpired(vehicle.nslExpiry) ? 'text-red-600 font-medium' : ''}>
+              NSL: {formatDate(vehicle.nslExpiry)}
+            </div>
+            <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
+              Road Tax: {formatDate(vehicle.roadTaxExpiry)}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: 'Mileage',
       cell: ({ row }) => (
-        <span>{row.original.mileage.toLocaleString()} km</span>
+        <span>{row.original.mileage.toLocaleString()} Mi</span>
       ),
     },
     {
@@ -233,6 +232,20 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               </button>
             </>
           )}
+
+{can('vehicles', 'update') && row.original.status === 'sold' && ( // Show only if status is sold
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUndoSale(row.original); // Call the undo sale function
+              }}
+              className="text-orange-600 hover:text-orange-800" // Use a different color
+              title="Undo Sale"
+            >
+              <RotateCw className="h-4 w-4" /> {/* Or use a specific "undo" icon */}
+            </button>
+          )}
+
           {can('vehicles', 'delete') && row.original.status === 'sold' && (
             <button
               onClick={(e) => {
@@ -255,11 +268,11 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       data={sortedVehicles}
       columns={columns}
       onRowClick={(vehicle) => can('vehicles', 'view') && onView(vehicle)}
-      rowClassName={(vehicle) => {
+      rowClassName={(row) => {
+        const vehicle = row.original;
         const now = new Date();
         const thirtyDays = addDays(now, 30);
-        
-        // Check for expired documents
+
         if (
           vehicle.motExpiry < now ||
           vehicle.insuranceExpiry < now ||
@@ -268,8 +281,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         ) {
           return 'bg-red-50';
         }
-        
-        // Check for documents expiring within 30 days
+
         if (
           (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) ||
           (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) ||
@@ -278,7 +290,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         ) {
           return 'bg-yellow-50';
         }
-        
+
         return '';
       }}
     />

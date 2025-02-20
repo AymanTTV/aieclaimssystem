@@ -12,12 +12,15 @@ import RentalDeleteModal from '../components/rentals/RentalDeleteModal';
 import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
 import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
 import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
+import ReturnConditionForm from '../components/rentals/ReturnConditionForm.tsx'
 import Modal from '../components/ui/Modal';
 import { Plus, Download, Car, RotateCw } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
@@ -261,17 +264,39 @@ const Rentals = () => {
       </Modal>
 
       <Modal
-        isOpen={!!completingRental}
-        onClose={() => setCompletingRental(null)}
-        title="Complete Rental"
-      >
-        {completingRental && (
-          <RentalCompleteModal
-            rental={completingRental}
-            onClose={() => setCompletingRental(null)}
-          />
-        )}
-      </Modal>
+  isOpen={!!completingRental}
+  onClose={() => setCompletingRental(null)}
+  title="Vehicle Return Condition"
+>
+  {completingRental && (
+    <ReturnConditionForm
+      checkOutCondition={completingRental.checkOutCondition}
+      onSubmit={async (condition) => {
+        try {
+          // Calculate new total cost including additional charges
+          const newTotalCost = completingRental.cost + condition.totalCharges;
+          const newRemainingAmount = newTotalCost - completingRental.paidAmount;
+
+          // Update rental with return condition and new costs
+          await updateDoc(doc(db, 'rentals', completingRental.id), {
+            returnCondition: condition,
+            cost: newTotalCost,
+            remainingAmount: newRemainingAmount,
+            updatedAt: new Date()
+          });
+
+          toast.success('Return condition saved successfully');
+          setCompletingRental(null);
+        } catch (error) {
+          console.error('Error saving return condition:', error);
+          toast.error('Failed to save return condition');
+        }
+      }}
+      onClose={() => setCompletingRental(null)}
+    />
+  )}
+</Modal>
+
 
       <Modal
         isOpen={showAvailableVehicles}

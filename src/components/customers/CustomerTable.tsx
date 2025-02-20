@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Customer } from '../../types/customer';
 import { Eye, Edit, Trash2 } from 'lucide-react';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpired } from '../../types/customer';
 import { usePermissions } from '../../hooks/usePermissions';
+import { isExpiringOrExpired } from '../../types/customer';
+import { addYears, addDays } from 'date-fns';
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -20,6 +22,41 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   onDelete,
 }) => {
   const { can } = usePermissions(); // Move hook inside component
+  const sortedCustomers = useMemo(() => {
+    const now = new Date();
+    const thirtyDays = addDays(now, 30);
+
+    const countExpiringDocs = (customer: Customer) => {
+      let count = 0;
+
+      if (customer.licenseExpiry && isExpiringOrExpired(customer.licenseExpiry)) count += 1; // Expired or expiring
+      if (customer.billExpiry && isExpiringOrExpired(customer.billExpiry)) count += 1; // Expired or expiring
+
+      return count;
+    };
+
+
+    return [...customers].sort((a, b) => {
+      const aCount = countExpiringDocs(a);
+      const bCount = countExpiringDocs(b);
+
+      if (aCount !== bCount) {
+        return bCount - aCount; // Descending order of expiring docs
+      }
+
+      // Tiebreaker: Earliest expiry date (ascending) - Handle nulls
+      const getEarliestExpiry = (customer: Customer) => {
+        const dates = [customer.licenseExpiry, customer.billExpiry].filter(date => date instanceof Date);
+        if (dates.length === 0) return new Date('9999-99-99'); // All past/invalid dates last
+        return Math.min(...dates.map(date => date.getTime()));
+      };
+
+      const aEarliestExpiry = getEarliestExpiry(a);
+      const bEarliestExpiry = getEarliestExpiry(b);
+
+      return aEarliestExpiry - bEarliestExpiry;
+    });
+  }, [customers]);
   const columns = [
     {
       header: 'Name',
@@ -36,43 +73,45 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       header: 'Mobile',
       accessorKey: 'mobile',
     },
-    {
-      header: 'Email',
-      accessorKey: 'email',
-    },
+    // {
+    //   header: 'Email',
+    //   accessorKey: 'email',
+    // },
     {
       header: 'Age',
       accessorKey: 'age',
     },
+    // {
+    //   header: 'License Valid From',
+    //   cell: ({ row }) => formatDate(row.original.licenseValidFrom),
+    // },
     {
-      header: 'License Valid From',
-      cell: ({ row }) => formatDate(row.original.licenseValidFrom),
-    },
-    {
+      // ... other columns
       header: 'License Expiry',
       cell: ({ row }) => {
         const date = row.original.licenseExpiry;
-        const expired = isExpired(date);
-        
+        const expiredOrExpiring = isExpiringOrExpired(date); // Use the new function
+
         return (
-          <div className={`${expired ? 'text-red-500' : 'text-gray-900'}`}>
+          <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
             {formatDate(date)}
           </div>
         );
       },
     },
+    // {
+    //   header: 'Badge Number',
+    //   accessorKey: 'badgeNumber',
+    // },
     {
-      header: 'Badge Number',
-      accessorKey: 'badgeNumber',
-    },
-    {
+      // ... other columns
       header: 'Bill Expiry',
       cell: ({ row }) => {
         const date = row.original.billExpiry;
-        const expired = isExpired(date);
-        
+        const expiredOrExpiring = isExpiringOrExpired(date); // Use the new function
+
         return (
-          <div className={`${expired ? 'text-red-500' : 'text-gray-900'}`}>
+          <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
             {formatDate(date)}
           </div>
         );
@@ -139,7 +178,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
   return (
     <DataTable
-      data={customers}
+      data={sortedCustomers} // Use the sorted customers
       columns={columns}
       onRowClick={(customer) => onView(customer)}
     />

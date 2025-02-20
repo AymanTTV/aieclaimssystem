@@ -55,11 +55,22 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   });
 
   const costs = calculateCosts(parts, formData.laborHours, formData.laborRate, includeVATOnLabor);
+
+  const handlePaidAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      value = Math.round(value * 100) / 100; // Ensures only two decimal places
+      setPaidAmount(value);
+    } else {
+      setPaidAmount(0);
+    }
+  };
+  
   const remainingAmount = costs.totalAmount - paidAmount;
   const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' : 
                        paidAmount > 0 ? 'partially_paid' : 'unpaid';
 
-                       
+                        
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -231,21 +242,26 @@ const handleSubmit = async (e: React.FormEvent) => {
         disabled={!!editLog}
       />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Type</label>
-        <select
-          value={formData.type}
-          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        >
-          <option value="yearly-service">Yearly Service</option>
-          <option value="mileage-service">Mileage Service</option>
-          <option value="repair">Repair</option>
-          <option value="emergency-repair">Emergency Repair</option>
-          <option value="mot">MOT Test</option>
-          <option value="tfl">TfL Test</option>
-        </select>
-      </div>
+<div>
+  <label className="block text-sm font-medium text-gray-700">Type</label>
+  <select
+    value={formData.type}
+    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+  >
+    <option value="YEARLY-SERVICE">YEARLY SERVICE</option>
+    <option value="MILEAGE-SERVICE">MILEAGE SERVICE</option>
+    <option value="REPAIR">REPAIR</option>
+    <option value="EMERGENCY-REPAIR">EMERGENCY REPAIR</option>
+    <option value="MOT">MOT</option>
+    <option value="NSL">NSL</option>
+    <option value="TFL">TFL</option>
+    <option value="SERVICE">SERVICE</option>
+    <option value="MAINTENANCE">MAINTENANCE</option>
+    <option value="BODYWORK">BODYWORK</option>
+    <option value="ACCIDENT-REPAIR">ACCIDENT REPAIR</option>
+  </select>
+</div>
 
       <div className="grid grid-cols-2 gap-4">
         <FormField
@@ -432,15 +448,15 @@ const handleSubmit = async (e: React.FormEvent) => {
   <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
   
   <div className="grid grid-cols-2 gap-4">
-    <FormField
-      type="number"
-      label="Amount Paid"
-      value={paidAmount}
-      onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-      min="0"
-      max={costs.totalAmount}
-      step="0.01"
-    />
+  <FormField
+  type="number"
+  step="0.01"
+  label="Amount to Pay"
+  value={paidAmount}
+  onChange={handlePaidAmountChange}
+  required
+/>
+
 
     <div>
       <label className="block text-sm font-medium text-gray-700">Payment Method</label>

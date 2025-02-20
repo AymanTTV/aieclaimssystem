@@ -1,3 +1,5 @@
+// src/hooks/useFinanceFilters.ts
+
 import { useState, useMemo } from 'react';
 import { Transaction, Vehicle } from '../types';
 import { isWithinInterval } from 'date-fns';
@@ -21,20 +23,30 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     return Array.from(new Set(owners));
   }, [vehicles]);
 
+  // Get all vehicles for a specific owner
+  const getOwnerVehicles = (ownerName: string) => {
+    return vehicles.filter(v => 
+      ownerName === 'company' 
+        ? v.owner?.isDefault 
+        : v.owner?.name === ownerName
+    ).map(v => v.id);
+  };
+
   // Filtered transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
-      
+
+      // Search filter
       const matchesSearch =
         transaction.description.toLowerCase().includes(searchLower) ||
         transaction.category.toLowerCase().includes(searchLower) ||
-        (vehicle?.registrationNumber?.toLowerCase().includes(searchLower) || false) || // Fixed this line
+        (vehicle?.registrationNumber?.toLowerCase().includes(searchLower) || false) ||
         (transaction.paymentReference?.toLowerCase().includes(searchLower) || false) ||
         (transaction.vehicleName?.toLowerCase().includes(searchLower) || false);
 
-      // Apply date range filter
+      // Date range filter
       let matchesDateRange = true;
       if (startDate && endDate) {
         matchesDateRange = isWithinInterval(transaction.date, { start: startDate, end: endDate });
@@ -44,15 +56,17 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
       const matchesType = type === 'all' || transaction.type === type;
 
       // Category filter
-      const matchesCategory = category === 'all' || transaction.category === category;
+      const matchesCategory = category === 'all' || transaction.category.toLowerCase() === category.toLowerCase();
 
       // Payment status filter
       const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
 
       // Owner filter
-      const matchesOwner = owner === 'all' || 
-        (owner === 'company' ? !transaction.vehicleOwner || transaction.vehicleOwner.isDefault : 
-        transaction.vehicleOwner?.name === owner);
+      let matchesOwner = true;
+      if (owner !== 'all') {
+        const ownerVehicles = getOwnerVehicles(owner);
+        matchesOwner = transaction.vehicleId ? ownerVehicles.includes(transaction.vehicleId) : false;
+      }
 
       return matchesSearch && 
              matchesDateRange && 
@@ -62,16 +76,6 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
              matchesOwner;
     });
   }, [transactions, vehicles, searchQuery, startDate, endDate, type, category, paymentStatus, owner]);
-  // Debugging: Log current filter values
-  console.log({
-    searchQuery,
-    startDate,
-    endDate,
-    type,
-    category,
-    paymentStatus,
-    owner,
-  });
 
   return {
     searchQuery,

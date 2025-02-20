@@ -86,17 +86,17 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         </div>
       ),
     },
-    {
-      header: 'Description',
-      cell: ({ row }) => (
-        <div className="max-w-md">
-          <p className="text-sm text-gray-900 truncate">{row.original.description}</p>
-          {row.original.notes && (
-            <p className="text-xs text-gray-500 truncate">{row.original.notes}</p>
-          )}
-        </div>
-      ),
-    },
+    // {
+    //   header: 'Description',
+    //   cell: ({ row }) => (
+    //     <div className="max-w-md">
+    //       <p className="text-sm text-gray-900 truncate">{row.original.description}</p>
+    //       {row.original.notes && (
+    //         <p className="text-xs text-gray-500 truncate">{row.original.notes}</p>
+    //       )}
+    //     </div>
+    //   ),
+    // },
     {
       header: 'Date',
       cell: ({ row }) => {
