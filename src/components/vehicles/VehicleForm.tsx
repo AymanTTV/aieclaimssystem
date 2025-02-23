@@ -58,7 +58,23 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     };
     reader.readAsDataURL(file);
   };
-
+  const handleGenerateDocument = async (record: Vehicle) => {
+  try {
+    const documentUrl = await generateAndUploadDocument(
+      VehicleDocument,
+      record,
+      'vehicles',
+      record.id,
+      'vehicles'
+    );
+    
+    toast.success('Document generated successfully');
+    return documentUrl;
+  } catch (error) {
+    console.error('Error generating document:', error);
+    toast.error('Failed to generate document');
+  }
+};
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!user) return;

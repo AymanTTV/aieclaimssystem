@@ -15,15 +15,16 @@ import { Accident } from '../types';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
-import { useVehiclesContext } from '../utils/VehicleProvider';
-
 import { useAuth } from '../context/AuthContext';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { AccidentDocument } from '../components/pdf/documents';
 
 const Accidents = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { accidents, loading: accidentsLoading } = useAccidents();
-  const { can } = usePermissions(); // Add this hook
+  const { can } = usePermissions();
   const { user } = useAuth();
+
   const {
     searchQuery,
     setSearchQuery,
@@ -44,41 +45,41 @@ const Accidents = () => {
   const [deletingAccident, setDeletingAccident] = useState<Accident | null>(null);
 
   const handleExport = () => {
-  const exportData = accidents.map(accident => ({
-    'Reference No': accident.referenceNo,
-    'Reference Name': accident.referenceName,
-    // Driver Details
-    'Driver Name': accident.driverName,
-    'Driver Address': accident.driverAddress,
-    'Driver Post Code': accident.driverPostCode,
-    'Driver DOB': accident.driverDOB,
-    'Driver Phone': accident.driverPhone,
-    'Driver Mobile': accident.driverMobile,
-    'Driver NIN': accident.driverNIN,
-    // Vehicle Details
-    'Vehicle Make': accident.vehicleMake,
-    'Vehicle Model': accident.vehicleModel,
-    'Vehicle VRN': accident.vehicleVRN,
-    'Insurance Company': accident.insuranceCompany,
-    'Policy Number': accident.policyNumber,
-    'Policy Excess': accident.policyExcess,
-    // Accident Details
-    'Date': accident.accidentDate,
-    'Time': accident.accidentTime,
-    'Location': accident.accidentLocation,
-    'Description': accident.description,
-    'Damage Details': accident.damageDetails,
-    // Status Information
-    'Status': accident.status,
-    'Type': accident.type || 'Pending',
-    // Timestamps
-    'Submitted At': new Date(accident.submittedAt).toLocaleString(),
-    'Updated At': new Date(accident.updatedAt).toLocaleString()
-  }));
+    try {
+      const exportData = accidents.map(accident => ({
+        'Reference No': accident.refNo,
+        'Reference Name': accident.referenceName,
+        'Driver Name': accident.driverName,
+        'Driver Address': accident.driverAddress,
+        'Driver Post Code': accident.driverPostCode,
+        'Driver DOB': accident.driverDOB,
+        'Driver Phone': accident.driverPhone,
+        'Driver Mobile': accident.driverMobile,
+        'Driver NIN': accident.driverNIN,
+        'Vehicle Make': accident.vehicleMake,
+        'Vehicle Model': accident.vehicleModel,
+        'Vehicle VRN': accident.vehicleVRN,
+        'Insurance Company': accident.insuranceCompany,
+        'Policy Number': accident.policyNumber,
+        'Policy Excess': accident.policyExcess,
+        'Date': accident.accidentDate,
+        'Time': accident.accidentTime,
+        'Location': accident.accidentLocation,
+        'Description': accident.description,
+        'Damage Details': accident.damageDetails,
+        'Status': accident.status,
+        'Type': accident.type || 'Pending',
+        'Submitted At': new Date(accident.submittedAt).toLocaleString(),
+        'Updated At': new Date(accident.updatedAt).toLocaleString()
+      }));
 
-  exportToExcel(exportData, 'accidents');
-  toast.success('Accidents exported successfully');
-};
+      exportToExcel(exportData, 'accidents');
+      toast.success('Accidents exported successfully');
+    } catch (error) {
+      console.error('Error exporting accidents:', error);
+      toast.error('Failed to export accidents');
+    }
+  };
 
   const handleDelete = async (accident: Accident) => {
     try {
@@ -89,6 +90,35 @@ const Accidents = () => {
       console.error('Error deleting accident:', error);
       toast.error('Failed to delete accident record');
     }
+  };
+
+  const handleGenerateDocument = async (accident: Accident) => {
+  try {
+    // Find the vehicle using vehicleVRN instead of vehicleId
+    const vehicle = vehicles.find(v => v.registrationNumber === accident.vehicleVRN);
+    
+    if (!vehicle) {
+      toast.error('Vehicle not found. Please check the vehicle registration number.');
+      return;
+    }
+
+    await generateAndUploadDocument(
+      AccidentDocument,
+      { ...accident, vehicle },
+      'accidents',
+      accident.id,
+      'accidents'
+    );
+    
+    toast.success('Document generated successfully');
+  } catch (error) {
+    console.error('Error generating document:', error);
+    toast.error('Failed to generate document');
+  }
+};
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
   };
 
   if (vehiclesLoading || accidentsLoading) {
@@ -104,30 +134,28 @@ const Accidents = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Accidents</h1>
         <div className="flex space-x-2">
-        {user?.role === 'manager' && (
-              <button
-                onClick={handleExport}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Export
-              </button>
-        )}
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
           {can('accidents', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Report Accident
-              </button>
-            </>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Report Accident
+            </button>
           )}
         </div>
       </div>
 
-     <AccidentFilters
+      <AccidentFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
@@ -146,6 +174,8 @@ const Accidents = () => {
         onView={setSelectedAccident}
         onEdit={setEditingAccident}
         onDelete={setDeletingAccident}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

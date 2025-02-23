@@ -1,7 +1,5 @@
-// src/pages/AiePettyCash.tsx
-
 import React, { useState } from 'react';
-import { useAiePettyCash } from '../../hooks/useAiePettyCash'; // We'll create this hook
+import { useAiePettyCash } from '../../hooks/useAiePettyCash';
 import { usePettyCashFilters } from '../../hooks/usePettyCashFilters';
 import PettyCashHeader from '../../components/pettyCash/PettyCashHeader';
 import PettyCashFilters from '../../components/pettyCash/PettyCashFilters';
@@ -15,9 +13,11 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { generateAndUploadDocument } from '../../utils/documentGenerator';
+import { PettyCashDocument } from '../../components/pdf/documents';
 
 const AiePettyCash = () => {
-  const { transactions, loading } = useAiePettyCash('aiePettyCash'); // Pass collection name
+  const { transactions, loading } = useAiePettyCash();
   const { can } = usePermissions();
   const { user } = useAuth();
 
@@ -39,10 +39,8 @@ const AiePettyCash = () => {
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
 
   // Calculate summary totals
-  // Calculate summary totals
   const totalIn = filteredTransactions.reduce((sum, t) => sum + Number(t.amountIn || 0), 0);
   const totalOut = filteredTransactions.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
-
   const netIncome = totalIn - totalOut;
   const profitMargin = totalIn > 0 ? (netIncome / totalIn) * 100 : 0;
 
@@ -55,6 +53,27 @@ const AiePettyCash = () => {
       console.error('Error deleting transaction:', error);
       toast.error('Failed to delete transaction');
     }
+  };
+
+  const handleGenerateDocument = async (transaction: PettyCashTransaction) => {
+    try {
+      await generateAndUploadDocument(
+        PettyCashDocument,
+        transaction,
+        'aiePettyCash',
+        transaction.id,
+        'aiePettyCash'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
   };
 
   if (loading) {
@@ -110,6 +129,8 @@ const AiePettyCash = () => {
         onView={setSelectedTransaction}
         onEdit={setEditingTransaction}
         onDelete={setDeletingTransaction}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
         collectionName="aiePettyCash"
       />
 

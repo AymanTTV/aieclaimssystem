@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import SignaturePad from "../ui/SignaturePad"
 
 interface CompanySettings {
+  // Basic company info
   logoUrl?: string;
   fullName: string;
   title: string;
@@ -18,26 +19,48 @@ interface CompanySettings {
   phone: string;
   website: string;
   officialAddress: string;
+  
+  // Bank details
   bankName: string;
   sortCode: string;
   accountNumber: string;
   vatNumber: string;
   registrationNumber: string;
+  
+  // Document terms
   termsAndConditions: string;
   signature: string;
-  // Document texts
+
+  // Rental document terms
   conditionOfHireText: string;
   creditHireMitigationText: string;
   noticeOfRightToCancelText: string;
   creditStorageAndRecoveryText: string;
   hireAgreementText: string;
   satisfactionNoticeText: string;
+
+  // Vehicle document terms
+  vehicleTerms: string;
+  maintenanceTerms: string;
+  accidentTerms: string;
+  personalInjuryTerms: string;
+  vdFinanceTerms: string;
+  driverPayTerms: string;
+  pettyCashTerms: string;
+  vatRecordTerms: string;
+  customerTerms: string;
+
+  // Additional terms
+  privacyPolicy: string;
+  dataProtectionPolicy: string;
+  disclaimerText: string;
 }
 
 const CompanyDetails = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<CompanySettings>({
     fullName: '',
     title: '',
@@ -53,13 +76,24 @@ const CompanyDetails = () => {
     registrationNumber: '',
     termsAndConditions: '',
     signature: '',
-    // Initialize document texts
     conditionOfHireText: '',
     creditHireMitigationText: '',
     noticeOfRightToCancelText: '',
     creditStorageAndRecoveryText: '',
     hireAgreementText: '',
-    satisfactionNoticeText: ''
+    satisfactionNoticeText: '',
+    vehicleTerms: '',
+    maintenanceTerms: '',
+    accidentTerms: '',
+    personalInjuryTerms: '',
+    vdFinanceTerms: '',
+    driverPayTerms: '',
+    pettyCashTerms: '',
+    vatRecordTerms: '',
+    customerTerms: '',
+    privacyPolicy: '',
+    dataProtectionPolicy: '',
+    disclaimerText: ''
   });
 
   useEffect(() => {
@@ -67,35 +101,12 @@ const CompanyDetails = () => {
       try {
         const docRef = doc(db, 'companySettings', 'details');
         const docSnap = await getDoc(docRef);
-        if (!docSnap.exists()) {
-          const defaultSettings = {
-            fullName: '',
-            title: '',
-            email: '',
-            replyToEmail: '',
-            phone: '',
-            website: '',
-            officialAddress: '',
-            bankName: '',
-            sortCode: '',
-            accountNumber: '',
-            vatNumber: '',
-            registrationNumber: '',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            // Default document texts
-            conditionOfHireText: '',
-            creditHireMitigationText: '',
-            noticeOfRightToCancelText: '',
-            creditStorageAndRecoveryText: '',
-            hireAgreementText: '',
-            satisfactionNoticeText: ''
-          };
-
-          await setDoc(docRef, defaultSettings);
-          setFormData(defaultSettings);
-        } else {
-          setFormData(docSnap.data() as CompanySettings);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setFormData(data as CompanySettings);
+          if (data.logoUrl) {
+            setImagePreview(data.logoUrl);
+          }
         }
       } catch (error) {
         console.error('Error fetching company details:', error);
@@ -110,32 +121,17 @@ const CompanyDetails = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    if (!user) return;
     setLoading(true);
 
     try {
       const docRef = doc(db, 'companySettings', 'details');
       
-      // First check if document exists
-      const docSnap = await getDoc(docRef);
-      
-      if (!docSnap.exists()) {
-        // Create document if it doesn't exist
-        await setDoc(docRef, {
-          ...formData,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: user.id,
-          updatedBy: user.id
-        });
-      } else {
-        // Update existing document
-        await updateDoc(docRef, {
-          ...formData,
-          updatedAt: new Date(),
-          updatedBy: user.id
-        });
-      }
+      await updateDoc(docRef, {
+        ...formData,
+        updatedAt: new Date(),
+        updatedBy: user.id
+      });
 
       toast.success('Company details updated successfully');
       setEditing(false);
@@ -193,7 +189,7 @@ const CompanyDetails = () => {
           />
         </div>
 
-        {/* Company Information */}
+        {/* Basic Company Information */}
         <div className="space-y-4">
           <FormField
             label="Company Name"
@@ -302,82 +298,256 @@ const CompanyDetails = () => {
         <div className="md:col-span-2 space-y-6">
           <h3 className="text-lg font-medium text-gray-900">Document Terms & Conditions</h3>
           
-          {/* Condition of Hire */}
+          {/* Rental Documents */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Condition of Hire Terms</label>
-            <textarea
-              value={formData.conditionOfHireText}
-              onChange={(e) => setFormData({ ...formData, conditionOfHireText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Condition of Hire document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Rental Documents</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Condition of Hire Terms</label>
+                <textarea
+                  value={formData.conditionOfHireText}
+                  onChange={(e) => setFormData({ ...formData, conditionOfHireText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Condition of Hire document..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Credit Hire Mitigation Terms</label>
+                <textarea
+                  value={formData.creditHireMitigationText}
+                  onChange={(e) => setFormData({ ...formData, creditHireMitigationText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Credit Hire Mitigation document..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Notice of Right to Cancel Terms</label>
+                <textarea
+                  value={formData.noticeOfRightToCancelText}
+                  onChange={(e) => setFormData({ ...formData, noticeOfRightToCancelText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Notice of Right to Cancel document..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Credit Storage and Recovery Terms</label>
+                <textarea
+                  value={formData.creditStorageAndRecoveryText}
+                  onChange={(e) => setFormData({ ...formData, creditStorageAndRecoveryText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Credit Storage and Recovery document..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Hire Agreement Terms</label>
+                <textarea
+                  value={formData.hireAgreementText}
+                  onChange={(e) => setFormData({ ...formData, hireAgreementText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Hire Agreement document..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Satisfaction Notice Terms</label>
+                <textarea
+                  value={formData.satisfactionNoticeText}
+                  onChange={(e) => setFormData({ ...formData, satisfactionNoticeText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Satisfaction Notice document..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Credit Hire Mitigation */}
+          {/* Vehicle Documents */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Credit Hire Mitigation Terms</label>
-            <textarea
-              value={formData.creditHireMitigationText}
-              onChange={(e) => setFormData({ ...formData, creditHireMitigationText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Credit Hire Mitigation document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Vehicle Documents</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Vehicle Terms</label>
+                <textarea
+                  value={formData.vehicleTerms}
+                  onChange={(e) => setFormData({ ...formData, vehicleTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Vehicle documents..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Maintenance Terms</label>
+                <textarea
+                  value={formData.maintenanceTerms}
+                  onChange={(e) => setFormData({ ...formData, maintenanceTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Maintenance documents..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Accident Terms</label>
+                <textarea
+                  value={formData.accidentTerms}
+                  onChange={(e) => setFormData({ ...formData, accidentTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Accident documents..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Notice of Right to Cancel */}
+          {/* Claims Documents */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Notice of Right to Cancel Terms</label>
-            <textarea
-              value={formData.noticeOfRightToCancelText}
-              onChange={(e) => setFormData({ ...formData, noticeOfRightToCancelText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Notice of Right to Cancel document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Claims Documents</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Personal Injury Terms</label>
+                <textarea
+                  value={formData.personalInjuryTerms}
+                  onChange={(e) => setFormData({ ...formData, personalInjuryTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Personal Injury documents..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">VD Finance Terms</label>
+                <textarea
+                  value={formData.vdFinanceTerms}
+                  onChange={(e) => setFormData({ ...formData, vdFinanceTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for VD Finance documents..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Credit Storage and Recovery */}
+          {/* Financial Documents */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Credit Storage and Recovery Terms</label>
-            <textarea
-              value={formData.creditStorageAndRecoveryText}
-              onChange={(e) => setFormData({ ...formData, creditStorageAndRecoveryText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Credit Storage and Recovery document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Financial Documents</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Driver Pay Terms</label>
+                <textarea
+                  value={formData.driverPayTerms}
+                  onChange={(e) => setFormData({ ...formData, driverPayTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Driver Pay documents..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Petty Cash Terms</label>
+                <textarea
+                  value={formData.pettyCashTerms}
+                  onChange={(e) => setFormData({ ...formData, pettyCashTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Petty Cash documents..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">VAT Record Terms</label>
+                <textarea
+                  value={formData.vatRecordTerms}
+                  onChange={(e) => setFormData({ ...formData, vatRecordTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for VAT Record documents..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Hire Agreement */}
+          {/* Customer Documents */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Hire Agreement Terms</label>
-            <textarea
-              value={formData.hireAgreementText}
-              onChange={(e) => setFormData({ ...formData, hireAgreementText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Hire Agreement document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Customer Documents</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Customer Terms</label>
+                <textarea
+                  value={formData.customerTerms}
+                  onChange={(e) => setFormData({ ...formData, customerTerms: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter terms for Customer documents..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Satisfaction Notice */}
+          {/* Additional Terms */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Satisfaction Notice Terms</label>
-            <textarea
-              value={formData.satisfactionNoticeText}
-              onChange={(e) => setFormData({ ...formData, satisfactionNoticeText: e.target.value })}
-              rows={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              disabled={!editing}
-              placeholder="Enter terms for Satisfaction Notice document..."
-            />
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Additional Terms</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Privacy Policy</label>
+                <textarea
+                  value={formData.privacyPolicy}
+                  onChange={(e) => setFormData({ ...formData, privacyPolicy: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter privacy policy..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Data Protection Policy</label>
+                <textarea
+                  value={formData.dataProtectionPolicy}
+                  onChange={(e) => setFormData({ ...formData, dataProtectionPolicy: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter data protection policy..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Disclaimer</label>
+                <textarea
+                  value={formData.disclaimerText}
+                  onChange={(e) => setFormData({ ...formData, disclaimerText: e.target.value })}
+                  rows={6}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled={!editing}
+                  placeholder="Enter disclaimer text..."
+                />
+              </div>
+            </div>
           </div>
         </div>
 

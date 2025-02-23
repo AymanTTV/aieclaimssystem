@@ -15,6 +15,8 @@ import { Transaction } from '../types';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { FinanceDocument } from '../components/pdf/documents';
 
 const Finance = () => {
   const { transactions, loading: transactionsLoading } = useFinances();
@@ -50,6 +52,29 @@ const Finance = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
 
+  const handleGenerateDocument = async (transaction: Transaction) => {
+    try {
+      const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
+      
+      await generateAndUploadDocument(
+        FinanceDocument,
+        { ...transaction, vehicle },
+        'finance',
+        transaction.id,
+        'transactions'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   if (transactionsLoading || vehiclesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -63,40 +88,38 @@ const Finance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Finance Overview</h1>
         <div className="flex space-x-2">
-          
           {user?.role === 'manager' && (
-  <button
-    onClick={() => exportFinanceData(filteredTransactions)}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}
-
+            <button
+              onClick={() => exportFinanceData(filteredTransactions)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
           {can('finance', 'create') && (
-      <>
-          <button
-            onClick={() => {
-              setFormType('income');
-              setShowForm(true);
-            }}
-            className="btn btn-secondary"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Income
-          </button>
-          <button
-            onClick={() => {
-              setFormType('expense');
-              setShowForm(true);
-            }}
-            className="btn btn-primary"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Expense
-          </button>
-      </>
+            <>
+              <button
+                onClick={() => {
+                  setFormType('income');
+                  setShowForm(true);
+                }}
+                className="btn btn-secondary"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add Income
+              </button>
+              <button
+                onClick={() => {
+                  setFormType('expense');
+                  setShowForm(true);
+                }}
+                className="btn btn-primary"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add Expense
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -129,6 +152,8 @@ const Finance = () => {
         onView={setSelectedTransaction}
         onEdit={setEditingTransaction}
         onDelete={(transaction) => setDeletingTransactionId(transaction.id)}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

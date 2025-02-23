@@ -1,10 +1,7 @@
-// src/components/vatRecord/VATRecordTable.tsx
-
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { VATRecord } from '../../types/vatRecord';
-import { Eye, Edit, Trash2 } from 'lucide-react';
-import StatusBadge from '../ui/StatusBadge';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 
@@ -13,6 +10,8 @@ interface VATRecordTableProps {
   onView: (record: VATRecord) => void;
   onEdit: (record: VATRecord) => void;
   onDelete: (record: VATRecord) => void;
+  onGenerateDocument: (record: VATRecord) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const VATRecordTable: React.FC<VATRecordTableProps> = ({
@@ -20,6 +19,8 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
 
@@ -49,12 +50,9 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
       cell: ({ row }) => (
         <div className="space-y-1 text-sm">
           <div className="text-green-600">NET: £{row.original.net.toFixed(2)}</div>
-          
           <div className="text-blue-600">VAT ({row.original.vatPercentage}%): £{row.original.vat.toFixed(2)}</div>
           <div>GROSS: £{row.original.gross.toFixed(2)}</div>
-          {row.original.vatReceived > 0 && (
-            <div className="text-purple-600">Received: £{row.original.vatReceived.toFixed(2)}</div>
-          )}
+          <div className="text-purple-600">Received: £{row.original.vatReceived.toFixed(2)}</div>
         </div>
       ),
     },
@@ -67,7 +65,13 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
     {
       header: 'Status',
       cell: ({ row }) => (
-        <StatusBadge status={row.original.status} />
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
+          ${row.original.status === 'awaiting' ? 'bg-yellow-100 text-yellow-800' :
+            row.original.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+            'bg-green-100 text-green-800'}`}
+        >
+          {row.original.status}
+        </span>
       ),
     },
     {
@@ -87,16 +91,28 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
             </button>
           )}
           {can('vatRecord', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Edit"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
           )}
           {can('vatRecord', 'delete') && (
             <button
@@ -108,6 +124,18 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
         </div>

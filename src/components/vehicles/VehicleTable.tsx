@@ -1,12 +1,16 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, Trash2, DollarSign, RotateCw } from 'lucide-react';
+import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
 import { addDays } from 'date-fns';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+// In each table component
+import { generateAndUploadDocument } from '../../utils/documentGenerator';
+import { VehicleDocument } from '../pdf/documents';
 
 interface VehicleTableProps {
   vehicles: Vehicle[];
@@ -15,6 +19,8 @@ interface VehicleTableProps {
   onDelete: (vehicle: Vehicle) => void;
   onMarkAsSold: (vehicle: Vehicle) => void;
   onUndoSale: (vehicle: Vehicle) => void;
+   onGenerateDocument: (vehicle: Vehicle) => Promise<void>;
+  onViewDocument: (url: string) => void;
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -24,6 +30,8 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onDelete,
   onMarkAsSold,
   onUndoSale,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
 
@@ -78,7 +86,23 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
     return aEarliestExpiry - bEarliestExpiry;
   });
-
+  const handleGenerateDocument = async (record: Vehicle) => {
+  try {
+    const documentUrl = await generateAndUploadDocument(
+      VehicleDocument,
+      record,
+      'vehicles',
+      record.id,
+      'vehicles'
+    );
+    
+    toast.success('Document generated successfully');
+    return documentUrl;
+  } catch (error) {
+    console.error('Error generating document:', error);
+    toast.error('Failed to generate document');
+  }
+};
   const columns = [
     {
       header: 'Vehicle',
@@ -167,7 +191,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
         return (
           <div className="space-y-2">
-            <div className={isExpiringOrExpired(vehicle.motExpiry) ? 'text-red-600 font-medium' : ''}>
+            <div className={vehicle.motExpiry}>
               MOT Test Date: {formatDate(vehicle.motExpiry)}
             </div>
             <div className={isExpiringOrExpired(motExpiry) ? 'text-red-600 font-medium' : ''}>
@@ -232,20 +256,18 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               </button>
             </>
           )}
-
-{can('vehicles', 'update') && row.original.status === 'sold' && ( // Show only if status is sold
+          {can('vehicles', 'update') && row.original.status === 'sold' && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onUndoSale(row.original); // Call the undo sale function
+                onUndoSale(row.original);
               }}
-              className="text-orange-600 hover:text-orange-800" // Use a different color
+              className="text-orange-600 hover:text-orange-800"
               title="Undo Sale"
             >
-              <RotateCw className="h-4 w-4" /> {/* Or use a specific "undo" icon */}
+              <RotateCw className="h-4 w-4" />
             </button>
           )}
-
           {can('vehicles', 'delete') && row.original.status === 'sold' && (
             <button
               onClick={(e) => {
@@ -256,6 +278,33 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {/* Document actions */}
+          {can('vehicles', 'update') && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onGenerateDocument(row.original);
+            }}
+            className="text-green-600 hover:text-green-800"
+            title="Generate Document"
+          >
+            <FileText className="h-4 w-4" />
+          </button>
+          )}
+          
+          {row.original.documentUrl && can('vehicles', 'view') && (
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
         </div>

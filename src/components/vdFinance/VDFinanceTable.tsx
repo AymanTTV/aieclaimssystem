@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { VDFinanceRecord } from '../../types/vdFinance';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 
@@ -10,6 +10,8 @@ interface VDFinanceTableProps {
   onView: (record: VDFinanceRecord) => void;
   onEdit: (record: VDFinanceRecord) => void;
   onDelete: (record: VDFinanceRecord) => void;
+  onGenerateDocument: (record: VDFinanceRecord) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
@@ -17,6 +19,8 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
 
@@ -83,16 +87,28 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
             </button>
           )}
           {can('claims', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Edit"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
           )}
           {can('claims', 'delete') && (
             <button
@@ -104,6 +120,18 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
         </div>

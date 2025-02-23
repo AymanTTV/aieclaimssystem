@@ -12,10 +12,14 @@ import { PettyCashTransaction } from '../types/pettyCash';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { PettyCashDocument } from '../components/pdf/documents';
+import { useAuth } from '../context/AuthContext';
 
 const PettyCash = () => {
   const { transactions, loading } = usePettyCash();
   const { can } = usePermissions();
+  const { user } = useAuth();
 
   const {
     searchQuery,
@@ -52,6 +56,27 @@ const PettyCash = () => {
     }
   };
 
+  const handleGenerateDocument = async (transaction: PettyCashTransaction) => {
+    try {
+      await generateAndUploadDocument(
+        PettyCashDocument,
+        transaction,
+        'pettyCash',
+        transaction.id,
+        'pettyCash'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -80,7 +105,6 @@ const PettyCash = () => {
           <h3 className="text-sm font-medium text-gray-500">Profit Margin</h3>
           <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
         </div>
-      
       </div>
 
       {/* Header with Search and Filters */}
@@ -104,6 +128,8 @@ const PettyCash = () => {
         onView={setSelectedTransaction}
         onEdit={setEditingTransaction}
         onDelete={setDeletingTransaction}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

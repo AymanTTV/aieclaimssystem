@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { PettyCashTransaction } from '../../types/pettyCash';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 
@@ -10,6 +10,8 @@ interface PettyCashTableProps {
   onView: (transaction: PettyCashTransaction) => void;
   onEdit: (transaction: PettyCashTransaction) => void;
   onDelete: (transaction: PettyCashTransaction) => void;
+  onGenerateDocument: (transaction: PettyCashTransaction) => void;
+  onViewDocument: (url: string) => void;
   collectionName?: string;
 }
 
@@ -18,25 +20,11 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument,
+  collectionName = 'pettyCash'
 }) => {
   const { can } = usePermissions();
-
-  // Sort transactions by date descending (newest first)
-  const sortedTransactions = [...transactions].sort((a, b) => 
-    b.date.getTime() - a.date.getTime()
-  );
-
-  // Calculate running balance from bottom to top
-  let runningBalance = 0;
-  const transactionsWithBalance = [...sortedTransactions]
-    .reverse() // Reverse to calculate from oldest to newest
-    .map(transaction => {
-      const amountIn = Number(transaction.amountIn) || 0;
-      const amountOut = Number(transaction.amountOut) || 0;
-      runningBalance += amountIn - amountOut;
-      return { ...transaction, balance: runningBalance };
-    })
-    .reverse(); // Reverse back to show newest first
 
   const columns = [
     {
@@ -117,16 +105,28 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
             </button>
           )}
           {can('pettyCash', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Edit"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
           )}
           {can('pettyCash', 'delete') && (
             <button
@@ -140,6 +140,18 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -147,7 +159,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
 
   return (
     <DataTable
-      data={transactionsWithBalance}
+      data={transactions}
       columns={columns}
       onRowClick={(transaction) => can('pettyCash', 'view') && onView(transaction)}
     />

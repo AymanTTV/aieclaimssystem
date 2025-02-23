@@ -1,205 +1,117 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { Accident } from '../../types';
-import { Eye, Edit, Trash2, FileText, MapPin, Calendar, Clock, User, Car, Phone, Shield, AlertTriangle } from 'lucide-react';
-import StatusBadge from '../StatusBadge';
+import { Accident, Vehicle } from '../../types';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
+import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 
 interface AccidentClaimTableProps {
   accidents: Accident[];
+  vehicles: Vehicle[];
   onView: (accident: Accident) => void;
   onEdit: (accident: Accident) => void;
   onDelete: (accident: Accident) => void;
+  onGenerateDocument: (accident: Accident) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
   accidents,
+  vehicles,
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
 
   const columns = [
     {
-    header: 'Reference Info',
-    cell: ({ row }) => (
-      <div className="space-y-1">
-        <div className="flex items-center">
-          <FileText className="w-4 h-4 text-gray-400 mr-2" />
-          <div>
-            <div className="font-medium">No: {row.original.referenceNo}</div>
-            <div className="text-sm text-gray-500">Name: {row.original.referenceName}</div>
+      header: 'Reference Info',
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <div className="flex items-center">
+            <div>
+              <div className="font-medium">No: {row.original.refNo}</div>
+              <div className="text-sm text-gray-500">Name: {row.original.referenceName}</div>
+            </div>
           </div>
         </div>
-      </div>
-    ),
-  },
+      ),
+    },
     {
       header: 'Driver Information',
       cell: ({ row }) => (
-        <div className="space-y-1">
-          <div className="flex items-center">
-            <User className="w-4 h-4 text-gray-400 mr-2" />
-            <div>
-              <div className="font-medium">{row.original.driverName}</div>
-              <div className="text-sm text-gray-500">NIN: {row.original.driverNIN}</div>
-            </div>
-          </div>
-          <div className="flex items-center text-sm text-gray-500">
-            <Phone className="w-4 h-4 text-gray-400 mr-2" />
-            <div>
-              <div>Mobile: {row.original.driverMobile}</div>
-              <div>Phone: {row.original.driverPhone}</div>
-            </div>
-          </div>
-          <div className="flex items-center text-sm text-gray-500">
-            <MapPin className="w-4 h-4 text-gray-400 mr-2" />
-            <div>
-              <div>{row.original.driverAddress}</div>
-              <div>Post Code: {row.original.driverPostCode}</div>
-            </div>
-          </div>
+        <div>
+          <div className="font-medium">{row.original.driverName}</div>
+          <div className="text-sm text-gray-500">NIN: {row.original.driverNIN}</div>
+          <div className="text-sm text-gray-500">Mobile: {row.original.driverMobile}</div>
         </div>
       ),
     },
     {
-      header: 'Vehicle Details',
+      header: 'Vehicle',
       cell: ({ row }) => (
-        <div className="space-y-1">
-          <div className="flex items-center">
-            <Car className="w-4 h-4 text-gray-400 mr-2" />
-            <div>
-              <div className="font-medium">
-                {row.original.vehicleMake} {row.original.vehicleModel}
-              </div>
-              <div className="text-sm text-gray-500">VRN: {row.original.vehicleVRN}</div>
-            </div>
+        <div>
+          <div className="font-medium">
+            {row.original.vehicleMake} {row.original.vehicleModel}
           </div>
-          <div className="text-sm text-gray-500">
-            <div>Insurance: {row.original.insuranceCompany}</div>
-            <div>Policy: {row.original.policyNumber}</div>
-            {row.original.policyExcess && (
-              <div>Excess: £{row.original.policyExcess}</div>
-            )}
-          </div>
-        </div>
-      ),
-    },
-    // {
-    //   header: 'Accident Details',
-    //   cell: ({ row }) => (
-    //     <div className="space-y-1">
-    //       <div className="flex items-center">
-    //         <Calendar className="w-4 h-4 text-gray-400 mr-2" />
-    //         <span>{row.original.accidentDate}</span>
-    //       </div>
-    //       <div className="flex items-center">
-    //         <Clock className="w-4 h-4 text-gray-400 mr-2" />
-    //         <span>{row.original.accidentTime}</span>
-    //       </div>
-    //       <div className="flex items-center">
-    //         <MapPin className="w-4 h-4 text-gray-400 mr-2" />
-    //         <span>{row.original.accidentLocation}</span>
-    //       </div>
-    //       <div className="text-sm text-gray-500 mt-1">
-    //         <div className="font-medium">Description:</div>
-    //         <div className="line-clamp-2">{row.original.description}</div>
-    //       </div>
-    //     </div>
-    //   ),
-    // },
-    {
-      header: 'Fault Party',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <div className="font-medium">{row.original.faultPartyName}</div>
-          <div className="text-sm text-gray-500">
-            <div>Vehicle: {row.original.faultPartyVehicle}</div>
-            <div>VRN: {row.original.faultPartyVRN}</div>
-            {row.original.faultPartyInsurance && (
-              <div>Insurance: {row.original.faultPartyInsurance}</div>
-            )}
-          </div>
-          {row.original.faultPartyPhone && (
-            <div className="flex items-center text-sm text-gray-500">
-              <Phone className="w-4 h-4 text-gray-400 mr-1" />
-              {row.original.faultPartyPhone}
-            </div>
-          )}
+          <div className="text-sm text-gray-500">VRN: {row.original.vehicleVRN}</div>
         </div>
       ),
     },
     {
-      header: 'Additional Info',
+      header: 'Status',
       cell: ({ row }) => (
         <div className="space-y-1">
-          {row.original.policeOfficerName && (
-            <div className="flex items-center">
-              <Shield className="w-4 h-4 text-gray-400 mr-2" />
-              <div className="text-sm">
-                <div>Officer: {row.original.policeOfficerName}</div>
-                <div className="text-gray-500">CAD: {row.original.policeIncidentNumber}</div>
-              </div>
-            </div>
-          )}
-          {row.original.paramedicNames && (
-            <div className="flex items-center">
-              <AlertTriangle className="w-4 h-4 text-gray-400 mr-2" />
-              <div className="text-sm">
-                <div>Paramedic: {row.original.paramedicNames}</div>
-                <div className="text-gray-500">Ref: {row.original.ambulanceReference}</div>
-              </div>
-            </div>
-          )}
-          {row.original.images && row.original.images.length > 0 && (
-            <div className="text-sm text-gray-500">
-              {row.original.images.length} image(s) attached
-            </div>
+          <StatusBadge status={row.original.status} />
+          {row.original.type && row.original.type !== 'pending' && (
+            <StatusBadge status={row.original.type} />
           )}
         </div>
       ),
     },
-    // {
-    //   header: 'Status',
-    //   cell: ({ row }) => (
-    //     <div className="space-y-1">
-    //       <StatusBadge status={row.original.status} />
-    //       {row.original.type && row.original.type !== 'pending' && (
-    //         <StatusBadge status={row.original.type} />
-    //       )}
-    //       <div className="text-xs text-gray-500">
-    //         {format(row.original.submittedAt, 'dd/MM/yyyy HH:mm')}
-    //       </div>
-    //     </div>
-    //   ),
-    // },
     {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          {can('accidents', 'update') && (
+          {can('accidents', 'view') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onEdit(row.original);
+                onView(row.original);
               }}
               className="text-blue-600 hover:text-blue-800"
-              title="Edit"
+              title="View Details"
             >
-              <Edit className="h-4 w-4" />
+              <Eye className="h-4 w-4" />
             </button>
+          )}
+          {can('accidents', 'update') && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
           )}
           {can('accidents', 'delete') && (
             <button
@@ -213,6 +125,18 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -222,7 +146,7 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
     <DataTable
       data={accidents}
       columns={columns}
-      onRowClick={(accident) => onView(accident)}
+      onRowClick={(accident) => can('accidents', 'view') && onView(accident)}
     />
   );
 };

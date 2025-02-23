@@ -1,9 +1,7 @@
-// src/components/driverPay/DriverPayTable.tsx
-
-import React, { useMemo } from 'react';
+import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { DriverPay, PaymentPeriod } from '../../types/driverPay';
-import { Eye, Edit, DollarSign, Trash2 } from 'lucide-react';
+import { DriverPay } from '../../types/driverPay';
+import { Eye, Edit, DollarSign, Trash2, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
@@ -15,6 +13,8 @@ interface DriverPayTableProps {
   onEdit: (record: DriverPay) => void;
   onDelete: (record: DriverPay) => void;
   onRecordPayment: (record: DriverPay) => void;
+  onGenerateDocument: (record: DriverPay) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const DriverPayTable: React.FC<DriverPayTableProps> = ({
@@ -22,18 +22,11 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onRecordPayment
+  onRecordPayment,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
-
-  // Sort records by createdAt (earliest first)
-  const sortedRecords = useMemo(() => {
-    return [...records].sort((a, b) => {
-      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
-      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
-      return dateA.getTime() - dateB.getTime();
-    });
-  }, [records]);
 
   const checkDriverRed = (periods: PaymentPeriod[]): { isRed: boolean; reason: string } => {
     if (periods.length === 0) return { isRed: false, reason: "" };
@@ -171,6 +164,16 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                   <DollarSign className="h-4 w-4" />
                 </button>
               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
             </>
           )}
           {can('driverPay', 'delete') && (
@@ -185,6 +188,18 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -192,7 +207,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
 
   return (
     <DataTable
-      data={sortedRecords}
+      data={records}
       columns={columns}
       onRowClick={(record) => can('driverPay', 'view') && onView(record)}
     />

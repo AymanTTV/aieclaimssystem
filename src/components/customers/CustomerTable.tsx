@@ -1,18 +1,18 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Customer } from '../../types/customer';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { formatDate } from '../../utils/dateHelpers';
-import { isExpired } from '../../types/customer';
-import { usePermissions } from '../../hooks/usePermissions';
 import { isExpiringOrExpired } from '../../types/customer';
-import { addYears, addDays } from 'date-fns';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface CustomerTableProps {
   customers: Customer[];
   onView: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
+  onGenerateDocument: (customer: Customer) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const CustomerTable: React.FC<CustomerTableProps> = ({
@@ -20,43 +20,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
-  const { can } = usePermissions(); // Move hook inside component
-  const sortedCustomers = useMemo(() => {
-    const now = new Date();
-    const thirtyDays = addDays(now, 30);
+  const { can } = usePermissions();
 
-    const countExpiringDocs = (customer: Customer) => {
-      let count = 0;
-
-      if (customer.licenseExpiry && isExpiringOrExpired(customer.licenseExpiry)) count += 1; // Expired or expiring
-      if (customer.billExpiry && isExpiringOrExpired(customer.billExpiry)) count += 1; // Expired or expiring
-
-      return count;
-    };
-
-
-    return [...customers].sort((a, b) => {
-      const aCount = countExpiringDocs(a);
-      const bCount = countExpiringDocs(b);
-
-      if (aCount !== bCount) {
-        return bCount - aCount; // Descending order of expiring docs
-      }
-
-      // Tiebreaker: Earliest expiry date (ascending) - Handle nulls
-      const getEarliestExpiry = (customer: Customer) => {
-        const dates = [customer.licenseExpiry, customer.billExpiry].filter(date => date instanceof Date);
-        if (dates.length === 0) return new Date('9999-99-99'); // All past/invalid dates last
-        return Math.min(...dates.map(date => date.getTime()));
-      };
-
-      const aEarliestExpiry = getEarliestExpiry(a);
-      const bEarliestExpiry = getEarliestExpiry(b);
-
-      return aEarliestExpiry - bEarliestExpiry;
-    });
-  }, [customers]);
   const columns = [
     {
       header: 'Name',
@@ -73,24 +41,15 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       header: 'Mobile',
       accessorKey: 'mobile',
     },
-    // {
-    //   header: 'Email',
-    //   accessorKey: 'email',
-    // },
     {
       header: 'Age',
       accessorKey: 'age',
     },
-    // {
-    //   header: 'License Valid From',
-    //   cell: ({ row }) => formatDate(row.original.licenseValidFrom),
-    // },
     {
-      // ... other columns
       header: 'License Expiry',
       cell: ({ row }) => {
         const date = row.original.licenseExpiry;
-        const expiredOrExpiring = isExpiringOrExpired(date); // Use the new function
+        const expiredOrExpiring = isExpiringOrExpired(date);
 
         return (
           <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
@@ -99,16 +58,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
         );
       },
     },
-    // {
-    //   header: 'Badge Number',
-    //   accessorKey: 'badgeNumber',
-    // },
     {
-      // ... other columns
       header: 'Bill Expiry',
       cell: ({ row }) => {
         const date = row.original.billExpiry;
-        const expiredOrExpiring = isExpiringOrExpired(date); // Use the new function
+        const expiredOrExpiring = isExpiringOrExpired(date);
 
         return (
           <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
@@ -136,41 +90,65 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       cell: ({ row }) => (
         <div className="flex space-x-2">
           {can('customers', 'view') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onView(row.original);
-      }}
-      className="text-blue-600 hover:text-blue-800"
-      title="View Details"
-    >
-      <Eye className="h-4 w-4" />
-    </button>
-  )}
-  {can('customers', 'update') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onEdit(row.original);
-      }}
-      className="text-blue-600 hover:text-blue-800"
-      title="Edit"
-    >
-      <Edit className="h-4 w-4" />
-    </button>
-  )}
-  {can('customers', 'delete') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onDelete(row.original);
-      }}
-      className="text-red-600 hover:text-red-800"
-      title="Delete"
-    >
-      <Trash2 className="h-4 w-4" />
-    </button>
-  )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {can('customers', 'update') && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {can('customers', 'delete') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
+              className="text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -178,9 +156,9 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
   return (
     <DataTable
-      data={sortedCustomers} // Use the sorted customers
+      data={customers}
       columns={columns}
-      onRowClick={(customer) => onView(customer)}
+      onRowClick={(customer) => can('customers', 'view') && onView(customer)}
     />
   );
 };

@@ -13,7 +13,7 @@ import { Plus, Download, RotateCw } from 'lucide-react'; // Changed from Refresh
 import { handleVehicleExport } from '../utils/vehicleHelpers';
 import { useVehicleStatusManager, resetAllVehicleStatuses } from '../hooks/useVehicleStatusManager';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc, collection, query, where, getDocs, writeBatch, addDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, writeBatch, addDoc, getDoc } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import toast from 'react-hot-toast';
@@ -25,6 +25,8 @@ import VehicleUndoSaleModal from '../components/vehicles/VehicleUndoSaleModal';
 
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { VehicleDocument } from '../components/pdf/documents';
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
@@ -64,6 +66,26 @@ const Vehicles = () => {
     console.error('Error exporting vehicles:', error);
     toast.error('Failed to export vehicles');
   }
+};
+
+  const handleGenerateDocument = async (vehicle: Vehicle) => {
+  try {
+    await generateAndUploadDocument(
+      VehicleDocument,
+      vehicle,
+      'vehicles',
+      vehicle.id,
+      'vehicles'
+    );
+    toast.success('Document generated successfully');
+  } catch (error) {
+    console.error('Error generating document:', error);
+    toast.error('Failed to generate document');
+  }
+};
+
+const handleViewDocument = (url: string) => {
+  window.open(url, '_blank');
 };
 
   const handleSubmit = async (data: Partial<Vehicle>) => {
@@ -164,13 +186,16 @@ const Vehicles = () => {
       />
 
       <VehicleTable
-        vehicles={filteredVehicles}
-        onView={setSelectedVehicle}
-        onEdit={setEditingVehicle}
-        onDelete={setDeletingVehicle}
-        onMarkAsSold={setSellingVehicle}
-        onUndoSale={setUndoingSaleVehicle} //
-      />
+  vehicles={filteredVehicles}
+  onView={setSelectedVehicle}
+  onEdit={setEditingVehicle}
+  onDelete={setDeletingVehicle}
+  onMarkAsSold={setSellingVehicle}
+  onUndoSale={setUndoingSaleVehicle}
+  onGenerateDocument={handleGenerateDocument}
+  onViewDocument={handleViewDocument}
+/>
+
 
       {/* Modals */}
       {selectedVehicle && (

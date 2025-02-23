@@ -14,7 +14,8 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { CustomerDocument } from '../components/pdf/documents';
 
 const Customers = () => {
   const { customers, loading } = useCustomers();
@@ -51,6 +52,27 @@ const Customers = () => {
     }
   };
 
+  const handleGenerateDocument = async (customer: Customer) => {
+    try {
+      await generateAndUploadDocument(
+        CustomerDocument,
+        customer,
+        'customers',
+        customer.id,
+        'customers'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -65,37 +87,23 @@ const Customers = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
         <div className="flex space-x-2">
-          
-              {user?.role === 'manager' && (
-  <button
-    onClick={() => handleCustomerExport(customers)}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}
-
-              {/* <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
-                <Upload className="h-5 w-5 mr-2" />
-                Import
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".csv,.xlsx"
-                  onChange={(e) => e.target.files && handleCustomerImport(e.target.files[0])}
-                />
-              </label> */}
+          {user?.role === 'manager' && (
+            <button
+              onClick={() => handleCustomerExport(customers)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
           {can('customers', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Customer
-              </button>
-            </>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add Customer
+            </button>
           )}
         </div>
       </div>
@@ -120,6 +128,8 @@ const Customers = () => {
         onView={setSelectedCustomer}
         onEdit={setEditingCustomer}
         onDelete={setDeletingCustomer}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

@@ -1,5 +1,3 @@
-// src/pages/VDFinance.tsx
-
 import React, { useState } from 'react';
 import { useVDFinance } from '../hooks/useVDFinance';
 import { useVehicles } from '../hooks/useVehicles';
@@ -17,6 +15,8 @@ import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { VDFinanceDocument } from '../components/pdf/documents';
 
 const VDFinance = () => {
   const { records, loading } = useVDFinance();
@@ -69,6 +69,30 @@ const VDFinance = () => {
       console.error('Error deleting record:', error);
       toast.error('Failed to delete record');
     }
+  };
+
+  const handleGenerateDocument = async (record: VDFinanceRecord) => {
+    try {
+      // Find associated vehicle if exists
+      const vehicle = vehicles.find(v => v.registrationNumber === record.registration);
+      
+      await generateAndUploadDocument(
+        VDFinanceDocument,
+        { ...record, vehicle },
+        'vdFinance',
+        record.id,
+        'vdFinance'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
   };
 
   // Filter records based on search and date range
@@ -138,6 +162,8 @@ const VDFinance = () => {
         onView={setSelectedRecord}
         onEdit={setEditingRecord}
         onDelete={setDeletingRecord}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

@@ -14,8 +14,8 @@ import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import PersonalInjuryStatusModal from '../components/personalInjury/PersonalInjuryStatusModal';
 import { useAuth } from '../context/AuthContext';
-
-
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { PersonalInjuryDocument } from '../components/pdf/documents';
 
 const PersonalInjuryPage = () => {
   const { injuries, loading } = usePersonalInjuries();
@@ -24,38 +24,37 @@ const PersonalInjuryPage = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  
   const [updatingStatus, setUpdatingStatus] = useState<PersonalInjuryType | null>(null);
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
     start: null,
     end: null
   });
 
-  
-
   const [showForm, setShowForm] = useState(false);
   const [selectedInjury, setSelectedInjury] = useState<PersonalInjuryType | null>(null);
   const [editingInjury, setEditingInjury] = useState<PersonalInjuryType | null>(null);
   const [deletingInjury, setDeletingInjury] = useState<PersonalInjuryType | null>(null);
 
-
-  
-
   const handleExport = () => {
-    const exportData = injuries.map(injury => ({
-      'Full Name': injury.fullName,
-      'Date of Birth': injury.dateOfBirth.toLocaleDateString(),
-      'Contact Number': injury.contactNumber,
-      'Email': injury.emailAddress,
-      'Incident Date': injury.incidentDate.toLocaleDateString(),
-      'Incident Time': injury.incidentTime,
-      'Location': injury.incidentLocation,
-      'Status': injury.status,
-      'Created At': injury.createdAt.toLocaleDateString()
-    }));
+    try {
+      const exportData = injuries.map(injury => ({
+        'Full Name': injury.fullName,
+        'Date of Birth': injury.dateOfBirth.toLocaleDateString(),
+        'Contact Number': injury.contactNumber,
+        'Email': injury.emailAddress,
+        'Incident Date': injury.incidentDate.toLocaleDateString(),
+        'Incident Time': injury.incidentTime,
+        'Location': injury.incidentLocation,
+        'Status': injury.status,
+        'Created At': injury.createdAt.toLocaleDateString()
+      }));
 
-    exportToExcel(exportData, 'personal_injuries');
-    toast.success('Personal injuries exported successfully');
+      exportToExcel(exportData, 'personal_injuries');
+      toast.success('Personal injuries exported successfully');
+    } catch (error) {
+      console.error('Error exporting records:', error);
+      toast.error('Failed to export records');
+    }
   };
 
   const handleDelete = async (injury: PersonalInjury) => {
@@ -69,8 +68,28 @@ const PersonalInjuryPage = () => {
     }
   };
 
-  const filteredInjuries = injuries.filter(injury => {
+  const handleGenerateDocument = async (injury: PersonalInjuryType) => {
+    try {
+      await generateAndUploadDocument(
+        PersonalInjuryDocument,
+        injury,
+        'personalInjuries',
+        injury.id,
+        'personalInjuries'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
 
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
+  const filteredInjuries = injuries.filter(injury => {
     const matchesSearch = 
       injury.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       injury.emailAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -100,27 +119,23 @@ const PersonalInjuryPage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Personal Injury Claims</h1>
         <div className="flex space-x-2">
-          
-              {user?.role === 'manager' && (
-  <button
-    onClick={handleExport}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}
-
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
           {can('claims', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                New Claim
-              </button>
-            </>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              New Claim
+            </button>
           )}
         </div>
       </div>
@@ -134,28 +149,30 @@ const PersonalInjuryPage = () => {
         onDateRangeChange={setDateRange}
       />
 
-<PersonalInjuryTable
-  injuries={filteredInjuries}
-  onView={setSelectedInjury}
-  onEdit={setEditingInjury}
-  onDelete={setDeletingInjury}
-  onUpdateStatus={setUpdatingStatus} // Add this line
-/>
+      <PersonalInjuryTable
+        injuries={filteredInjuries}
+        onView={setSelectedInjury}
+        onEdit={setEditingInjury}
+        onDelete={setDeletingInjury}
+        onUpdateStatus={setUpdatingStatus}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
+      />
 
       {/* Modals */}
-
       <Modal
-  isOpen={!!updatingStatus}
-  onClose={() => setUpdatingStatus(null)}
-  title="Update Status"
->
-  {updatingStatus && (
-    <PersonalInjuryStatusModal
-      injury={updatingStatus}
-      onClose={() => setUpdatingStatus(null)}
-    />
-  )}
-</Modal>
+        isOpen={!!updatingStatus}
+        onClose={() => setUpdatingStatus(null)}
+        title="Update Status"
+      >
+        {updatingStatus && (
+          <PersonalInjuryStatusModal
+            injury={updatingStatus}
+            onClose={() => setUpdatingStatus(null)}
+          />
+        )}
+      </Modal>
+
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -164,7 +181,6 @@ const PersonalInjuryPage = () => {
       >
         <PersonalInjuryForm onClose={() => setShowForm(false)} />
       </Modal>
-
 
       <Modal
         isOpen={!!selectedInjury}

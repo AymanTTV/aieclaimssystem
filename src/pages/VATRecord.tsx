@@ -17,6 +17,8 @@ import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { exportToExcel } from '../utils/excel';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { VATRecordDocument } from '../components/pdf/documents';
 
 const VATRecordPage = () => {
   const { records, loading } = useVATRecords();
@@ -76,6 +78,27 @@ const VATRecordPage = () => {
     }
   };
 
+  const handleGenerateDocument = async (record: VATRecord) => {
+    try {
+      await generateAndUploadDocument(
+        VATRecordDocument,
+        record,
+        'vatRecords',
+        record.id,
+        'vatRecords'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -102,7 +125,6 @@ const VATRecordPage = () => {
           </p>
         </div>
         
-
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total GROSS</h3>
           <p className="mt-2 text-3xl font-semibold text-gray-900">
@@ -159,6 +181,8 @@ const VATRecordPage = () => {
         onView={setSelectedRecord}
         onEdit={setEditingRecord}
         onDelete={setDeletingRecord}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

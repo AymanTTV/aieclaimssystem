@@ -1,12 +1,10 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle } from '../../types';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
-import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
-
-
+import { format } from 'date-fns';
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -14,6 +12,8 @@ interface TransactionTableProps {
   onView: (transaction: Transaction) => void;
   onEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
+  onGenerateDocument: (transaction: Transaction) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
@@ -22,17 +22,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
-
   const { can } = usePermissions();
 
-  
   const columns = [
     {
       header: 'Date',
       cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
     },
-     {
+    {
       header: 'Status',
       cell: ({ row }) => (
         <div className="space-y-1">
@@ -64,15 +64,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       },
     },
     {
-      header: 'Owner',
-      cell: ({ row }) => {
-        if (!row.original.vehicleId) return 'N/A';
-        const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
-        return vehicle?.owner?.isDefault ? 'AIE Skyline' : vehicle?.owner?.name || 'N/A';
-      },
-    },
-
-    {
       header: 'Amount',
       cell: ({ row }) => (
         <span className={row.original.type === 'income' ? 'text-green-600' : 'text-red-600'}>
@@ -80,54 +71,71 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         </span>
       ),
     },
-    // {
-    //   header: 'Description',
-    //   accessorKey: 'description',
-    // },
     {
       header: 'Actions',
       cell: ({ row }) => (
-       
-<div className="flex space-x-2">
-  {can('finance', 'view') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onView(row.original);
-      }}
-      className="text-blue-600 hover:text-blue-800"
-      title="View Details"
-    >
-      <Eye className="h-4 w-4" />
-    </button>
-  )}
-  {can('finance', 'update') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onEdit(row.original);
-      }}
-      className="text-blue-600 hover:text-blue-800"
-      title="Edit"
-    >
-      <Edit className="h-4 w-4" />
-    </button>
-  )}
-  {can('finance', 'delete') && (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onDelete(row.original);
-      }}
-      className="text-red-600 hover:text-red-800"
-      title="Delete"
-    >
-      <Trash2 className="h-4 w-4" />
-    </button>
-  )}
-</div>
-
-
+        <div className="flex space-x-2">
+          {can('finance', 'view') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {can('finance', 'update') && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGenerateDocument(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {can('finance', 'delete') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
+              className="text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       ),
     },
   ];
@@ -136,9 +144,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     <DataTable
       data={transactions}
       columns={columns}
-      onRowClick={(transaction) => onView(transaction)}
+      onRowClick={(transaction) => can('finance', 'view') && onView(transaction)}
     />
-  
   );
 };
 

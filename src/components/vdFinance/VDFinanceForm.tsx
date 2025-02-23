@@ -38,9 +38,10 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
     reference: record?.reference || '',
     registration: record?.registration || '',
     totalAmount: record?.totalAmount || 0,
-    vatRate: record?.vatRate || 20,
+    vatRate: record?.vatRate || 0,
     description: record?.description || '',
     clientRepairPercentage: record?.clientRepairPercentage || 20,
+    solicitorFee: record?.solicitorFee ?? (record?.netAmount ? record.netAmount * 0.1 : 0),
     laborHours: record?.laborHours || 0,
     laborRate: record?.laborRate || 75,
     serviceCenter: record?.serviceCenter || '',
@@ -51,11 +52,18 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   const laborTotal = formData.laborHours * formData.laborRate * (includeVATOnLabor ? 1.2 : 1);
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData(prevData => ({
-      ...prevData,
-      [field]: value
-    }));
+    setFormData(prevData => {
+      const updatedData = { ...prevData, [field]: value };
+  
+      // If the solicitor fee is manually changed, we shouldn't recalculate it using percentage.
+      if (field === 'solicitorFee') {
+        updatedData.solicitorFee = parseFloat(value) || 0;
+      }
+  
+      return updatedData;
+    });
   };
+  
 
   useEffect(() => {
   const fetchClaims = async () => {
@@ -89,20 +97,24 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
 }, [record?.claimId]);
 
 
-  const calculateCosts = () => {
+const calculateCosts = () => {
   // Round to 2 decimal places
   const round = (num: number) => Math.round(num * 100) / 100;
-  
+
   const totalAmount = round(parseFloat(formData.totalAmount.toString()));
   const vatRate = round(parseFloat(formData.vatRate.toString()) / 100);
-  
+
   // Calculate NET amount and VAT IN
   const netAmount = round(totalAmount / (1 + vatRate));
   const vatIn = round(totalAmount - netAmount);
-  
-  // Calculate solicitor fee (10% of total, capped at £500)
-  const solicitorFee = round(Math.min(totalAmount * 0.1, 500));
-  
+
+  // If the user has manually entered a solicitor fee, use that value
+  const solicitorFee = formData.solicitorFee !== undefined 
+    ? round(parseFloat(formData.solicitorFee.toString()) || 0)
+    : round(netAmount * 0.1);
+  // Calculate client repair (percentage of net amount)
+  const clientRepair = round(netAmount * (formData.clientRepairPercentage / 100));
+
   // Calculate parts total with VAT
   const partsTotal = round(parts.reduce((sum, part) => {
     const partTotal = round(part.price * part.quantity);
@@ -111,23 +123,17 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
 
   // Calculate labor total with VAT
   const laborTotal = round(formData.laborHours * formData.laborRate * (includeVATOnLabor ? 1.2 : 1));
-  
+
   // Calculate total purchased items
   const purchasedItems = round(partsTotal + laborTotal);
-  
+
   // Calculate VAT OUT
   const vatOut = round(parts.reduce((sum, part) => {
     return round(sum + (part.includeVAT ? round(part.price * part.quantity * 0.2) : 0));
   }, 0) + (includeVATOnLabor ? round(formData.laborHours * formData.laborRate * 0.2) : 0));
-  
-  // Calculate remaining after purchase and solicitor fee
-  const remainingAfterPurchase = round(netAmount - purchasedItems - solicitorFee);
-  
-  // Calculate client repair (20% of remaining)
-  const clientRepair = round(remainingAfterPurchase * (formData.clientRepairPercentage / 100));
-  
-  // Calculate final profit
-  const profit = round(remainingAfterPurchase - clientRepair);
+
+  // Calculate final profit, ensuring solicitorFee is subtracted
+  const profit = round(netAmount - clientRepair - purchasedItems - solicitorFee);
 
   return {
     netAmount,
@@ -139,6 +145,10 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
     profit
   };
 };
+
+
+
+
 
 
 
@@ -466,6 +476,18 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
     Default is 20%. This percentage is applied to the remaining amount after purchased items.
   </p>
 </div>
+  
+<div className="space-y-2">
+  <label>Solicitor Fee :</label>
+  <FormField
+  label="Solicitor Fee (£)"
+  value={formData.solicitorFee}
+  onChange={(e) => handleFormChange('solicitorFee', e.target.value)}
+  type="number"
+/>
+
+  </div>
+
 
      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
   {Object.entries(calculateCosts()).map(([key, value]) => (

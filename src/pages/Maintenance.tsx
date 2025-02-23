@@ -2,29 +2,26 @@ import React, { useState } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
-import { usePermissions } from '../hooks/usePermissions';
 import MaintenanceTable from '../components/maintenance/MaintenanceTable';
 import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
-
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import Modal from '../components/ui/Modal';
 import { Plus, Download } from 'lucide-react';
-import { exportMaintenanceLogs } from '../utils/maintenanceExport';
+import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog } from '../types';
 import toast from 'react-hot-toast';
-import { useVehiclesContext } from '../utils/VehicleProvider';
+import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
-
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { MaintenanceDocument } from '../components/pdf/documents';
 
 const Maintenance = () => {
-  // const { vehicles, loading } = useVehiclesContext();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();
   const { user } = useAuth();
-
 
   // Create vehiclesMap for efficient lookups
   const vehiclesMap = React.useMemo(() => {
@@ -69,6 +66,32 @@ const Maintenance = () => {
     }
   };
 
+  const handleGenerateDocument = async (log: MaintenanceLog) => {
+    try {
+      const vehicle = vehiclesMap[log.vehicleId];
+      if (!vehicle) {
+        throw new Error('Vehicle not found');
+      }
+
+      await generateAndUploadDocument(
+        MaintenanceDocument,
+        { ...log, vehicle },
+        'maintenance',
+        log.id,
+        'maintenanceLogs'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   if (vehiclesLoading || logsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -82,27 +105,23 @@ const Maintenance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
         <div className="flex space-x-2">
-          
-              {user?.role === 'manager' && (
-  <button
-    onClick={handleExport}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}
-
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
           {can('maintenance', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Schedule Maintenance
-              </button>
-            </>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Schedule Maintenance
+            </button>
           )}
         </div>
       </div>
@@ -126,9 +145,12 @@ const Maintenance = () => {
           onView={setSelectedLog}
           onEdit={setEditingLog}
           onDelete={handleDelete}
+          onGenerateDocument={handleGenerateDocument}
+          onViewDocument={handleViewDocument}
         />
       </div>
-{/* Modals */}
+
+      {/* Modals */}
       <Modal
         isOpen={showForm || !!editingLog}
         onClose={() => {
@@ -147,7 +169,6 @@ const Maintenance = () => {
           editLog={editingLog || undefined}
         />
       </Modal>
-
 
       <Modal
         isOpen={!!selectedLog}

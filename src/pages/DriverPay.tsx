@@ -19,6 +19,8 @@ import DriverPayPaymentModal from '../components/driverPay/DriverPayPaymentModal
 import Modal from '../components/ui/Modal';
 import { exportToExcel } from '../utils/excel';
 import toast from 'react-hot-toast';
+import { generateAndUploadDocument } from '../utils/documentGenerator';
+import { DriverPayDocument } from '../components/pdf/documents';
 
 const DriverPayPage = () => {
   const { can } = usePermissions();
@@ -68,6 +70,38 @@ const DriverPayPage = () => {
       console.error('Error exporting records:', error);
       toast.error('Failed to export records');
     }
+  };
+
+  const handleDelete = async (record: DriverPay) => {
+    try {
+      await deleteDoc(doc(db, 'driverPay', record.id));
+      toast.success('Record deleted successfully');
+      setDeletingRecord(null);
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      toast.error('Failed to delete record');
+    }
+  };
+
+  const handleGenerateDocument = async (record: DriverPay) => {
+    try {
+      await generateAndUploadDocument(
+        DriverPayDocument,
+        record,
+        'driverPay',
+        record.id,
+        'driverPay'
+      );
+      
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleViewDocument = (url: string) => {
+    window.open(url, '_blank');
   };
 
   if (loading) {
@@ -131,6 +165,8 @@ const DriverPayPage = () => {
         onEdit={setEditingRecord}
         onDelete={setDeletingRecord}
         onRecordPayment={setRecordingPayment}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={handleViewDocument}
       />
 
       {/* Modals */}

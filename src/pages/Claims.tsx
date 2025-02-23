@@ -16,6 +16,9 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
+import ClaimSummaryCards from '../components/claims/ClaimSummaryCards';
+
+
 
 const Claims = () => {
   const { can } = usePermissions();
@@ -137,6 +140,7 @@ const Claims = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
+        
         <h1 className="text-2xl font-bold text-gray-900">Claims Management</h1>
         <div className="flex space-x-2">
          
@@ -163,7 +167,7 @@ const Claims = () => {
           )}
         </div>
       </div>
-
+      <ClaimSummaryCards claims={filteredClaims} />
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">

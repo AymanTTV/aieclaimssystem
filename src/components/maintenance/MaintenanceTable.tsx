@@ -1,13 +1,10 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
-import { formatDate } from '../../utils/dateHelpers';
-import { isAfter, isBefore, addDays } from 'date-fns';
-import { calculateOverdueCost } from '../../utils/rentalCalculations';
-import Modal from '../ui/Modal';
+import { format } from 'date-fns';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -15,6 +12,8 @@ interface MaintenanceTableProps {
   onView: (log: MaintenanceLog) => void;
   onEdit: (log: MaintenanceLog) => void;
   onDelete: (log: MaintenanceLog) => void;
+  onGenerateDocument: (log: MaintenanceLog) => void;
+  onViewDocument: (url: string) => void;
 }
 
 const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
@@ -23,44 +22,10 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument,
+  onViewDocument
 }) => {
   const { can } = usePermissions();
-  const [deletingLog, setDeletingLog] = React.useState<MaintenanceLog | null>(null);
-
-  // Handle delete confirmation
-  const handleDeleteClick = (log: MaintenanceLog, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDeletingLog(log);
-  };
-
-  const handleConfirmDelete = () => {
-    if (deletingLog) {
-      onDelete(deletingLog);
-      setDeletingLog(null);
-    }
-  };
-
-  // Sort logs by maintenance date
-  const sortedLogs = [...logs].sort((a, b) => {
-    const now = new Date();
-    const dateA = new Date(a.date);
-    const dateB = new Date(b.date);
-    
-    // Helper function to determine if a date is in the future
-    const isFuture = (date: Date) => isAfter(date, now);
-
-    // If both dates are in the future, closest date first
-    if (isFuture(dateA) && isFuture(dateB)) {
-      return dateA.getTime() - dateB.getTime();
-    }
-
-    // If only one date is in the future, it should come first
-    if (isFuture(dateA)) return -1;
-    if (isFuture(dateB)) return 1;
-
-    // If both dates are in the past, most recent first
-    return dateB.getTime() - dateA.getTime();
-  });
 
   const columns = [
     {
@@ -86,36 +51,9 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         </div>
       ),
     },
-    // {
-    //   header: 'Description',
-    //   cell: ({ row }) => (
-    //     <div className="max-w-md">
-    //       <p className="text-sm text-gray-900 truncate">{row.original.description}</p>
-    //       {row.original.notes && (
-    //         <p className="text-xs text-gray-500 truncate">{row.original.notes}</p>
-    //       )}
-    //     </div>
-    //   ),
-    // },
     {
       header: 'Date',
-      cell: ({ row }) => {
-        const log = row.original;
-        const now = new Date();
-        const maintenanceDate = new Date(log.date);
-        const isFutureDate = isAfter(maintenanceDate, now);
-        
-        return (
-          <div>
-            <div className={`text-sm ${isFutureDate ? 'text-blue-600 font-medium' : ''}`}>
-              {formatDate(log.date)}
-            </div>
-            <div className="text-sm text-gray-500">
-              Next: {formatDate(log.nextServiceDate)}
-            </div>
-          </div>
-        );
-      },
+      cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
     },
     {
       header: 'Status',
@@ -143,14 +81,6 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           <div>
             <div className="font-medium">£{log.cost.toFixed(2)}</div>
             <div className="text-xs space-y-0.5">
-              <div className="text-gray-600">
-                NET: £{(log.cost / 1.2).toFixed(2)}
-              </div>
-              <div className="text-gray-600">
-                VAT: £{(log.cost * 0.2).toFixed(2)}
-              </div>
-            </div>
-            <div className="text-xs space-y-0.5 mt-1">
               <div className="text-green-600">
                 Paid: £{log.paidAmount?.toFixed(2)}
               </div>
@@ -194,11 +124,38 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
           {can('maintenance', 'delete') && (
             <button
-              onClick={(e) => handleDeleteClick(row.original, e)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
               className="text-red-600 hover:text-red-800"
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {can('maintenance', 'update') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onGenerateDocument(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Generate Document"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -207,48 +164,11 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   ];
 
   return (
-    <>
-      <DataTable
-        data={logs}
-        columns={columns}
-        onRowClick={(log) => can('maintenance', 'view') && onView(log)}
-      />
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={!!deletingLog}
-        onClose={() => setDeletingLog(null)}
-        title="Delete Maintenance Record"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete this maintenance record? This action cannot be undone.
-          </p>
-          {deletingLog && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm font-medium">Maintenance Details:</p>
-              <p className="text-sm text-gray-600">Date: {formatDate(deletingLog.date)}</p>
-              <p className="text-sm text-gray-600">Type: {deletingLog.type}</p>
-              <p className="text-sm text-gray-600">Cost: £{deletingLog.cost.toFixed(2)}</p>
-            </div>
-          )}
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => setDeletingLog(null)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmDelete}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </>
+    <DataTable
+      data={logs}
+      columns={columns}
+      onRowClick={(log) => can('maintenance', 'view') && onView(log)}
+    />
   );
 };
 
