@@ -1,47 +1,23 @@
-// src/components/ui/StatusBadge.tsx
-
 import React from 'react';
 import clsx from 'clsx';
 
-type StatusType = 
-  // Vehicle statuses
-  | 'available' 
-  | 'hired'
-  | 'scheduled-rental'
-  | 'maintenance'
-  | 'scheduled-maintenance'
-  | 'claim'
-  | 'unavailable'
-  | 'sold'
-  // Payment statuses
-  | 'pending'
-  | 'paid'
-  | 'partially_paid'
-  | 'overdue'
-  // Progress statuses
-  | 'completed'
-  | 'cancelled'
-  | 'active'
-  | 'scheduled'
-  // Allow custom statuses
-  | string;
-
 interface StatusBadgeProps {
-  status: StatusType;
+  status: string;
   className?: string;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
   if (!status) return null;
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusColor = (status: string): string => {
+    // Convert status to lowercase string for comparison
+    const statusLower = String(status).toLowerCase();
+
+    switch (statusLower) {
       // Vehicle statuses
       case 'available':
         return 'bg-green-100 text-green-800';
       case 'hired':
-        case 'overdue':
-        return 'bg-red-100 text-red-800';
       case 'active':
         return 'bg-blue-100 text-blue-800';
       case 'scheduled for hire':
@@ -68,9 +44,24 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'partially_paid':
+      case 'partially paid':
         return 'bg-blue-100 text-blue-800';
       case 'overdue':
         return 'bg-red-100 text-red-800';
+
+      // Claim statuses
+      case 'your claim has started':
+        return 'bg-blue-100 text-blue-800';
+      case 'reported to legal team':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'engineer report pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'awaiting tpi':
+        return 'bg-orange-100 text-orange-800';
+      case 'claim in progress':
+        return 'bg-purple-100 text-purple-800';
+      case 'claim complete':
+        return 'bg-green-100 text-green-800';
       
       default:
         return 'bg-gray-100 text-gray-800';
@@ -85,7 +76,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
         className
       )}
     >
-      {status.replace(/[_-]/g, ' ')}
+      {String(status).replace(/[_-]/g, ' ')}
     </span>
   );
 };

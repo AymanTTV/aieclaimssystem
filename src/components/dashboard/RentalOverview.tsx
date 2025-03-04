@@ -2,12 +2,15 @@ import React from 'react';
 import { Rental } from '../../types';
 import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface RentalOverviewProps {
   rentals: Rental[];
 }
 
 const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
   const completedCount = rentals.filter(rental => rental.status === 'completed').length;
   const activeCount = rentals.filter(rental => rental.status === 'active').length;
   const scheduledCount = rentals.filter(rental => rental.status === 'scheduled').length;
@@ -45,7 +48,7 @@ const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Total Rental Income</span>
             <span className="text-lg font-semibold text-gray-900">
-              £{totalIncome.toFixed(2)}
+              {formatCurrency(totalIncome)}
             </span>
           </div>
         </div>

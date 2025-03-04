@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
-import { useAuth } from '../../context/AuthContext';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { uploadFile } from '../../utils/uploadFile';
 import { uploadAllFiles } from '../../utils/uploadAllFiles';
 import { generateClaimDocuments } from '../../utils/claimDocuments';
 import toast from 'react-hot-toast';
-import { ensureValidDate } from '../../utils/dateHelpers';
-
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 
 // Import all sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
@@ -22,6 +20,7 @@ import PassengerDetails from './ClaimForm/sections/PassengerDetails';
 import WitnessDetails from './ClaimForm/sections/WitnessInformation';
 import PoliceDetails from './ClaimForm/sections/PoliceDetails';
 import ParamedicDetails from './ClaimForm/sections/ParamedicDetails';
+import GPInformation from './ClaimForm/sections/GPInformation';
 import HireDetails from './ClaimForm/sections/HireDetails';
 import RecoveryDetails from './ClaimForm/sections/RecoveryDetails';
 import StorageDetails from './ClaimForm/sections/StorageDetails';
@@ -37,59 +36,14 @@ interface ClaimFormProps {
 const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [passengerCount, setPassengerCount] = useState(0);
-  const [witnessCount, setWitnessCount] = useState(0);
-
-  const formatDate = (date: Date | null | undefined): string => {
-    if (!date) return 'N/A';
-    
-    try {
-      // Handle Firestore Timestamp
-      if (date?.toDate) {
-        date = date.toDate();
-      }
-      
-      // Ensure we have a valid Date object
-      const dateObj = date instanceof Date ? date : new Date(date);
-      
-      if (isNaN(dateObj.getTime())) {
-        return 'N/A';
-      }
-      
-      return format(dateObj, 'dd/MM/yyyy');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'N/A';
-    }
-  };
-
-  const formatDateTime = (date: Date | null | undefined): string => {
-    if (!date) return 'N/A';
-    
-    try {
-      // Handle Firestore Timestamp
-      if (date?.toDate) {
-        date = date.toDate();
-      }
-      
-      // Ensure we have a valid Date object
-      const dateObj = date instanceof Date ? date : new Date(date);
-      
-      if (isNaN(dateObj.getTime())) {
-        return 'N/A';
-      }
-      
-      return format(dateObj, 'dd/MM/yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'N/A';
-    }
-  };
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const methods = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
+    mode: 'onChange',
     defaultValues: {
       submitterType: 'company',
+      claimReason: ['VD'],
       clientRef: '',
       clientInfo: {
         name: '',
@@ -134,27 +88,40 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         legalHandler: ''
       },
       claimType: 'Domestic',
-      claimReason: 'VD Only',
       caseProgress: 'Awaiting',
-      progress: 'in-progress'
+      progress: 'Your Claim Has Started',
+      gpInformation: { visited: false }
     }
   });
 
-  const handleSubmit = async (data: ClaimFormData) => {
+  const claimReason = methods.watch('claimReason');
+  const showHireDetails = claimReason.includes('H');
+  const showStorageDetails = claimReason.includes('S');
+  const showVehicleDetails = !claimReason.includes('PI');
+  const showGPInformation = claimReason.includes('PI');
+
+  const onSubmit = async (data: ClaimFormData) => {
     if (!user) {
       toast.error('You must be logged in to submit a claim');
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
+    setSubmitError(null);
 
+    try {
       // Upload vehicle documents
       const vehicleDocumentUrls: Record<string, string> = {};
       for (const [key, file] of Object.entries(data.clientVehicle.documents)) {
         if (file instanceof File) {
-          const url = await uploadFile(file, `claims/vehicle-documents`);
-          vehicleDocumentUrls[key] = url;
+          try {
+            const url = await uploadFile(file, `claims/vehicle-documents`);
+            vehicleDocumentUrls[key] = url;
+          } catch (error) {
+            console.error(`Failed to upload document ${key}:`, error);
+          }
+        } else if (typeof file === 'string') {
+          vehicleDocumentUrls[key] = file;
         }
       }
 
@@ -175,7 +142,14 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
           ...data.clientVehicle,
           documents: vehicleDocumentUrls
         },
-        evidence: evidenceUrls,
+        evidence: {
+          images: evidenceUrls.images,
+          videos: evidenceUrls.videos,
+          clientVehiclePhotos: evidenceUrls.clientVehiclePhotos,
+          engineerReport: evidenceUrls.engineerReport,
+          bankStatement: evidenceUrls.bankStatement,
+          adminDocuments: evidenceUrls.adminDocuments
+        },
         clientInfo: {
           ...data.clientInfo,
           dateOfBirth: new Date(data.clientInfo.dateOfBirth)
@@ -184,8 +158,8 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
           ...data.incidentDetails,
           date: new Date(data.incidentDetails.date)
         },
-        // Only include hireDetails if enabled and has required data
-        hireDetails: data.hireDetails?.enabled ? {
+        // Only include hireDetails if H is selected
+        hireDetails: showHireDetails && data.hireDetails?.enabled ? {
           startDate: data.hireDetails.startDate ? new Date(data.hireDetails.startDate) : null,
           endDate: data.hireDetails.endDate ? new Date(data.hireDetails.endDate) : null,
           startTime: data.hireDetails.startTime || '',
@@ -196,24 +170,50 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
           collectionCharge: data.hireDetails.collectionCharge || 0,
           insurancePerDay: data.hireDetails.insurancePerDay || 0,
           totalCost: data.hireDetails.totalCost || 0,
-          vehicle: data.hireDetails.vehicle || null
+          vehicle: data.hireDetails.vehicle || null,
+          enabled: true
         } : null,
-        // Only include recovery if enabled and has required data
-        recovery: data.recovery?.enabled ? {
-          date: data.recovery.date ? new Date(data.recovery.date) : null,
-          locationPickup: data.recovery.locationPickup || '',
-          locationDropoff: data.recovery.locationDropoff || '',
-          cost: data.recovery.cost || 0
-        } : null,
-        // Only include storage if enabled and has required data
-        storage: data.storage?.enabled ? {
+        // Only include storage if S is selected
+        storage: showStorageDetails && data.storage?.enabled ? {
           startDate: data.storage.startDate ? new Date(data.storage.startDate) : null,
           endDate: data.storage.endDate ? new Date(data.storage.endDate) : null,
           costPerDay: data.storage.costPerDay || 0,
-          totalCost: data.storage.totalCost || 0
+          totalCost: data.storage.totalCost || 0,
+          enabled: true
         } : null,
-        progress: 'Your Claim Has Started',
-        submittedBy: user.id,
+        recovery: data.recovery?.enabled ? {
+    date: data.recovery.date ? new Date(data.recovery.date) : null,
+    locationPickup: data.recovery.locationPickup || '',
+    locationDropoff: data.recovery.locationDropoff || '',
+    cost: data.recovery.cost || 0,
+    enabled: true
+  } : null,
+
+        
+        passengers: data.passengers.filter(passenger => 
+        passenger.name || 
+        passenger.address || 
+        passenger.postCode || 
+        passenger.dob || 
+        passenger.contactNumber
+      ),
+
+        policeOfficerName: data.policeOfficerName || null,
+  policeBadgeNumber: data.policeBadgeNumber || null,
+  policeStation: data.policeStation || null, 
+  policeIncidentNumber: data.policeIncidentNumber || null,
+  policeContactInfo: data.policeContactInfo || null,
+
+        paramedicNames: data.paramedicNames || null,
+  ambulanceReference: data.ambulanceReference || null,
+  ambulanceService: data.ambulanceService || null,
+        
+        // Only include GP information if PI is selected
+        gpInformation: showGPInformation ? {
+          ...data.gpInformation,
+          visited: true
+        } : { visited: false },
+        createdBy: user.id,
         submittedAt: new Date(),
         updatedAt: new Date(),
         progressHistory: [{
@@ -238,7 +238,8 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       onClose();
     } catch (error: any) {
       console.error('Error submitting claim:', error);
-      toast.error(`Failed to submit claim: ${error.message}`);
+      setSubmitError(error.message || 'Failed to submit claim. Please check all required fields and try again.');
+      toast.error(error.message || 'Failed to submit claim');
     } finally {
       setLoading(false);
     }
@@ -246,68 +247,114 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-6">
-        <div className="space-y-6">
-          {/* All form sections */}
-          <div className="bg-white rounded-lg p-6">
-            <ClientRefField />
+      <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-6">
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <p className="font-medium">Error submitting claim:</p>
+            <p className="text-sm">{submitError}</p>
           </div>
-          
+        )}
+
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg p-6 flex space-x-4">
+            <div className="flex-1">
+              <ClaimProgress />
+            </div>
+            <div className="w-64">
+              <ClientRefField />
+            </div>
+          </div>
+
           <div className="bg-white rounded-lg p-6">
             <SubmitterDetails />
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <ClaimProgress />
-          </div>
-
-        
-
-          <div className="bg-white rounded-lg p-6">
             <DriverDetails />
           </div>
 
-           <div className="bg-white rounded-lg p-6">
+          <div className="bg-white rounded-lg p-6">
             <AccidentDetails />
           </div>
 
-          <div className="bg-white rounded-lg p-6">
-            <VehicleDetails />
-          </div>
+          {showVehicleDetails && (
+            <div className="bg-white rounded-lg p-6">
+              <VehicleDetails />
+            </div>
+          )}
 
           <div className="bg-white rounded-lg p-6">
             <FaultPartyDetails />
           </div>
 
+          {showGPInformation && (
+            <div className="bg-white rounded-lg p-6">
+              <GPInformation />
+            </div>
+          )}
+
           <div className="bg-white rounded-lg p-6">
             <EvidenceUpload />
           </div>
 
+          {showHireDetails && (
+            <div className="bg-white rounded-lg p-6">
+              <HireDetails />
+            </div>
+          )}
+
+          {showStorageDetails && (
+            <div className="bg-white rounded-lg p-6">
+              <StorageDetails />
+            </div>
+          )}
+
           <div className="bg-white rounded-lg p-6">
-            <HireDetails />
-          </div>
-
-           <div className="bg-white rounded-lg p-6">
-            <StorageDetails />
-          </div>
-
-           <div className="bg-white rounded-lg p-6">
             <RecoveryDetails />
           </div>
 
-         
           <div className="bg-white rounded-lg p-6">
-            <PassengerDetails 
-              count={passengerCount}
-              onCountChange={setPassengerCount}
-            />
-          </div>
+  <PassengerDetails
+    count={methods.watch('passengers')?.length || 0}
+    onCountChange={(count) => {
+      // Create new array with empty passenger objects
+      const newPassengers = Array(count).fill(null).map((_, index) => {
+        // Preserve existing passenger data if available
+        const currentPassengers = methods.getValues('passengers') || [];
+        return currentPassengers[index] || {
+          name: '',
+          address: '',
+          postCode: '',
+          dob: '',
+          contactNumber: ''
+        };
+      });
+      // Update the form with the new array
+      methods.setValue('passengers', newPassengers);
+    }}
+  />
+</div>
 
           <div className="bg-white rounded-lg p-6">
-            <WitnessDetails 
-              count={witnessCount}
-              onCountChange={setWitnessCount}
-            />
+           
+<WitnessDetails
+  count={methods.watch('witnesses')?.length || 0}
+  onCountChange={(count) => {
+    // Create new array with existing data preserved
+    const currentWitnesses = methods.getValues('witnesses') || [];
+    const newWitnesses = Array(count).fill(null).map((_, index) => {
+      return currentWitnesses[index] || {
+        name: '',
+        address: '',
+        postCode: '',
+        dob: '',
+        contactNumber: ''
+      };
+    });
+    methods.setValue('witnesses', newWitnesses);
+  }}
+/>
+
           </div>
 
           <div className="bg-white rounded-lg p-6">
@@ -318,34 +365,39 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
             <ParamedicDetails />
           </div>
 
-          
           <div className="bg-white rounded-lg p-6">
             <FileHandlers />
           </div>
-          
-
-          
         </div>
 
-        {/* Form Actions */}
-        <div className="sticky bottom-0 bg-white p-4 border-t border-gray-200">
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-            >
-              {loading ? 'Submitting...' : 'Submit Claim'}
-            </button>
+        <div className="flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Submitting...' : 'Submit Claim'}
+          </button>
+        </div>
+
+        {/* Form Validation Errors Summary */}
+        {Object.keys(methods.formState.errors).length > 0 && (
+          <div className="mt-4 p-4 bg-red-50 rounded-md">
+            <h4 className="text-red-800 font-medium">Please fix the following errors:</h4>
+            <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+              {Object.entries(methods.formState.errors).map(([key, error]) => (
+                <li key={key}>{error.message}</li>
+              ))}
+            </ul>
           </div>
-        </div>
+        )}
       </form>
     </FormProvider>
   );

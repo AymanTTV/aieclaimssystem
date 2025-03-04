@@ -71,10 +71,10 @@ export const ROUTE_METADATA = {
     title: 'Claims',
     icon: 'FileText',
   },
-  [ROUTES.PERSONAL_INJURY]: { // Add this section
-    title: 'Personal Injury',
-    icon: 'Activity',
-  },
+  // [ROUTES.PERSONAL_INJURY]: { // Add this section
+  //   title: 'Personal Injury',
+  //   icon: 'Activity',
+  // },
   [ROUTES.VD_FINANCE]: {
     title: 'VD Finance',
     icon: 'DollarSign',

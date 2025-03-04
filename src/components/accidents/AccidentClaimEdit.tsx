@@ -25,13 +25,13 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const [images, setImages] = useState<FileList | null>(null);
   const [existingImages] = useState<string[]>(accident.images || []);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || []);
+  const [removedImages, setRemovedImages] = useState<string[]>([]);
+
+  const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || []);
 
   const [formData, setFormData] = useState({
-
-    referenceNo: accident.referenceNo || '', // Add Reference No field
-  referenceName: accident.referenceName || '', // Add Reference Name field
-    // Driver Details
+    referenceNo: accident.referenceNo || '',
+    referenceName: accident.referenceName || '',
     driverName: accident.driverName,
     driverAddress: accident.driverAddress,
     driverPostCode: accident.driverPostCode,
@@ -39,8 +39,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
     driverPhone: accident.driverPhone,
     driverMobile: accident.driverMobile,
     driverNIN: accident.driverNIN,
-
-    // Vehicle Details
     registeredKeeperName: accident.registeredKeeperName,
     registeredKeeperAddress: accident.registeredKeeperAddress || '',
     vehicleMake: accident.vehicleMake,
@@ -49,8 +47,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
     insuranceCompany: accident.insuranceCompany,
     policyNumber: accident.policyNumber,
     policyExcess: accident.policyExcess || '',
-
-    // Fault Party Details
     faultPartyName: accident.faultPartyName,
     faultPartyAddress: accident.faultPartyAddress || '',
     faultPartyPostCode: accident.faultPartyPostCode || '',
@@ -58,31 +54,23 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
     faultPartyVehicle: accident.faultPartyVehicle || '',
     faultPartyVRN: accident.faultPartyVRN,
     faultPartyInsurance: accident.faultPartyInsurance || '',
-
-    // Accident Details
     accidentDate: accident.accidentDate,
     accidentTime: accident.accidentTime,
     accidentLocation: accident.accidentLocation,
     description: accident.description,
     damageDetails: accident.damageDetails,
-
-    // Police Details
     policeOfficerName: accident.policeOfficerName || '',
     policeBadgeNumber: accident.policeBadgeNumber || '',
     policeStation: accident.policeStation || '',
     policeIncidentNumber: accident.policeIncidentNumber || '',
     policeContactInfo: accident.policeContactInfo || '',
-
-    // Paramedic Details
     paramedicNames: accident.paramedicNames || '',
     ambulanceReference: accident.ambulanceReference || '',
     ambulanceService: accident.ambulanceService || '',
-
-    // Status and Type
     status: accident.status,
     type: accident.type || 'pending',
-
-    // Arrays for dynamic fields
+    claimStatus: accident.claimStatus || 'pending',
+    amount: accident.amount !== undefined ? accident.amount : 0,
     passengers: accident.passengers || Array(4).fill({
       name: '',
       address: '',
@@ -105,6 +93,11 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
     setFormData({ ...formData, passengers: newPassengers });
   };
 
+  const handleRemoveExistingImage = (imageUrl: string) => {
+    setRemovedImages((prev) => [...prev, imageUrl]);
+    setImagePreviews((prev) => prev.filter((img) => img !== imageUrl));
+  };
+
   const handleWitnessChange = (index: number, field: string, value: string) => {
     const newWitnesses = [...formData.witnesses];
     newWitnesses[index] = { ...newWitnesses[index], [field]: value };
@@ -112,15 +105,42 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (e.target.files) {
-    const filesArray = Array.from(e.target.files);
-    setImageFiles(prev => [...prev, ...filesArray]);
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setImageFiles(filesArray);
+      const newPreviews = filesArray.map(file => URL.createObjectURL(file));
+      setImagePreviews(newPreviews);
+    }
+  };
 
-    // Create previews for new images
-    const newPreviews = filesArray.map(file => URL.createObjectURL(file));
-    setImagePreviews(prev => [...prev, ...newPreviews]);
-  }
-};
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    const parsedValue = parseFloat(inputValue);
+
+    if (isNaN(parsedValue)) {
+      setFormData({ ...formData, amount: 0 });
+    } else {
+      setFormData({ ...formData, amount: parsedValue });
+    }
+  };
+
+  const [displayAmount, setDisplayAmount] = useState(formData.amount.toString());
+
+  const handleDisplayAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDisplayAmount(e.target.value);
+  };
+
+  const handleAmountBlur = () => {
+    const parsedValue = parseFloat(displayAmount);
+    if (!isNaN(parsedValue)) {
+      const roundedAmount = Math.round(parsedValue * 100) / 100; // Round to 2 decimal places
+      setFormData({ ...formData, amount: roundedAmount });
+      setDisplayAmount(roundedAmount.toFixed(2)); // Update display with rounded value
+    } else {
+      setDisplayAmount(formData.amount.toFixed(2)); // Reset to last valid amount
+    }
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,27 +149,23 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
 
     try {
       const newImageUrls = await Promise.all(
-      imageFiles.map(async (file) => {
-        const timestamp = Date.now();
-        const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        return getDownloadURL(snapshot.ref);
-      })
-    );
+        imageFiles.map(async (file) => {
+          const timestamp = Date.now();
+          const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          return getDownloadURL(snapshot.ref);
+        })
+      );
 
-    // Combine existing and new image URLs
-    const allImages = [...accident.images, ...newImageUrls];
+      const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
+      const allImages = [...updatedImages, ...newImageUrls];
 
       const accidentRef = doc(db, 'accidents', accident.id);
       await updateDoc(accidentRef, {
         ...formData,
-        referenceNo: formData.referenceNo,
-        referenceName: formData.referenceName,
-        passengers: formData.passengers.slice(0, passengerCount),
-        witnesses: formData.witnesses.slice(0, witnessCount),
         images: allImages,
         updatedAt: new Date(),
-        updatedBy: user.id
+        updatedBy: user.id,
       });
 
       toast.success('Accident claim updated successfully');
@@ -164,26 +180,66 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Reference Details */}
-<div className="space-y-4">
-  <h3 className="text-lg font-medium text-gray-900">Reference Details</h3>
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <FormField
-      label="Reference No"
-      value={formData.referenceNo}
-      onChange={(e) => setFormData({ ...formData, referenceNo: e.target.value })}
-      required
-    />
-    <FormField
-      label="Reference Name"
-      value={formData.referenceName}
-      onChange={(e) => setFormData({ ...formData, referenceName: e.target.value })}
-      required
-    />
-  </div>
-</div>
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Reference Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            label="Reference No"
+            value={formData.referenceNo}
+            onChange={(e) => setFormData({ ...formData, referenceNo: e.target.value })}
+            required
+          />
+          <FormField
+            label="Reference Name"
+            value={formData.referenceName}
+            onChange={(e) => setFormData({ ...formData, referenceName: e.target.value })}
+            required
+          />
+        </div>
+      </div>
 
-      {/* Driver Details */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Claim Type</label>
+          <select
+            value={formData.type}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value as 'fault' | 'non-fault' | 'pending' })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            required
+          >
+            <option value="pending">Pending</option>
+            <option value="fault">Fault</option>
+            <option value="non-fault">Non-Fault</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Claim Status</label>
+          <select
+            value={formData.claimStatus}
+            onChange={(e) => setFormData({ ...formData, claimStatus: e.target.value as 'pending' | 'approved' | 'rejected' | 'settled' })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            required
+          >
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="settled">Settled</option>
+          </select>
+        </div>
+
+        <FormField
+          type="number"
+          label={`${formData.type === 'fault' ? 'Fault' : 'Non-Fault'} Amount`}
+          value={displayAmount}
+          onChange={handleDisplayAmountChange}
+          onBlur={handleAmountBlur}
+          required
+          min="0"
+          step="0.01"
+        />
+      </div>
+
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Driver Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -235,7 +291,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Vehicle Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Vehicle Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -291,7 +346,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Fault Party Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Fault Party Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -336,7 +390,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Accident Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Accident Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -381,7 +434,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Status and Type */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Claim Status</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -413,7 +465,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Passenger Details */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Passenger Details</h3>
@@ -464,7 +515,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         ))}
       </div>
 
-      {/* Witness Details */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Witness Details</h3>
@@ -515,7 +565,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         ))}
       </div>
 
-      {/* Police Information */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Police Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -549,7 +598,6 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Paramedic Information */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Paramedic Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -571,50 +619,42 @@ const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || 
         </div>
       </div>
 
-      {/* Images */}
       <div>
-  <label className="block text-sm font-medium text-gray-700">Images</label>
-  <div className="mt-2 flex flex-wrap gap-2">
-  {imagePreviews.map((preview, index) => (
-    <div key={index} className="relative w-24 h-24">
-      <img
-        src={preview}
-        alt={`Selected ${index}`}
-        className="w-full h-full object-cover rounded-md"
-      />
-      <button
-        type="button"
-        onClick={() => {
-          setImageFiles(prev => prev.filter((_, i) => i !== index));
-          setImagePreviews(prev => prev.filter((_, i) => i !== index));
-        }}
-        className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-      >
-        <X className="h-4 w-4 text-red-600" />
-      </button>
-    </div>
-  ))}
-</div>
-  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-    <div className="space-y-1 text-center">
-      <Upload className="mx-auto h-12 w-12 text-gray-400" />
-      <div className="flex text-sm text-gray-600">
-        <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-          <span>Upload images</span>
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={handleImageChange}
-            className="sr-only"
-          />
-        </label>
-        <p className="pl-1">or drag and drop</p>
+        <label className="block text-sm font-medium text-gray-700">Images</label>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {imagePreviews.map((img, index) => (
+            <div key={index} className="relative">
+              <img src={img} alt={`preview-${index}`} className="h-20 w-20 object-cover" />
+              <button
+                type="button"
+                onClick={() => handleRemoveExistingImage(img)}
+                className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+          <div className="space-y-1 text-center">
+            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+            <div className="flex text-sm text-gray-600">
+              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                <span>Upload images</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="sr-only"
+                />
+              </label>
+              <p className="pl-1">or drag and drop</p>
+            </div>
+            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
+          </div>
+        </div>
       </div>
-      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
-    </div>
-  </div>
-</div>
 
       <div className="flex justify-end space-x-3">
         <button

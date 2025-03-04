@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { generateAndUploadDocument } from '../../utils/documentGenerator';
 import { PettyCashDocument } from '../../components/pdf/documents';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 const AiePettyCash = () => {
   const { transactions, loading } = useAiePettyCash();
@@ -43,7 +44,7 @@ const AiePettyCash = () => {
   const totalOut = filteredTransactions.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
   const netIncome = totalIn - totalOut;
   const profitMargin = totalIn > 0 ? (netIncome / totalIn) * 100 : 0;
-
+  const { formatCurrency } = useFormattedDisplay();
   const handleDelete = async (transaction: PettyCashTransaction) => {
     try {
       await deleteDoc(doc(db, 'aiePettyCash', transaction.id));
@@ -90,15 +91,15 @@ const AiePettyCash = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total In</h3>
-          <p className="mt-2 text-3xl font-semibold text-green-600">£{totalIn.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold text-green-600">{formatCurrency(totalIn)}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total Out</h3>
-          <p className="mt-2 text-3xl font-semibold text-red-600">£{totalOut.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold text-red-600">{formatCurrency(totalOut)}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Balance</h3>
-          <p className="mt-2 text-3xl font-semibold text-blue-600">£{netIncome.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold text-blue-600">{formatCurrency(netIncome)}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Profit Margin</h3>

@@ -19,13 +19,15 @@ import { useAuth } from '../context/AuthContext';
 import { exportToExcel } from '../utils/excel';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { VATRecordDocument } from '../components/pdf/documents';
+import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
+
 
 const VATRecordPage = () => {
   const { records, loading } = useVATRecords();
   const { customers } = useCustomers();
   const { can } = usePermissions();
   const { user } = useAuth();
-
+  const { formatCurrency } = useFormattedDisplay();
   const {
     searchQuery,
     setSearchQuery,
@@ -49,11 +51,11 @@ const VATRecordPage = () => {
         'Accountant': record.accountant,
         'Supplier': record.supplier,
         'REG No': record.regNo,
-        'GROSS': record.gross.toFixed(2),
-        'VAT %': record.vatPercentage,
-        'VAT': record.vat.toFixed(2),
+        'GROSS': record.gross !== undefined ? record.gross.toFixed(2) : '0.00',
+        // 'VAT %': record.vatPercentage,
+        'VAT': record.vat !== undefined ? record.vat.toFixed(2) : '0.00',
         'NET': record.net.toFixed(2),
-        'VAT Received': record.vatReceived.toFixed(2),
+        // 'VAT Received': record.vatReceived !== undefined ? record.vatReceived.toFixed(2) : '0.00',
         'Customer': record.customerName,
         'Status': record.status,
         'Date': record.date.toLocaleDateString(),
@@ -114,28 +116,28 @@ const VATRecordPage = () => {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total NET</h3>
           <p className="mt-2 text-3xl font-semibold text-green-600">
-            £{summary.net.toFixed(2)}
+            {formatCurrency(isNaN(summary.net) ? 0 : summary.net)}
           </p>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total VAT</h3>
           <p className="mt-2 text-3xl font-semibold text-blue-600">
-            £{summary.vat.toFixed(2)}
+            {formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}
           </p>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total GROSS</h3>
           <p className="mt-2 text-3xl font-semibold text-gray-900">
-            £{summary.gross.toFixed(2)}
+            {formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}
           </p>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total VAT Received</h3>
           <p className="mt-2 text-3xl font-semibold text-purple-600">
-            £{summary.vatReceived.toFixed(2)}
+            {formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}
           </p>
         </div>
       </div>

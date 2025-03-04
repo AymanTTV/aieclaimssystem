@@ -1,21 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import toast from 'react-hot-toast';
+import { Claim } from '../../types';
 import { AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface ClaimDeleteModalProps {
-  claimId: string;
+  claim: Claim;
   onClose: () => void;
 }
 
-const ClaimDeleteModal: React.FC<ClaimDeleteModalProps> = ({ claimId, onClose }) => {
-  const [loading, setLoading] = React.useState(false);
+const ClaimDeleteModal: React.FC<ClaimDeleteModalProps> = ({ claim, onClose }) => {
+  const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
+    if (!claim?.id) {
+      toast.error('Invalid claim data');
+      return;
+    }
+
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'claims', claimId));
+      await deleteDoc(doc(db, 'claims', claim.id));
       toast.success('Claim deleted successfully');
       onClose();
     } catch (error) {
@@ -35,7 +41,6 @@ const ClaimDeleteModal: React.FC<ClaimDeleteModalProps> = ({ claimId, onClose })
       
       <p className="text-sm text-gray-500">
         Are you sure you want to delete this claim? This action cannot be undone.
-        All associated documents and financial records will remain in the system.
       </p>
 
       <div className="flex justify-end space-x-3">

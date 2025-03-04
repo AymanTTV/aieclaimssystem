@@ -22,6 +22,13 @@ export interface VDFinanceRecord {
   updatedAt: Date;
   createdBy: string;
   claimId?: string;
+  salvage: number; // New field
+  clientReferralFee: number; // New field
+  clientRepairAmount: number; // New field
+  vatDetails: {
+    partsVAT: { partName: string; includeVAT: boolean }[];
+    laborVAT: boolean;
+  };
 }
 
 export interface VDFinancePart {
@@ -30,5 +37,4 @@ export interface VDFinancePart {
   quantity: number;
   price: number;
   includeVat: boolean;
-  vatAmount?: number;
 }

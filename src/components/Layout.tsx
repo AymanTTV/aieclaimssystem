@@ -50,7 +50,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       permission: 'claims',
       submenu: [
         { name: 'All Claims', href: '/claims' },
-        { name: 'Personal Injury', href: '/claims/personal-injury' },
+        // { name: 'Personal Injury', href: '/claims/personal-injury' },
         { name: 'VD Finance', href: '/claims/vd-finance' }
       ]
     },
@@ -67,17 +67,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       name: 'Finance', 
       href: '/finance', 
       icon: DollarSign, 
-      permission: 'finance',
       submenu: [
-        { name: 'Overview', href: '/finance' },
-        { name: 'AIE Petty Cash', href: '/finance/petty-cash' },
-        { name: 'Invoices', href: '/finance/invoices' },
-        {
-  name: 'VAT Records',
-  href: '/finance/vat-records',
-  icon: Calculator,
-  permission: 'vatRecord'
-},
+        { name: 'Overview', href: '/finance', permission: 'finance'},
+        { name: 'AIE Petty Cash', href: '/finance/petty-cash', permission: 'pettyCash' },
+        { name: 'Invoices', href: '/finance/invoices', permission: 'invoices' },
+        { name: 'VAT Records', href: '/finance/vat-records',icon: Calculator, permission: 'vatRecord'},
       ]
     },
     { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },

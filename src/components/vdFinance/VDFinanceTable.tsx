@@ -4,6 +4,7 @@ import { VDFinanceRecord } from '../../types/vdFinance';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VDFinanceTableProps {
   records: VDFinanceRecord[];
@@ -23,7 +24,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   onViewDocument
 }) => {
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
   const columns = [
     {
       header: 'Name & Reference',
@@ -42,9 +43,9 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
       header: 'Amount Details',
       cell: ({ row }) => (
         <div className="space-y-1 text-sm">
-          <div>Total: £{row.original.totalAmount.toFixed(2)}</div>
-          <div>NET: £{row.original.netAmount.toFixed(2)}</div>
-          <div>VAT IN: £{row.original.vatIn.toFixed(2)}</div>
+          <div>Total: {formatCurrency(row.original.totalAmount)}</div>
+          <div>NET: {formatCurrency(row.original.netAmount)}</div>
+          <div>VAT IN: {formatCurrency(row.original.vatIn)}</div>
         </div>
       ),
     },
@@ -52,9 +53,9 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
       header: 'Fees & Repairs',
       cell: ({ row }) => (
         <div className="space-y-1 text-sm">
-          <div>Solicitor: £{row.original.solicitorFee.toFixed(2)}</div>
-          <div>Client Repair: £{row.original.clientRepair.toFixed(2)}</div>
-          <div>Purchased Items: £{row.original.purchasedItems.toFixed(2)}</div>
+          <div>Solicitor: {formatCurrency(row.original.solicitorFee)}</div>
+          <div>Client Repair: {formatCurrency(row.original.clientRepair)}</div>
+          <div>Purchased Items: {formatCurrency(row.original.purchasedItems)}</div>
         </div>
       ),
     },
@@ -62,7 +63,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
       header: 'Profit',
       cell: ({ row }) => (
         <div className="font-medium text-green-600">
-          £{row.original.profit.toFixed(2)}
+          {formatCurrency(row.original.profit)}
         </div>
       ),
     },

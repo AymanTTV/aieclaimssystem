@@ -2,12 +2,15 @@ import React from 'react';
 import { MaintenanceLog } from '../../types';
 import { Wrench, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface MaintenanceOverviewProps {
   logs: MaintenanceLog[];
 }
 
 const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
   const completedCount = logs.filter(log => log.status === 'completed').length;
   const inProgressCount = logs.filter(log => log.status === 'in-progress').length;
   const scheduledCount = logs.filter(log => log.status === 'scheduled').length;
@@ -45,7 +48,7 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Total Maintenance Expenses</span>
             <span className="text-lg font-semibold text-gray-900">
-              £{totalExpenses.toFixed(2)}
+              {formatCurrency(totalExpenses)}
             </span>
           </div>
         </div>

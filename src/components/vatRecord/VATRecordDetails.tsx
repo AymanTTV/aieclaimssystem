@@ -4,10 +4,13 @@ import React from 'react';
 import { VATRecord } from '../../types/vatRecord';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VATRecordDetailsProps {
   record: VATRecord;
 }
+
+const { formatCurrency } = useFormattedDisplay();
 
 const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -36,30 +39,38 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
         </div>
       </Section>
 
-      {/* Financial Details */}
-      <Section title="Financial Details">
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-
-          <div className="flex justify-between text-sm">
-            <span>NET:</span>
-            <span className="text-green-600">£{record.net.toFixed(2)}</span>
-          </div>
-          
-          <div className="flex justify-between text-sm">
-            <span>VAT ({record.vatPercentage}%):</span>
-            <span className="text-blue-600">£{record.vat.toFixed(2)}</span>
-          </div>
-          
-
-          <div className="flex justify-between text-sm">
-            <span>GROSS:</span>
-            <span className="font-medium">£{record.gross.toFixed(2)}</span>
-          </div>
-          
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>VAT Received:</span>
-            <span className="text-purple-600">£{record.vatReceived.toFixed(2)}</span>
-          </div>
+      <Section title="Descriptions">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">NET</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">V</th> {/* Moved to 3rd column */}
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GROSS</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {record.descriptions.map((desc) => (
+                <tr key={desc.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{desc.description}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.net)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{desc.vType}</td> {/* Moved to 3rd column */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.vat)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.gross)}</td>
+                </tr>
+              ))}
+              {/* Totals row */}
+              <tr className="bg-gray-50 font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Totals</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.net)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"></td> {/* Added empty cell for V column in totals row */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.vat)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.gross)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </Section>
 
@@ -82,7 +93,6 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
               <StatusBadge status={record.status} />
             </dd>
           </div>
-          <Field label="Description" value={record.description} />
           {record.notes && <Field label="Notes" value={record.notes} />}
           <Field label="Date" value={format(record.date, 'dd/MM/yyyy')} />
         </div>

@@ -69,17 +69,17 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
         </div>
       ),
     },
-    // {
-    //   header: 'Type & Progress',
-    //   cell: ({ row }) => (
-    //     <div className="space-y-1">
-    //       <StatusBadge status={row.original.claimType} />
-    //       <StatusBadge status={row.original.claimReason} />
-    //       <StatusBadge status={row.original.caseProgress} />
-    //       <StatusBadge status={row.original.progress} />
-    //     </div>
-    //   ),
-    // },
+    {
+      header: 'Type & Progress',
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <StatusBadge status={row.original.claimType} />
+          <StatusBadge status={row.original.claimReason} />
+          <StatusBadge status={row.original.caseProgress} />
+          <StatusBadge status={row.original.progress} />
+        </div>
+      ),
+    },
     {
       header: 'Generated Documents',
       cell: ({ row }) => (

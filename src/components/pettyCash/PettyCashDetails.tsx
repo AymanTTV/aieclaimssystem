@@ -1,12 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import { format } from 'date-fns';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface PettyCashDetailsProps {
   transaction: PettyCashTransaction;
 }
 
+
+
 const PettyCashDetails: React.FC<PettyCashDetailsProps> = ({ transaction }) => {
+
+  const [createdByName, setCreatedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCreatedByName = async () => {
+      if (transaction.createdBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', transaction.createdBy)); // Assuming 'users' collection
+          if (userDoc.exists()) {
+            setCreatedByName(userDoc.data().name); // Assuming 'name' field in user document
+          } else {
+            setCreatedByName('Unknown User');
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setCreatedByName('Unknown User');
+        }
+      }
+    };
+
+    fetchCreatedByName();
+  }, [transaction.createdBy]);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -66,7 +93,7 @@ const PettyCashDetails: React.FC<PettyCashDetailsProps> = ({ transaction }) => {
       {/* Creation Information */}
       <div className="border-t pt-4 text-sm text-gray-500">
         <div className="flex justify-between">
-          <div>Created: {format(transaction.createdAt, 'dd/MM/yyyy HH:mm')}</div>
+          <div>Created By: {createdByName || transaction.createdBy || 'Loading...'}</div>
           <div>Last Updated: {format(transaction.updatedAt, 'dd/MM/yyyy HH:mm')}</div>
         </div>
       </div>

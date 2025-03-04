@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { Wrench, DollarSign, MapPin, Calendar } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
@@ -12,6 +15,42 @@ interface MaintenanceDetailsProps {
 const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle }) => {
   const serviceDate = ensureValidDate(log.date);
   const nextServiceDate = ensureValidDate(log.nextServiceDate);
+  const [createdByName, setCreatedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCreatedByName = async () => {
+      if (log.updatedBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', log.updatedBy)); // Assuming 'users' collection
+          if (userDoc.exists()) {
+            setCreatedByName(userDoc.data().name); // Assuming 'name' field in user document
+          } else {
+            setCreatedByName('Unknown User');
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setCreatedByName('Unknown User');
+        }
+      }
+    };
+
+    fetchCreatedByName();
+  }, [log.updatedBy]);
+
+  const DetailItem = ({ label, value, isDate = false, isExpiring = false }: { 
+      label: string;
+      value: any;
+      isDate?: boolean;
+      isExpiring?: boolean;
+    }) => (
+      <div>
+        <h3 className="text-sm font-medium text-gray-500">{label}</h3>
+        <p className={`mt-1 ${isExpiring ? 'text-red-600 font-medium' : ''}`}>
+          {isDate ? formatDate(value) : value}
+        </p>
+      </div>
+    );
+    const { formatCurrency } = useFormattedDisplay();
 
   return (
     <div className="space-y-6">
@@ -101,7 +140,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
                     <span className="text-gray-500 ml-2">x{part.quantity}</span>
                   </div>
                   <div className="text-right">
-                    <div>£{(part.cost * part.quantity).toFixed(2)}</div>
+                    <div>{formatCurrency(part.cost * part.quantity)}</div>
                     {log.vatDetails?.partsVAT[index].includeVAT && (
                       <div className="text-sm text-gray-500">+VAT</div>
                     )}
@@ -123,7 +162,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
               </span>
             </div>
             <div className="text-right">
-              <div>£{log.laborCost.toFixed(2)}</div>
+              <div>{formatCurrency(log.laborCost)}</div>
               {log.vatDetails?.laborVAT && (
                 <div className="text-sm text-gray-500">+VAT</div>
               )}
@@ -135,20 +174,35 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         <div className="border-t pt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span>Total Amount:</span>
-            <span className="font-medium">£{log.cost.toFixed(2)}</span>
+            <span className="font-medium">{formatCurrency(log.cost)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span>Amount Paid:</span>
-            <span className="text-green-600">£{(log.paidAmount || 0).toFixed(2)}</span>
+            <span className="text-green-600">{formatCurrency(log.paidAmount || 0)}</span>
           </div>
           {log.remainingAmount > 0 && (
             <div className="flex justify-between text-sm">
               <span>Remaining Amount:</span>
-              <span className="text-amber-600">£{log.remainingAmount.toFixed(2)}</span>
+              <span className="text-amber-600">{formatCurrency(log.remainingAmount)}</span>
             </div>
           )}
         </div>
       </div>
+
+      
+
+      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
+        <DetailItem
+          label="Created At"
+          value={log.updatedAt}
+          isDate
+        />
+        <DetailItem
+          label="Created By"
+          value={createdByName || log.updatedBy || 'Loading...'} // Display fetched name or ID
+        />
+      </div>
+      
     </div>
   );
 };

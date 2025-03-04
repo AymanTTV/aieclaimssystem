@@ -3,6 +3,7 @@ import { Vehicle, DEFAULT_RENTAL_PRICES, DEFAULT_OWNER } from '../../types/vehic
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { Upload } from 'lucide-react';
 import FormField from '../ui/FormField';
 import { validateImage } from '../../utils/imageUpload';
@@ -15,6 +16,7 @@ interface VehicleEditModalProps {
 }
 
 const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle.image || null);
   const [owner, setOwner] = useState<Vehicle['owner']>(vehicle.owner || DEFAULT_OWNER);
@@ -28,16 +30,15 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
     registrationNumber: vehicle.registrationNumber || '',
     mileage: vehicle.mileage?.toString() || '0',
     insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
-    motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
+    motTestDate: vehicle?.motTestDate ? new Date(vehicle.motTestDate).toISOString().split('T')[0] : '',
     nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
     roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
     lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
     nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
     image: null as File | null,
-    // Rental pricing fields
-    weeklyRentalPrice: Math.round(parseFloat(formData.weeklyRentalPrice)) || DEFAULT_RENTAL_PRICES.weekly,
-    dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
-    claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
+    weeklyRentalPrice: vehicle?.weeklyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.weekly.toString(),
+    dailyRentalPrice: vehicle?.dailyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.daily.toString(),
+    claimRentalPrice: vehicle?.claimRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.claim.toString(),
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,53 +59,52 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
+    e.preventDefault();
+    setLoading(true);
 
-  try {
-    let imageUrl = vehicle.image || '';
-    
-    if (formData.image) {
-      const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
-      const snapshot = await uploadBytes(imageRef, formData.image);
-      imageUrl = await getDownloadURL(snapshot.ref);
+    try {
+      let imageUrl = vehicle.image || '';
+
+      if (formData.image) {
+        const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
+        const snapshot = await uploadBytes(imageRef, formData.image);
+        imageUrl = await getDownloadURL(snapshot.ref);
+      }
+
+      // Calculate MOT expiry date (6 months after test date)
+      const motTestDate = new Date(formData.motTestDate);
+      const motExpiry = new Date(motTestDate);
+      motExpiry.setMonth(motExpiry.getMonth() + 6);
+
+      const vehicleData = {
+        ...formData,
+        image: imageUrl,
+        mileage: parseInt(formData.mileage),
+        year: parseInt(formData.year),
+        motTestDate: new Date(formData.motTestDate),
+        motExpiry, // Add calculated MOT expiry
+        nslExpiry: new Date(formData.nslExpiry),
+        roadTaxExpiry: new Date(formData.roadTaxExpiry),
+        insuranceExpiry: new Date(formData.insuranceExpiry),
+        lastMaintenance: new Date(formData.lastMaintenance),
+        nextMaintenance: new Date(formData.nextMaintenance),
+        weeklyRentalPrice: Math.round(parseFloat(formData.weeklyRentalPrice)) || DEFAULT_RENTAL_PRICES.weekly,
+        dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
+        claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
+        owner: isCustomOwner ? owner : DEFAULT_OWNER,
+        updatedAt: new Date()
+      };
+
+      await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
+      toast.success('Vehicle updated successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+      toast.error('Failed to update vehicle');
+    } finally {
+      setLoading(false);
     }
-
-    const vehicleData = {
-      ...formData,
-      image: imageUrl,
-      mileage: parseInt(formData.mileage),
-      year: parseInt(formData.year),
-      // Convert date strings to Date objects
-      motExpiry: new Date(formData.motExpiry),
-      nslExpiry: new Date(formData.nslExpiry),
-      roadTaxExpiry: new Date(formData.roadTaxExpiry),
-      insuranceExpiry: new Date(formData.insuranceExpiry),
-      lastMaintenance: new Date(formData.lastMaintenance),
-      nextMaintenance: new Date(formData.nextMaintenance),
-      // Rental prices
-      weeklyRentalPrice: parseFloat(formData.weeklyRentalPrice) || DEFAULT_RENTAL_PRICES.weekly,
-      dailyRentalPrice: parseFloat(formData.dailyRentalPrice) || DEFAULT_RENTAL_PRICES.daily,
-      claimRentalPrice: parseFloat(formData.claimRentalPrice) || DEFAULT_RENTAL_PRICES.claim,
-      // Owner information
-      owner: isCustomOwner ? owner : DEFAULT_OWNER,
-      // Update timestamp
-      updatedAt: new Date()
-    };
-
-    // Update vehicle document
-    await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
-    
-    toast.success('Vehicle updated successfully');
-    onClose();
-  } catch (error) {
-    console.error('Error updating vehicle:', error);
-    toast.error('Failed to update vehicle');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <Modal
@@ -171,7 +171,7 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
               value={formData.weeklyRentalPrice}
               onChange={(e) => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
               min="0"
-              step="0.01"
+              step="1"
               required
             />
             <FormField
@@ -180,7 +180,7 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
               value={formData.dailyRentalPrice}
               onChange={(e) => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
               min="0"
-              step="0.01"
+              step="1"
               required
             />
             <FormField
@@ -189,7 +189,7 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
               value={formData.claimRentalPrice}
               onChange={(e) => setFormData({ ...formData, claimRentalPrice: e.target.value })}
               min="0"
-              step="0.01"
+              step="1"
               required
             />
           </div>
@@ -251,9 +251,9 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
         <div className="grid grid-cols-2 gap-4">
           <FormField
             type="date"
-            label="MOT Expiry"
-            value={formData.motExpiry}
-            onChange={(e) => setFormData({ ...formData, motExpiry: e.target.value })}
+            label="MOT Test Date"
+            value={formData.motTestDate}
+            onChange={(e) => setFormData({ ...formData, motTestDate: e.target.value })}
             required
           />
 

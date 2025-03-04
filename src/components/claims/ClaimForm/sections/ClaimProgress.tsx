@@ -11,14 +11,60 @@ const PROGRESS_OPTIONS = [
   'Claim Complete'
 ] as const;
 
+const CLAIM_REASONS = [
+  { value: 'VD', label: 'VD' },
+  { value: 'H', label: 'H' },
+  { value: 'S', label: 'S' },
+  { value: 'PI', label: 'PI' }
+] as const;
+
+// Helper function to convert old claim reason format to new array format
+const convertOldClaimReason = (oldReason: string): string[] => {
+  switch (oldReason) {
+    case 'VD Only':
+      return ['VD'];
+    case 'VDHS':
+      return ['VD', 'H', 'S'];
+    case 'VDH':
+      return ['VD', 'H'];
+    case 'VDHSPI':
+      return ['VD', 'H', 'S', 'PI'];
+    case 'PI':
+      return ['PI'];
+    default:
+      return oldReason.split(',').map(r => r.trim()); // Handle comma-separated format
+  }
+};
+
 const ClaimProgress = () => {
-  const { register, formState: { errors }, watch } = useFormContext();
+  const { register, formState: { errors }, watch, setValue } = useFormContext();
   const progressHistory = watch('progressHistory') || [];
+  const selectedReasons = watch('claimReason') || [];
+
+  // Convert old format to new array format if needed
+  React.useEffect(() => {
+    const currentReason = watch('claimReason');
+    
+    // Check if it's a string (old format) or not an array
+    if (typeof currentReason === 'string' || !Array.isArray(currentReason)) {
+      const newReasons = convertOldClaimReason(currentReason as string);
+      setValue('claimReason', newReasons);
+    }
+  }, [watch, setValue]);
+
+  // Handle multiple claim reason selection
+  const handleReasonChange = (value: string) => {
+    const currentReasons = Array.isArray(selectedReasons) ? selectedReasons : [];
+    const newReasons = currentReasons.includes(value)
+      ? currentReasons.filter(r => r !== value)
+      : [...currentReasons, value];
+    setValue('claimReason', newReasons);
+  };
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-medium text-gray-900">Claim Progress</h3>
-      
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Claim Type</label>
@@ -28,7 +74,6 @@ const ClaimProgress = () => {
           >
             <option value="Domestic">Domestic</option>
             <option value="Taxi">Taxi</option>
-            {/* <option value="PI">PI</option> */}
             <option value="PCO">PCO</option>
           </select>
           {errors.claimType && (
@@ -38,16 +83,19 @@ const ClaimProgress = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700">Claim Reason</label>
-          <select
-            {...register('claimReason')}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          >
-            <option value="VD Only">VD Only</option>
-            <option value="VDHS">VDHS</option>
-            <option value="VDH">VDH</option>
-            {/* <option value="PI">PI</option> */}
-            <option value="VDHSPI">VDHSPI</option>
-          </select>
+          <div className="mt-2 space-y-2">
+            {CLAIM_REASONS.map((reason) => (
+              <label key={reason.value} className="inline-flex items-center mr-4">
+                <input
+                  type="checkbox"
+                  checked={Array.isArray(selectedReasons) ? selectedReasons.includes(reason.value) : false}
+                  onChange={() => handleReasonChange(reason.value)}
+                  className="form-checkbox text-primary rounded"
+                />
+                <span className="ml-2">{reason.label}</span>
+              </label>
+            ))}
+          </div>
           {errors.claimReason && (
             <p className="mt-1 text-sm text-red-600">{errors.claimReason.message as string}</p>
           )}
@@ -69,7 +117,7 @@ const ClaimProgress = () => {
           )}
         </div>
 
-        <div>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700">Progress Status</label>
           <select
             {...register('progress')}
@@ -90,28 +138,8 @@ const ClaimProgress = () => {
             {...register('statusDescription')}
             error={errors.statusDescription?.message as string}
             placeholder="Add notes about the current status..."
-            required
           />
-        </div>
-
-        {/* Progress History */}
-        <div className="col-span-2">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Progress History</h4>
-          <div className="space-y-2 max-h-60 overflow-y-auto bg-gray-50 p-4 rounded-lg">
-            {progressHistory.map((progress: any, index: number) => (
-              <div key={index} className="bg-white p-3 rounded shadow-sm">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">{progress.status}</span>
-                  <span className="text-gray-500">
-                    {new Date(progress.date).toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">{progress.note}</p>
-                <p className="text-xs text-gray-500 mt-1">By {progress.author}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

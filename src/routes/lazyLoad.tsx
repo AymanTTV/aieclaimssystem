@@ -1,17 +1,14 @@
+// src/routes/lazyLoad.tsx
+
 import React, { lazy, Suspense } from 'react';
 
 export const lazyLoad = (componentName: string) => {
   // Create the lazy component with dynamic import
-  const LazyComponent = lazy(() => {
-    // Remove .tsx extension if present in componentName
-    const cleanName = componentName.replace('.tsx', '');
-    
-    return import(`../pages/${cleanName}.tsx`)
-      .catch((error) => {
-        console.error(`Error loading component ${componentName}:`, error);
-        throw new Error(`Failed to load ${componentName}`);
-      });
-  });
+  const LazyComponent = lazy(() => 
+    import(`../pages/${componentName}.tsx`).catch(() => 
+      import(`../pages/${componentName}/index.tsx`)
+    )
+  );
   
   return (props: any) => (
     <Suspense fallback={

@@ -3,18 +3,19 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Rental, Vehicle, Customer, VehicleCondition } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { calculateRentalCost } from '../../utils/rentalCalculations';
+import { calculateRentalCost, calculateOverdueCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
-import { addWeeks, format, differenceInDays } from 'date-fns';
+import { addWeeks, format, differenceInDays, isAfter } from 'date-fns';
 import toast from 'react-hot-toast';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../lib/firebase';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface RentalEditModalProps {
   rental: Rental;
@@ -30,6 +31,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   onClose
 }) => {
   const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<File[]>([]);
 
@@ -67,28 +69,45 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const selectedVehicle = vehicles.find(v => v.id === rental.vehicleId);
   const selectedCustomer = customers.find(c => c.id === rental.customerId);
 
-  // Calculate costs
-  const calculateTotalCost = () => {
-    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-    
-    const negotiatedRate = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
-    
-    return calculateRentalCost(
-      startDateTime,
-      endDateTime,
-      formData.type,
-      selectedVehicle,
-      formData.reason,
-      negotiatedRate
-    );
-  };
+  // Calculate initial rental cost
+  const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+  const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+  const standardCost = calculateRentalCost(
+    startDateTime,
+    endDateTime,
+    formData.type,
+    selectedVehicle,
+    formData.reason
+  );
 
-  const totalCost = calculateTotalCost();
+  // Calculate ongoing charges if rental is active and past end date
+  const now = new Date();
+  const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate)
+    ? calculateOverdueCost(rental, now, selectedVehicle)
+    : 0;
+
+  // Calculate negotiated rate discount if applicable
+  const negotiatedDiscount = rental.negotiatedRate 
+    ? standardCost - calculateRentalCost(
+        startDateTime,
+        endDateTime,
+        formData.type,
+        selectedVehicle,
+        formData.reason,
+        rental.negotiatedRate
+      )
+    : 0;
+
+  // Get existing discount amount
+  const existingDiscount = rental.discountAmount || 0;
+
+  // Calculate total cost including all components
+  const totalCost = standardCost + ongoingCharges - negotiatedDiscount - existingDiscount;
+
+  // Calculate remaining amount
   const amountToPay = parseFloat(formData.amountToPay) || 0;
-  const discountAmount = (totalCost * formData.discountPercentage) / 100;
   const newPaidAmount = rental.paidAmount + amountToPay;
-  const remainingAmount = totalCost - newPaidAmount - discountAmount;
+  const remainingAmount = totalCost - newPaidAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,145 +115,130 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     setLoading(true);
 
     try {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+        const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+        const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
 
-      if (!selectedVehicle || !selectedCustomer) {
-        throw new Error('Vehicle or customer not found');
-      }
+        if (!selectedVehicle || !selectedCustomer) {
+            throw new Error('Vehicle or customer not found');
+        }
 
-      // Calculate costs
-      const standardCost = calculateRentalCost(
-        startDateTime,
-        endDateTime,
-        formData.type,
-        selectedVehicle,
-        formData.reason
-      );
+        // Calculate costs
+        const standardCost = calculateRentalCost(
+            startDateTime,
+            endDateTime,
+            formData.type,
+            selectedVehicle,
+            formData.reason
+        );
 
-      const negotiatedRate = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
-      const finalCost = negotiatedRate ? 
-        calculateRentalCost(startDateTime, endDateTime, formData.type, selectedVehicle, formData.reason, negotiatedRate) :
-        standardCost;
+        const negotiatedRate = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : null; // Changed here
+        const finalCost = negotiatedRate !== null ?
+            calculateRentalCost(startDateTime, endDateTime, formData.type, selectedVehicle, formData.reason, negotiatedRate) :
+            standardCost;
 
-      // Create new payment record if amount to pay > 0
-      const payments = [...(rental.payments || [])];
-      if (amountToPay > 0) {
-        payments.push({
-          id: Date.now().toString(),
-          date: new Date(),
-          amount: amountToPay,
-          method: formData.paymentMethod,
-          reference: formData.paymentReference,
-          notes: formData.paymentNotes,
-          createdAt: new Date(),
-          createdBy: user.id
-        });
-      }
+        // Create new payment record if amount to pay > 0
+        const payments = [...(rental.payments || [])];
+        if (amountToPay > 0) {
+            payments.push({
+                id: Date.now().toString(),
+                date: new Date(),
+                amount: amountToPay,
+                method: formData.paymentMethod,
+                reference: formData.paymentReference,
+                notes: formData.paymentNotes,
+                createdAt: new Date(),
+                createdBy: user.id
+            });
+        }
 
-      const imageUrls = await Promise.all(
-      images.map(async (file) => {
-        const timestamp = Date.now();
-        const storageRef = ref(storage, `vehicle-conditions/${timestamp}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        return getDownloadURL(snapshot.ref);
-      })
-    );
+        const imageUrls = await Promise.all(
+            images.map(async (file) => {
+                const timestamp = Date.now();
+                const storageRef = ref(storage, `vehicle-conditions/${timestamp}_${file.name}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                return getDownloadURL(snapshot.ref);
+            })
+        );
 
-      // Combine existing and new images
-    const allImages = [
-      ...(rental.checkOutCondition?.images || []),
-      ...imageUrls
-    ];
+        // Combine existing and new images
+        const allImages = [
+            ...(rental.checkOutCondition?.images || []),
+            ...imageUrls
+        ];
 
-      // Create updated check-out condition
-      // Create updated check-out condition
-    const updatedCondition: VehicleCondition = {
-      ...conditionData,
-      type: 'check-out',
-      date: rental.checkOutCondition?.date || new Date(),
-      images: allImages,
-      createdAt: rental.checkOutCondition?.createdAt || new Date(),
-      createdBy: rental.checkOutCondition?.createdBy || user.id
-    } as VehicleCondition;
+        // Create updated check-out condition
+        const updatedCondition: VehicleCondition = {
+            ...conditionData,
+            type: 'check-out',
+            date: rental.checkOutCondition?.date || new Date(),
+            images: allImages,
+            createdAt: rental.checkOutCondition?.createdAt || new Date(),
+            createdBy: rental.checkOutCondition?.createdBy || user.id
+        } as VehicleCondition;
 
+        // Update rental data
+        const rentalData = {
+            startDate: startDateTime,
+            endDate: endDateTime,
+            type: formData.type,
+            reason: formData.reason,
+            status: formData.status,
+            cost: finalCost,
+            standardCost,
+            paidAmount: newPaidAmount,
+            remainingAmount,
+            paymentStatus: newPaidAmount >= totalCost ? 'paid' :
+                newPaidAmount > 0 ? 'partially_paid' : 'pending',
+            payments,
+            signature: formData.signature,
+            negotiatedRate: negotiatedRate, // Changed here
+            negotiationNotes: formData.negotiationNotes,
+            discountPercentage: formData.discountPercentage,
+            discountAmount: existingDiscount,
+            discountNotes: formData.discountNotes,
+            checkOutCondition: updatedCondition,
+            updatedAt: new Date(),
+            updatedBy: user.id
+        };
 
-      // Update rental data
-      const rentalData = {
-        startDate: startDateTime,
-        endDate: endDateTime,
-        type: formData.type,
-        reason: formData.reason,
-        status: formData.status,
-        cost: finalCost,
-        standardCost,
-        paidAmount: newPaidAmount,
-        remainingAmount,
-        paymentStatus: newPaidAmount >= finalCost ? 'paid' : 
-                      newPaidAmount > 0 ? 'partially_paid' : 'pending',
-        payments,
-        signature: formData.signature,
-        // Only include negotiation fields if there's a negotiated rate
-        ...(formData.negotiatedRate ? {
-          negotiatedRate: parseFloat(formData.negotiatedRate),
-          negotiationNotes: formData.negotiationNotes
-        } : {
-          negotiatedRate: null,
-          negotiationNotes: null
-        }),
-        // Only include discount fields if there's a discount
-        ...(formData.discountPercentage > 0 ? {
-          discountPercentage: formData.discountPercentage,
-          discountAmount: discountAmount,
-          discountNotes: formData.discountNotes
-        } : {
-          discountPercentage: null,
-          discountAmount: null,
-          discountNotes: null
-        }),
-        checkOutCondition: updatedCondition,
-        updatedAt: new Date(),
-        updatedBy: user.id
-      };
+        // Update rental record
+        await updateDoc(doc(db, 'rentals', rental.id), rentalData);
 
-      // Update rental record
-      await updateDoc(doc(db, 'rentals', rental.id), rentalData);
+        // Generate and upload new documents
+        const documents = await generateRentalDocuments(
+            { id: rental.id, ...rentalData },
+            selectedVehicle,
+            selectedCustomer
+        );
+        await uploadRentalDocuments(rental.id, documents);
 
-      // Generate and upload new documents
-      const documents = await generateRentalDocuments(
-        { id: rental.id, ...rentalData },
-        selectedVehicle,
-        selectedCustomer
-      );
-      await uploadRentalDocuments(rental.id, documents);
+        // Create finance transaction for new payment
+        if (amountToPay > 0) {
+            await createFinanceTransaction({
+                type: 'income',
+                category: 'rental',
+                amount: amountToPay,
+                description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})`,
+                referenceId: rental.id,
+                vehicleId: selectedVehicle.id,
+                vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+                vehicleOwner: selectedVehicle.owner,
+                paymentMethod: formData.paymentMethod,
+                paymentReference: formData.paymentReference,
+                paymentStatus: newPaidAmount >= totalCost ? 'paid' : 'partially_paid',
+                date: new Date()
+            });
+        }
 
-      // Create finance transaction for new payment
-      if (amountToPay > 0) {
-        await createFinanceTransaction({
-          type: 'income',
-          category: 'rental',
-          amount: amountToPay,
-          description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})`,
-          referenceId: rental.id,
-          vehicleId: selectedVehicle.id,
-          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          vehicleOwner: selectedVehicle.owner,
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          paymentStatus: newPaidAmount >= finalCost ? 'paid' : 'partially_paid',
-          date: new Date()
-        });
-      }
-
-      toast.success('Rental updated successfully');
-      onClose();
+        toast.success('Rental updated successfully');
+        onClose();
     } catch (error) {
-      console.error('Error updating rental:', error);
-      toast.error('Failed to update rental');
+        console.error('Error updating rental:', error);
+        toast.error('Failed to update rental');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -580,49 +584,59 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         </div>
       </div>
 
-      {/* Cost Summary */}
-      <div className="border-t pt-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+     {/* Cost Summary Section */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+        <h3 className="text-lg font-medium text-gray-900">Cost Summary</h3>
+        
+        <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Base Cost:</span>
-            <span className="font-medium">£{totalCost.toFixed(2)}</span>
+            <span>Standard Cost:</span>
+            <span className="font-medium">{formatCurrency(standardCost)}</span>
           </div>
 
-          {formData.negotiatedRate && (
+          {ongoingCharges > 0 && (
+            <div className="flex justify-between text-sm text-red-600">
+              <span>Ongoing Charges:</span>
+              <span>+{formatCurrency(ongoingCharges)}</span>
+            </div>
+          )}
+
+          {negotiatedDiscount > 0 && (
             <div className="flex justify-between text-sm text-blue-600">
-              <span>Negotiated Rate:</span>
-              <span>£{formData.negotiatedRate}/{formData.type === 'weekly' ? 'week' : 'day'}</span>
+              <span>Negotiated Discount:</span>
+              <span>-{formatCurrency(negotiatedDiscount)}</span>
             </div>
           )}
 
-          {formData.discountPercentage > 0 && (
+          {existingDiscount > 0 && (
             <div className="flex justify-between text-sm text-green-600">
-              <span>Discount ({formData.discountPercentage}%):</span>
-              <span>-£{discountAmount.toFixed(2)}</span>
+              <span>Applied Discount ({rental.discountPercentage}%):</span>
+              <span>-{formatCurrency(existingDiscount)}</span>
             </div>
           )}
 
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Final Amount:</span>
-            <span className="font-medium">£{(totalCost - discountAmount).toFixed(2)}</span>
+          <div className="pt-2 border-t">
+            <div className="flex justify-between text-sm font-medium">
+              <span>Total Cost:</span>
+              <span>{formatCurrency(totalCost)}</span>
+            </div>
           </div>
 
           <div className="flex justify-between text-sm text-green-600">
-            <span>Previously Paid:</span>
-            <span>£{rental.paidAmount.toFixed(2)}</span>
+            <span>Amount Paid:</span>
+            <span>{formatCurrency(rental.paidAmount)}</span>
           </div>
 
           {amountToPay > 0 && (
             <div className="flex justify-between text-sm text-blue-600">
               <span>New Payment:</span>
-              <span>£{amountToPay.toFixed(2)}</span>
+              <span>+{formatCurrency(amountToPay)}</span>
             </div>
           )}
 
-          <div className="flex justify-between text-sm text-amber-600">
+          <div className="flex justify-between text-sm text-amber-600 pt-2 border-t">
             <span>Remaining Amount:</span>
-            <span>£{remainingAmount.toFixed(2)}</span>
+            <span>{formatCurrency(remainingAmount)}</span>
           </div>
 
           <div className="flex justify-between text-sm font-medium pt-2 border-t">
@@ -636,51 +650,44 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       </div>
 
       {/* Payment Details */}
-      <div className="border-t pt-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h3>
-        <div className="space-y-4">
-          <FormField
-            type="number"
-            label="Amount to Pay"
-            value={formData.amountToPay}
-            onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
-            min="0"
-            max={totalCost - discountAmount - rental.paidAmount}
-            step="0.01"
-          />
+      <div className="space-y-4">
+        <FormField
+          type="number"
+          label="Amount to Pay"
+          value={formData.amountToPay}
+          onChange={(e) => setFormData({ ...formData, amountToPay: e.target.value })}
+          min="0"
+          max={remainingAmount}
+          step="0.01"
+        />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
-          </div>
-
-          <FormField
-            label="Payment Reference"
-            value={formData.paymentReference}
-            onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
-            placeholder="Enter payment reference or transaction ID"
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
-            <textarea
-              value={formData.paymentNotes}
-              onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
-              rows={2}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              placeholder="Add any notes about this payment"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+          <select
+            value={formData.paymentMethod}
+            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="cheque">Cheque</option>
+          </select>
         </div>
+
+        <FormField
+          label="Payment Reference"
+          value={formData.paymentReference}
+          onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+          placeholder="Enter payment reference or transaction ID"
+        />
+
+        <TextArea
+          label="Payment Notes"
+          value={formData.paymentNotes}
+          onChange={(e) => setFormData({ ...formData, paymentNotes: e.target.value })}
+          placeholder="Add any notes about this payment"
+        />
       </div>
 
       {/* Customer Signature */}

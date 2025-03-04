@@ -6,6 +6,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -46,11 +47,12 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     return 'N/A';
   };
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay(); 
   // Add function to check if invoice is overdue
   const isOverdue = (invoice: Invoice): boolean => {
     return invoice.paymentStatus !== 'paid' && new Date() > invoice.dueDate;
   };
+
 
   // Sort invoices: overdue first, then by due date ascending
   const sortedInvoices = [...invoices].sort((a, b) => {
@@ -131,13 +133,13 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       header: 'Amount',
       cell: ({ row }) => (
         <div>
-          <div className="font-medium">£{row.original.amount.toFixed(2)}</div>
+          <div className="font-medium">{formatCurrency(row.original.amount)}</div>
           {row.original.paidAmount > 0 && (
             <div className="text-xs">
-              <span className="text-green-600">Paid: £{row.original.paidAmount.toFixed(2)}</span>
+              <span className="text-green-600">Paid: {formatCurrency(row.original.paidAmount)}</span>
               {row.original.remainingAmount > 0 && (
                 <span className="text-amber-600 ml-1">
-                  Due: £{row.original.remainingAmount.toFixed(2)}
+                  Due: {formatCurrency(row.original.remainingAmount)}
                 </span>
               )}
             </div>
@@ -155,7 +157,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
               <div key={payment.id} className="text-sm flex items-center justify-between">
                 <div>
                   <div className="flex items-center">
-                    <span>£{payment.amount.toFixed(2)}</span>
+                    <span>{formatCurrency(payment.amount)}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

@@ -12,15 +12,12 @@ import RentalDeleteModal from '../components/rentals/RentalDeleteModal';
 import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
 import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
 import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
-import ReturnConditionForm from '../components/rentals/ReturnConditionForm.tsx'
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Car, RotateCw } from 'lucide-react';
+import { Plus, Download, Car, RotateCw, FileText } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
@@ -29,14 +26,21 @@ import { RefreshCw } from 'lucide-react';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
 
+import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
+import { RentalDocument, RentalBulkDocument } from '../components/pdf/documents';
+import { saveAs } from 'file-saver';
+import { useCompanyDetails } from '../hooks/useCompanyDetails';
+
 
 const Rentals = () => {
   // const { vehicles, loading } = useVehiclesContext();
+  const { rentals, loading } = useRentals();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { rentals, loading: rentalsLoading } = useRentals();
+
   const { customers, loading: customersLoading } = useCustomers();
    const { can } = usePermissions();
   const { user } = useAuth();
+  const { companyDetails } = useCompanyDetails();
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
 
   const {
@@ -97,10 +101,45 @@ const Rentals = () => {
 
   
   
+  const handleGenerateDocument = async (rental: Rental) => {
+    try {
+      const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+      const customer = customers.find(c => c.id === rental.customerId);
 
-  if (vehiclesLoading || rentalsLoading || customersLoading) {
+      await generateAndUploadDocument(
+        RentalDocument,
+        { ...rental, vehicle, customer },
+        'rentals',
+        rental.id,
+        'rentals'
+      );
+
+      toast.success('Document generated successfully');
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+  
+  const handleGenerateBulkDocument = async () => {
+    try {
+      const pdfBlob = await generateBulkDocuments(
+        RentalBulkDocument,
+        filteredRentals,
+        companyDetails
+      );
+
+      saveAs(pdfBlob, 'rental_summary.pdf');
+      toast.success('Bulk document generated successfully');
+    } catch (error) {
+      console.error('Error generating bulk document:', error);
+      toast.error('Failed to generate bulk document');
+    }
+  };
+
+if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -111,6 +150,15 @@ const Rentals = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
         <div className="flex space-x-2">
+        <button
+            onClick={handleGenerateBulkDocument}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Generate PDF
+          </button>
+
+
          {user?.role === 'manager' && (
   <button
     onClick={handleExport}
@@ -264,39 +312,17 @@ const Rentals = () => {
       </Modal>
 
       <Modal
-  isOpen={!!completingRental}
-  onClose={() => setCompletingRental(null)}
-  title="Vehicle Return Condition"
->
-  {completingRental && (
-    <ReturnConditionForm
-      checkOutCondition={completingRental.checkOutCondition}
-      onSubmit={async (condition) => {
-        try {
-          // Calculate new total cost including additional charges
-          const newTotalCost = completingRental.cost + condition.totalCharges;
-          const newRemainingAmount = newTotalCost - completingRental.paidAmount;
-
-          // Update rental with return condition and new costs
-          await updateDoc(doc(db, 'rentals', completingRental.id), {
-            returnCondition: condition,
-            cost: newTotalCost,
-            remainingAmount: newRemainingAmount,
-            updatedAt: new Date()
-          });
-
-          toast.success('Return condition saved successfully');
-          setCompletingRental(null);
-        } catch (error) {
-          console.error('Error saving return condition:', error);
-          toast.error('Failed to save return condition');
-        }
-      }}
-      onClose={() => setCompletingRental(null)}
-    />
-  )}
-</Modal>
-
+        isOpen={!!completingRental}
+        onClose={() => setCompletingRental(null)}
+        title="Complete Rental"
+      >
+        {completingRental && (
+          <RentalCompleteModal
+            rental={completingRental}
+            onClose={() => setCompletingRental(null)}
+          />
+        )}
+      </Modal>
 
       <Modal
         isOpen={showAvailableVehicles}

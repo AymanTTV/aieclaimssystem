@@ -8,8 +8,10 @@ import { calculateOverdueCost } from '../../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
 import VehicleConditionDetails from './VehicleConditionDetails';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; 
 
-
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 interface SectionProps {
   title: string;
   children: React.ReactNode;
@@ -23,7 +25,10 @@ interface RentalDetailsProps {
   onDownloadInvoice: () => void;
 }
 
+
+
 const Section: React.FC<SectionProps> = ({ title, children }) => (
+
   <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
     <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
     {children}
@@ -38,6 +43,29 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   onDownloadInvoice
 }) => {
   const [ongoingCharges, setOngoingCharges] = useState(0);
+
+  const [createdByName, setCreatedByName] = useState<string | null>(null);
+  const { formatCurrency } = useFormattedDisplay();
+useEffect(() => {
+  const fetchCreatedByName = async () => {
+    if (rental.createdBy) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', rental.createdBy));
+        if (userDoc.exists()) {
+          setCreatedByName(userDoc.data().name);
+        } else {
+          setCreatedByName('Unknown User');
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        setCreatedByName('Unknown User');
+      }
+    }
+  };
+
+  fetchCreatedByName();
+}, [rental.createdBy]);
+
   const formatDateTime = (date: Date | null | undefined): string => {
     if (!date) return 'N/A';
     try {
@@ -202,52 +230,52 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
     {/* Cost Details */}
     <div className="border-t pt-4">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Details</h3>
-      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-600">Base Cost:</span>
-          <span className="font-medium">£{rental.cost.toFixed(2)}</span>
-        </div>
-
-        {ongoingCharges > 0 && (
-          <div className="flex justify-between items-center text-red-600">
-            <span>Ongoing Charges:</span>
-            <span>+£{ongoingCharges.toFixed(2)}</span>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Details</h3>
+        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600">Base Cost:</span>
+            <span className="font-medium">{formatCurrency(rental.cost)}</span>
           </div>
-        )}
 
-        {rental.negotiatedRate && (
-          <div className="flex justify-between items-center text-blue-600">
-            <span>Negotiated Rate:</span>
-            <span>£{rental.negotiatedRate}/{rental.type === 'weekly' ? 'week' : 'day'}</span>
+          {ongoingCharges > 0 && (
+            <div className="flex justify-between items-center text-red-600">
+              <span>Ongoing Charges:</span>
+              <span>+{formatCurrency(ongoingCharges)}</span>
+            </div>
+          )}
+
+          {rental.negotiatedRate && (
+            <div className="flex justify-between items-center text-blue-600">
+              <span>Negotiated Rate:</span>
+              <span>£{rental.negotiatedRate}/{rental.type === 'weekly' ? 'week' : 'day'}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-2 border-t">
+            <span className="text-gray-600">Total Cost:</span>
+            <span className="font-medium">{formatCurrency(totalCost)}</span>
           </div>
-        )}
 
-        <div className="flex justify-between items-center pt-2 border-t">
-          <span className="text-gray-600">Total Cost:</span>
-          <span className="font-medium">£{totalCost.toFixed(2)}</span>
-        </div>
-
-        <div className="flex justify-between items-center text-green-600">
-          <span>Amount Paid:</span>
-          <span>£{rental.paidAmount.toFixed(2)}</span>
-        </div>
-
-        {rental.discountAmount > 0 && (
           <div className="flex justify-between items-center text-green-600">
-            <span>Discount ({rental.discountPercentage}%):</span>
-            <span>-£{rental.discountAmount.toFixed(2)}</span>
+            <span>Amount Paid:</span>
+            <span>{formatCurrency(rental.paidAmount)}</span>
           </div>
-        )}
 
-        <div className="flex justify-between items-center pt-2 border-t font-medium">
-          <span>Remaining Amount:</span>
-          <span className={remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}>
-            £{remainingAmount.toFixed(2)}
-          </span>
+          {rental.discountAmount > 0 && (
+            <div className="flex justify-between items-center text-green-600">
+              <span>Discount ({rental.discountPercentage}%):</span>
+              <span>-{formatCurrency(rental.discountAmount)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-2 border-t font-medium">
+            <span>Remaining Amount:</span>
+            <span className={remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}>
+              {formatCurrency(remainingAmount)}
+            </span>
+          </div>
         </div>
       </div>
-    </div>
 
     
 
@@ -282,7 +310,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     {/* Creation Information */}
     <div className="text-sm text-gray-500">
       <div className="flex justify-between">
-        <div>Created: {formatDate(rental.createdAt, true)}</div>
+      <div>Submitted by: {createdByName || rental.createdBy || 'Loading...'}</div>
+
         <div>Last Updated: {formatDate(rental.updatedAt, true)}</div>
       </div>
     </div>

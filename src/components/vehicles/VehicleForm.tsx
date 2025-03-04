@@ -13,7 +13,6 @@ interface VehicleFormProps {
   onSubmit: (data: Partial<Vehicle>) => Promise<void>;  // Add this prop
 }
 
-
 const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit }) => {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -30,13 +29,12 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     registrationNumber: vehicle?.registrationNumber || '',
     mileage: vehicle?.mileage?.toString() || '0',
     insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
-    motExpiry: vehicle?.motExpiry ? new Date(vehicle.motExpiry).toISOString().split('T')[0] : '',
+    motTestDate: vehicle?.motTestDate ? new Date(vehicle.motTestDate).toISOString().split('T')[0] : '',
     nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
     roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
     lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
     nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
     image: null as File | null,
-    // Rental pricing fields
     weeklyRentalPrice: vehicle?.weeklyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.weekly.toString(),
     dailyRentalPrice: vehicle?.dailyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.daily.toString(),
     claimRentalPrice: vehicle?.claimRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.claim.toString(),
@@ -58,62 +56,64 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     };
     reader.readAsDataURL(file);
   };
+
   const handleGenerateDocument = async (record: Vehicle) => {
-  try {
-    const documentUrl = await generateAndUploadDocument(
-      VehicleDocument,
-      record,
-      'vehicles',
-      record.id,
-      'vehicles'
-    );
-    
-    toast.success('Document generated successfully');
-    return documentUrl;
-  } catch (error) {
-    console.error('Error generating document:', error);
-    toast.error('Failed to generate document');
-  }
-};
+    try {
+      const documentUrl = await generateAndUploadDocument(
+        VehicleDocument,
+        record,
+        'vehicles',
+        record.id,
+        'vehicles'
+      );
+      
+      toast.success('Document generated successfully');
+      return documentUrl;
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) return;
-  setLoading(true);
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
 
-  try {
-    const vehicleData = {
-      ...formData,
-      mileage: parseInt(formData.mileage),
-      year: parseInt(formData.year),
-      // Convert date strings to Date objects
-      motExpiry: new Date(formData.motExpiry),
-      nslExpiry: new Date(formData.nslExpiry),
-      roadTaxExpiry: new Date(formData.roadTaxExpiry),
-      insuranceExpiry: new Date(formData.insuranceExpiry),
-      lastMaintenance: new Date(formData.lastMaintenance),
-      nextMaintenance: new Date(formData.nextMaintenance),
-      // Rental prices
-      weeklyRentalPrice: Math.round(parseFloat(formData.weeklyRentalPrice)) || DEFAULT_RENTAL_PRICES.weekly,
-      dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
-      claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
-      owner: isCustomOwner ? owner : DEFAULT_OWNER,
-      status: vehicle?.status || 'available',
-      image: formData.image // Pass the image file directly
-    };
+    try {
+      const motTestDate = new Date(formData.motTestDate);
+      const motExpiry = new Date(motTestDate);
+      motExpiry.setMonth(motExpiry.getMonth() + 6); // Add 6 months to test date
 
-    // Call the onSubmit prop with the vehicle data
-    await onSubmit(vehicleData);
-    onClose();
-  } catch (error) {
-    console.error('Error saving vehicle:', error);
-    toast.error('Failed to save vehicle');
-  } finally {
-    setLoading(false);
-  }
-};
+      const vehicleData = {
+        ...formData,
+        mileage: parseInt(formData.mileage),
+        year: parseInt(formData.year),
+        motTestDate: new Date(formData.motTestDate),
+        motExpiry,
+        nslExpiry: new Date(formData.nslExpiry),
+        roadTaxExpiry: new Date(formData.roadTaxExpiry),
+        insuranceExpiry: new Date(formData.insuranceExpiry),
+        lastMaintenance: new Date(formData.lastMaintenance),
+        nextMaintenance: new Date(formData.nextMaintenance),
+        weeklyRentalPrice: Math.round(parseFloat(formData.weeklyRentalPrice)) || DEFAULT_RENTAL_PRICES.weekly,
+        dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
+        claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
+        owner: isCustomOwner ? owner : DEFAULT_OWNER,
+        status: vehicle?.status || 'available',
+        image: formData.image,
+        createdBy: user.id,
+      };
 
-
-
+      await onSubmit(vehicleData);
+      onClose();
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      toast.error('Failed to save vehicle');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!can('vehicles', vehicle ? 'update' : 'create')) {
     return <div>You don't have permission to {vehicle ? 'edit' : 'add'} vehicles.</div>;
@@ -169,39 +169,38 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       </div>
 
       {/* Rental Pricing Section */}
-<div className="border-t pt-6">
-  <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
-  <div className="grid grid-cols-3 gap-4">
-    <FormField
-      type="number"
-      label="Weekly Rental Price (£)"
-      value={formData.weeklyRentalPrice}
-      onChange={(e) => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
-      min="0"
-      step="1" // Changed from "0.01" to "1"
-      required
-    />
-    <FormField
-      type="number"
-      label="Daily Rental Price (£)"
-      value={formData.dailyRentalPrice}
-      onChange={(e) => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
-      min="0"
-      step="1" // Changed from "0.01" to "1"
-      required
-    />
-    <FormField
-      type="number"
-      label="Claim Rental Price (£)"
-      value={formData.claimRentalPrice}
-      onChange={(e) => setFormData({ ...formData, claimRentalPrice: e.target.value })}
-      min="0"
-      step="1" // Changed from "0.01" to "1"
-      required
-    />
-  </div>
-</div>
-
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <FormField
+            type="number"
+            label="Weekly Rental Price (£)"
+            value={formData.weeklyRentalPrice}
+            onChange={(e) => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
+            min="0"
+            step="1"
+            required
+          />
+          <FormField
+            type="number"
+            label="Daily Rental Price (£)"
+            value={formData.dailyRentalPrice}
+            onChange={(e) => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
+            min="0"
+            step="1"
+            required
+          />
+          <FormField
+            type="number"
+            label="Claim Rental Price (£)"
+            value={formData.claimRentalPrice}
+            onChange={(e) => setFormData({ ...formData, claimRentalPrice: e.target.value })}
+            min="0"
+            step="1"
+            required
+          />
+        </div>
+      </div>
 
       {/* Owner Information */}
       <div className="border-t pt-6">
@@ -259,9 +258,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       <div className="grid grid-cols-2 gap-4">
         <FormField
           type="date"
-          label="MOT Expiry"
-          value={formData.motExpiry}
-          onChange={(e) => setFormData({ ...formData, motExpiry: e.target.value })}
+          label="MOT Test Date"
+          value={formData.motTestDate}
+          onChange={(e) => setFormData({ ...formData, motTestDate: e.target.value })}
           required
         />
 

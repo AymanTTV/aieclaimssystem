@@ -1,5 +1,3 @@
-// src/components/claims/ClaimForm/sections/PoliceDetails.tsx
-
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
@@ -26,15 +24,20 @@ const PoliceDetails = () => {
 
       {policeInvolved && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* CAD Number */}
           <FormField
-            label="CAD Number"
-            {...register('policeIncidentNumber')}
-            error={errors.policeIncidentNumber?.message as string}
-            placeholder="Enter CAD number"
+            label="Officer's Name"
+            {...register('policeOfficerName')}
+            error={errors.policeOfficerName?.message as string}
+            placeholder="Enter officer's name"
           />
 
-          {/* Police Station */}
+          <FormField
+            label="Badge/ID Number"
+            {...register('policeBadgeNumber')}
+            error={errors.policeBadgeNumber?.message as string}
+            placeholder="Enter badge number"
+          />
+
           <FormField
             label="Police Station"
             {...register('policeStation')}
@@ -42,35 +45,20 @@ const PoliceDetails = () => {
             placeholder="Enter police station"
           />
 
-          {/* Police Contact Number */}
           <FormField
-            type="tel"
-            label="Police Contact Number"
-            {...register('policeContactInfo')}
-            error={errors.policeContactInfo?.message as string}
-            placeholder="Enter contact number"
+            label="Incident Number (CAD No)"
+            {...register('policeIncidentNumber')}
+            error={errors.policeIncidentNumber?.message as string}
+            placeholder="Enter incident number"
           />
 
-          {/* Additional Notes */}
           <div className="col-span-2">
             <TextArea
-              label="Additional Notes"
-              {...register('policeNotes')}
-              error={errors.policeNotes?.message as string}
-              placeholder="Add any additional information about police involvement"
+              label="Additional Contact Information"
+              {...register('policeContactInfo')}
+              error={errors.policeContactInfo?.message as string}
+              placeholder="Add any additional contact information"
             />
-          </div>
-        </div>
-      )}
-
-      {policeInvolved && (
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-blue-700">
-                Please ensure all police-related information is accurate. This may be important for the claim process.
-              </p>
-            </div>
           </div>
         </div>
       )}

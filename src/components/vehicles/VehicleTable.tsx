@@ -187,12 +187,13 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       header: 'Vehicle Documents',
       cell: ({ row }) => {
         const vehicle = row.original;
-        const motExpiry = calculateMotExpiry(vehicle.motExpiry);
+        const motExpiry = new Date(vehicle.motTestDate);
+        motExpiry.setMonth(motExpiry.getMonth() + 6);
 
         return (
           <div className="space-y-2">
-            <div className={vehicle.motExpiry}>
-              MOT Test Date: {formatDate(vehicle.motExpiry)}
+            <div className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-red-600 font-medium' : ''}>
+              MOT Test Date: {formatDate(vehicle.motTestDate)}
             </div>
             <div className={isExpiringOrExpired(motExpiry) ? 'text-red-600 font-medium' : ''}>
               MOT Expiry: {formatDate(motExpiry)}

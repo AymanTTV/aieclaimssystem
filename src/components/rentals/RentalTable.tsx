@@ -7,7 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isAfter, differenceInDays, isWithinInterval, isBefore, addDays } from 'date-fns';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
-
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface RentalTableProps {
   rentals: Rental[];
@@ -39,6 +39,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onDeletePayment,
 }) => {
   const { can } = usePermissions();
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
 
   // Sort rentals by end date (closest first)
   const sortedRentals = [...rentals].sort((a, b) => {
@@ -155,55 +156,55 @@ const RentalTable: React.FC<RentalTableProps> = ({
   ),
 },
 
-    {
-      header: 'Cost Details',
-      cell: ({ row }) => {
-        const rental = row.original;
-        const vehicle = vehicles.find(v => v.id === rental.vehicleId);
-        const now = new Date();
-        
-        // Calculate ongoing charges if rental is active and past end date
-        const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate)
-          ? calculateOverdueCost(rental, now, vehicle)
-          : 0;
+{
+  header: 'Cost Details',
+  cell: ({ row }) => {
+    const rental = row.original;
+    const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+    const now = new Date();
 
-        const totalCost = rental.cost + ongoingCharges;
-        const remainingAmount = totalCost - rental.paidAmount - (rental.discountAmount || 0);
+    // Calculate ongoing charges if rental is active and past end date
+    const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate)
+      ? calculateOverdueCost(rental, now, vehicle)
+      : 0;
 
-        return (
-          <div>
-            <div className="font-medium">£{rental.cost.toFixed(2)}</div>
-            {ongoingCharges > 0 && (
-              <div className="text-xs text-red-600">
-                +£{ongoingCharges.toFixed(2)} Ongoing
-              </div>
-            )}
-            {rental.negotiatedRate && (
-              <div className="text-xs text-blue-600">
-                Negotiated: £{rental.negotiatedRate}/
-                {rental.type === 'weekly' ? 'week' : 'day'}
-              </div>
-            )}
-            {rental.discountAmount > 0 && (
-              <div className="text-xs text-green-600">
-                Discount: £{rental.discountAmount.toFixed(2)}
-                ({rental.discountPercentage}%)
-              </div>
-            )}
-            <div className="text-xs space-y-0.5 mt-1">
-              <div className="text-green-600">
-                Paid: £{rental.paidAmount.toFixed(2)}
-              </div>
-              {remainingAmount > 0 && (
-                <div className="text-amber-600">
-                  Due: £{remainingAmount.toFixed(2)}
-                </div>
-              )}
-            </div>
+    const totalCost = rental.cost + ongoingCharges;
+    const remainingAmount = totalCost - rental.paidAmount - (rental.discountAmount || 0);
+
+    return (
+      <div>
+        <div className="font-medium">{formatCurrency(rental.cost)}</div>
+        {ongoingCharges > 0 && (
+          <div className="text-xs text-red-600">
+            +{formatCurrency(ongoingCharges)} Ongoing
           </div>
-        );
-      },
-    },
+        )}
+        {rental.negotiatedRate && (
+          <div className="text-xs text-blue-600">
+            Negotiated: £{rental.negotiatedRate}/
+            {rental.type === 'weekly' ? 'week' : 'day'}
+          </div>
+        )}
+        {rental.discountAmount > 0 && (
+          <div className="text-xs text-green-600">
+            Discount: {formatCurrency(rental.discountAmount)}
+            ({rental.discountPercentage}%)
+          </div>
+        )}
+        <div className="text-xs space-y-0.5 mt-1">
+          <div className="text-green-600">
+            Paid: {formatCurrency(rental.paidAmount)}
+          </div>
+          {remainingAmount > 0 && (
+            <div className="text-amber-600">
+              Due: {formatCurrency(remainingAmount)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  },
+},
     {
       header: 'Actions',
       cell: ({ row }) => (

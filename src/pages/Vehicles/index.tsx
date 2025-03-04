@@ -1,24 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useVehicleFilters } from '../../hooks/useVehicleFilters';
 import { useVehicleActions } from '../../hooks/useVehicleActions';
-import { usePermissions } from '../../hooks/usePermissions';
+import { handleVehicleExport, handleVehicleImport } from '../../utils/vehicleHelpers';
+import { generateAndUploadDocument, generateBulkDocuments } from '../../utils/documentGenerator';
+import { VehicleDocument } from '../../components/pdf/documents/VehicleDocument';
+import VehicleBulkDocument from '../../components/pdf/documents/VehicleBulkDocument';
+import VehicleHeader from './components/VehicleHeader';
+import VehicleFilters from './components/VehicleFilters';
 import VehicleTable from '../../components/vehicles/VehicleTable';
-import VehicleFilters from '../../components/vehicles/VehicleFilters';
-import VehicleDetailsModal from '../../components/vehicles/VehicleDetailsModal';
 import VehicleForm from '../../components/vehicles/VehicleForm';
+import VehicleDetailsModal from '../../components/vehicles/VehicleDetailsModal';
 import VehicleSaleModal from '../../components/vehicles/VehicleSaleModal';
 import VehicleUndoSaleModal from '../../components/vehicles/VehicleUndoSaleModal';
 import VehicleDeleteModal from '../../components/vehicles/VehicleDeleteModal';
-import VehicleHeader from '../../components/vehicles/VehicleHeader';
-import { useVehicleStatusManager } from '../../hooks/useVehicleStatusManager';
-
+import Modal from '../../components/ui/Modal';
+import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import toast from 'react-hot-toast';
 
 const Vehicles = () => {
   const { vehicles, loading } = useVehicles();
-  const { can } = usePermissions();
-  useVehicleStatusManager(); // Add this hook to manage real-time status updates
-
+  const { companyDetails } = useCompanyDetails();
   const {
     searchQuery,
     setSearchQuery,
@@ -46,19 +48,65 @@ const Vehicles = () => {
     resetAllModals,
   } = useVehicleActions();
 
+  const handleGenerateDocument = async (vehicle: Vehicle) => {
+    try {
+      const documentUrl = await generateAndUploadDocument(
+        VehicleDocument,
+        vehicle,
+        'vehicles',
+        vehicle.id,
+        'vehicles'
+      );
+      
+      toast.success('Document generated successfully');
+      return documentUrl;
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast.error('Failed to generate document');
+    }
+  };
+
+  const handleGenerateBulkPDF = async () => {
+    try {
+      if (!companyDetails) {
+        toast.error('Company details not found');
+        return;
+      }
+
+      const pdfBlob = await generateBulkDocuments(
+        VehicleBulkDocument,
+        filteredVehicles,
+        companyDetails
+      );
+
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `fleet_summary_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Fleet summary PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating fleet summary:', error);
+      toast.error('Failed to generate fleet summary');
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
     <div className="space-y-6">
       <VehicleHeader
         onAdd={() => setEditingVehicle({})}
-        showAddButton={can('vehicles', 'create')}
+        onExport={() => handleVehicleExport(filteredVehicles)}
+        onImport={handleVehicleImport}
+        onGeneratePDF={handleGenerateBulkPDF}
       />
 
       <VehicleFilters
@@ -79,20 +127,29 @@ const Vehicles = () => {
         onEdit={setEditingVehicle}
         onDelete={setDeletingVehicle}
         onMarkAsSold={setSellingVehicle}
+        onUndoSale={setUndoingVehicle}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={(url) => window.open(url, '_blank')}
       />
 
       {/* Modals */}
+      {editingVehicle && (
+        <Modal
+          isOpen={!!editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+          title={editingVehicle.id ? 'Edit Vehicle' : 'Add Vehicle'}
+        >
+          <VehicleForm
+            vehicle={editingVehicle}
+            onClose={() => setEditingVehicle(null)}
+          />
+        </Modal>
+      )}
+
       {selectedVehicle && (
         <VehicleDetailsModal
           vehicle={selectedVehicle}
           onClose={() => setSelectedVehicle(null)}
-        />
-      )}
-
-      {editingVehicle && (
-        <VehicleForm
-          vehicle={editingVehicle}
-          onClose={() => setEditingVehicle(null)}
         />
       )}
 

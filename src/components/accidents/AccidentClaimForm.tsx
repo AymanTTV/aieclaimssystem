@@ -897,7 +897,7 @@ const { vehicles } = useVehicles();
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
+            <p className="text-xs text-gray-500">PNG, JPG, GIF </p>
           </div>
         </div>
       </div>
@@ -923,3 +923,5 @@ const { vehicles } = useVehicles();
 };
 
 export default AccidentClaimForm;
+
+

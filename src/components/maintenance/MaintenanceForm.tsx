@@ -17,6 +17,9 @@ import { calculateCosts } from '../../utils/maintenanceCostUtils';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../ui/SearchableSelect';
 
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+
+
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
   onClose: () => void;
@@ -38,7 +41,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const [paidAmount, setPaidAmount] = useState(editLog?.paidAmount || 0);
   const [paymentMethod, setPaymentMethod] = useState(editLog?.paymentMethod || 'cash');
   const [paymentReference, setPaymentReference] = useState(editLog?.paymentReference || '');
-
+  const { formatCurrency } = useFormattedDisplay();
   const [formData, setFormData] = useState({
     type: editLog?.type || 'yearly-service',
     description: editLog?.description || '',
@@ -149,6 +152,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                     paidAmount > 0 ? 'partially_paid' : 'unpaid',
       paymentMethod,
       paymentReference,
+      
       status: formData.status,
       notes: formData.notes,
       vatDetails: {
@@ -165,7 +169,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
         ...maintenanceData,
         updatedAt: new Date(),
-        updatedBy: user.id
+        updatedBy: user.id,
       });
 
       // Create finance transaction for new payment if any
@@ -483,35 +487,36 @@ const handleSubmit = async (e: React.FormEvent) => {
   </div>
 
   {/* Cost Summary */}
+{/* Cost Summary */}
 <div className="bg-gray-50 p-4 rounded-lg space-y-2">
   {/* NET Amount */}
   <div className="flex justify-between text-sm font-medium">
     <span>NET Amount:</span>
-    <span>£{costs.netAmount.toFixed(2)}</span>
+    <span>{formatCurrency(costs.netAmount)}</span>
   </div>
 
   {/* VAT Amount */}
   <div className="flex justify-between text-sm text-gray-600">
     <span>VAT (20%):</span>
-    <span>£{costs.vatAmount.toFixed(2)}</span>
+    <span>{formatCurrency(costs.vatAmount)}</span>
   </div>
 
   {/* Total Amount */}
   <div className="flex justify-between text-lg font-bold pt-2 border-t">
     <span>Total Amount:</span>
-    <span>£{costs.totalAmount.toFixed(2)}</span>
+    <span>{formatCurrency(costs.totalAmount)}</span>
   </div>
 
   {/* Payment Status */}
   <div className="pt-4 border-t space-y-2">
     <div className="flex justify-between text-sm">
       <span>Amount Paid:</span>
-      <span className="text-green-600">£{paidAmount.toFixed(2)}</span>
+      <span className="text-green-600">{formatCurrency(paidAmount)}</span>
     </div>
     {remainingAmount > 0 && (
       <div className="flex justify-between text-sm">
         <span>Remaining Amount:</span>
-        <span className="text-amber-600">£{remainingAmount.toFixed(2)}</span>
+        <span className="text-amber-600">{formatCurrency(remainingAmount)}</span>
       </div>
     )}
     <div className="flex justify-between text-sm pt-2 border-t">

@@ -4,6 +4,7 @@ import { VATRecord } from '../../types/vatRecord';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VATRecordTableProps {
   records: VATRecord[];
@@ -23,7 +24,7 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
   onViewDocument
 }) => {
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay();
   const columns = [
     {
       header: 'Receipt Details',
@@ -49,10 +50,10 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
       header: 'Financial Details',
       cell: ({ row }) => (
         <div className="space-y-1 text-sm">
-          <div className="text-green-600">NET: £{row.original.net.toFixed(2)}</div>
-          <div className="text-blue-600">VAT ({row.original.vatPercentage}%): £{row.original.vat.toFixed(2)}</div>
-          <div>GROSS: £{row.original.gross.toFixed(2)}</div>
-          <div className="text-purple-600">Received: £{row.original.vatReceived.toFixed(2)}</div>
+          <div className="text-green-600">NET: {formatCurrency(row.original.net !== undefined ? row.original.net : 0)}</div>
+          <div className="text-blue-600">VAT: {formatCurrency(row.original.vat !== undefined ? row.original.vat : 0)}</div>
+          <div>GROSS: {formatCurrency(row.original.gross !== undefined ? row.original.gross : 0)}</div>
+          <div className="text-purple-600">Received: {formatCurrency(row.original.vatReceived !== undefined ? row.original.vatReceived : 0)}</div>
         </div>
       ),
     },

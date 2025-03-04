@@ -1,5 +1,3 @@
-// src/components/claims/ClaimForm/sections/ParamedicDetails.tsx
-
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
@@ -26,60 +24,26 @@ const ParamedicDetails = () => {
 
       {paramedicInvolved && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Ambulance Number */}
           <FormField
-            label="Ambulance Number"
+            label="Names of Paramedics"
+            {...register('paramedicNames')}
+            error={errors.paramedicNames?.message as string}
+            placeholder="Enter paramedic names"
+          />
+
+          <FormField
+            label="Ambulance Reference"
             {...register('ambulanceReference')}
             error={errors.ambulanceReference?.message as string}
-            placeholder="Enter ambulance number"
+            placeholder="Enter reference number"
           />
 
-          {/* Hospital */}
           <FormField
-            label="Hospital"
+            label="Ambulance Service"
             {...register('ambulanceService')}
             error={errors.ambulanceService?.message as string}
-            placeholder="Enter hospital name"
+            placeholder="Enter ambulance service name"
           />
-
-          {/* Date */}
-          <FormField
-            type="date"
-            label="Date"
-            {...register('paramedicDate')}
-            error={errors.paramedicDate?.message as string}
-          />
-
-          {/* Time */}
-          <FormField
-            type="time"
-            label="Time"
-            {...register('paramedicTime')}
-            error={errors.paramedicTime?.message as string}
-          />
-
-          {/* Additional Notes */}
-          <div className="col-span-2">
-            <TextArea
-              label="Additional Notes"
-              {...register('paramedicNotes')}
-              error={errors.paramedicNotes?.message as string}
-              placeholder="Add any additional information about paramedic involvement"
-            />
-          </div>
-        </div>
-      )}
-
-      {paramedicInvolved && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                Medical information is sensitive and will be handled with appropriate confidentiality.
-                Please ensure all details are accurate as they may be required for the claim process.
-              </p>
-            </div>
-          </div>
         </div>
       )}
     </div>

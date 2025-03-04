@@ -1,3 +1,5 @@
+// src/types/claim.ts
+
 export type SubmitterType = 'company' | 'client';
 
 export type ClaimProgress = 
@@ -8,10 +10,20 @@ export type ClaimProgress =
   | 'Claim in Progress'
   | 'Claim Complete';
 
+export interface GPInformation {
+  visited: boolean;
+  gpName?: string;
+  gpAddress?: string;
+  gpDoctorName?: string;
+  gpDate?: Date;
+  gpContactNumber?: string;
+  gpNotes?: string;
+}
+
 export interface Claim {
   id: string;
   clientRef?: string;
-  submitterType: 'company' | 'client';
+  submitterType: SubmitterType;
   
   // Client Information
   clientInfo: {
@@ -34,6 +46,7 @@ export interface Claim {
       nsl?: string;
       insuranceCertificate?: string;
       tflBill?: string;
+      [key: string]: string | undefined;
     };
     motExpiry: Date;
     roadTaxExpiry: Date;
@@ -57,6 +70,9 @@ export interface Claim {
     registration: string;
   };
 
+  // GP Information
+  gpInformation?: GPInformation;
+
   // Passengers
   passengers?: Array<{
     name: string;
@@ -76,16 +92,16 @@ export interface Claim {
   }>;
 
   // Police Details
-  policeOfficerName?: string;
-  policeBadgeNumber?: string;
-  policeStation?: string;
-  policeIncidentNumber?: string;
-  policeContactInfo?: string;
+  policeOfficerName: string | null;
+  policeBadgeNumber: string | null;
+  policeStation: string | null;
+  policeIncidentNumber: string | null;
+  policeContactInfo: string | null;
 
   // Paramedic Details
-  paramedicNames?: string;
-  ambulanceReference?: string;
-  ambulanceService?: string;
+  paramedicNames: string | null;
+  ambulanceReference: string | null;
+  ambulanceService: string | null;
 
   // Evidence
   evidence: {
@@ -97,11 +113,12 @@ export interface Claim {
     adminDocuments: string[];
   };
 
-  // Make hireDetails optional with ?
+  // Hire Details
   hireDetails?: {
-    startDate: Date;
+    enabled: boolean;
+    startDate: Date | null;
     startTime: string;
-    endDate: Date;
+    endDate: Date | null;
     endTime: string;
     daysOfHire: number;
     claimRate: number;
@@ -114,12 +131,13 @@ export interface Claim {
       model: string;
       registration: string;
       claimRate: number;
-    };
+    } | null;
   };
 
   // Recovery Details
   recovery?: {
-    date: Date;
+    enabled: boolean;
+    date: Date | null;
     locationPickup: string;
     locationDropoff: string;
     cost: number;
@@ -127,8 +145,9 @@ export interface Claim {
 
   // Storage Details
   storage?: {
-    startDate: Date;
-    endDate: Date;
+    enabled: boolean;
+    startDate: Date | null;
+    endDate: Date | null;
     costPerDay: number;
     totalCost: number;
   };
@@ -141,10 +160,10 @@ export interface Claim {
 
   // Status and Progress
   claimType: 'Domestic' | 'Taxi' | 'PI' | 'PCO';
-  claimReason: 'VD Only' | 'VDHS' | 'VDH' | 'PI' | 'VDHSPI';
+  claimReason: Array<'VD' | 'H' | 'S' | 'PI'>;
   caseProgress: 'Win' | 'Lost' | 'Awaiting' | '50/50';
   progress: ClaimProgress;
-  statusDescription: string;
+  statusDescription?: string;
 
   // Progress History
   progressHistory: Array<{
@@ -153,6 +172,7 @@ export interface Claim {
     status: string;
     note: string;
     author: string;
+    amount?: number;
   }>;
 
   // Generated Documents
@@ -163,11 +183,13 @@ export interface Claim {
     creditStorageAndRecovery?: string;
     hireAgreement?: string;
     satisfactionNotice?: string;
+    [key: string]: string | undefined;
   };
 
   // System Fields
-  submittedBy: string;
+  createdBy: string;
   submittedAt: Date;
   updatedAt: Date;
   updatedBy?: string;
+  documentUrl?: string;
 }

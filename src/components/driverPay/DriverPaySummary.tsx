@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { DollarSign, PieChart, Wallet } from 'lucide-react';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface DriverPaySummaryProps {
   total: number;
@@ -14,6 +15,8 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
   commission,
   netPay
 }) => {
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div className="bg-white rounded-lg shadow-sm p-6">
@@ -22,7 +25,7 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Amount</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{total.toFixed(2)}
+              {formatCurrency(total)}
             </p>
           </div>
         </div>
@@ -34,7 +37,7 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Commission</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{commission.toFixed(2)}
+              {formatCurrency(commission)}
             </p>
           </div>
         </div>
@@ -46,7 +49,7 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Net Pay</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{netPay.toFixed(2)}
+              {formatCurrency(netPay)}
             </p>
           </div>
         </div>

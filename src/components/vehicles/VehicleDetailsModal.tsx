@@ -1,10 +1,11 @@
-import React from 'react';
-import { Vehicle, DEFAULT_RENTAL_PRICES } from '../../types/vehicle';
+import React, { useState, useEffect } from 'react';
+import { Vehicle } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
 import { Car, User, MapPin, Calendar, Clock, AlertTriangle, FileText, DollarSign } from 'lucide-react';
-import { useMileageHistory } from '../../hooks/useMileageHistory';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import Modal from '../ui/Modal';
 
 interface VehicleDetailsModalProps {
@@ -13,7 +14,27 @@ interface VehicleDetailsModalProps {
 }
 
 const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onClose }) => {
-  const { history, loading: historyLoading } = useMileageHistory(vehicle.id);
+  const [createdByName, setCreatedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCreatedByName = async () => {
+      if (vehicle.createdBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', vehicle.createdBy));
+          if (userDoc.exists()) {
+            setCreatedByName(userDoc.data().name);
+          } else {
+            setCreatedByName('Unknown User');
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setCreatedByName('Unknown User');
+        }
+      }
+    };
+
+    fetchCreatedByName();
+  }, [vehicle.createdBy]);
 
   const DetailItem = ({ label, value, isDate = false, isExpiring = false }: { 
     label: string;
@@ -29,15 +50,9 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
     </div>
   );
 
-  const calculateMotExpiry = (motDate: string | undefined): string | undefined => {
-    if (!motDate) return undefined;
-    const motExpiryDate = new Date(motDate);
-    motExpiryDate.setMonth(motExpiryDate.getMonth() + 6);
-    return motExpiryDate.toISOString();
-  };
-
-  const motExpiry2 = calculateMotExpiry(vehicle.motExpiry);
-
+  // Calculate MOT expiry (6 months after test date)
+  const motExpiry = new Date(vehicle.motTestDate);
+  motExpiry.setMonth(motExpiry.getMonth() + 6);
 
   return (
     <Modal
@@ -78,48 +93,19 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           <DetailItem label="Mileage" value={`${vehicle.mileage.toLocaleString()} Mi`} />
         </div>
 
-        {/* Rental Pricing */}
-<div className="border-b border-gray-200 pb-4">
-  <div className="flex items-center mb-4">
-    <DollarSign className="w-5 h-5 text-gray-400 mr-2" />
-    <h3 className="text-lg font-medium text-gray-900">Rental Pricing</h3>
-  </div>
-  <div className="grid grid-cols-3 gap-4">
-    <div>
-      <h4 className="text-sm font-medium text-gray-500">Weekly Rate</h4>
-      <p className="mt-1 text-lg font-medium">
-        £{Math.round(vehicle.weeklyRentalPrice || DEFAULT_RENTAL_PRICES.weekly)}
-      </p>
-    </div>
-    <div>
-      <h4 className="text-sm font-medium text-gray-500">Daily Rate</h4>
-      <p className="mt-1 text-lg font-medium">
-        £{Math.round(vehicle.dailyRentalPrice || DEFAULT_RENTAL_PRICES.daily)}
-      </p>
-    </div>
-    <div>
-      <h4 className="text-sm font-medium text-gray-500">Claim Rate</h4>
-      <p className="mt-1 text-lg font-medium">
-        £{Math.round(vehicle.claimRentalPrice || DEFAULT_RENTAL_PRICES.claim)}
-      </p>
-    </div>
-  </div>
-</div>
-
-
         {/* Document Expiry Dates */}
         <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
           <DetailItem 
             label="MOT Test Date" 
-            value={vehicle.motExpiry} 
+            value={vehicle.motTestDate} 
             isDate 
-            isExpiring={isExpiringOrExpired(vehicle.motExpiry)} 
+            isExpiring={isExpiringOrExpired(vehicle.motTestDate)} 
           />
           <DetailItem 
-            label="MOT Expiry (6 months)" 
-            value={motExpiry2} 
+            label="MOT Expiry" 
+            value={motExpiry} 
             isDate 
-            isExpiring={isExpiringOrExpired(motExpiry2)} // Check if 6-month expiry is also expiring
+            isExpiring={isExpiringOrExpired(motExpiry)} 
           />
           <DetailItem 
             label="NSL Expiry" 
@@ -133,7 +119,6 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             isDate 
             isExpiring={isExpiringOrExpired(vehicle.roadTaxExpiry)} 
           />
-           
           <DetailItem 
             label="Insurance Expiry" 
             value={vehicle.insuranceExpiry} 
@@ -155,49 +140,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             isDate 
             isExpiring={isExpiringOrExpired(vehicle.nextMaintenance)} 
           />
-
-          
         </div>
-
-        {/* Mileage History */}
-        {/* Mileage History */}
-<div className="border-b border-gray-200 pb-4">
-  <div className="flex items-center space-x-2 mb-4">
-    <Clock className="w-5 h-5 text-gray-400" />
-    <h3 className="text-lg font-medium text-gray-900">Mileage History</h3>
-  </div>
-  {historyLoading ? (
-    <div className="text-center py-4">Loading history...</div>
-  ) : (
-    <div className="space-y-2">
-      <div className="font-medium">
-        <span className="text-gray-700">Next Service Mileage:</span> 
-        <span className="text-gray-900 font-semibold"> {vehicle.mileage + 25000} Mi</span>
-      </div>
-      <div className="font-medium">
-        Current Mileage: {vehicle.mileage.toLocaleString()} Mi
-      </div>
-      {history.map((record) => (
-        <div key={record.id} className="flex justify-between text-sm">
-          <div>
-            <span className="text-gray-600">{formatDate(record.date)}</span>
-            <span className="mx-2">•</span>
-            <span>
-              {record.previousMileage.toLocaleString()} → {record.newMileage.toLocaleString()} Mi
-            </span>
-          </div>
-          <div className="text-gray-500">
-            {record.recordedBy}
-            {record.notes && (
-              <span className="ml-2 text-xs italic">({record.notes})</span>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
-
 
         {/* Owner Information */}
         <div className="border-b border-gray-200 pb-4">
@@ -233,14 +176,14 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
         {/* Creation Information */}
         <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
-          <DetailItem 
-            label="Created At" 
-            value={vehicle.createdAt} 
-            isDate 
+          <DetailItem
+            label="Created At"
+            value={vehicle.createdAt}
+            isDate
           />
-          <DetailItem 
-            label="Created By" 
-            value={vehicle.createdBy} 
+          <DetailItem
+            label="Created By"
+            value={createdByName || vehicle.createdBy || 'Loading...'}
           />
         </div>
       </div>

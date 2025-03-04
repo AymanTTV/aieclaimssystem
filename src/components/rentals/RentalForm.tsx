@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 import { Search, Car } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
-
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import FileUpload from '../ui/FileUpload';
 import TextArea from '../ui/TextArea';
 
@@ -34,6 +34,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const [showVehicleResults, setShowVehicleResults] = useState(false);
   const [showCustomerResults, setShowCustomerResults] = useState(false);
   const [images, setImages] = useState<File[]>([]);
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -625,12 +626,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       </div>
 
       {/* Cost Summary */}
+      {/* Cost Summary */}
       <div className="border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           <div className="flex justify-between text-sm">
             <span>Base Cost:</span>
-            <span className="font-medium">£{totalCost.toFixed(2)}</span>
+            <span className="font-medium">{formatCurrency(totalCost)}</span>
           </div>
 
           {formData.negotiatedRate && (
@@ -643,13 +645,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           {formData.discountPercentage > 0 && (
             <div className="flex justify-between text-sm text-green-600">
               <span>Discount ({formData.discountPercentage}%):</span>
-              <span>-£{discountAmount.toFixed(2)}</span>
+              <span>-{formatCurrency(discountAmount)}</span>
             </div>
           )}
 
           <div className="flex justify-between text-sm pt-2 border-t">
             <span>Final Amount:</span>
-            <span className="font-medium">£{(totalCost - discountAmount).toFixed(2)}</span>
+            <span className="font-medium">{formatCurrency(totalCost - discountAmount)}</span>
           </div>
         </div>
       </div>

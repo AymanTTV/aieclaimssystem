@@ -1,6 +1,6 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { Transaction, Vehicle } from '../../types';
+import { Transaction, Vehicle, Customer } from '../../types';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 interface TransactionTableProps {
   transactions: Transaction[];
   vehicles: Vehicle[];
+  customers: Customer[];
   onView: (transaction: Transaction) => void;
   onEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
@@ -18,7 +19,8 @@ interface TransactionTableProps {
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions,
-  vehicles,
+  vehicles = [],
+  customers = [],
   onView,
   onEdit,
   onDelete,
@@ -27,31 +29,51 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 }) => {
   const { can } = usePermissions();
 
+  // Sort transactions by date in descending order
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    b.date.getTime() - a.date.getTime()
+  );
+
   const columns = [
     {
       header: 'Date',
       cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
+      sortable: true,
+      sortDescFirst: true
     },
     {
-      header: 'Status',
+      header: 'Type & Status',
       cell: ({ row }) => (
         <div className="space-y-1">
           <StatusBadge status={row.original.type} />
-          <StatusBadge status={row.original.status} />
+          <StatusBadge status={row.original.status || 'completed'} />
           <StatusBadge status={row.original.paymentStatus} />
         </div>
       ),
     },
     {
-      header: 'Category',
-      accessorKey: 'category',
+      header: 'Customer',
+      cell: ({ row }) => {
+        if (row.original.customerName) {
+          return <div className="font-medium">{row.original.customerName}</div>;
+        }
+        const customer = customers.find(c => c.id === row.original.customerId);
+        return customer ? (
+          <div>
+            <div className="font-medium">{customer.name}</div>
+            <div className="text-sm text-gray-500">{customer.mobile}</div>
+          </div>
+        ) : null;
+      },
     },
     {
       header: 'Vehicle',
       cell: ({ row }) => {
-        if (!row.original.vehicleId) return 'N/A';
+        if (!row.original.vehicleId) return null;
         const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
-        return vehicle ? (
+        if (!vehicle) return null;
+
+        return (
           <div>
             <div className="font-medium">
               {vehicle.make} {vehicle.model}
@@ -60,8 +82,12 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
               {vehicle.registrationNumber}
             </div>
           </div>
-        ) : 'N/A';
+        );
       },
+    },
+    {
+      header: 'Category',
+      accessorKey: 'category',
     },
     {
       header: 'Amount',
@@ -70,6 +96,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           £{row.original.amount.toFixed(2)}
         </span>
       ),
+      sortable: true
     },
     {
       header: 'Actions',
@@ -142,9 +169,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
   return (
     <DataTable
-      data={transactions}
+      data={sortedTransactions}
       columns={columns}
       onRowClick={(transaction) => can('finance', 'view') && onView(transaction)}
+      defaultSortColumn="date"
+      defaultSortDirection="desc"
     />
   );
 };

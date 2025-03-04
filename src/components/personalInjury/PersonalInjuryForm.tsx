@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PersonalInjury } from '../../types/personalInjury';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
-import TextArea from '../ui/TextArea';
-import SignaturePad from '../ui/SignaturePad';
+import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
+import { ensureValidDate } from '../../utils/dateHelpers';
 
 interface PersonalInjuryFormProps {
   injury?: PersonalInjury;
@@ -16,16 +16,20 @@ interface PersonalInjuryFormProps {
 const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
+  const [manualEntry, setManualEntry] = useState(true);
+
   const [formData, setFormData] = useState({
     reference: injury?.reference || '',
     fullName: injury?.fullName || '',
-    dateOfBirth: injury?.dateOfBirth ? injury.dateOfBirth.toISOString().split('T')[0] : '',
+    dateOfBirth: injury?.dateOfBirth ? new Date(injury.dateOfBirth).toISOString().split('T')[0] : '',
     address: injury?.address || '',
     postcode: injury?.postcode || '',
     contactNumber: injury?.contactNumber || '',
     emailAddress: injury?.emailAddress || '',
     
-    incidentDate: injury?.incidentDate ? injury.incidentDate.toISOString().split('T')[0] : '',
+    incidentDate: injury?.incidentDate ? new Date(injury.incidentDate).toISOString().split('T')[0] : '',
     incidentTime: injury?.incidentTime || '',
     incidentLocation: injury?.incidentLocation || '',
     description: injury?.description || '',
@@ -44,6 +48,52 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
     signature: injury?.signature || '',
   });
 
+  useEffect(() => {
+    const fetchClaims = async () => {
+      try {
+        console.log('Fetching claims...');
+        const q = query(
+          collection(db, 'claims'),
+          where('progress', '!=', 'Claim Complete')
+        );
+        const snapshot = await getDocs(q);
+        const claimsData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            // Convert dates using ensureValidDate
+            submittedAt: ensureValidDate(data.submittedAt),
+            updatedAt: ensureValidDate(data.updatedAt),
+            clientInfo: {
+              ...data.clientInfo,
+              dateOfBirth: ensureValidDate(data.clientInfo.dateOfBirth)
+            },
+            incidentDetails: {
+              ...data.incidentDetails,
+              date: ensureValidDate(data.incidentDetails.date)
+            }
+          };
+        });
+        console.log('Fetched claims:', claimsData);
+        setClaims(claimsData);
+
+        if (injury?.claimId) {
+          const claim = claimsData.find(c => c.id === injury.claimId);
+          if (claim) {
+            setSelectedClaim(claim);
+            setManualEntry(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        toast.error('Failed to fetch claims');
+      }
+    };
+
+    fetchClaims();
+  }, [injury?.claimId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -57,6 +107,7 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
         signatureDate: new Date(),
         status: 'pending' as const,
         updatedAt: new Date(),
+        claimId: selectedClaim?.id
       };
 
       if (injury) {
@@ -85,61 +136,120 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Personal Details */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Claim Details</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            label="Reference"
-            value={formData.reference}
-            onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-            placeholder="Enter reference number"
-          />
-          <FormField
-            label="Full Name"
-            value={formData.fullName}
-            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-            required
-          />
-          <FormField
-            type="date"
-            label="Date of Birth"
-            value={formData.dateOfBirth}
-            onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-            required
-          />
-          <div className="col-span-2">
-            <FormField
-              label="Address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              required
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">Claim Details</label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={manualEntry}
+              onChange={(e) => {
+                setManualEntry(e.target.checked);
+                if (e.target.checked) {
+                  setSelectedClaim(null);
+                }
+              }}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
             />
-          </div>
-          <FormField
-            label="Postcode"
-            value={formData.postcode}
-            onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Contact Number"
-            value={formData.contactNumber}
-            onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
-            required
-          />
-          <FormField
-            type="email"
-            label="Email Address"
-            value={formData.emailAddress}
-            onChange={(e) => setFormData({ ...formData, emailAddress: e.target.value })}
-            required
-          />
+            <span className="text-sm text-gray-600">Manual Entry</span>
+          </label>
         </div>
+
+        {!manualEntry && (
+          <SearchableSelect
+            label="Select Claim"
+            options={claims.map(claim => ({
+              id: claim.id,
+              label: claim.clientInfo.name,
+              subLabel: `Ref: ${claim.clientRef || 'N/A'} | Status: ${claim.status}`
+            }))}
+            value={selectedClaim?.id || ''}
+            onChange={(id) => {
+              const claim = claims.find(c => c.id === id);
+              if (claim) {
+                setSelectedClaim(claim);
+                setFormData(prev => ({
+                  ...prev,
+                  reference: claim.clientRef || '',
+                  fullName: claim.clientInfo.name,
+                  dateOfBirth: new Date(claim.clientInfo.dateOfBirth).toISOString().split('T')[0],
+                  address: claim.clientInfo.address,
+                  contactNumber: claim.clientInfo.phone,
+                  emailAddress: claim.clientInfo.email,
+                  incidentDate: new Date(claim.incidentDetails.date).toISOString().split('T')[0],
+                  incidentTime: claim.incidentDetails.time,
+                  incidentLocation: claim.incidentDetails.location,
+                  description: claim.incidentDetails.description
+                }));
+              }
+            }}
+            placeholder="Search claims..."
+          />
+        )}
       </div>
 
-      {/* Incident Details */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          label="Reference"
+          value={formData.reference}
+          onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+          disabled={!manualEntry && !!selectedClaim}
+        />
+
+        <FormField
+          label="Full Name"
+          value={formData.fullName}
+          onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+          required
+          disabled={!manualEntry && !!selectedClaim}
+        />
+
+        <FormField
+          type="date"
+          label="Date of Birth"
+          value={formData.dateOfBirth}
+          onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+          required
+          disabled={!manualEntry && !!selectedClaim}
+        />
+
+        <div className="col-span-2">
+          <FormField
+            label="Address"
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <FormField
+          label="Postcode"
+          value={formData.postcode}
+          onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+          required
+          disabled={!manualEntry && !!selectedClaim}
+        />
+
+        <FormField
+          type="tel"
+          label="Contact Number"
+          value={formData.contactNumber}
+          onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
+          required
+          disabled={!manualEntry && !!selectedClaim}
+        />
+
+        <FormField
+          type="email"
+          label="Email Address"
+          value={formData.emailAddress}
+          onChange={(e) => setFormData({ ...formData, emailAddress: e.target.value })}
+          required
+          disabled={!manualEntry && !!selectedClaim}
+        />
+      </div>
+
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Incident Details</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -166,25 +276,30 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
             />
           </div>
           <div className="col-span-2">
-            <TextArea
-              label="Description of What Happened"
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
               required
             />
           </div>
         </div>
       </div>
 
-      {/* Injury Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Injury Details</h3>
-        <TextArea
-          label="Describe Your Injuries"
-          value={formData.injuries}
-          onChange={(e) => setFormData({ ...formData, injuries: e.target.value })}
-          required
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Describe Your Injuries</label>
+          <textarea
+            value={formData.injuries}
+            onChange={(e) => setFormData({ ...formData, injuries: e.target.value })}
+            rows={3}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            required
+          />
+        </div>
         <div className="space-y-2">
           <label className="flex items-center space-x-2">
             <input
@@ -196,17 +311,20 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
             <span className="text-sm text-gray-700">Received Medical Treatment</span>
           </label>
           {formData.receivedMedicalTreatment && (
-            <TextArea
-              label="Medical Treatment Details"
-              value={formData.medicalDetails}
-              onChange={(e) => setFormData({ ...formData, medicalDetails: e.target.value })}
-              placeholder="Enter hospital name, GP details, etc."
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Medical Treatment Details</label>
+              <textarea
+                value={formData.medicalDetails}
+                onChange={(e) => setFormData({ ...formData, medicalDetails: e.target.value })}
+                rows={3}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                placeholder="Enter hospital name, GP details, etc."
+              />
+            </div>
           )}
         </div>
       </div>
 
-      {/* Witness Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Witness Details</h3>
         <div className="space-y-2">
@@ -270,7 +388,6 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
         </div>
       </div>
 
-      {/* Additional Information */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Additional Information</h3>
         <div className="space-y-4">
@@ -300,18 +417,6 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
             <span className="text-sm text-gray-700">Supporting Evidence Available</span>
           </label>
         </div>
-      </div>
-
-      {/* Declaration and Signature */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Declaration</h3>
-        <p className="text-sm text-gray-500">
-          I declare that the information provided above is true to the best of my knowledge.
-        </p>
-        <SignaturePad
-          value={formData.signature}
-          onChange={(signature) => setFormData({ ...formData, signature })}
-        />
       </div>
 
       <div className="flex justify-end space-x-3">

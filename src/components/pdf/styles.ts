@@ -92,6 +92,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     borderBottomWidth: 1,
     paddingVertical: 8,
+    minHeight: 35,
   },
   tableCell: {
     flex: 1,
@@ -216,5 +217,29 @@ export const styles = StyleSheet.create({
     color: '#059669',
     fontSize: 10,
     marginTop: 5,
+  },
+  // Pagination styles
+  pageNumber: {
+    position: 'absolute',
+    fontSize: 8,
+    bottom: 20,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: '#6B7280',
+  },
+  // Table pagination
+  tableContainer: {
+    marginBottom: 20,
+    breakInside: 'avoid',
+  },
+  // Section break control
+  sectionBreak: {
+    breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+  },
+  // Keep elements together
+  keepTogether: {
+    breakInside: 'avoid',
   },
 });

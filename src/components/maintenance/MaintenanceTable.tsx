@@ -5,6 +5,7 @@ import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -26,7 +27,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onViewDocument
 }) => {
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay();
   const columns = [
     {
       header: 'Vehicle',
@@ -79,14 +80,14 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const log = row.original;
         return (
           <div>
-            <div className="font-medium">£{log.cost.toFixed(2)}</div>
+            <div className="font-medium">{formatCurrency(log.cost)}</div>
             <div className="text-xs space-y-0.5">
               <div className="text-green-600">
-                Paid: £{log.paidAmount?.toFixed(2)}
+                Paid: {formatCurrency(log.paidAmount || 0)}
               </div>
               {log.remainingAmount > 0 && (
                 <div className="text-amber-600">
-                  Due: £{log.remainingAmount.toFixed(2)}
+                  Due: {formatCurrency(log.remainingAmount)}
                 </div>
               )}
             </div>

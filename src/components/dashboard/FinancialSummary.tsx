@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Transaction } from '../../types';
 import { DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface FinancialSummaryProps {
   transactions: Transaction[];
@@ -9,6 +10,8 @@ interface FinancialSummaryProps {
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, period }) => {
+  const { formatCurrency, formatPercentage } = useFormattedDisplay(); // Use the hook
+
   const summary = useMemo(() => {
     const now = new Date();
     const periodStart = startOfMonth(now);
@@ -48,7 +51,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Income</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{summary.totalIncome.toFixed(2)}
+              {formatCurrency(summary.totalIncome)}
             </p>
           </div>
         </div>
@@ -63,7 +66,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Expenses</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{summary.totalExpenses.toFixed(2)}
+              {formatCurrency(summary.totalExpenses)}
             </p>
           </div>
         </div>
@@ -80,7 +83,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
             <p className={`text-2xl font-semibold ${
               summary.netIncome >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              £{summary.netIncome.toFixed(2)}
+              {formatCurrency(summary.netIncome)}
             </p>
           </div>
         </div>
@@ -97,7 +100,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
             <p className={`text-2xl font-semibold ${
               summary.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {summary.profitMargin.toFixed(1)}%
+              {formatPercentage(summary.profitMargin)}
             </p>
           </div>
         </div>

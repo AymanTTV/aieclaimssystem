@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
 import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface InvoiceDetailsProps {
   invoice: Invoice;
@@ -31,6 +32,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     
     return 'N/A';
   };
+
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
 
   return (
     <div className="space-y-6">
@@ -111,20 +114,19 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       )}
 
-      {/* Payment Summary */}
-      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+<div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
           <span>Total Amount:</span>
-          <span className="font-medium">£{invoice.amount.toFixed(2)}</span>
+          <span className="font-medium">{formatCurrency(invoice.amount)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Amount Paid:</span>
-          <span className="text-green-600">£{(invoice.paidAmount || 0).toFixed(2)}</span>
+          <span className="text-green-600">{formatCurrency(invoice.paidAmount || 0)}</span>
         </div>
         {(invoice.remainingAmount || 0) > 0 && (
           <div className="flex justify-between text-sm">
             <span>Remaining Amount:</span>
-            <span className="text-amber-600">£{invoice.remainingAmount.toFixed(2)}</span>
+            <span className="text-amber-600">{formatCurrency(invoice.remainingAmount)}</span>
           </div>
         )}
         <div className="flex justify-between text-sm pt-2 border-t">

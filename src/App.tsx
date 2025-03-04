@@ -4,11 +4,11 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { VehicleProvider } from './utils/VehicleProvider';
 import AppRoutes from './routes';
-
+import { FormatProvider } from './context/FormatContext';
 
 function App() {
   return (
-    
+    <FormatProvider>
     <BrowserRouter>
        
       <AuthProvider>
@@ -45,6 +45,7 @@ function App() {
          
        
     </BrowserRouter>
+      </FormatProvider>
      
       
   );

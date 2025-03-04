@@ -1,14 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
 import { Accident } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../StatusBadge';
-import { Car, Calendar, MapPin, User, Phone, FileText, Shield, AlertTriangle, Mail, Clock } from 'lucide-react';
+import { Car, Calendar, MapPin, User, Phone, FileText, Shield, AlertTriangle, Mail, Clock, PoundSterling } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions
+import { db } from '../../lib/firebase'; // Import your Firebase instance
 
 interface AccidentClaimViewProps {
   accident: Accident;
 }
 
 const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
+  const [submittedByName, setSubmittedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSubmittedByName = async () => {
+      if (accident.submittedBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', accident.submittedBy)); // Assuming 'users' collection
+          if (userDoc.exists()) {
+            setSubmittedByName(userDoc.data().name); // Assuming 'name' field in user document
+          } else {
+            setSubmittedByName('Unknown User');
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setSubmittedByName('Unknown User');
+        }
+      }
+    };
+
+    fetchSubmittedByName();
+  }, [accident.submittedBy]);
+
+
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="border-t pt-4">
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
@@ -120,6 +146,10 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
             <div className="col-span-2 flex items-start space-x-2">
               <MapPin className="w-5 h-5 text-gray-400 mt-1" />
               <Field label="Location" value={accident.accidentLocation} />
+            </div>
+            <div className="col-span-2 flex items-start space-x-2">
+              <PoundSterling className="w-5 h-5 text-gray-400 mt-1" />
+              <Field label="Accident Amount" value={accident.amount} />
             </div>
           </div>
           <div>
@@ -262,7 +292,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
       {/* Audit Information */}
       <div className="border-t pt-4 text-sm text-gray-500">
         <div className="flex justify-between">
-          <div>Submitted by: {accident.submittedBy}</div>
+          <div>Submitted by: {submittedByName || accident.submittedBy || 'Loading...'}</div>
           <div>Last Updated: {format(accident.updatedAt, 'dd/MM/yyyy HH:mm')}</div>
         </div>
       </div>

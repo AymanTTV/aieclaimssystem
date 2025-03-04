@@ -3,13 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { VATRecord } from '../../types/vatRecord';
+import { VATRecord, VATRecordDescription } from '../../types/vatRecord';
 import { Customer } from '../../types/customer';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import TextArea from '../ui/TextArea';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VATRecordFormProps {
   record?: VATRecord;
@@ -25,55 +27,78 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [manualCustomer, setManualCustomer] = useState(false);
+  const [descriptions, setDescriptions] = useState<VATRecordDescription[]>(
+    record?.descriptions || []
+  );
 
-  const { register, handleSubmit, watch, setValue } = useForm({
-    defaultValues: {
-      receiptNo: record?.receiptNo || '',
-      accountant: record?.accountant || '',
-      supplier: record?.supplier || '',
-      regNo: record?.regNo || '',
-      description: record?.description || '',
-      net: record?.net || 0,
-      vatPercentage: record?.vatPercentage || 20,
-      vat: record?.vat || 0,
-      gross: record?.gross || 0,
-      vatReceived: record?.vatReceived || 0,
-      customerName: record?.customerName || '',
-      customerId: record?.customerId || '',
-      status: record?.status || 'awaiting',
-      notes: record?.notes || '',
-      date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-    }
+  const { formatCurrency } = useFormattedDisplay();
+
+  const [formData, setFormData] = useState({
+    receiptNo: record?.receiptNo || '',
+    accountant: record?.accountant || '',
+    supplier: record?.supplier || '',
+    regNo: record?.regNo || '',
+    customerName: record?.customerName || '',
+    customerId: record?.customerId || '',
+    status: record?.status || 'awaiting',
+    notes: record?.notes || '',
+    date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
   });
 
-  const net = watch('net');
-  const vatPercentage = watch('vatPercentage');
+  // Calculate totals
+  const calculateTotals = () => {
+    return descriptions.reduce((acc, desc) => ({
+      net: acc.net + desc.net,
+      vat: acc.vat + desc.vat,
+      gross: acc.gross + desc.gross
+    }), { net: 0, vat: 0, gross: 0 });
+  };
 
-  // Calculate VAT and GROSS when NET or VAT percentage changes
-  useEffect(() => {
-  const netValue = parseFloat(net) || 0;
-  const vatPercentageValue = parseFloat(vatPercentage) || 0;
-  const vat = (netValue * vatPercentageValue) / 100;
-  const gross = netValue + vat;
+  const addDescription = () => {
+    const newDescription: VATRecordDescription = {
+      id: uuidv4(),
+      description: '',
+      net: 0,
+      includeVAT: false,
+      vat: 0,
+      gross: 0
+    };
+    setDescriptions([...descriptions, newDescription]);
+  };
 
-  setValue('vat', vat.toFixed(2));
-  setValue('gross', gross.toFixed(2));
-}, [net, vatPercentage, setValue]);
+  const updateDescription = (id: string, updates: Partial<VATRecordDescription>) => {
+    setDescriptions(prevDescriptions => 
+      prevDescriptions.map(desc => {
+        if (desc.id === id) {
+          const updatedDesc = { ...desc, ...updates };
+          // Recalculate VAT and gross if NET or includeVAT changes
+          if ('net' in updates || 'includeVAT' in updates) {
+            updatedDesc.vat = updatedDesc.includeVAT ? updatedDesc.net * 0.2 : 0;
+            updatedDesc.gross = updatedDesc.net + updatedDesc.vat;
+          }
+          return updatedDesc;
+        }
+        return desc;
+      })
+    );
+  };
 
+  const removeDescription = (id: string) => {
+    setDescriptions(descriptions.filter(desc => desc.id !== id));
+  };
 
-  const onSubmit = async (data: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!user) return;
     setLoading(true);
 
     try {
+      const totals = calculateTotals();
       const vatRecord = {
-        ...data,
-        net: parseFloat(data.net),
-        vatPercentage: parseFloat(data.vatPercentage),
-        vat: parseFloat(data.vat),
-        gross: parseFloat(data.gross),
-        vatReceived: parseFloat(data.vatReceived),
-        date: new Date(data.date),
+        ...formData,
+        descriptions,
+        ...totals,
+        date: new Date(formData.date),
         updatedAt: new Date()
       };
 
@@ -99,72 +124,136 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <FormField
           label="Receipt No"
-          {...register('receiptNo')}
+          value={formData.receiptNo}
+          onChange={(e) => setFormData({ ...formData, receiptNo: e.target.value })}
           required
         />
         <FormField
           label="Accountant"
-          {...register('accountant')}
+          value={formData.accountant}
+          onChange={(e) => setFormData({ ...formData, accountant: e.target.value })}
           required
         />
         <FormField
           label="Supplier"
-          {...register('supplier')}
+          value={formData.supplier}
+          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
           required
         />
         <FormField
           label="REG No"
-          {...register('regNo')}
+          value={formData.regNo}
+          onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
           required
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <FormField
-          type="number"
-          label="NET"
-          {...register('net')}
-          required
-          step="0.01"
-          min="0"
-        />
-        <FormField
-          type="number"
-          label="VAT Percentage"
-          {...register('vatPercentage')}
-          required
-          step="0.01"
-          min="0"
-          max="100"
-        />
-        <FormField
-          type="number"
-          label="VAT Received"
-          {...register('vatReceived')}
-          step="0.01"
-          min="0"
-        />
+      {/* Descriptions Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-medium text-gray-900">Descriptions</h3>
+          <button
+            type="button"
+            onClick={addDescription}
+            className="text-primary hover:text-primary-600"
+          >
+            Add Description
+          </button>
+        </div>
+
+        {descriptions.map((desc) => (
+          <div key={desc.id} className="bg-gray-50 p-4 rounded-lg space-y-4 border rounded">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1">
+                <FormField
+                  label="Description"
+                  value={desc.description}
+                  onChange={(e) => updateDescription(desc.id, { description: e.target.value })}
+                  required
+                />
+              </div>
+              <FormField
+                type="number"
+                label="NET"
+                value={desc.net}
+                onChange={(e) => updateDescription(desc.id, { net: parseFloat(e.target.value) || 0 })}
+                required
+                min="0"
+                step="0.01"
+              />
+              <div className="col-span-1">
+                <FormField
+                  label="V"
+                  value={desc.vType || ''}
+                  onChange={(e) => updateDescription(desc.id, { vType: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-2">
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={desc.includeVAT}
+                    onChange={(e) => updateDescription(desc.id, { includeVAT: e.target.checked })}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-gray-700">Include VAT (20%)</span>
+                </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">VAT</label>
+                <input
+                  type="text"
+                  value={desc.vat.toFixed(2)}
+                  className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">GROSS</label>
+                <input
+                  type="text"
+                  value={desc.gross.toFixed(2)}
+                  className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  disabled
+                />
+              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => removeDescription(desc.id)}
+                className="text-red-600 hover:text-red-800"
+              >
+                Remove Description
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          type="number"
-          label="VAT"
-          value={watch('vat')}
-          disabled
-        />
-        <FormField
-          type="number"
-          label="GROSS"
-          value={watch('gross')}
-          disabled
-        />
+      {/* Totals Section */}
+      <div className="bg-gray-100 p-4 rounded-lg space-y-2">
+        <div className="flex justify-between text-sm">
+          <span>Total NET:</span>
+          <span className="font-medium">{formatCurrency(calculateTotals().net)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Total VAT:</span>
+          <span className="font-medium">{formatCurrency(calculateTotals().vat)}</span>
+        </div>
+        <div className="flex justify-between text-sm font-bold">
+          <span>Total GROSS:</span>
+          <span>{formatCurrency(calculateTotals().gross)}</span>
+        </div>
       </div>
 
+      {/* Customer Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-gray-700">Customer</label>
@@ -182,7 +271,8 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         {manualCustomer ? (
           <FormField
             label="Customer Name"
-            {...register('customerName')}
+            value={formData.customerName}
+            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
             required
           />
         ) : (
@@ -193,12 +283,15 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
               label: c.name,
               subLabel: `${c.mobile} - ${c.email}`
             }))}
-            value={watch('customerId')}
+            value={formData.customerId}
             onChange={(id) => {
               const customer = customers.find(c => c.id === id);
               if (customer) {
-                setValue('customerId', customer.id);
-                setValue('customerName', customer.name);
+                setFormData({
+                  ...formData,
+                  customerId: customer.id,
+                  customerName: customer.name
+                });
               }
             }}
             placeholder="Search customers..."
@@ -209,7 +302,8 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
       <div>
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select
-          {...register('status')}
+          value={formData.status}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value as VATRecord['status'] })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
         >
           <option value="awaiting">Awaiting</option>
@@ -219,15 +313,16 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
       </div>
 
       <TextArea
-        label="Description"
-        {...register('description')}
-        required
+        label="Notes (Optional)"
+        value={formData.notes}
+        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
       />
 
       <FormField
         type="date"
         label="Date"
-        {...register('date')}
+        value={formData.date}
+        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
         required
       />
 

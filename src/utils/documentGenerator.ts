@@ -1,5 +1,3 @@
-// src/utils/documentGenerator.ts
-
 import { pdf } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -7,6 +5,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
 import { getCompanyDetails } from './companyDetails';
 import toast from 'react-hot-toast';
+import { VehicleDocument, MaintenanceDocument, RentalDocument, AccidentDocument } from '../components/pdf/documents';
 
 // Generic document generation function
 export const generateAndUploadDocument = async (
@@ -54,6 +53,30 @@ export const generateAndUploadDocument = async (
   }
 };
 
+// Generate bulk documents for a collection
+export const generateBulkDocuments = async (
+  Component: React.ComponentType<any>,
+  records: any[],
+  companyDetails: any
+): Promise<Blob> => {
+  try {
+    // Create document with all records
+    const pdfBlob = await pdf(
+      createElement(Component, {
+        records,
+        companyDetails,
+        title: 'Records Summary'
+      })
+    ).toBlob();
+
+    return pdfBlob;
+  } catch (error) {
+    console.error('Error generating bulk documents:', error);
+    toast.error('Failed to generate documents');
+    throw error;
+  }
+};
+
 // Helper function to get company details
 export const getCompanyDetails = async () => {
   const docRef = doc(db, 'companySettings', 'details');
@@ -64,4 +87,45 @@ export const getCompanyDetails = async () => {
   }
   
   return docSnap.data();
+};
+
+// Export specific document generators
+export const generateVehicleDocument = async (record: any) => {
+  return generateAndUploadDocument(
+    VehicleDocument,
+    record,
+    'vehicles',
+    record.id,
+    'vehicles'
+  );
+};
+
+export const generateMaintenanceDocument = async (record: any) => {
+  return generateAndUploadDocument(
+    MaintenanceDocument,
+    record,
+    'maintenance',
+    record.id,
+    'maintenanceLogs'
+  );
+};
+
+export const generateRentalDocument = async (record: any) => {
+  return generateAndUploadDocument(
+    RentalDocument,
+    record,
+    'rentals',
+    record.id,
+    'rentals'
+  );
+};
+
+export const generateAccidentDocument = async (record: any) => {
+  return generateAndUploadDocument(
+    AccidentDocument,
+    record,
+    'accidents',
+    record.id,
+    'accidents'
+  );
 };

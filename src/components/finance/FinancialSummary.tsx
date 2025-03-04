@@ -1,69 +1,68 @@
 import React from 'react';
-import { Transaction } from '../types';
+import { Transaction } from '../../types';
 import { DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface FinancialSummaryProps {
-  transactions: Transaction[];
-  period: 'week' | 'month' | 'year';
+  totalIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+  profitMargin: number;
 }
 
-const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, period }) => {
-  const totalIncome = transactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpenses = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const netIncome = totalIncome - totalExpenses;
-  const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
+const FinancialSummary: React.FC<FinancialSummaryProps> = ({
+  totalIncome,
+  totalExpenses,
+  netIncome,
+  profitMargin
+}) => {
+  const { formatCurrency, formatPercentage } = useFormattedDisplay();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div className="bg-white rounded-lg shadow-md p-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">
-          <TrendingUp className="w-8 h-8 text-secondary" />
+          <TrendingUp className="w-8 h-8 text-green-500" />
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Income</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{totalIncome.toFixed(2)}
+              {formatCurrency(totalIncome)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">
-          <TrendingDown className="w-8 h-8 text-primary" />
+          <TrendingDown className="w-8 h-8 text-red-500" />
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Total Expenses</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{totalExpenses.toFixed(2)}
+              {formatCurrency(totalExpenses)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">
           <DollarSign className="w-8 h-8 text-blue-500" />
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Net Income</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{netIncome.toFixed(2)}
+              {formatCurrency(netIncome)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">
           <Percent className="w-8 h-8 text-purple-500" />
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Profit Margin</p>
             <p className="text-2xl font-semibold text-gray-900">
-              {profitMargin.toFixed(1)}%
+              {formatPercentage(profitMargin)}
             </p>
           </div>
         </div>

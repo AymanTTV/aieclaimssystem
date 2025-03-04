@@ -1,5 +1,3 @@
-// src/components/ui/StatusBadge.tsx
-
 import React from 'react';
 import clsx from 'clsx';
 
@@ -21,15 +19,20 @@ type StatusType =
   | string; // Allow any string to prevent type errors
 
 interface StatusBadgeProps {
-  status: StatusType;
+  status: StatusType | StatusType[];
   className?: string;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
   if (!status) return null; // Return null if status is undefined
 
+  // If status is an array, join the values
+  const statusText = Array.isArray(status) ? status.join(', ') : status;
+
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    const statusLower = status.toLowerCase();
+    
+    switch (statusLower) {
       // Vehicle statuses
       case 'available':
         return 'bg-green-100 text-green-800';
@@ -64,6 +67,34 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'overdue':
         return 'bg-red-100 text-red-800';
       
+      // Claim reasons
+      case 'vd':
+        return 'bg-blue-100 text-blue-800';
+      case 'h':
+        return 'bg-green-100 text-green-800';
+      case 's':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'pi':
+        return 'bg-purple-100 text-purple-800';
+      
+      // Claim types
+      case 'domestic':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'taxi':
+        return 'bg-orange-100 text-orange-800';
+      case 'pco':
+        return 'bg-teal-100 text-teal-800';
+      
+      // Case progress
+      case 'win':
+        return 'bg-green-100 text-green-800';
+      case 'lost':
+        return 'bg-red-100 text-red-800';
+      case 'awaiting':
+        return 'bg-yellow-100 text-yellow-800';
+      case '50/50':
+        return 'bg-orange-100 text-orange-800';
+      
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -73,11 +104,11 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
     <span
       className={clsx(
         'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
-        getStatusColor(status),
+        getStatusColor(statusText),
         className
       )}
     >
-      {status.replace(/[_-]/g, ' ')}
+      {statusText.replace(/[_-]/g, ' ')}
     </span>
   );
 };

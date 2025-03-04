@@ -71,6 +71,7 @@ export interface Accident {
   // System Fields
   status: 'reported' | 'investigating' | 'processing' | 'resolved';
   type?: 'fault' | 'non-fault' | 'pending';
+  amount: number;
   images?: string[];
   submittedBy: string;
   submittedAt: Date;

@@ -1,83 +1,102 @@
 import React, { useState } from 'react';
 import { useFinances } from '../hooks/useFinances';
-import { useVehicles } from '../hooks/useVehicles';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
+import { useVehicles } from '../hooks/useVehicles';
+import { useCustomers } from '../hooks/useCustomers';
+import { Transaction } from '../types';
+import FinanceHeader from '../components/finance/FinanceHeader';
 import FinanceFilters from '../components/finance/FinanceFilters';
+import FinancialSummary from '../components/finance/FinancialSummary';
 import TransactionTable from '../components/finance/TransactionTable';
 import TransactionForm from '../components/finance/TransactionForm';
 import TransactionDetails from '../components/finance/TransactionDetails';
 import TransactionDeleteModal from '../components/finance/TransactionDeleteModal';
-import FinancialSummary from '../components/finance/FinancialSummary';
 import Modal from '../components/ui/Modal';
-import { Plus, Download } from 'lucide-react';
-import { exportFinanceData } from '../utils/FinanceExport';
-import { Transaction } from '../types';
-import toast from 'react-hot-toast';
-import { usePermissions } from '../hooks/usePermissions';
-import { useAuth } from '../context/AuthContext';
+import { generateFinancePDF } from '../utils/financePDF';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { FinanceDocument } from '../components/pdf/documents';
+import { saveAs } from 'file-saver';
+import toast from 'react-hot-toast';
 
 const Finance = () => {
-  const { transactions, loading: transactionsLoading } = useFinances();
-  const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { can } = usePermissions();
-  const { user } = useAuth();
+  const { transactions, loading } = useFinances();
+  const { vehicles } = useVehicles();
+  const { customers } = useCustomers();
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [showAddIncome, setShowAddIncome] = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   const {
     searchQuery,
     setSearchQuery,
-    startDate,
-    setStartDate,
-    endDate,
-    setEndDate,
     type,
     setType,
     category,
     setCategory,
     paymentStatus,
     setPaymentStatus,
-    owner,
-    setOwner,
-    vehicleRegistration,
-    setVehicleRegistration,
-    uniqueOwners,
+    dateRange,
+    setDateRange,
+    selectedCustomerId,
+    setSelectedCustomerId,
+    selectedOwner,
+    setSelectedOwner,
+    owners,
     filteredTransactions
   } = useFinanceFilters(transactions, vehicles);
 
-  // Modal states
-  const [showForm, setShowForm] = useState(false);
-  const [formType, setFormType] = useState<'income' | 'expense'>('income');
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
+  // Calculate summary totals
+  const totalIncome = filteredTransactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpenses = filteredTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const netIncome = totalIncome - totalExpenses;
+  const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
+
+  const handleGeneratePDF = async () => {
+    try {
+      const pdfBlob = await generateFinancePDF(filteredTransactions, {
+        totalIncome,
+        totalExpenses,
+        netIncome,
+        profitMargin
+      });
+      saveAs(pdfBlob, 'finance_report.pdf');
+      toast.success('PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    }
+  };
 
   const handleGenerateDocument = async (transaction: Transaction) => {
     try {
-      const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
-      
-      await generateAndUploadDocument(
+      const documentUrl = await generateAndUploadDocument(
         FinanceDocument,
-        { ...transaction, vehicle },
+        transaction,
         'finance',
         transaction.id,
         'transactions'
       );
       
       toast.success('Document generated successfully');
+      return documentUrl;
     } catch (error) {
       console.error('Error generating document:', error);
       toast.error('Failed to generate document');
     }
   };
 
-  const handleViewDocument = (url: string) => {
-    window.open(url, '_blank');
-  };
-
-  if (transactionsLoading || vehiclesLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -85,125 +104,154 @@ const Finance = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Finance Overview</h1>
-        <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-            <button
-              onClick={() => exportFinanceData(filteredTransactions)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </button>
-          )}
-          {can('finance', 'create') && (
-            <>
-              <button
-                onClick={() => {
-                  setFormType('income');
-                  setShowForm(true);
-                }}
-                className="btn btn-secondary"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Income
-              </button>
-              <button
-                onClick={() => {
-                  setFormType('expense');
-                  setShowForm(true);
-                }}
-                className="btn btn-primary"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Expense
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <FinanceHeader
+        onSearch={setSearchQuery}
+        onImport={() => {}}
+        onExport={() => {}}
+        onAddIncome={() => setShowAddIncome(true)}
+        onAddExpense={() => setShowAddExpense(true)}
+        onGeneratePDF={handleGeneratePDF}
+        period="month"
+        onPeriodChange={() => {}}
+        type={type}
+        onTypeChange={setType}
+      />
 
-      <FinanceFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        startDate={startDate}
-        onStartDateChange={setStartDate}
-        endDate={endDate}
-        onEndDateChange={setEndDate}
+      <FinancialSummary
+        totalIncome={totalIncome}
+        totalExpenses={totalExpenses}
+        netIncome={netIncome}
+        profitMargin={profitMargin}
+      />
+
+<FinanceFilters
         type={type}
         onTypeChange={setType}
         category={category}
         onCategoryChange={setCategory}
         paymentStatus={paymentStatus}
         onPaymentStatusChange={setPaymentStatus}
-        owner={owner}
-        onOwnerChange={setOwner}
-        owners={uniqueOwners}
-        vehicleRegistration={vehicleRegistration}
-        onVehicleRegistrationChange={setVehicleRegistration}
+        startDate={dateRange.start}
+        endDate={dateRange.end}
+        setDateRange={setDateRange}
+        owner={selectedOwner}
+        onOwnerChange={setSelectedOwner}
+        owners={owners}
+        customers={customers} // Pass customers
+        selectedCustomerId={selectedCustomerId} // Pass selectedCustomerId
+        onCustomerChange={setSelectedCustomerId} // Pass onCustomerChange
       />
-
-      <FinancialSummary transactions={filteredTransactions} period="custom" />
 
       <TransactionTable
         transactions={filteredTransactions}
         vehicles={vehicles}
-        onView={setSelectedTransaction}
-        onEdit={setEditingTransaction}
-        onDelete={(transaction) => setDeletingTransactionId(transaction.id)}
+        customers={customers}
+        selectedCustomerId={selectedCustomerId}
+        onCustomerChange={setSelectedCustomerId}
+        onView={(transaction) => {
+          setSelectedTransaction(transaction);
+          setShowDetailsModal(true);
+        }}
+        onEdit={(transaction) => {
+          setSelectedTransaction(transaction);
+          setShowEditModal(true);
+        }}
+        onDelete={(transaction) => {
+          setSelectedTransaction(transaction);
+          setShowDeleteModal(true);
+        }}
         onGenerateDocument={handleGenerateDocument}
-        onViewDocument={handleViewDocument}
+        onViewDocument={(url) => window.open(url, '_blank')}
       />
 
-      {/* Modals */}
+      {/* Add Income Modal */}
       <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title={`Add ${formType === 'income' ? 'Income' : 'Expense'}`}
+        isOpen={showAddIncome}
+        onClose={() => setShowAddIncome(false)}
+        title="Add Income"
       >
-        <TransactionForm type={formType} onClose={() => setShowForm(false)} />
+        <TransactionForm
+          type="income"
+          vehicles={vehicles}
+          customers={customers}
+          onClose={() => setShowAddIncome(false)}
+        />
       </Modal>
 
+      {/* Add Expense Modal */}
       <Modal
-        isOpen={!!selectedTransaction}
-        onClose={() => setSelectedTransaction(null)}
+        isOpen={showAddExpense}
+        onClose={() => setShowAddExpense(false)}
+        title="Add Expense"
+      >
+        <TransactionForm
+          type="expense"
+          vehicles={vehicles}
+          customers={customers}
+          onClose={() => setShowAddExpense(false)}
+        />
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedTransaction(null);
+        }}
+        title="Edit Transaction"
+      >
+        {selectedTransaction && (
+          <TransactionForm
+            type={selectedTransaction.type}
+            transaction={selectedTransaction}
+            vehicles={vehicles}
+            customers={customers}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedTransaction(null);
+            }}
+          />
+        )}
+      </Modal>
+
+      {/* Details Modal */}
+      <Modal
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedTransaction(null);
+        }}
         title="Transaction Details"
       >
         {selectedTransaction && (
           <TransactionDetails
             transaction={selectedTransaction}
-            vehicle={vehicles.find((v) => v.id === selectedTransaction.vehicleId)}
+            vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)}
+            customer={customers.find(c => c.id === selectedTransaction.customerId)}
           />
         )}
       </Modal>
 
-      <Modal
-        isOpen={!!editingTransaction}
-        onClose={() => setEditingTransaction(null)}
-        title="Edit Transaction"
-      >
-        {editingTransaction && (
-          <TransactionForm
-            type={editingTransaction.type}
-            transaction={editingTransaction}
-            onClose={() => setEditingTransaction(null)}
-          />
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={!!deletingTransactionId}
-        onClose={() => setDeletingTransactionId(null)}
-        title="Delete Transaction"
-      >
-        {deletingTransactionId && (
+      {/* Delete Modal */}
+      {showDeleteModal && selectedTransaction && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedTransaction(null);
+          }}
+          title="Delete Transaction"
+        >
           <TransactionDeleteModal
-            transactionId={deletingTransactionId}
-            onClose={() => setDeletingTransactionId(null)}
+            transactionId={selectedTransaction.id}
+            onClose={() => {
+              setShowDeleteModal(false);
+              setSelectedTransaction(null);
+            }}
           />
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };

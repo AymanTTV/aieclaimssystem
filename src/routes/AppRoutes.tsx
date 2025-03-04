@@ -112,13 +112,13 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      <Route path="/claims/personal-injury" element={
+      {/* <Route path="/claims/personal-injury" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
           <Layout>
             <PersonalInjury />
           </Layout>
         </ProtectedRoute>
-      } />
+      } /> */}
 
       <Route path="/claims/vd-finance" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>

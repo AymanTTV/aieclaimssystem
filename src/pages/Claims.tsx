@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Claim } from '../types';
-import { usePermissions } from '../hooks/usePermissions';
+import { ensureValidDate } from '../utils/dateHelpers';
 import ClaimTable from '../components/claims/ClaimTable';
 import ClaimForm from '../components/claims/ClaimForm';
-import ClaimDetailsModal from '../components/claims/ClaimDetailsModal';
 import ClaimEditModal from '../components/claims/ClaimEditModal';
+import ClaimDetailsModal from '../components/claims/ClaimDetailsModal';
 import ClaimDeleteModal from '../components/claims/ClaimDeleteModal';
 import ProgressUpdateModal from '../components/claims/ProgressUpdateModal';
 import Modal from '../components/ui/Modal';
+import { usePermissions } from '../hooks/usePermissions';
 import { Plus, Download, Search } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 import toast from 'react-hot-toast';
@@ -18,61 +19,88 @@ import { useAuth } from '../context/AuthContext';
 
 import ClaimSummaryCards from '../components/claims/ClaimSummaryCards';
 
-
-
 const Claims = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
 
+  
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [loading, setLoading] = useState(true);
+   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [submitterFilter, setSubmitterFilter] = useState('all'); // Add submitter filter
+  const [submitterFilter, setSubmitterFilter] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
-  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
-  const [deletingClaim, setDeletingClaim] = useState<Claim | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [updatingProgress, setUpdatingProgress] = useState<Claim | null>(null);
 
   useEffect(() => {
     fetchClaims();
   }, []);
+  
+  
+    const fetchClaims = async () => {
+      try {
+        const q = query(collection(db, 'claims'), orderBy('submittedAt', 'desc'));
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const claimsData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              // Convert dates using ensureValidDate
+              submittedAt: ensureValidDate(data.submittedAt),
+              updatedAt: ensureValidDate(data.updatedAt),
+              clientInfo: {
+                ...data.clientInfo,
+                dateOfBirth: ensureValidDate(data.clientInfo.dateOfBirth)
+              },
+              incidentDetails: {
+                ...data.incidentDetails,
+                date: ensureValidDate(data.incidentDetails.date)
+              },
+              // Convert dates in payment periods if they exist
+              paymentPeriods: data.paymentPeriods?.map((period: any) => ({
+                ...period,
+                startDate: ensureValidDate(period.startDate),
+                endDate: ensureValidDate(period.endDate)
+              })) || [],
+              // Convert dates in progress history
+              progressHistory: data.progressHistory?.map((progress: any) => ({
+                ...progress,
+                date: ensureValidDate(progress.date)
+              })) || []
+            } as Claim;
+          });
+          
+          setClaims(claimsData);
+          setLoading(false);
+        });
 
-  const fetchClaims = async () => {
-    try {
-      const claimsRef = collection(db, 'claims');
-      const q = query(claimsRef, orderBy('submittedAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const claimsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          submittedAt: data.submittedAt.toDate(),
-          updatedAt: data.updatedAt.toDate(),
-          clientInfo: {
-            ...data.clientInfo,
-            dateOfBirth: data.clientInfo.dateOfBirth.toDate()
-          },
-          incidentDetails: {
-            ...data.incidentDetails,
-            date: data.incidentDetails.date.toDate()
-          },
-          progressHistory: data.progressHistory.map((progress: any) => ({
-            ...progress,
-            date: progress.date.toDate()
-          }))
-        } as Claim;
-      });
-      setClaims(claimsData);
-    } catch (error) {
-      console.error('Error fetching claims:', error);
-      toast.error('Failed to fetch claims');
-    } finally {
-      setLoading(false);
-    }
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        setLoading(false);
+      }
+    };
+
+   
+
+  const handleView = (claim: Claim) => {
+    setSelectedClaim(claim);
+  };
+
+  const handleEdit = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setShowDeleteModal(true);
   };
 
   const handleExport = () => {
@@ -110,8 +138,8 @@ const Claims = () => {
       toast.error('Failed to export claims');
     }
   };
-
-  const filteredClaims = claims.filter(claim => {
+  
+   const filteredClaims = claims.filter(claim => {
     const matchesSearch = 
       claim.clientInfo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       claim.clientInfo.phone.includes(searchQuery) ||
@@ -127,10 +155,10 @@ const Claims = () => {
 
     return matchesSearch && matchesStatus && matchesType && matchesSubmitter;
   });
-
+  
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -138,10 +166,9 @@ const Claims = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-center">
-        
-        <h1 className="text-2xl font-bold text-gray-900">Claims Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Claim Management</h1>
+
         <div className="flex space-x-2">
          
               {user?.role === 'manager' && (
@@ -157,7 +184,7 @@ const Claims = () => {
            {can('claims', 'create') && (
             <>
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => setShowAddModal(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
               >
                 <Plus className="h-5 w-5 mr-2" />
@@ -167,6 +194,7 @@ const Claims = () => {
           )}
         </div>
       </div>
+
       <ClaimSummaryCards claims={filteredClaims} />
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -221,42 +249,60 @@ const Claims = () => {
         </select>
       </div>
 
-      {/* Claims Table */}
       <ClaimTable
         claims={filteredClaims}
-        onView={setSelectedClaim}
-        onEdit={setEditingClaim}
-        onDelete={setDeletingClaim}
+        onView={handleView}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
         onUpdateProgress={setUpdatingProgress}
       />
 
-      {/* Modals */}
+      {/* Add Modal */}
       <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
         title="Add New Claim"
         size="xl"
       >
-        <ClaimForm onClose={() => {
-          setShowForm(false);
-          fetchClaims();
-        }} />
+        <ClaimForm onClose={() => setShowAddModal(false)} />
       </Modal>
 
-      <Modal
-        isOpen={!!selectedClaim}
-        onClose={() => setSelectedClaim(null)}
-        title="Claim Details"
-        size="xl"
-      >
-        {selectedClaim && (
+      {/* Edit Modal */}
+      {selectedClaim && showEditModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedClaim(null);
+          }}
+          title="Edit Claim"
+          size="xl"
+        >
+          <ClaimEditModal
+            claim={selectedClaim}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedClaim(null);
+            }}
+          />
+        </Modal>
+      )}
+
+      {/* View Modal */}
+      {selectedClaim && !showEditModal && !showDeleteModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setSelectedClaim(null)}
+          title="Claim Details"
+          size="xl"
+        >
           <ClaimDetailsModal
             claim={selectedClaim}
             onClose={() => setSelectedClaim(null)}
             onDownloadDocument={(url) => window.open(url, '_blank')}
           />
-        )}
-      </Modal>
+        </Modal>
+      )}
 
       <Modal
         isOpen={!!updatingProgress}
@@ -273,38 +319,25 @@ const Claims = () => {
         )}
       </Modal>
 
-      <Modal
-        isOpen={!!editingClaim}
-        onClose={() => setEditingClaim(null)}
-        title="Edit Claim"
-        size="xl"
-      >
-        {editingClaim && (
-          <ClaimEditModal
-            claim={editingClaim}
-            onClose={() => {
-              setEditingClaim(null);
-              fetchClaims();
-            }}
-          />
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={!!deletingClaim}
-        onClose={() => setDeletingClaim(null)}
-        title="Delete Claim"
-      >
-        {deletingClaim && (
+      {/* Delete Modal */}
+      {selectedClaim && showDeleteModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedClaim(null);
+          }}
+          title="Delete Claim"
+        >
           <ClaimDeleteModal
-            claimId={deletingClaim.id}
+            claim={selectedClaim}
             onClose={() => {
-              setDeletingClaim(null);
-              fetchClaims();
+              setShowDeleteModal(false);
+              setSelectedClaim(null);
             }}
           />
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { PettyCashTransaction } from '../../types/pettyCash';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface PettyCashTableProps {
   transactions: PettyCashTransaction[];
@@ -25,7 +26,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
   collectionName = 'pettyCash'
 }) => {
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay();
   const columns = [
     {
       header: 'Date & Time',
@@ -55,14 +56,14 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
       header: 'In',
       cell: ({ row }) => {
         const amountIn = Number(row.original.amountIn) || 0;
-        return amountIn > 0 ? <span className="text-green-600">£{amountIn.toFixed(2)}</span> : null;
+        return amountIn > 0 ? <span className="text-green-600">{formatCurrency(amountIn)}</span> : null;
       },
     },
     {
       header: 'Out',
       cell: ({ row }) => {
         const amountOut = Number(row.original.amountOut) || 0;
-        return amountOut > 0 ? <span className="text-red-600">£{amountOut.toFixed(2)}</span> : null;
+        return amountOut > 0 ? <span className="text-red-600">{formatCurrency(amountOut)}</span> : null;
       },
     },
     {
@@ -71,7 +72,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
         const balance = Number(row.original.balance) || 0;
         return (
           <span className={balance >= 0 ? 'text-green-600' : 'text-red-600'}>
-            £{Math.abs(balance).toFixed(2)}
+            {formatCurrency(Math.abs(balance))}
           </span>
         );
       },

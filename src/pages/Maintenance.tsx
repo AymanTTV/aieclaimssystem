@@ -7,21 +7,28 @@ import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
-import Modal from '../components/ui/Modal';
+import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { Plus, Download } from 'lucide-react';
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog } from '../types';
-import toast from 'react-hot-toast';
+import { FileText } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
-import { generateAndUploadDocument } from '../utils/documentGenerator';
-import { MaintenanceDocument } from '../components/pdf/documents';
+// import { generateAndUploadDocument } from '../utils/documentGenerator';
+// import { MaintenanceDocument } from '../components/pdf/documents';
+
+import Modal from '../components/ui/Modal';
+import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
+import { MaintenanceDocument, MaintenanceBulkDocument } from '../components/pdf/documents';
+import { saveAs } from 'file-saver';
+import toast from 'react-hot-toast';
 
 const Maintenance = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { can } = usePermissions();
   const { user } = useAuth();
+   const { companyDetails } = useCompanyDetails();
 
   // Create vehiclesMap for efficient lookups
   const vehiclesMap = React.useMemo(() => {
@@ -92,6 +99,27 @@ const Maintenance = () => {
     window.open(url, '_blank');
   };
 
+  const handleGenerateBulkPDF = async () => {
+    try {
+      if (!companyDetails) {
+        toast.error('Company details not found');
+        return;
+      }
+
+      const pdfBlob = await generateBulkDocuments(
+        MaintenanceBulkDocument,
+        filteredLogs,
+        companyDetails
+      );
+
+      saveAs(pdfBlob, 'maintenance_records.pdf');
+      toast.success('Maintenance records PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating bulk PDF:', error);
+      toast.error('Failed to generate PDF');
+    }
+  };
+  
   if (vehiclesLoading || logsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -105,6 +133,15 @@ const Maintenance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
         <div className="flex space-x-2">
+
+           <button
+          onClick={handleGenerateBulkPDF}
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+        >
+          <FileText className="h-5 w-5 mr-2" />
+          Generate PDF
+        </button>
+          
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}

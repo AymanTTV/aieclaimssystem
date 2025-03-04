@@ -3,12 +3,15 @@
 import React from 'react';
 import { Claim } from '../../types';
 import { Car, Warehouse, Wrench } from 'lucide-react';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface ClaimSummaryCardsProps {
   claims: Claim[];
 }
 
 const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
   // Calculate total hire costs
   const totalHireCost = claims.reduce((total, claim) => {
     if (claim.hireDetails?.totalCost) {
@@ -42,7 +45,7 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Hire Total Cost</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{totalHireCost.toFixed(2)}
+              {formatCurrency(totalHireCost)}
             </p>
           </div>
         </div>
@@ -55,7 +58,7 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Storage Cost</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{totalStorageCost.toFixed(2)}
+              {formatCurrency(totalStorageCost)}
             </p>
           </div>
         </div>
@@ -68,7 +71,7 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-500">Recovery Cost</p>
             <p className="text-2xl font-semibold text-gray-900">
-              £{totalRecoveryCost.toFixed(2)}
+              {formatCurrency(totalRecoveryCost)}
             </p>
           </div>
         </div>

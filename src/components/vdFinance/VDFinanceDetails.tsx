@@ -1,14 +1,41 @@
 // src/components/vdFinance/VDFinanceDetails.tsx
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { VDFinanceRecord } from '../../types/vdFinance';
 import { format } from 'date-fns';
+
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VDFinanceDetailsProps {
   record: VDFinanceRecord;
 }
 
 const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
+
+  const [createdByName, setCreatedByName] = useState<string | null>(null);
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  useEffect(() => {
+    const fetchCreatedByName = async () => {
+      if (record.createdBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', record.createdBy));
+          if (userDoc.exists()) {
+            setCreatedByName(userDoc.data().name);
+          } else {
+            setCreatedByName('Unknown User');
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setCreatedByName('Unknown User');
+        }
+      }
+    };
+
+    fetchCreatedByName();
+  }, [record.createdBy]);
+
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
@@ -19,7 +46,7 @@ const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
   const Field = ({ label, value, color = '' }: { label: string; value: string | number; color?: string }) => (
     <div className="mb-4">
       <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className={`mt-1 text-sm ${color}`}>£{typeof value === 'number' ? value.toFixed(2) : value}</dd>
+      <dd className={`mt-1 text-sm ${color}`}>{typeof value === 'number' ? formatCurrency(value) : value}</dd>
     </div>
   );
 
@@ -75,12 +102,12 @@ const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Price</dt>
-                  <dd className="mt-1 text-sm text-gray-900">£{part.price.toFixed(2)}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">{formatCurrency(part.price)}</dd>
                 </div>
                 <div className="col-span-3">
                   <dt className="text-sm font-medium text-gray-500">Total</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    £{(part.price * part.quantity).toFixed(2)}
+                    {formatCurrency(part.price * part.quantity)}
                     {part.includeVat && ' (inc. VAT)'}
                   </dd>
                 </div>
@@ -119,6 +146,8 @@ const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
         <div className="space-y-2">
           <Field label="Purchased Items" value={record.purchasedItems} />
           <Field label="Client Repair" value={record.clientRepair} />
+          <Field label="Salvage" value={record.salvage} /> {/* Added Salvage */}
+          <Field label="Client Referral Fee" value={record.clientReferralFee} /> {/* Added Client Referral Fee */}
           <Field label="Profit" value={record.profit} color="text-green-600 font-medium" />
         </div>
       </Section>
@@ -133,7 +162,7 @@ const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
       {/* Audit Information */}
       <div className="text-sm text-gray-500 border-t pt-4">
         <div className="flex justify-between">
-          <div>Created: {format(record.createdAt, 'dd/MM/yyyy HH:mm')}</div>
+          <div>Created by: {createdByName || record.createdBy || 'Loading...'}</div>
           <div>Last Updated: {format(record.updatedAt, 'dd/MM/yyyy HH:mm')}</div>
         </div>
       </div>

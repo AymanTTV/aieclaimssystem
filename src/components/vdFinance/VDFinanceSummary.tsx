@@ -2,12 +2,15 @@
 
 import React from 'react';
 import { VDFinanceRecord } from '../../types/vdFinance';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 
 interface VDFinanceSummaryProps {
   records: VDFinanceRecord[];
 }
 
 const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
   const summary = records.reduce(
     (acc, record) => ({
       total: acc.total + record.totalAmount,
@@ -37,7 +40,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">TOTAL AMOUNT</h3>
         <p className="mt-2 text-3xl font-semibold text-gray-900">
-          £{summary.total.toFixed(2)}
+          {formatCurrency(summary.total)}
         </p>
       </div>
 
@@ -45,7 +48,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">NET AMOUNT</h3>
         <p className="mt-2 text-3xl font-semibold text-green-600">
-          £{summary.net.toFixed(2)}
+          {formatCurrency(summary.net)}
         </p>
       </div>
 
@@ -53,7 +56,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">VAT IN</h3>
         <p className="mt-2 text-3xl font-semibold text-blue-600">
-          £{summary.vatIn.toFixed(2)}
+          {formatCurrency(summary.vatIn)}
         </p>
       </div>
 
@@ -61,7 +64,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">VAT OUT</h3>
         <p className="mt-2 text-3xl font-semibold text-red-600">
-          £{summary.vatOut.toFixed(2)}
+          {formatCurrency(summary.vatOut)}
         </p>
       </div>
 
@@ -69,7 +72,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">EXPENSES</h3>
         <p className="mt-2 text-3xl font-semibold text-amber-600">
-          £{summary.expenses.toFixed(2)}
+          {formatCurrency(summary.expenses)}
         </p>
       </div>
 
@@ -77,7 +80,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">SOLICITOR FEE</h3>
         <p className="mt-2 text-3xl font-semibold text-indigo-600">
-          £{summary.solicitorFee.toFixed(2)}
+          {formatCurrency(summary.solicitorFee)}
         </p>
       </div>
 
@@ -85,7 +88,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">CLIENT REPAIR</h3>
         <p className="mt-2 text-3xl font-semibold text-orange-600">
-          £{summary.clientRepair.toFixed(2)}
+          {formatCurrency(summary.clientRepair)}
         </p>
       </div>
 
@@ -93,7 +96,7 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-sm font-medium text-gray-500">PROFIT</h3>
         <p className="mt-2 text-3xl font-semibold text-emerald-600">
-          £{summary.profit.toFixed(2)}
+          {formatCurrency(summary.profit)}
         </p>
       </div>
     </div>

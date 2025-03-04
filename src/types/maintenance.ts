@@ -8,6 +8,8 @@ export interface MaintenanceLog {
   paidAmount?: number;
   serviceProvider: string;
   location: string;
+  updatedBy: string;
+  updatedAt: string;
   parts: Part[];
   laborCost: number;
   currentMileage: number;

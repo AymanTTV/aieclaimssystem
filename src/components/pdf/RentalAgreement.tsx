@@ -1,9 +1,10 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { Rental, Vehicle, Customer } from '../../types';
+import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types';
 import { format, isValid, parseISO } from 'date-fns';
 import logo from '../../assets/logo.png';
 import { formatPDFDate } from './dateUtils';
+
 
 const styles = StyleSheet.create({
   page: {
@@ -157,6 +158,8 @@ const generateAgreementNumber = (id: string): string => {
   return `AIE-${number}`;
 };
 
+
+
 const RentalAgreement: React.FC<{
   rental: Rental;
   vehicle: Vehicle;
@@ -201,6 +204,23 @@ const RentalAgreement: React.FC<{
     return 'N/A';
   }
 };
+
+const getRentalRate = (rentalType: Rental['type'], vehicle: Vehicle): number => {
+  switch (rentalType) {
+    case 'weekly':
+      return vehicle.weeklyRentalPrice !== undefined ? vehicle.weeklyRentalPrice : DEFAULT_RENTAL_PRICES.weekly;
+    case 'daily':
+      return vehicle.dailyRentalPrice !== undefined ? vehicle.dailyRentalPrice : DEFAULT_RENTAL_PRICES.daily;
+    case 'claim':
+      return vehicle.claimRentalPrice !== undefined ? vehicle.claimRentalPrice : DEFAULT_RENTAL_PRICES.claim;
+    default:
+      return 0; // Or some default value if the rental type is unknown
+  }
+};
+
+const rentalRate = getRentalRate(rental.type, vehicle);
+
+
 
 
   return (
@@ -311,7 +331,7 @@ const RentalAgreement: React.FC<{
           <View style={styles.row}>
             <Text style={styles.label}>Rate:</Text>
             <Text style={styles.value}>
-              £{rental.type === 'claim' ? '340' : rental.type === 'weekly' ? '360' : '60'} per {rental.type === 'weekly' ? 'week' : 'day'}
+              £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
             </Text>
           </View>
           <View style={styles.row}>

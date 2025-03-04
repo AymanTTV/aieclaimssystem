@@ -1,6 +1,5 @@
 import React from 'react';
-import { Download, Upload, Plus, Search } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Download, Upload, Plus, Search, FileText } from 'lucide-react';
 
 interface MaintenanceHeaderProps {
   onSearch: (query: string) => void;
@@ -8,6 +7,7 @@ interface MaintenanceHeaderProps {
   onExport: () => void;
   onAdd: () => void;
   onStatusFilterChange: (status: string) => void;
+  onGeneratePDF: () => void;
 }
 
 const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
@@ -16,8 +16,8 @@ const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
   onExport,
   onAdd,
   onStatusFilterChange,
+  onGeneratePDF
 }) => {
-  const { user } = useAuth();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,6 +35,9 @@ const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
         <div className="flex space-x-2">
+
+         
+          
           <button
             onClick={onExport}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -42,7 +45,10 @@ const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
             <Download className="h-5 w-5 mr-2" />
             Export
           </button>
-          <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+
+         
+
+          {/* <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
             <Upload className="h-5 w-5 mr-2" />
             Import
             <input
@@ -52,7 +58,7 @@ const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
               accept=".xlsx,.xls,.csv"
               onChange={handleImport}
             />
-          </label>
+          </label> */}
           <button
             onClick={onAdd}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"

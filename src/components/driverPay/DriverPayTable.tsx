@@ -6,6 +6,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface DriverPayTableProps {
   records: DriverPay[];
@@ -27,7 +28,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   onViewDocument
 }) => {
   const { can } = usePermissions();
-
+  const { formatCurrency } = useFormattedDisplay(); // Use the hook
   const checkDriverRed = (periods: PaymentPeriod[]): { isRed: boolean; reason: string } => {
     if (periods.length === 0) return { isRed: false, reason: "" };
     const hasLowPeriodPay = periods.some(period => period.netPay < 500);
@@ -78,7 +79,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                   {format(ensureValidDate(period.endDate), 'dd/MM/yyyy')}
                 </div>
                 <div className="text-green-600">
-                  Net Pay: £{(period.netPay || 0).toFixed(2)}
+                  Net Pay: {formatCurrency(period.netPay || 0)}
                 </div>
                 <StatusBadge status={period.status} />
               </div>
@@ -104,14 +105,14 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                 <div className="flex justify-between">
                   <span>Paid:</span>
                   <span className="text-green-600">
-                    £{(period.paidAmount || 0).toFixed(2)}
+                    {formatCurrency(period.paidAmount || 0)}
                   </span>
                 </div>
                 {period.remainingAmount > 0 && (
                   <div className="flex justify-between">
                     <span>Due:</span>
                     <span className="text-amber-600">
-                      £{(period.remainingAmount || 0).toFixed(2)}
+                      {formatCurrency(period.remainingAmount || 0)}
                     </span>
                   </div>
                 )}

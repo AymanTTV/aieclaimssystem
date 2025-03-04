@@ -5,29 +5,28 @@ interface FinanceFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   startDate: Date | null;
-  onStartDateChange: (date: Date | null) => void;
   endDate: Date | null;
-  onEndDateChange: (date: Date | null) => void;
+  setDateRange: (range: { start: Date | null; end: Date | null }) => void;
   type: 'all' | 'income' | 'expense';
   onTypeChange: (type: 'all' | 'income' | 'expense') => void;
   category: string;
   onCategoryChange: (category: string) => void;
   paymentStatus: 'all' | 'pending' | 'completed';
   onPaymentStatusChange: (status: 'all' | 'pending' | 'completed') => void;
-  vehicleRegistration: string;
-  onVehicleRegistrationChange: (registration: string) => void;
   owner: string;
   onOwnerChange: (owner: string) => void;
   owners: string[];
+  customers: { id: string; name: string }[];
+  selectedCustomerId: string;
+  onCustomerChange: (customerId: string) => void;
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   searchQuery,
   onSearchChange,
   startDate,
-  onStartDateChange,
   endDate,
-  onEndDateChange,
+  setDateRange,
   type,
   onTypeChange,
   category,
@@ -37,8 +36,9 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   owner,
   onOwnerChange,
   owners,
-  vehicleRegistration,
-  onVehicleRegistrationChange
+  customers,
+  selectedCustomerId,
+  onCustomerChange,
 }) => {
   const allCategories = {
     income: [
@@ -106,24 +106,18 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     ],
   };
 
-  
+  const handleStartDateChange = (dateString: string) => {
+    const newStartDate = dateString ? new Date(dateString) : null;
+    setDateRange({ start: newStartDate, end: endDate });
+  };
+
+  const handleEndDateChange = (dateString: string) => {
+    const newEndDate = dateString ? new Date(dateString) : null;
+    setDateRange({ start: startDate, end: newEndDate });
+  };
+
   return (
     <div className="space-y-4">
-      {/* Search Input */}
-      <div className="relative">
-  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-    <Search className="h-5 w-5 text-gray-400" />
-  </div>
-  <input
-    type="text"
-    value={searchQuery}
-    onChange={(e) => onSearchChange(e.target.value)}
-    placeholder="Search by description, category, vehicle registration..."
-    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-  />
-</div>
-
-      {/* Filters Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         {/* Date Range */}
         <div>
@@ -131,7 +125,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           <input
             type="date"
             value={startDate ? startDate.toISOString().split('T')[0] : ''}
-            onChange={(e) => onStartDateChange(e.target.value ? new Date(e.target.value) : null)}
+            onChange={(e) => handleStartDateChange(e.target.value)}
             className="form-input mt-1"
           />
         </div>
@@ -141,7 +135,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           <input
             type="date"
             value={endDate ? endDate.toISOString().split('T')[0] : ''}
-            onChange={(e) => onEndDateChange(e.target.value ? new Date(e.target.value) : null)}
+            onChange={(e) => handleEndDateChange(e.target.value)}
             min={startDate ? startDate.toISOString().split('T')[0] : undefined}
             className="form-input mt-1"
           />
@@ -171,14 +165,13 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           >
             <option value="all">All Categories</option>
             {Object.entries(allCategories).map(([type, categories]) => (
-              <optgroup key={type} label={type === 'income' ? 'Income' : 'Expense'}> {/* Group by Income/Expense */}
+              <optgroup key={type} label={type === 'income' ? 'Income' : 'Expense'}>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </optgroup>
             ))}
-             <option value="other">Other</option> {/* Keep "Other" option for custom categories */}
-
+            <option value="other">Other</option>
           </select>
         </div>
 
@@ -208,6 +201,22 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             <option value="company">AIE Skyline</option>
             {owners.map((ownerName) => (
               <option key={ownerName} value={ownerName}>{ownerName}</option>
+            ))}
+          </select>
+        </div>
+        {/* Customer Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Customer</label>
+          <select
+            value={selectedCustomerId}
+            onChange={(e) => onCustomerChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="">All Customers</option>
+            {customers && customers.map((customer) => ( // Check if customers exists before mapping.
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
             ))}
           </select>
         </div>

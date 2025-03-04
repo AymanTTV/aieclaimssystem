@@ -8,6 +8,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import ServiceCenterDropdown from '../maintenance/ServiceCenterDropdown';
 import toast from 'react-hot-toast';
 import { Vehicle, Claim } from '../../types';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VDFinanceFormProps {
   record?: VDFinanceRecord;
@@ -19,20 +20,18 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [parts, setParts] = useState<(VDFinancePart & { includeVAT: boolean })[]>(
-  record?.parts.map(part => ({
-    ...part,
-    includeVAT: record.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false
-  })) || []
-);
+    record?.parts.map(part => ({
+      ...part,
+      includeVAT: record.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false
+    })) || []
+  );
   const [claims, setClaims] = useState<Claim[]>([]);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [includeVATOnLabor, setIncludeVATOnLabor] = useState(
-  record?.vatDetails?.laborVAT || false
-);
-
-
+    record?.vatDetails?.laborVAT || false
+  );
+  const { formatCurrency } = useFormattedDisplay();
   const [formData, setFormData] = useState({
     name: record?.name || '',
     reference: record?.reference || '',
@@ -41,6 +40,9 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
     vatRate: record?.vatRate || 0,
     description: record?.description || '',
     clientRepairPercentage: record?.clientRepairPercentage || 20,
+    clientRepairAmount: record?.clientRepairAmount || 0,
+    salvage: record?.salvage || 0,
+    clientReferralFee: record?.clientReferralFee || 0,
     solicitorFee: record?.solicitorFee ?? (record?.netAmount ? record.netAmount * 0.1 : 0),
     laborHours: record?.laborHours || 0,
     laborRate: record?.laborRate || 75,
@@ -54,162 +56,150 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   const handleFormChange = (field: string, value: any) => {
     setFormData(prevData => {
       const updatedData = { ...prevData, [field]: value };
-  
-      // If the solicitor fee is manually changed, we shouldn't recalculate it using percentage.
+
+      if (field === 'clientRepairPercentage' && value !== '') {
+        updatedData.clientRepairAmount = 0;
+      } else if (field === 'clientRepairAmount' && value !== '') {
+        updatedData.clientRepairPercentage = 0;
+      }
+
       if (field === 'solicitorFee') {
         updatedData.solicitorFee = parseFloat(value) || 0;
       }
-  
+
       return updatedData;
     });
   };
-  
 
   useEffect(() => {
-  const fetchClaims = async () => {
-    try {
-      const q = query(
-        collection(db, 'claims'),
-        where('progress', '!=', 'Claim Complete')
-      );
-      const snapshot = await getDocs(q);
-      const claimsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Claim[];
-      setClaims(claimsData);
+    const fetchClaims = async () => {
+      try {
+        const q = query(
+          collection(db, 'claims'),
+          where('progress', '!=', 'Claim Complete')
+        );
+        const snapshot = await getDocs(q);
+        const claimsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Claim[];
+        setClaims(claimsData);
 
-      // If editing and has claimId, set the selected claim
-      if (record?.claimId) {
-        const claim = claimsData.find(c => c.id === record.claimId);
-        if (claim) {
-          setSelectedClaim(claim);
-          setManualEntry(false);
+        if (record?.claimId) {
+          const claim = claimsData.find(c => c.id === record.claimId);
+          if (claim) {
+            setSelectedClaim(claim);
+            setManualEntry(false);
+          }
         }
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        toast.error('Failed to fetch claims');
       }
-    } catch (error) {
-      console.error('Error fetching claims:', error);
-      toast.error('Failed to fetch claims');
-    }
-  };
-
-  fetchClaims();
-}, [record?.claimId]);
-
-
-const calculateCosts = () => {
-  // Round to 2 decimal places
-  const round = (num: number) => Math.round(num * 100) / 100;
-
-  const totalAmount = round(parseFloat(formData.totalAmount.toString()));
-  const vatRate = round(parseFloat(formData.vatRate.toString()) / 100);
-
-  // Calculate NET amount and VAT IN
-  const netAmount = round(totalAmount / (1 + vatRate));
-  const vatIn = round(totalAmount - netAmount);
-
-  // If the user has manually entered a solicitor fee, use that value
-  const solicitorFee = formData.solicitorFee !== undefined 
-    ? round(parseFloat(formData.solicitorFee.toString()) || 0)
-    : round(netAmount * 0.1);
-  // Calculate client repair (percentage of net amount)
-  const clientRepair = round(netAmount * (formData.clientRepairPercentage / 100));
-
-  // Calculate parts total with VAT
-  const partsTotal = round(parts.reduce((sum, part) => {
-    const partTotal = round(part.price * part.quantity);
-    return round(sum + (part.includeVAT ? round(partTotal * 1.2) : partTotal));
-  }, 0));
-
-  // Calculate labor total with VAT
-  const laborTotal = round(formData.laborHours * formData.laborRate * (includeVATOnLabor ? 1.2 : 1));
-
-  // Calculate total purchased items
-  const purchasedItems = round(partsTotal + laborTotal);
-
-  // Calculate VAT OUT
-  const vatOut = round(parts.reduce((sum, part) => {
-    return round(sum + (part.includeVAT ? round(part.price * part.quantity * 0.2) : 0));
-  }, 0) + (includeVATOnLabor ? round(formData.laborHours * formData.laborRate * 0.2) : 0));
-
-  // Calculate final profit, ensuring solicitorFee is subtracted
-  const profit = round(netAmount - clientRepair - purchasedItems - solicitorFee);
-
-  return {
-    netAmount,
-    vatIn,
-    solicitorFee,
-    purchasedItems,
-    vatOut,
-    clientRepair,
-    profit
-  };
-};
-
-
-
-
-
-
-
-
-  const handleServiceCenterSelect = (center: {
-  name: string;
-  address: string;
-  postcode: string;
-  hourlyRate: number;
-}) => {
-  setFormData(prev => ({
-    ...prev,
-    serviceCenter: center.name,
-    laborRate: center.hourlyRate // Set the labor rate from the service center
-  }));
-};
-
-
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) return;
-  setLoading(true);
-
-  try {
-    const calculatedValues = calculateCosts();
-    const recordData = {
-      ...formData,
-      ...calculatedValues,
-      parts: parts.map(({ includeVAT, ...part }) => part), // Remove includeVAT from parts
-      vatDetails: {
-        partsVAT: parts.map(part => ({
-          partName: part.name,
-          includeVAT: part.includeVAT
-        })),
-        laborVAT: includeVATOnLabor
-      },
-      date: new Date(`${formData.date}T${formData.time}`),
-      updatedAt: new Date(),
-      claimId: selectedClaim?.id
     };
 
-    if (record) {
-      await updateDoc(doc(db, 'vdFinance', record.id), recordData);
-      toast.success('Record updated successfully');
-    } else {
-      await addDoc(collection(db, 'vdFinance'), {
-        ...recordData,
-        createdAt: new Date(),
-        createdBy: user.id
-      });
-      toast.success('Record created successfully');
-    }
+    fetchClaims();
+  }, [record?.claimId]);
 
-    onClose();
-  } catch (error) {
-    console.error('Error saving record:', error);
-    toast.error('Failed to save record');
-  } finally {
-    setLoading(false);
-  }
+  const calculateCosts = () => {
+    const round = (num: number) => Math.round(num * 100) / 100;
+    const totalAmount = round(parseFloat(formData.totalAmount.toString()));
+    const vatRate = round((formData.vatRate ? parseFloat(formData.vatRate.toString()) : 0) / 100);
+    const netAmount = round(totalAmount / (1 + vatRate));
+    const vatIn = round(totalAmount - netAmount);
+    const solicitorFee = formData.solicitorFee !== undefined ? round(parseFloat(formData.solicitorFee.toString()) || 0) : round(netAmount * 0.1);
+
+    const partsTotal = round(parts.reduce((sum, part) => {
+        const partTotal = round(part.price * part.quantity);
+        return round(sum + (part.includeVAT ? round(partTotal * 1.2) : partTotal));
+    }, 0));
+
+    const laborTotal = round(formData.laborHours * formData.laborRate * (includeVATOnLabor ? 1.2 : 1));
+
+    const purchasedItems = round(partsTotal + laborTotal);
+
+    const vatOut = round(parts.reduce((sum, part) => {
+        return round(sum + (part.includeVAT ? round(part.price * part.quantity * 0.2) : 0));
+    }, 0) + (includeVATOnLabor ? round(formData.laborHours * formData.laborRate * 0.2) : 0));
+
+    let clientRepair = formData.clientRepairAmount > 0 ? formData.clientRepairAmount : round(netAmount * (formData.clientRepairPercentage / 100));
+
+    const profit = round(netAmount - clientRepair - purchasedItems - solicitorFee - formData.salvage - formData.clientReferralFee);
+
+    return {
+        netAmount: Number(netAmount),
+        vatIn: Number(vatIn),
+        solicitorFee: Number(solicitorFee),
+        purchasedItems: Number(purchasedItems),
+        vatOut: Number(vatOut),
+        clientRepair: Number(clientRepair),
+        profit: Number(profit),
+        salvage: Number(formData.salvage),
+        clientReferralFee: Number(formData.clientReferralFee)
+    };
 };
+
+  const handleServiceCenterSelect = (center: {
+    name: string;
+    address: string;
+    postcode: string;
+    hourlyRate: number;
+  }) => {
+    setFormData(prev => ({
+      ...prev,
+      serviceCenter: center.name,
+      laborRate: center.hourlyRate
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+    try {
+      const calculatedValues = calculateCosts();
+      const dateTimeString = `${formData.date}T${formData.time}`;
+      const dateObject = new Date(dateTimeString);
+  
+      if (isNaN(dateObject.getTime())) {
+        toast.error('Invalid date or time');
+        setLoading(false);
+        return;
+      }
+  
+      const recordData = {
+        ...formData,
+        ...calculatedValues,
+        parts: parts.map(({ includeVAT, ...part }) => part),
+        vatDetails: {
+          partsVAT: parts.map(part => ({ partName: part.name, includeVAT: part.includeVAT })),
+          laborVAT: includeVATOnLabor
+        },
+        date: dateObject,
+        updatedAt: new Date(),
+        createdBy: user.id,
+        ...(selectedClaim && { claimId: selectedClaim.id }) // Conditionally add claimId
+      };
+  
+      if (record) {
+        await updateDoc(doc(db, 'vdFinance', record.id), recordData);
+        toast.success('Record updated successfully');
+      } else {
+        await addDoc(collection(db, 'vdFinance'), {
+          ...recordData,
+          createdAt: new Date(),
+          createdBy: user.id
+        });
+        toast.success('Record created successfully');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error saving record:', error);
+      toast.error('Failed to save record');
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   return (
@@ -454,49 +444,91 @@ const calculateCosts = () => {
       </div>
 
       <div className="space-y-2">
-  <label className="block text-sm font-medium text-gray-700">
-    Client Repair Percentage
-  </label>
-  <div className="flex items-center space-x-2">
-    <input
-      type="number"
-      value={formData.clientRepairPercentage}
-      onChange={(e) => setFormData(prev => ({ 
-        ...prev, 
-        clientRepairPercentage: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))
-      }))}
-      className="w-24 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-      min="0"
-      max="100"
-      step="0.1"
-    />
-    <span className="text-sm text-gray-600">%</span>
-  </div>
-  <p className="text-xs text-gray-500">
-    Default is 20%. This percentage is applied to the remaining amount after purchased items.
-  </p>
-</div>
-  
-<div className="space-y-2">
-  <label>Solicitor Fee :</label>
-  <FormField
-  label="Solicitor Fee (£)"
-  value={formData.solicitorFee}
-  onChange={(e) => handleFormChange('solicitorFee', e.target.value)}
-  type="number"
-/>
+        <label className="block text-sm font-medium text-gray-700">
+          Client Repair Percentage
+        </label>
+        <div className="flex items-center space-x-2">
+          <input
+            type="number"
+            value={formData.clientRepairPercentage}
+            onChange={(e) => handleFormChange('clientRepairPercentage', e.target.value)}
+            className="w-24 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            min="0"
+            max="100"
+            step="0.1"
+          />
+          <span className="text-sm text-gray-600">%</span>
+        </div>
+        <FormField
+          label="Client Repair Amount (£)"
+          value={formData.clientRepairAmount}
+          onChange={(e) => handleFormChange('clientRepairAmount', e.target.value)}
+          type="number"
+        />
+      </div>
 
-  </div>
+      <FormField
+        label="Salvage (£)"
+        value={formData.salvage}
+        onChange={(e) => handleFormChange('salvage', e.target.value)}
+        type="number"
+      />
 
+      <FormField
+        label="Client Referral Fee (£)"
+        value={formData.clientReferralFee}
+        onChange={(e) => handleFormChange('clientReferralFee', e.target.value)}
+        type="number"
+      />
 
-     <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-  {Object.entries(calculateCosts()).map(([key, value]) => (
-    <div key={key} className="flex justify-between text-sm">
-      <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-      <span className="font-medium">£{value.toFixed(2)}</span>
-    </div>
-  ))}
-</div>
+      <div className="space-y-2">
+        <label>Solicitor Fee :</label>
+        <FormField
+          label="Solicitor Fee (£)"
+          value={formData.solicitorFee}
+          onChange={(e) => handleFormChange('solicitorFee', e.target.value)}
+          type="number"
+        />
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="flex justify-between text-sm">
+          <span>Net Amount:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().netAmount || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>VAT In:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().vatIn || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Solicitor Fee:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().solicitorFee || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Purchased Items:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().purchasedItems || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>VAT Out:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().vatOut || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Client Repair:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().clientRepair || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Salvage:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().salvage || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Client Referral Fee:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().clientReferralFee || 0)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Profit:</span>
+          <span className="font-medium">{formatCurrency(calculateCosts().profit || 0)}</span>
+        </div>
+      </div>
 
       <div className="flex justify-end space-x-3">
         <button

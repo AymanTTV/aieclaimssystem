@@ -1,7 +1,7 @@
 // src/components/pettyCash/PettyCashForm.tsx
 
 import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import { useAuth } from '../../context/AuthContext';
@@ -15,8 +15,8 @@ interface PettyCashFormProps {
   collectionName?: string;
 }
 
-const PettyCashForm: React.FC<PettyCashFormProps> = ({ 
-  transaction, 
+const PettyCashForm: React.FC<PettyCashFormProps> = ({
+  transaction,
   onClose,
   collectionName = 'pettyCash'
 }) => {
@@ -33,11 +33,11 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({
     amountOut: transaction?.amountOut?.toString() || '',
     note: transaction?.note || '',
     status: transaction?.status || 'pending',
-    date: transaction?.date ? 
-      new Date(transaction.date).toISOString().split('T')[0] : 
+    date: transaction?.date ?
+      new Date(transaction.date).toISOString().split('T')[0] :
       now.toISOString().split('T')[0],
-    time: transaction?.date ? 
-      new Date(transaction.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 
+    time: transaction?.date ?
+      new Date(transaction.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) :
       now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   });
 
@@ -52,12 +52,44 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({
       const dateTime = new Date(formData.date);
       dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
+      const amountIn = formData.amountIn ? parseFloat(formData.amountIn) : 0;
+      const amountOut = formData.amountOut ? parseFloat(formData.amountOut) : 0;
+
+      let newBalance = 0;
+
+      if (!transaction) { // New transaction
+        // Fetch the last transaction to get the previous balance
+        const transactionsQuery = query(
+          collection(db, collectionName),
+          orderBy('date', 'desc'),
+          limit(1)
+        );
+
+        const querySnapshot = await getDocs(transactionsQuery);
+
+        if (!querySnapshot.empty) {
+          const lastTransaction = querySnapshot.docs[0].data() as PettyCashTransaction;
+          const previousBalance = lastTransaction.balance || 0;
+          newBalance = previousBalance + amountIn - amountOut;
+        } else {
+          // If there are no previous transactions, the balance is simply amountIn - amountOut
+          newBalance = amountIn - amountOut;
+        }
+      } else { // Editing existing transaction
+        // If editing, don't fetch the latest transaction.
+        // Calculate the new balance based on the previous transaction's balance (if available)
+        const previousBalance = transaction.balance || 0;
+        // Adjust the balance by subtracting the old amounts and adding the new ones
+        newBalance = previousBalance - transaction.amountIn + transaction.amountOut + amountIn - amountOut; 
+      }
+
       const transactionData = {
         name: formData.name,
         telephone: formData.telephone,
         description: formData.description,
-        amountIn: formData.amountIn ? parseFloat(formData.amountIn) : 0,
-        amountOut: formData.amountOut ? parseFloat(formData.amountOut) : 0,
+        amountIn: amountIn,
+        amountOut: amountOut,
+        balance: newBalance,
         note: formData.note || null,
         status: formData.status,
         date: dateTime,
