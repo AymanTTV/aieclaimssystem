@@ -2,42 +2,26 @@
 
 import React from 'react';
 import { Claim } from '../../types';
-import { Car, Warehouse, Wrench } from 'lucide-react';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
+import { Car, Warehouse, Wrench, DollarSign } from 'lucide-react'; // Import DollarSign icon
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface ClaimSummaryCardsProps {
   claims: Claim[];
 }
 
 const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  const { formatCurrency } = useFormattedDisplay();
 
-  // Calculate total hire costs
-  const totalHireCost = claims.reduce((total, claim) => {
-    if (claim.hireDetails?.totalCost) {
-      return total + claim.hireDetails.totalCost;
-    }
-    return total;
-  }, 0);
+  // Calculate total costs
+  const totalHireCost = claims.reduce((total, claim) => claim.hireDetails?.totalCost ? total + claim.hireDetails.totalCost : total, 0);
+  const totalStorageCost = claims.reduce((total, claim) => claim.storage?.totalCost ? total + claim.storage.totalCost : total, 0);
+  const totalRecoveryCost = claims.reduce((total, claim) => claim.recovery?.cost ? total + claim.recovery.cost : total, 0);
 
-  // Calculate total storage costs
-  const totalStorageCost = claims.reduce((total, claim) => {
-    if (claim.storage?.totalCost) {
-      return total + claim.storage.totalCost;
-    }
-    return total;
-  }, 0);
-
-  // Calculate total recovery costs
-  const totalRecoveryCost = claims.reduce((total, claim) => {
-    if (claim.recovery?.cost) {
-      return total + claim.recovery.cost;
-    }
-    return total;
-  }, 0);
+  // Calculate grand total cost
+  const grandTotalCost = totalHireCost + totalStorageCost + totalRecoveryCost;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6"> {/* Updated grid-cols-4 */}
       {/* Hire Cost Card */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">
@@ -72,6 +56,19 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
             <p className="text-sm font-medium text-gray-500">Recovery Cost</p>
             <p className="text-2xl font-semibold text-gray-900">
               {formatCurrency(totalRecoveryCost)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Grand Total Cost Card */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex items-center">
+          <DollarSign className="h-8 w-8 text-indigo-500" /> {/* Use DollarSign icon */}
+          <div className="ml-4">
+            <p className="text-sm font-medium text-gray-500">Total Claim Cost</p>
+            <p className="text-2xl font-semibold text-gray-900">
+              {formatCurrency(grandTotalCost)}
             </p>
           </div>
         </div>

@@ -1,26 +1,84 @@
+// src/components/pdf/claims/HireAgreement.tsx
 import React from 'react';
-import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  Image,
+} from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import logo from '../../../assets/logo.png';
-import { styles } from './styles';
+import { styles } from '../styles';
 
 interface HireAgreementProps {
   claim: any;
   companyDetails: any;
 }
 
-const HireAgreement: React.FC<HireAgreementProps> = ({ claim, companyDetails }) => {
-  // Calculate total cost
-  const daysOfHire = claim.hireDetails?.daysOfHire || 0;
-  const claimRate = claim.hireDetails?.claimRate || 340;
-  const deliveryCharge = claim.hireDetails?.deliveryCharge || 0;
-  const collectionCharge = claim.hireDetails?.collectionCharge || 0;
-  const insurancePerDay = claim.hireDetails?.insurancePerDay || 0;
-  const storageTotal = claim.storage?.totalCost || 0;
+const HireAgreement: React.FC<HireAgreementProps> = ({
+  claim,
+  companyDetails,
+}) => {
+  const d = claim.hireDetails || {};
+  const days = d.daysOfHire || 0;
+  const rate = d.claimRate || 0;
+  const dc = d.deliveryCharge || 0;
+  const cc = d.collectionCharge || 0;
+  const ipd = d.insurancePerDay || 0;
+  const st = claim.storage?.totalCost || 0;
+  const recoveryCost = claim.recovery?.cost || 0;
 
-  const hireTotal = daysOfHire * claimRate;
-  const insuranceTotal = daysOfHire * insurancePerDay;
-  const totalCost = hireTotal + deliveryCharge + collectionCharge + insuranceTotal + storageTotal;
+  const hireTotal = days * rate;
+  const insuranceTotal = days * ipd;
+  const totalCost =
+    hireTotal + dc + cc + insuranceTotal + st + recoveryCost;
+
+  // Build table rows
+  const rows = [
+    {
+      desc: 'Hire Charges',
+      details: `£${rate.toFixed(2)} per day`,
+      rate: rate.toFixed(2),
+      units: String(days),
+      total: hireTotal.toFixed(2),
+    },
+    {
+      desc: 'Storage Charges',
+      details: '',
+      rate: '',
+      units: '',
+      total: st.toFixed(2),
+    },
+    {
+      desc: 'Recovery Charges',
+      details: '',
+      rate: '',
+      units: '',
+      total: recoveryCost.toFixed(2),
+    },
+    {
+      desc: 'Delivery Charges',
+      details: '',
+      rate: '',
+      units: '',
+      total: dc.toFixed(2),
+    },
+    {
+      desc: 'Collection Charges',
+      details: '',
+      rate: '',
+      units: '',
+      total: cc.toFixed(2),
+    },
+    {
+      desc: 'Insurance',
+      details: `${days} days cover`,
+      rate: ipd.toFixed(2),
+      units: String(days),
+      total: insuranceTotal.toFixed(2),
+    },
+  ];
 
   return (
     <Document>
@@ -28,102 +86,189 @@ const HireAgreement: React.FC<HireAgreementProps> = ({ claim, companyDetails }) 
         {/* Header */}
         <View style={styles.header}>
           <Image src={logo} style={styles.logo} />
-          <View style={styles.companyInfo}>
-            <Text>{companyDetails.fullName}</Text>
-            <Text>{companyDetails.officialAddress}</Text>
-            <Text>Tel: {companyDetails.phone}</Text>
-            <Text>Email: {companyDetails.email}</Text>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>
+              {companyDetails.fullName}
+            </Text>
+            <Text style={styles.companyDetail}>
+              {companyDetails.officialAddress}
+            </Text>
+            <Text style={styles.companyDetail}>
+              Tel: {companyDetails.phone}
+            </Text>
+            <Text style={styles.companyDetail}>
+              Email: {companyDetails.email}
+            </Text>
           </View>
         </View>
 
-        <Text style={styles.title}>HIRE AGREEMENT</Text>
-
-        {/* Client Information */}
-        <View style={styles.section}>
-          <Text style={styles.text}>Full Name: {claim.clientInfo.name}</Text>
-          <Text style={styles.text}>Address: {claim.clientInfo.address}</Text>
-          <Text style={styles.text}>Postcode: {claim.clientInfo.postcode}</Text>
-          <Text style={styles.text}>D.O.B: {format(new Date(claim.clientInfo.dateOfBirth), 'dd/MM/yyyy')}</Text>
-          <Text style={styles.text}>Driving Licence Number: {claim.clientInfo.nationalInsuranceNumber}</Text>
+         {/* Title */}
+         <View style={styles.titleContainer}>
+          <Text style={styles.title}>HIRE AGREEMENT</Text>
         </View>
 
-        {/* Rates & Charges Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rates & Charges</Text>
-          
+        {/*** HERE’S THE NEW TWO-COLUMN INFO BOX ***/}
+        <View
+          style={[
+            styles.sectionBreak,
+            { flexDirection: 'row', justifyContent: 'space-between' }
+          ]}
+          wrap={false}
+        >
+          {/* LEFT COLUMN: Client Info */}
+          <View style={[styles.infoCard, { width: '48%' }]}>
+            <Text style={styles.infoCardTitle}>Hirer Details</Text>
+            {[
+              ['Full Name', claim.clientInfo.name],
+              ['Address', claim.clientInfo.address],
+              ['D.O.B', format(new Date(claim.clientInfo.dateOfBirth), 'dd/MM/yyyy')],
+              ['License No', claim.clientInfo.driverLicenseNumber || 'N/A'],
+              ['License Expiry',
+                claim.clientInfo.licenseExpiry
+                  ? format(new Date(claim.clientInfo.licenseExpiry), 'dd/MM/yyyy')
+                  : 'N/A'
+              ],
+            ].map(([labelText, valueText], i) => (
+              <View key={i} style={styles.flexRow}>
+                <Text style={styles.label}>{labelText}:</Text>
+                <Text style={styles.value}>{valueText}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* RIGHT COLUMN: Vehicle / Hire Details */}
+          <View style={[styles.infoCard, { width: '48%' }]}>
+            <Text style={styles.infoCardTitle}>Vehicle & Hire Details</Text>
+            {[
+              ['Registration', claim.hireDetails?.vehicle?.registration || 'N/A'],
+              [
+                'Start Date',
+                d.startDate ? format(new Date(d.startDate), 'dd/MM/yyyy') : 'N/A',
+              ],
+              [
+                'End Date',
+                d.endDate ? format(new Date(d.endDate), 'dd/MM/yyyy') : 'N/A',
+              ],
+              ['Days of Hire', String(days)],
+              ['Rate (per day)', `£${rate.toFixed(2)}`],
+              ['Extras (Total)', `£${(dc + cc + st + recoveryCost + insuranceTotal).toFixed(2)}`],
+              ['Grand Total', `£${totalCost.toFixed(2)}`],
+            ].map(([labelText, valueText], i) => (
+              <View key={i} style={styles.flexRow}>
+                <Text style={styles.label}>{labelText}:</Text>
+                <Text style={styles.value}>{valueText}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Rates & Charges Table */}
+        <View style={styles.sectionBreak}>
+          <Text style={styles.sectionTitle}>
+            Hire and Charges Breakdown
+          </Text>
           <View style={styles.table}>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>Days of Hire ({daysOfHire} days × £{claimRate}/day)</Text>
-              <Text style={styles.tableCellRight}>£{hireTotal}</Text>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderCell}>Description</Text>
+              <Text style={styles.tableHeaderCell}>Details</Text>
+              <Text style={styles.tableHeaderCell}>Rate (£)</Text>
+              <Text style={styles.tableHeaderCell}>
+                Days / Units
+              </Text>
+              <Text style={styles.tableHeaderCell}>
+                Total (£)
+              </Text>
             </View>
-            
-            <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>Delivery Charge</Text>
-              <Text style={styles.tableCellRight}>£{deliveryCharge}</Text>
-            </View>
-            
-            <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>Collection Charge</Text>
-              <Text style={styles.tableCellRight}>£{collectionCharge}</Text>
-            </View>
-            
-            <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>Insurance (£{insurancePerDay}/day × {daysOfHire} days)</Text>
-              <Text style={styles.tableCellRight}>£{insuranceTotal}</Text>
-            </View>
-            
-            <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>Storage Total Cost</Text>
-              <Text style={styles.tableCellRight}>£{storageTotal}</Text>
-            </View>
-            
-            <View style={[styles.tableRow, styles.totalRow]}>
-              <Text style={styles.tableCellBold}>Total Cost of Hire</Text>
-              <Text style={styles.tableCellBold}>£{totalCost}</Text>
+            {rows.map((r, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={styles.tableCell}>{r.desc}</Text>
+                <Text style={styles.tableCell}>{r.details}</Text>
+                <Text style={styles.tableCell}>{r.rate}</Text>
+                <Text style={styles.tableCell}>{r.units}</Text>
+                <Text style={styles.tableCell}>{r.total}</Text>
+              </View>
+            ))}
+            {/* Grand Total row */}
+            <View
+              style={[
+                styles.tableRow,
+                { borderBottomWidth: 0 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tableCell,
+                  { fontWeight: 'bold' },
+                ]}
+              >
+                Total Amount
+              </Text>
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text
+                style={[
+                  styles.tableCell,
+                  { fontWeight: 'bold' },
+                ]}
+              >
+                £{totalCost.toFixed(2)}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Terms and Conditions */}
-        <View style={styles.section}>
-          <Text style={styles.text}>
-            {companyDetails.hireAgreementText || 
-              "The rental of £" + claimRate + " per day at the prevailing rate, multiplied by the " +
-              "number of days of hire/rental (Max 3 months), the Hirer shall pay to lessor " +
-              "by one single payment within eleven months beginning with the date of this " +
-              "agreement."
-            }
+        {/* Terms */}
+        <View style={styles.infoCard}>
+          <Text style={styles.value}>
+            {companyDetails.hireAgreementText ||
+              `The hire rate of £${rate.toFixed(
+                2
+              )}/day applies for up to 3 months. Payment due in full within eleven months from this date.`}
           </Text>
         </View>
 
-        {/* Signature Section */}
-        <View style={styles.signatureSection}>
+        {/* Signatures */}
+        <View wrap={false} style={styles.signatureSection}>
           <View style={styles.signatureBox}>
-            <Text>Lessor:</Text>
+            <Text style={styles.sectionTitle}>Lessor</Text>
             {companyDetails.signature && (
-              <Image src={companyDetails.signature} style={styles.signature} />
+              <Image
+                src={companyDetails.signature}
+                style={styles.signature}
+              />
             )}
-            <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text style={styles.label}>Date:</Text>
+            <Text style={styles.value}>
+              {format(new Date(), 'dd/MM/yyyy')}
+            </Text>
           </View>
 
           <View style={styles.signatureBox}>
-            <Text>Hirer:</Text>
+            <Text style={styles.sectionTitle}>Hirer</Text>
             {claim.clientInfo.signature && (
-              <Image src={claim.clientInfo.signature} style={styles.signature} />
+              <Image
+                src={claim.clientInfo.signature}
+                style={styles.signature}
+              />
             )}
-            <Text style={styles.signatureLine}>{claim.clientInfo.name}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text style={styles.label}>
+              {claim.clientInfo.name}
+            </Text>
+            <Text style={styles.value}>
+              {format(new Date(), 'dd/MM/yyyy')}
+            </Text>
           </View>
         </View>
 
         {/* Footer */}
         <Text style={styles.footer}>
-          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
+          {companyDetails.fullName} | Registered in England and Wales | Company No:{' '}
+          {companyDetails.registrationNumber}
         </Text>
       </Page>
     </Document>
-  );
+);
 };
 
 export default HireAgreement;

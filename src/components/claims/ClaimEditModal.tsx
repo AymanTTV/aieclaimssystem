@@ -31,6 +31,7 @@ import EvidenceUpload from './ClaimForm/sections/EvidenceUpload';
 import FileHandlers from './ClaimForm/sections/FileHandlers';
 import ClaimProgress from './ClaimForm/sections/ClaimProgress';
 import ClientRefField from './ClaimForm/sections/ClientRefField';
+import Hospitalinformation from './ClaimForm/sections/Hospitalinformation';
 
 interface ClaimEditModalProps {
   claim: Claim;
@@ -40,7 +41,7 @@ interface ClaimEditModalProps {
 // Helper function to format date for input fields
 const formatDate = (date: Date | null | undefined): string => {
   if (!date) return '';
-  
+
   try {
     const validDate = ensureValidDate(date);
     return validDate.toISOString().split('T')[0];
@@ -53,7 +54,7 @@ const formatDate = (date: Date | null | undefined): string => {
 // Helper function to format date and time
 const formatDateTime = (date: Date | null | undefined): string => {
   if (!date) return '';
-  
+
   try {
     const validDate = ensureValidDate(date);
     return format(validDate, 'yyyy-MM-dd HH:mm');
@@ -65,12 +66,10 @@ const formatDateTime = (date: Date | null | undefined): string => {
 
 // Helper function to convert old claim reason format to new array format
 const convertOldClaimReason = (oldReason: string | string[]): string[] => {
-  // If it's already an array, return it
   if (Array.isArray(oldReason)) {
     return oldReason;
   }
 
-  // Convert old format to new array format
   switch (oldReason) {
     case 'VD Only':
       return ['VD'];
@@ -83,7 +82,7 @@ const convertOldClaimReason = (oldReason: string | string[]): string[] => {
     case 'PI':
       return ['PI'];
     default:
-      return oldReason.split(',').map(r => r.trim()); // Handle comma-separated format
+      return oldReason.split(',').map((r) => r.trim());
   }
 };
 
@@ -100,67 +99,113 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
       clientRef: claim.clientRef || '',
       clientInfo: {
         ...claim.clientInfo,
-        dateOfBirth: formatDate(claim.clientInfo.dateOfBirth)
+        dateOfBirth: formatDate(claim.clientInfo.dateOfBirth),
       },
       clientVehicle: {
         ...claim.clientVehicle,
-        documents: claim.clientVehicle.documents || {}
+        documents: claim.clientVehicle.documents || {},
       },
       incidentDetails: {
         ...claim.incidentDetails,
-        date: formatDate(claim.incidentDetails.date)
+        date: formatDate(claim.incidentDetails.date),
       },
       thirdParty: claim.thirdParty,
-      recovery: claim.recovery ? {
-      ...claim.recovery,
-      date: formatDate(claim.recovery.date),
-      enabled: true
-    } : { enabled: false },
       passengers: claim.passengers || [],
-  witnesses: claim.witnesses || [],
-
-      
+      witnesses: claim.witnesses || [],
       evidence: claim.evidence,
       policeOfficerName: claim.policeOfficerName || '',
-    policeBadgeNumber: claim.policeBadgeNumber || '',
-    policeStation: claim.policeStation || '',
-    policeIncidentNumber: claim.policeIncidentNumber || '',
-    policeContactInfo: claim.policeContactInfo || '',
-
+      policeBadgeNumber: claim.policeBadgeNumber || '',
+      policeStation: claim.policeStation || '',
+      policeIncidentNumber: claim.policeIncidentNumber || '',
+      policeContactInfo: claim.policeContactInfo || '',
       paramedicNames: claim.paramedicNames || '',
-    ambulanceReference: claim.ambulanceReference || '',
-    ambulanceService: claim.ambulanceService || '',
-      
+      ambulanceReference: claim.ambulanceReference || '',
+      ambulanceService: claim.ambulanceService || '',
       fileHandlers: claim.fileHandlers,
       claimType: claim.claimType,
       caseProgress: claim.caseProgress,
       progress: claim.progress,
       gpInformation: claim.gpInformation || { visited: false },
-      hireDetails: claim.hireDetails ? {
-        ...claim.hireDetails,
-        startDate: formatDate(claim.hireDetails.startDate),
-        endDate: formatDate(claim.hireDetails.endDate),
-        enabled: true
-      } : { enabled: false },
-      storage: claim.storage ? {
-        ...claim.storage,
-        startDate: formatDate(claim.storage.startDate),
-        endDate: formatDate(claim.storage.endDate),
-        enabled: true
-      } : { enabled: false }
-    }
+      hospitalInformation: claim.hospitalInformation || { visited: false },
+      hireDetails: claim.hireDetails
+      ? {
+          ...claim.hireDetails,
+          startDate: formatDate(claim.hireDetails.startDate),
+          endDate: formatDate(claim.hireDetails.endDate),
+          // Directly use the persisted 'enabled' status, default to false
+          enabled: !!claim.hireDetails.enabled,
+          // Ensure other fields expected by the component are present or defaulted
+          startTime: claim.hireDetails.startTime || '',
+          endTime: claim.hireDetails.endTime || '',
+          daysOfHire: claim.hireDetails.daysOfHire || 0,
+          claimRate: claim.hireDetails.claimRate || 340,
+          deliveryCharge: claim.hireDetails.deliveryCharge || 0,
+          collectionCharge: claim.hireDetails.collectionCharge || 0,
+          insurancePerDay: claim.hireDetails.insurancePerDay || 0,
+          totalCost: claim.hireDetails.totalCost || 0,
+          vehicle: claim.hireDetails.vehicle || { make: '', model: '', registration: '', claimRate: 340 },
+        }
+      : { enabled: false }, // Default if hireDetails object itself is missing
+
+    storage: claim.storage
+      ? {
+          ...claim.storage,
+          startDate: formatDate(claim.storage.startDate),
+          endDate: formatDate(claim.storage.endDate),
+          // Directly use the persisted 'enabled' status, default to false
+          enabled: !!claim.storage.enabled,
+          // Ensure other fields expected by the component are present or defaulted
+          costPerDay: claim.storage.costPerDay || 40,
+          totalCost: claim.storage.totalCost || 0,
+        }
+      : { enabled: false }, // Default if storage object itself is missing
+
+    recovery: claim.recovery
+      ? {
+          ...claim.recovery,
+          date: formatDate(claim.recovery.date),
+          // Directly use the persisted 'enabled' status, default to false
+          enabled: !!claim.recovery.enabled,
+          // Keep existing values or provide defaults
+          locationPickup: claim.recovery.locationPickup || '',
+          locationDropoff: claim.recovery.locationDropoff || '',
+          cost: claim.recovery.cost, // Let Zod handle optional number validation
+        }
+      : { enabled: false }, 
+    },
   });
+
+  /**
+ * Converts a camelCase string into a human-readable string.
+ * @param {string} fieldName - The camelCase string to format.
+ * @returns {string} - The formatted, human-readable string.
+ */
+function formatFieldName(fieldName: string) {
+  // Insert spaces before uppercase letters
+  const spacedFieldName = fieldName.replace(/([a-z])([A-Z])/g, "$1 $2");
+  // Capitalize the first letter of each word
+  const humanReadableFieldName = spacedFieldName.replace(
+    /\b\w/g,
+    (char) => char.toUpperCase()
+  );
+  return humanReadableFieldName;
+}
 
   const claimReason = methods.watch('claimReason');
   const showHireDetails = claimReason.includes('H');
   const showStorageDetails = claimReason.includes('S');
-  const showVehicleDetails = !claimReason.includes('PI');
+  const showVehicleDetails = claimReason.includes('VD');
   const showGPInformation = claimReason.includes('PI');
+  const showHospitalInformation = claimReason.includes('PI');
 
   const onSubmit = async (data: ClaimFormData) => {
     if (!user) {
       toast.error('You must be logged in to update a claim');
       return;
+    }
+
+    if (data.recovery?.cost === '') {
+      data.recovery.cost = undefined;
     }
 
     setLoading(true);
@@ -189,7 +234,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         clientVehiclePhotos: await uploadAllFiles(data.evidence.clientVehiclePhotos.filter((f): f is File => f instanceof File), 'claims/vehicle-photos'),
         engineerReport: await uploadAllFiles(data.evidence.engineerReport.filter((f): f is File => f instanceof File), 'claims/engineer-reports'),
         bankStatement: await uploadAllFiles(data.evidence.bankStatement.filter((f): f is File => f instanceof File), 'claims/bank-statements'),
-        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter((f): f is File => f instanceof File), 'claims/admin-documents')
+        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter((f): f is File => f instanceof File), 'claims/admin-documents'),
       };
 
       // Prepare claim data
@@ -199,8 +244,8 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           ...data.clientVehicle,
           documents: {
             ...claim.clientVehicle.documents,
-            ...vehicleDocumentUrls
-          }
+            ...vehicleDocumentUrls,
+          },
         },
         evidence: {
           images: [...claim.evidence.images, ...evidenceUrls.images],
@@ -208,47 +253,78 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           clientVehiclePhotos: [...claim.evidence.clientVehiclePhotos, ...evidenceUrls.clientVehiclePhotos],
           engineerReport: [...claim.evidence.engineerReport, ...evidenceUrls.engineerReport],
           bankStatement: [...claim.evidence.bankStatement, ...evidenceUrls.bankStatement],
-          adminDocuments: [...claim.evidence.adminDocuments, ...evidenceUrls.adminDocuments]
+          adminDocuments: [...claim.evidence.adminDocuments, ...evidenceUrls.adminDocuments],
         },
         clientInfo: {
           ...data.clientInfo,
-          dateOfBirth: new Date(data.clientInfo.dateOfBirth)
+          dateOfBirth: new Date(data.clientInfo.dateOfBirth),
         },
         incidentDetails: {
           ...data.incidentDetails,
-          date: new Date(data.incidentDetails.date)
+          date: new Date(data.incidentDetails.date),
         },
-        // Only include hireDetails if H is selected
-        hireDetails: showHireDetails && data.hireDetails?.enabled ? {
-          ...data.hireDetails,
-          startDate: data.hireDetails.startDate ? new Date(data.hireDetails.startDate) : null,
-          endDate: data.hireDetails.endDate ? new Date(data.hireDetails.endDate) : null,
-          enabled: true
-        } : null,
-        // Only include storage if S is selected
-        storage: showStorageDetails && data.storage?.enabled ? {
-          ...data.storage,
-          startDate: data.storage.startDate ? new Date(data.storage.startDate) : null,
-          endDate: data.storage.endDate ? new Date(data.storage.endDate) : null,
-          enabled: true
-        } : null,
-        // Only include GP information if PI is selected
-        gpInformation: showGPInformation ? {
-          ...data.gpInformation,
-          visited: true
-        } : { visited: false },
+        hireDetails: showHireDetails && data.hireDetails?.enabled
+          ? {
+              ...data.hireDetails,
+              startDate: data.hireDetails.startDate ? new Date(data.hireDetails.startDate) : null,
+              endDate: data.hireDetails.endDate ? new Date(data.hireDetails.endDate) : null,
+              enabled: true,
+            }
+          : null,
+        storage: showStorageDetails && data.storage?.enabled
+          ? {
+              ...data.storage,
+              startDate: data.storage.startDate ? new Date(data.storage.startDate) : null,
+              endDate: data.storage.endDate ? new Date(data.storage.endDate) : null,
+              enabled: true,
+            }
+          : null,
+          recovery: data.recovery?.enabled ? {
+            date: data.recovery.date ? new Date(data.recovery.date) : null,
+            locationPickup: data.recovery.locationPickup || '',
+            locationDropoff: data.recovery.locationDropoff || '',
+            cost: data.recovery.cost || 0,
+            enabled: true
+          } : null,
+        passengers: data.passengers.filter(passenger => 
+          passenger.name || 
+          passenger.address || 
+          passenger.postCode || 
+          passenger.dob || 
+          passenger.contactNumber
+        ),
+        policeOfficerName: data.policeOfficerName || null,
+        policeBadgeNumber: data.policeBadgeNumber || null,
+        policeStation: data.policeStation || null, 
+        policeIncidentNumber: data.policeIncidentNumber || null,
+        policeContactInfo: data.policeContactInfo || null,
+        paramedicNames: data.paramedicNames || null,
+        ambulanceReference: data.ambulanceReference || null,
+        ambulanceService: data.ambulanceService || null,
+        gpInformation: showGPInformation
+          ? {
+              ...data.gpInformation,
+              visited: true,
+            }
+          : { visited: false },
+        hospitalInformation: showHospitalInformation
+          ? {
+              ...data.hospitalInformation,
+              visited: true,
+            }
+          : { visited: false },
         updatedAt: new Date(),
-        updatedBy: user.id
+        updatedBy: user.id,
       };
 
       // Update claim
       await updateDoc(doc(db, 'claims', claim.id), claimData);
 
-      // Generate and upload new documents
-      await generateClaimDocuments(claim.id, {
-        id: claim.id,
-        ...claimData
-      });
+      // // Generate and upload new documents
+      // await generateClaimDocuments(claim.id, {
+      //   id: claim.id,
+      //   ...claimData,
+      // });
 
       toast.success('Claim updated successfully');
       onClose();
@@ -309,68 +385,68 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
             </div>
           )}
 
+          {showHospitalInformation && (
+            <div className="bg-white rounded-lg p-6">
+              <Hospitalinformation />
+            </div>
+          )}
+
           <div className="bg-white rounded-lg p-6">
             <EvidenceUpload />
           </div>
 
-          {showHireDetails && (
+          {/* {showHireDetails && (
             <div className="bg-white rounded-lg p-6">
               <HireDetails />
             </div>
-          )}
+          )} */}
 
-          {showStorageDetails && (
+          {/* {showStorageDetails && (
             <div className="bg-white rounded-lg p-6">
               <StorageDetails />
             </div>
-          )}
+          )} */}
 
-          <div className="bg-white rounded-lg p-6">
+          {/* <div className="bg-white rounded-lg p-6">
             <RecoveryDetails />
-          </div>
+          </div> */}
 
           <div className="bg-white rounded-lg p-6">
             <PassengerDetails
-  count={methods.watch('passengers')?.length || 0}
-  onCountChange={(count) => {
-    // Create new array with existing data preserved
-    const currentPassengers = methods.getValues('passengers') || [];
-    const newPassengers = Array(count).fill(null).map((_, index) => {
-      return currentPassengers[index] || {
-        name: '',
-        address: '',
-        postCode: '',
-        dob: '',
-        contactNumber: ''
-      };
-    });
-    methods.setValue('passengers', newPassengers);
-  }}
-/>
-
+              count={methods.watch('passengers')?.length || 0}
+              onCountChange={(count) => {
+                const currentPassengers = methods.getValues('passengers') || [];
+                const newPassengers = Array(count).fill(null).map((_, index) => {
+                  return currentPassengers[index] || {
+                    name: '',
+                    address: '',
+                    postCode: '',
+                    dob: '',
+                    contactNumber: '',
+                  };
+                });
+                methods.setValue('passengers', newPassengers);
+              }}
+            />
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            
-<WitnessDetails
-  count={methods.watch('witnesses')?.length || 0}
-  onCountChange={(count) => {
-    // Create new array with existing data preserved
-    const currentWitnesses = methods.getValues('witnesses') || [];
-    const newWitnesses = Array(count).fill(null).map((_, index) => {
-      return currentWitnesses[index] || {
-        name: '',
-        address: '',
-        postCode: '',
-        dob: '',
-        contactNumber: ''
-      };
-    });
-    methods.setValue('witnesses', newWitnesses);
-  }}
-/>
-
-
+            <WitnessDetails
+              count={methods.watch('witnesses')?.length || 0}
+              onCountChange={(count) => {
+                const currentWitnesses = methods.getValues('witnesses') || [];
+                const newWitnesses = Array(count).fill(null).map((_, index) => {
+                  return currentWitnesses[index] || {
+                    name: '',
+                    address: '',
+                    postCode: '',
+                    dob: '',
+                    contactNumber: '',
+                  };
+                });
+                methods.setValue('witnesses', newWitnesses);
+              }}
+            />
           </div>
 
           <div className="bg-white rounded-lg p-6">
@@ -403,17 +479,18 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           </button>
         </div>
 
-        {/* Form Validation Errors Summary */}
         {Object.keys(methods.formState.errors).length > 0 && (
-          <div className="mt-4 p-4 bg-red-50 rounded-md">
-            <h4 className="text-red-800 font-medium">Please fix the following errors:</h4>
-            <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-              {Object.entries(methods.formState.errors).map(([key, error]) => (
-                <li key={key}>{error.message}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+  <div className="mt-4 p-4 bg-red-50 rounded-md">
+    <h4 className="text-red-800 font-medium">Please review the highlighted sections:</h4>
+    <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+      {Object.entries(methods.formState.errors).map(([key, error]) => (
+        <li key={key}>
+          {formatFieldName(key)} - {error?.message || 'Invalid input'}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
       </form>
     </FormProvider>
   );

@@ -90,16 +90,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
         vehicleId: formData.vehicleId || null,
         description: formData.description,
         customerId: formData.useCustomCustomer ? null : formData.customerId,
-        customerName: formData.useCustomCustomer ? formData.customerName : null,
-        customerPhone: formData.useCustomCustomer ? formData.customerPhone : null,
+        customerName: formData.useCustomCustomer ? formData.customerName : 
+          customers.find(c => c.id === formData.customerId)?.name || null, // Update customerName here
+        customerPhone: formData.useCustomCustomer ? formData.customerPhone : 
+            customers.find(c => c.id === formData.customerId)?.mobile || null, // Update customerPhone here
         paymentStatus,
         payments,
         createdAt: new Date(),
         updatedAt: new Date()
       };
-
-
-      
 
       // Create invoice document
       const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
@@ -200,7 +199,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
               subLabel: `${c.mobile} - ${c.email}`
             }))}
             value={formData.customerId}
-            onChange={(id) => setFormData({ ...formData, customerId: id })}
+            onChange={(id) => {
+              const selectedCustomer = customers.find(c => c.id === id);
+              setFormData({ 
+                ...formData, 
+                customerId: id,
+                customerName: selectedCustomer?.name || '', // Update customerName here
+                 customerPhone: selectedCustomer?.mobile || '', // Update customerPhone here
+              });
+            }}
             placeholder="Search customers..."
           />
         )}
@@ -246,115 +253,116 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     required
   >
     <option value="all">All Categories</option>
-  <option value="rental">Rental</option>
-  <option value="maintenance_income">Maintenance Income</option>
-  <option value="refunded_income">Refunded Income</option>
-  <option value="insurance_income">Insurance Income</option>
-  <option value="advertising_income">Advertising Income</option>
-  <option value="vd_payment_income">VD Payment Income</option>
-  <option value="road_tax_refund_income">Road Tax Refund Income</option>
-  <option value="commission_income">Commission Income</option>
-  <option value="investment_income">Investment Income</option>
-  <option value="loan_repayments_income">Loan Repayments Income</option>
-  <option value="aie_claims_vd_income">AIE Claims VD Income</option>
-  <option value="aie_claims_hire_income">AIE Claims Hire Income</option>
-  <option value="aie_claims_pi_income">AIE Claims PI Income</option>
-  <option value="aie_claims_domestic_income">AIE Claims Domestic Income</option>
-  <option value="aie_claims_ph_income">AIE Claims PH Income</option>
-  <option value="skyline_cabs_commission_income">Skyline Cabs Commission Income</option>
-  <option value="vehicle_insurance">Vehicle Insurance</option>
-  <option value="road_tax">Road Tax</option>
-  <option value="vat_referral">VAT Referral</option>
-  <option value="mot">MOT</option>
-  <option value="fuel">Fuel</option>
-  <option value="vehicle_finance">Vehicle Finance (Loan or Lease Payments)</option>
-  <option value="maintenance">Maintenance</option>
-  <option value="registration_fee">Registration Fee</option>
-  <option value="nsl">NSL</option>
-  <option value="repair">Repair</option>
-  <option value="parts">Parts</option>
-  <option value="cleaning">Cleaning</option>
-  <option value="breakdown_cover">Breakdown Cover</option>
-  <option value="tyres_wheel_alignment">Tyres & Wheel Alignment</option>
-  <option value="toll_charges_congestion_fees">Toll Charges & Congestion Fees</option>
-  <option value="parking_fees">Parking Fees (PCN)</option>
-  <option value="fleet_management_software">Fleet Management Software</option>
-  <option value="telematics_tracking_system">Telematics & Tracking System</option>
-  <option value="vehicle_depreciation">Vehicle Depreciation</option>
-  <option value="replacement_vehicle_costs">Replacement Vehicle Costs</option>
-  <option value="taxi_meter">Taxi Meter</option>
-  <option value="cctv_installation_monitoring">CCTV Installation & Monitoring</option>
-  <option value="office_rent">Office Rent</option>
-  <option value="phone_internet_bill">Phone & Internet Bill</option>
-  <option value="office_stationery_supplies">Office Stationery & Supplies</option>
-  <option value="staff_salaries_wages">Staff Salaries & Wages</option>
-  <option value="staff_travel_expenses">Staff Travel Expenses</option>
-  <option value="it_software_expenses">IT & Software Expenses</option>
-  <option value="bank_fees_transaction_charges">Bank Fees & Transaction Charges</option>
-  <option value="loan_repayments_interest">Loan Repayments & Interest</option>
-  <option value="advertising_marketing">Advertising & Marketing</option>
-  <option value="legal_compliance_fees">Legal & Compliance Fees</option>
-  <option value="training_certification_staff">Training & Certification for Staff</option>
-  <option value="call_centre_customer_support_costs">Call Centre & Customer Support Costs</option>
-  <option value="other">Other</option>
-  <option value="aie_claim_vdhspi">Aie Claim Vdhspi</option>
-  <option value="skyline_cabs_office_rental_income">Skyline Cabs Office Rental Income</option>
-  <option value="vehicle_sold">Vehicle Sold</option>
-  <option value="office_rent_deposit_refund">Office Rent Deposit Refund</option>
-  <option value="new_vehicle_deposit">New Vehicle Deposit</option>
-  <option value="new_vehicle_purchase">New Vehicle Purchase</option>
-  <option value="insurance_cost_income_from_insurance-related_charges">Insurance Cost (Income From Insurance-Related Charges)</option>
-  <option value="vat_refund">Vat Refund</option>
-  <option value="loan_repayment">Loan Repayment</option>
-  <option value="vehicle_balloon_repayment">Vehicle Balloon Repayment</option>
-  <option value="share_income">Share Income</option>
-  <option value="tyre_replacement_repairs">Tyre Replacement & Repairs</option>
-  <option value="wheel_alignment_balancing">Wheel Alignment & Balancing</option>
-  <option value="battery_replacement">Battery Replacement</option>
-  <option value="accident_repair">Accident Repair</option>
-  <option value="mot_test_fee">Mot Test Fee</option>
-  <option value="taxi_credit_card_strip_fee">Taxi Credit Card Strip Fee</option>
-  <option value="year_service">Year Service</option>
-  <option value="mileage_service">Mileage Service</option>
-  <option value="emergency_repair">Emergency Repair</option>
-  <option value="vehicle_cleaning_valeting_services">Vehicle Cleaning & Valeting Services</option>
-  <option value="windscreen_glass_replacement_income">Windscreen & Glass Replacement Income</option>
-  <option value="it_website_software_subscription_refund">It & Website Software Subscription Refund</option>
-  <option value="somcab">Somcab</option>
-  <option value="office_stationery_refund">Office Stationery Refund</option>
-  <option value="office_equipment_refund">Office Equipment Refund</option>
-  <option value="miscellaneous_income">Miscellaneous Income</option>
-  <option value="vehicle_insurance_excess">Vehicle Insurance Excess</option>
-  <option value="towing_charges">Towing Charges</option>
-  <option value="breakdown_recovery">Breakdown Recovery</option>
-  <option value="emergency_roadside_repairs">Emergency Roadside Repairs</option>
-  <option value="bodywork">Bodywork</option>
-  <option value="insurance_repair_excess_fees">Insurance Repair Excess Fees</option>
-  <option value="third-party_repair_payments">Third-Party Repair Payments</option>
-  <option value="air_conditioning_servicing">Air Conditioning Servicing</option>
-  <option value="client_vd_payment">Client Vd Payment</option>
-  <option value="client_tl_payment">Client Tl Payment</option>
-  <option value="client_referral_fee">Client Referral Fee</option>
-  <option value="client_goodwill_payment">Client Goodwill Payment</option>
-  <option value="vehicle_leasing_payment">Vehicle Leasing Payment</option>
-  <option value="loan_payment">Loan Payment</option>
-  <option value="investment">Investment</option>
-  <option value="share_payment">Share Payment</option>
-  <option value="office_insurance">Office Insurance</option>
-  <option value="vat_payment">Vat Payment</option>
-  <option value="vat_unpaid">Vat Unpaid</option>
-  <option value="tax_return_payment">Tax Return Payment</option>
-  <option value="corporate_tax_payment">Corporate Tax Payment</option>
-  <option value="income_tax_payment">Income Tax Payment</option>
-  <option value="tax_late_fee_payment">Tax Late Fee Payment</option>
-  <option value="vat_late_fee_payment">Vat Late Fee Payment</option>
-  <option value="it_service">It Service</option>
-  <option value="software_subscription">Software Subscription</option>
-  <option value="domain_subscription_fee">Domain Subscription Fee</option>
-  <option value="it_website_developer">It & Website Developer</option>
-  <option value="accountant_fees">Accountant Fees</option>
-  <option value="telephone_bill">Telephone Bill</option>
-    <option value="other">Other</option>
+<option value="Rental">Rental</option>
+<option value="Maintenance Income">Maintenance Income</option>
+<option value="Refunded Income">Refunded Income</option>
+<option value="Insurance Income">Insurance Income</option>
+<option value="Advertising Income">Advertising Income</option>
+<option value="VD Payment Income">VD Payment Income</option>
+<option value="Road Tax Refund Income">Road Tax Refund Income</option>
+<option value="Commission Income">Commission Income</option>
+<option value="Investment Income">Investment Income</option>
+<option value="Loan Repayments Income">Loan Repayments Income</option>
+<option value="AIE Claims VD Income">AIE Claims VD Income</option>
+<option value="AIE Claims Hire Income">AIE Claims Hire Income</option>
+<option value="AIE Claims PI Income">AIE Claims PI Income</option>
+<option value="AIE Claims Domestic Income">AIE Claims Domestic Income</option>
+<option value="AIE Claims PH Income">AIE Claims PH Income</option>
+<option value="Skyline Cabs Commission Income">Skyline Cabs Commission Income</option>
+<option value="Vehicle Insurance">Vehicle Insurance</option>
+<option value="Road Tax">Road Tax</option>
+<option value="VAT Referral">VAT Referral</option>
+<option value="MOT">MOT</option>
+<option value="Fuel">Fuel</option>
+<option value="Vehicle Finance">Vehicle Finance (Loan or Lease Payments)</option>
+<option value="Maintenance">Maintenance</option>
+<option value="Registration Fee">Registration Fee</option>
+<option value="NSL">NSL</option>
+<option value="Repair">Repair</option>
+<option value="Parts">Parts</option>
+<option value="Cleaning">Cleaning</option>
+<option value="Breakdown Cover">Breakdown Cover</option>
+<option value="Tyres & Wheel Alignment">Tyres & Wheel Alignment</option>
+<option value="Toll Charges & Congestion Fees">Toll Charges & Congestion Fees</option>
+<option value="Parking Fees">Parking Fees (PCN)</option>
+<option value="Fleet Management Software">Fleet Management Software</option>
+<option value="Telematics & Tracking System">Telematics & Tracking System</option>
+<option value="Vehicle Depreciation">Vehicle Depreciation</option>
+<option value="Replacement Vehicle Costs">Replacement Vehicle Costs</option>
+<option value="Taxi Meter">Taxi Meter</option>
+<option value="CCTV Installation & Monitoring">CCTV Installation & Monitoring</option>
+<option value="Office Rent">Office Rent</option>
+<option value="Phone & Internet Bill">Phone & Internet Bill</option>
+<option value="Office Stationery & Supplies">Office Stationery & Supplies</option>
+<option value="Staff Salaries & Wages">Staff Salaries & Wages</option>
+<option value="Staff Travel Expenses">Staff Travel Expenses</option>
+<option value="IT & Software Expenses">IT & Software Expenses</option>
+<option value="Bank Fees & Transaction Charges">Bank Fees & Transaction Charges</option>
+<option value="Loan Repayments & Interest">Loan Repayments & Interest</option>
+<option value="Advertising & Marketing">Advertising & Marketing</option>
+<option value="Legal & Compliance Fees">Legal & Compliance Fees</option>
+<option value="Training & Certification for Staff">Training & Certification for Staff</option>
+<option value="Call Centre & Customer Support Costs">Call Centre & Customer Support Costs</option>
+<option value="Other">Other</option>
+<option value="AIE Claim VDH SPI">AIE Claim VDH SPI</option>
+<option value="Skyline Cabs Office Rental Income">Skyline Cabs Office Rental Income</option>
+<option value="Vehicle Sold">Vehicle Sold</option>
+<option value="Office Rent Deposit Refund">Office Rent Deposit Refund</option>
+<option value="New Vehicle Deposit">New Vehicle Deposit</option>
+<option value="New Vehicle Purchase">New Vehicle Purchase</option>
+<option value="Insurance Cost Income From Insurance-Related Charges">Insurance Cost (Income From Insurance-Related Charges)</option>
+<option value="VAT Refund">VAT Refund</option>
+<option value="Loan Repayment">Loan Repayment</option>
+<option value="Vehicle Balloon Repayment">Vehicle Balloon Repayment</option>
+<option value="Share Income">Share Income</option>
+<option value="Tyre Replacement & Repairs">Tyre Replacement & Repairs</option>
+<option value="Wheel Alignment & Balancing">Wheel Alignment & Balancing</option>
+<option value="Battery Replacement">Battery Replacement</option>
+<option value="Accident Repair">Accident Repair</option>
+<option value="MOT Test Fee">MOT Test Fee</option>
+<option value="Taxi Credit Card Strip Fee">Taxi Credit Card Strip Fee</option>
+<option value="Year Service">Year Service</option>
+<option value="Mileage Service">Mileage Service</option>
+<option value="Emergency Repair">Emergency Repair</option>
+<option value="Vehicle Cleaning & Valeting Services">Vehicle Cleaning & Valeting Services</option>
+<option value="Windscreen & Glass Replacement Income">Windscreen & Glass Replacement Income</option>
+<option value="IT & Website Software Subscription Refund">IT & Website Software Subscription Refund</option>
+<option value="Somcab">Somcab</option>
+<option value="Office Stationery Refund">Office Stationery Refund</option>
+<option value="Office Equipment Refund">Office Equipment Refund</option>
+<option value="Miscellaneous Income">Miscellaneous Income</option>
+<option value="Vehicle Insurance Excess">Vehicle Insurance Excess</option>
+<option value="Towing Charges">Towing Charges</option>
+<option value="Breakdown Recovery">Breakdown Recovery</option>
+<option value="Emergency Roadside Repairs">Emergency Roadside Repairs</option>
+<option value="Bodywork">Bodywork</option>
+<option value="Insurance Repair Excess Fees">Insurance Repair Excess Fees</option>
+<option value="Third-Party Repair Payments">Third-Party Repair Payments</option>
+<option value="Air Conditioning Servicing">Air Conditioning Servicing</option>
+<option value="Client VD Payment">Client VD Payment</option>
+<option value="Client TL Payment">Client TL Payment</option>
+<option value="Client Referral Fee">Client Referral Fee</option>
+<option value="Client Goodwill Payment">Client Goodwill Payment</option>
+<option value="Vehicle Leasing Payment">Vehicle Leasing Payment</option>
+<option value="Loan Payment">Loan Payment</option>
+<option value="Investment">Investment</option>
+<option value="Share Payment">Share Payment</option>
+<option value="Office Insurance">Office Insurance</option>
+<option value="VAT Payment">VAT Payment</option>
+<option value="VAT Unpaid">VAT Unpaid</option>
+<option value="Tax Return Payment">Tax Return Payment</option>
+<option value="Corporate Tax Payment">Corporate Tax Payment</option>
+<option value="Income Tax Payment">Income Tax Payment</option>
+<option value="Tax Late Fee Payment">Tax Late Fee Payment</option>
+<option value="VAT Late Fee Payment">VAT Late Fee Payment</option>
+<option value="IT Service">IT Service</option>
+<option value="Software Subscription">Software Subscription</option>
+<option value="Domain Subscription Fee">Domain Subscription Fee</option>
+<option value="IT & Website Developer">IT & Website Developer</option>
+<option value="Accountant Fees">Accountant Fees</option>
+<option value="Telephone Bill">Telephone Bill</option>
+<option value="Other">Other</option>
+
   </select>
 </div>
 

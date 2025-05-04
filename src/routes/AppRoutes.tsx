@@ -2,10 +2,12 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
+
 import { lazyLoad } from './lazyLoad';
 
 // Lazy load components
 const AiePettyCash = lazyLoad('AiePettyCash');
+const Share = lazyLoad('Share');
 const VATRecord = lazyLoad('VATRecord');
 const DriverPay = lazyLoad('DriverPay');
 const Login = lazyLoad('Login');
@@ -24,7 +26,10 @@ const PettyCash = lazyLoad('PettyCash');
 const Users = lazyLoad('Users');
 const Customers = lazyLoad('Customers');
 const CompanyManagers = lazyLoad('CompanyManagers');
-const VDFinance = lazyLoad('VDFinance'); // Add this line
+const VDFinance = lazyLoad('VDFinance');
+const VDInvoice = lazyLoad('VDInvoice');
+const BulkEmail = lazyLoad('BulkEmail');
+const Chat = lazyLoad('Chat');
 
 const AppRoutes = () => {
   return (
@@ -40,6 +45,22 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
+      <Route path="/chat" element={
+        <ProtectedRoute>
+          <Layout>
+            <Chat />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/bulk-email" element={
+        <ProtectedRoute requiredPermission={{ module: 'users', action: 'view' }}>
+          <Layout>
+            <BulkEmail />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
       <Route path="/skyline-caps/driver-pay" element={
         <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
           <Layout>
@@ -49,12 +70,12 @@ const AppRoutes = () => {
       } />
 
       <Route path="/finance/vat-records" element={
-  <ProtectedRoute requiredPermission={{ module: 'vatRecord', action: 'view' }}>
-    <Layout>
-      <VATRecord />
-    </Layout>
-  </ProtectedRoute>
-} />
+        <ProtectedRoute requiredPermission={{ module: 'vatRecord', action: 'view' }}>
+          <Layout>
+            <VATRecord />
+          </Layout>
+        </ProtectedRoute>
+      } />
 
       <Route path="/skyline-caps/aie-petty-cash" element={
         <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
@@ -103,7 +124,16 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
+<Route path="/share" element={
+        <ProtectedRoute requiredPermission={{ module: 'share', action: 'view' }}>
+          <Layout>
+            <Share />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      {/* <Route path="/share" element={<Share />} />
+       */}
       <Route path="/claims" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
           <Layout>
@@ -112,18 +142,18 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      {/* <Route path="/claims/personal-injury" element={
-        <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
-          <Layout>
-            <PersonalInjury />
-          </Layout>
-        </ProtectedRoute>
-      } /> */}
-
       <Route path="/claims/vd-finance" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
           <Layout>
             <VDFinance />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/claims/vd-invoice" element={
+        <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
+          <Layout>
+            <VDInvoice />
           </Layout>
         </ProtectedRoute>
       } />

@@ -10,6 +10,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 
+
 // Import all sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
 import DriverDetails from './ClaimForm/sections/DriverDetails';
@@ -28,6 +29,7 @@ import EvidenceUpload from './ClaimForm/sections/EvidenceUpload';
 import FileHandlers from './ClaimForm/sections/FileHandlers';
 import ClaimProgress from './ClaimForm/sections/ClaimProgress';
 import ClientRefField from './ClaimForm/sections/ClientRefField';
+import Hospitalinformation from './ClaimForm/sections/Hospitalinformation';
 
 interface ClaimFormProps {
   onClose: () => void;
@@ -37,7 +39,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
+  
   const methods = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
     mode: 'onChange',
@@ -90,20 +92,49 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       claimType: 'Domestic',
       caseProgress: 'Awaiting',
       progress: 'Your Claim Has Started',
-      gpInformation: { visited: false }
+      gpInformation: { visited: false },
+      hospitalInformation: { visited: false },
+      recovery: {
+        date: '',
+        locationPickup: '',
+        locationDropoff: '',
+        cost: 0,
+        enabled: false
+      }
     }
   });
+
+  /**
+ * Converts a camelCase string into a human-readable string.
+ * @param {string} fieldName - The camelCase string to format.
+ * @returns {string} - The formatted, human-readable string.
+ */
+function formatFieldName(fieldName: string) {
+  // Insert spaces before uppercase letters
+  const spacedFieldName = fieldName.replace(/([a-z])([A-Z])/g, "$1 $2");
+  // Capitalize the first letter of each word
+  const humanReadableFieldName = spacedFieldName.replace(
+    /\b\w/g,
+    (char) => char.toUpperCase()
+  );
+  return humanReadableFieldName;
+}
 
   const claimReason = methods.watch('claimReason');
   const showHireDetails = claimReason.includes('H');
   const showStorageDetails = claimReason.includes('S');
-  const showVehicleDetails = !claimReason.includes('PI');
+  const showVehicleDetails = claimReason.includes('VD');
   const showGPInformation = claimReason.includes('PI');
+  const showHospitalInformation = claimReason.includes('PI');
 
   const onSubmit = async (data: ClaimFormData) => {
     if (!user) {
       toast.error('You must be logged in to submit a claim');
       return;
+    }
+
+    if (data.recovery?.cost === '') {
+      data.recovery.cost = undefined;
     }
 
     setLoading(true);
@@ -213,6 +244,10 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
           ...data.gpInformation,
           visited: true
         } : { visited: false },
+        hospitalInformation: showHospitalInformation ? {
+          ...data.hospitalInformation,
+          visited: true
+        } : { visited: false },
         createdBy: user.id,
         submittedAt: new Date(),
         updatedAt: new Date(),
@@ -228,11 +263,11 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       // Add to Firestore
       const docRef = await addDoc(collection(db, 'claims'), claimData);
 
-      // Generate and upload documents
-      await generateClaimDocuments(docRef.id, {
-        id: docRef.id,
-        ...claimData
-      });
+      // // Generate and upload documents
+      // await generateClaimDocuments(docRef.id, {
+      //   id: docRef.id,
+      //   ...claimData
+      // });
 
       toast.success('Claim submitted successfully');
       onClose();
@@ -293,25 +328,31 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
             </div>
           )}
 
+          {showHospitalInformation && (
+            <div className="bg-white rounded-lg p-6">
+              <Hospitalinformation />
+            </div>
+          )}
+
           <div className="bg-white rounded-lg p-6">
             <EvidenceUpload />
           </div>
 
-          {showHireDetails && (
+          {/* {showHireDetails && (
             <div className="bg-white rounded-lg p-6">
               <HireDetails />
             </div>
-          )}
+          )} */}
 
-          {showStorageDetails && (
+          {/* {showStorageDetails && (
             <div className="bg-white rounded-lg p-6">
               <StorageDetails />
             </div>
-          )}
+          )} */}
 
-          <div className="bg-white rounded-lg p-6">
+          {/* <div className="bg-white rounded-lg p-6">
             <RecoveryDetails />
-          </div>
+          </div> */}
 
           <div className="bg-white rounded-lg p-6">
   <PassengerDetails
@@ -388,16 +429,21 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         </div>
 
         {/* Form Validation Errors Summary */}
-        {Object.keys(methods.formState.errors).length > 0 && (
-          <div className="mt-4 p-4 bg-red-50 rounded-md">
-            <h4 className="text-red-800 font-medium">Please fix the following errors:</h4>
-            <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-              {Object.entries(methods.formState.errors).map(([key, error]) => (
-                <li key={key}>{error.message}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Form Validation Errors Summary */}
+{Object.keys(methods.formState.errors).length > 0 && (
+  <div className="mt-4 p-4 bg-red-50 rounded-md">
+    <h4 className="text-red-800 font-medium">Please review the highlighted sections:</h4>
+    <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+      {Object.entries(methods.formState.errors).map(([key, error]) => (
+        <li key={key}>
+          {formatFieldName(key)} - {error?.message || 'Invalid input'}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
+
+
       </form>
     </FormProvider>
   );

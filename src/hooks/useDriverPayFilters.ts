@@ -94,6 +94,15 @@ export const useDriverPayFilters = (records: DriverPay[]) => {
   }, [records, searchQuery, statusFilter, collectionFilter, dateRange]);
 
   const summary = useMemo(() => {
+    // Calculate totals across all periods for all filtered drivers
+    const totalPaid = filteredRecords.reduce((sum, record) => {
+      return sum + record.paymentPeriods.reduce((periodSum, period) => periodSum + (period.paidAmount || 0), 0);
+    }, 0);
+
+    const totalRemaining = filteredRecords.reduce((sum, record) => {
+      return sum + record.paymentPeriods.reduce((periodSum, period) => periodSum + (period.remainingAmount || 0), 0);
+    }, 0);
+
     return filteredRecords.reduce(
       (acc, record) => {
         record.paymentPeriods.forEach(period => {
@@ -107,7 +116,13 @@ export const useDriverPayFilters = (records: DriverPay[]) => {
         });
         return acc;
       },
-      { total: 0, commission: 0, netPay: 0 }
+      { 
+        total: 0, 
+        commission: 0, 
+        netPay: 0,
+        totalPaid,
+        totalRemaining
+      }
     );
   }, [filteredRecords]);
 

@@ -1,9 +1,11 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { VATRecord } from '../../../types/vatRecord';
 import { format } from 'date-fns';
+import logo from '../../../assets/logo.png';
+import { styles } from '../styles';
 
-const styles = StyleSheet.create({
+const styles2 = StyleSheet.create({
   page: {
     padding: 40,
     fontSize: 10,
@@ -68,110 +70,158 @@ const styles = StyleSheet.create({
 
 interface VATRecordDocumentProps {
   data: VATRecord;
-  companyDetails: any;
+  companyDetails: {
+    fullName: string;
+    officialAddress: string;
+    vatNumber: string;
+    registrationNumber: string;
+    phone: string;
+    email: string;
+  };
 }
 
+
+
 const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDetails }) => (
+  
+
   <Document>
     <Page size="A4" style={styles.page}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{companyDetails.fullName}</Text>
-        <Text>{companyDetails.officialAddress}</Text>
-        <Text>VAT No: {companyDetails.vatNumber}</Text>
-      </View>
+          <Image src={logo} style={styles.logo} />
+          <View style={styles.companyInfo}>
+            <Text>{companyDetails.fullName}</Text>
+            <Text>{companyDetails.officialAddress}</Text>
+            <Text>Tel: {companyDetails.phone}</Text>
+            <Text>Email: {companyDetails.email}</Text>
+            <Text>VAT No: {companyDetails.vatNumber}</Text>
+          </View>
+        </View>
 
       <Text style={styles.title}>VAT RECORD</Text>
 
-      {/* Basic Information */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Record Details</Text>
-        <View style={{ marginBottom: 10 }}>
-          <Text>Receipt No: {data.receiptNo}</Text>
-          <Text>Accountant: {data.accountant}</Text>
-          <Text>Supplier: {data.supplier}</Text>
-          <Text>REG No: {data.regNo}</Text>
-          <Text>Date: {format(data.date, 'dd/MM/yyyy')}</Text>
+      {/* Record Details Card */}
+      <View style={[styles.card, styles.sectionBreak]} wrap={false}>
+        <Text style={styles.infoCardTitle}>Record Details</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Receipt No:</Text>
+          <Text style={styles.value}>{data.receiptNo}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Accountant:</Text>
+          <Text style={styles.value}>{data.accountant}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Supplier:</Text>
+          <Text style={styles.value}>{data.supplier}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>REG No:</Text>
+          <Text style={styles.value}>{data.regNo}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Date:</Text>
+          <Text style={styles.value}>{format(new Date(data.date), 'dd/MM/yyyy')}</Text>
         </View>
       </View>
 
       {/* Descriptions Table */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Descriptions</Text>
-        <View style={styles.table}>
+      <View style={styles2.section}>
+        <Text style={styles2.sectionTitle}>Descriptions</Text>
+        <View style={styles2.table}>
           {/* Table Header */}
-          <View style={[styles.tableRow, styles.tableHeader]}>
-            <View style={[styles.tableCell, { flex: 2 }]}>
+          <View style={[styles2.tableRow, styles2.tableHeader]}>
+            <View style={[styles2.tableCell, { flex: 2 }]}>
               <Text>Description</Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>NET</Text>
             </View>
-            <View style={styles.tableCell}>
+            <View style={styles2.tableCell}>
               <Text>V</Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>VAT</Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>GROSS</Text>
             </View>
           </View>
 
           {/* Table Rows */}
           {data.descriptions.map((desc) => (
-            <View key={desc.id} style={styles.tableRow}>
-              <View style={[styles.tableCell, { flex: 2 }]}>
+            <View key={desc.id} style={styles2.tableRow}>
+              <View style={[styles2.tableCell, { flex: 2 }]}>
                 <Text>{desc.description}</Text>
               </View>
-              <View style={styles.tableCellAmount}>
+              <View style={styles2.tableCellAmount}>
                 <Text>£{desc.net.toFixed(2)}</Text>
               </View>
-              <View style={styles.tableCell}>
+              <View style={styles2.tableCell}>
                 <Text>{desc.vType}</Text>
               </View>
-              <View style={styles.tableCellAmount}>
+              <View style={styles2.tableCellAmount}>
                 <Text>£{desc.vat.toFixed(2)}</Text>
               </View>
-              <View style={styles.tableCellAmount}>
+              <View style={styles2.tableCellAmount}>
                 <Text>£{desc.gross.toFixed(2)}</Text>
               </View>
             </View>
           ))}
 
           {/* Totals Row */}
-          <View style={[styles.tableRow, styles.totalRow]}>
-            <View style={[styles.tableCell, { flex: 2 }]}>
+          <View style={[styles2.tableRow, styles2.totalRow]}>
+            <View style={[styles2.tableCell, { flex: 2 }]}>
               <Text>Totals</Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>£{data.net.toFixed(2)}</Text>
             </View>
-            <View style={styles.tableCell}>
+            <View style={styles2.tableCell}>
               <Text></Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>£{data.vat.toFixed(2)}</Text>
             </View>
-            <View style={styles.tableCellAmount}>
+            <View style={styles2.tableCellAmount}>
               <Text>£{data.gross.toFixed(2)}</Text>
             </View>
           </View>
         </View>
       </View>
 
-      {/* Customer Information */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Customer Information</Text>
-        <Text>Customer Name: {data.customerName}</Text>
-        {data.customerId && <Text>Customer ID: {data.customerId}</Text>}
-      </View>
+      {/* Customer Information and Additional Details Cards */}
+      <View style={[styles.cardContainer, styles.sectionBreak]} wrap={false}>
+        {/* Customer Information Card */}
+        <View style={[styles.card, styles.halfCard]}>
+          <Text style={styles.infoCardTitle}>Customer Information</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Customer Name:</Text>
+            <Text style={styles.value}>{data.customerName}</Text>
+          </View>
+          {data.customerId && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Customer ID:</Text>
+              <Text style={styles.value}>{data.customerId}</Text>
+            </View>
+          )}
+        </View>
 
-      {/* Additional Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Additional Details</Text>
-        <Text>Status: {data.status}</Text>
-        {data.notes && <Text>Notes: {data.notes}</Text>}
+        {/* Additional Details Card */}
+        <View style={[styles.card, styles.halfCard]}>
+          <Text style={styles.infoCardTitle}>Additional Details</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Status:</Text>
+            <Text style={styles.value}>{data.status}</Text>
+          </View>
+          {data.notes && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Notes:</Text>
+              <Text style={styles.value}>{data.notes}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Footer */}

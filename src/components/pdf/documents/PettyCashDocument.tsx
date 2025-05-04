@@ -12,72 +12,79 @@ interface PettyCashDocumentProps {
 
 const PettyCashDocument: React.FC<PettyCashDocumentProps> = ({ data, companyDetails }) => (
   <BaseDocument title="Petty Cash Record" companyDetails={companyDetails}>
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Transaction Details</Text>
-      <View style={styles.row}>
-        <Text style={styles.label}>Name:</Text>
-        <Text style={styles.value}>{data.name}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Telephone:</Text>
-        <Text style={styles.value}>{data.telephone}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Date:</Text>
-        <Text style={styles.value}>{formatDate(data.date)}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Description:</Text>
-        <Text style={styles.value}>{data.description}</Text>
+    
+    {/* Transaction Details in Card */}
+    <View style={styles.sectionBreak} wrap={false}>
+      <View style={styles.infoCard}>
+        <Text style={styles.infoCardTitle}>Transaction Details</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Name:</Text>
+          <Text style={styles.value}>{data.name}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Telephone:</Text>
+          <Text style={styles.value}>{data.telephone}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Date:</Text>
+          <Text style={styles.value}>{formatDate(data.date)}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Description:</Text>
+          <Text style={styles.value}>{data.description}</Text>
+        </View>
       </View>
     </View>
 
-    <View style={styles.section}>
+    {/* Financial Details - Clean Table */}
+    <View style={styles.sectionBreak} wrap={false}>
       <Text style={styles.sectionTitle}>Financial Details</Text>
-      {data.amountIn > 0 && (
-        <View style={styles.row}>
-          <Text style={styles.label}>Amount In:</Text>
-          <Text style={styles.value}>£{Number(data.amountIn).toFixed(2)}</Text>
+      <View style={styles.table}>
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableCell, { flex: 1 }]}>Amount In</Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>Balance</Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>Status</Text>
         </View>
-      )}
-      {data.amountOut > 0 && (
-        <View style={styles.row}>
-          <Text style={styles.label}>Amount Out:</Text>
-          <Text style={styles.value}>£{Number(data.amountOut).toFixed(2)}</Text>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableCell, { flex: 1, color: '#059669' }]}>
+            £{Number(data.amountIn || 0).toFixed(2)}
+          </Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>
+            £{Number(data.balance || 0).toFixed(2)}
+          </Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>{data.status}</Text>
         </View>
-      )}
-      <View style={styles.row}>
-        <Text style={styles.label}>Balance:</Text>
-        <Text style={styles.value}>£{Number(data.balance || 0).toFixed(2)}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Status:</Text>
-        <Text style={styles.value}>{data.status}</Text>
       </View>
     </View>
 
+    {/* Additional Notes */}
     {data.note && (
-      <View style={styles.section}>
+      <View style={styles.sectionBreak} wrap={false}>
         <Text style={styles.sectionTitle}>Additional Notes</Text>
-        <Text style={styles.value}>{data.note}</Text>
+        <Text style={styles.text}>{data.note}</Text>
       </View>
     )}
 
-    <View style={styles.section}>
+    {/* Audit Information - Clean Table */}
+    <View style={styles.sectionBreak} wrap={false}>
       <Text style={styles.sectionTitle}>Audit Information</Text>
-      <View style={styles.row}>
-        <Text style={styles.label}>Created At:</Text>
-        <Text style={styles.value}>{formatDate(data.createdAt)}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Last Updated:</Text>
-        <Text style={styles.value}>{formatDate(data.updatedAt)}</Text>
+      <View style={styles.table}>
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableCell, { flex: 1 }]}>Created At</Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>Last Updated</Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableCell, { flex: 1 }]}>{formatDate(data.createdAt)}</Text>
+          <Text style={[styles.tableCell, { flex: 1 }]}>{formatDate(data.updatedAt)}</Text>
+        </View>
       </View>
     </View>
 
+    {/* Terms and Conditions */}
     {companyDetails.pettyCashTerms && (
-      <View style={styles.terms}>
-        <Text>{companyDetails.pettyCashTerms}</Text>
+      <View style={styles.sectionBreak} wrap={false}>
+        <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+        <Text style={styles.text}>{companyDetails.pettyCashTerms}</Text>
       </View>
     )}
   </BaseDocument>

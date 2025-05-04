@@ -44,7 +44,7 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
         gross: acc.gross + record.gross,
         vat: acc.vat + record.vat,
         net: acc.net + record.net,
-        vatReceived: acc.vatReceived + record.vatReceived
+        vatReceived: acc.vatReceived + (record.vatReceived || 0) // Ensure vatReceived is accounted for
       }),
       { gross: 0, vat: 0, net: 0, vatReceived: 0 }
     );

@@ -111,7 +111,7 @@ const AiePettyCash = () => {
       <PettyCashHeader
         onSearch={setSearchQuery}
         onAdd={() => setShowForm(true)}
-        title="AIE Petty Cash"
+        title="Petty Cash"
       />
 
       {/* Filters */}

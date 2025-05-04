@@ -1,5 +1,6 @@
+
 import { addDays, differenceInDays, isAfter } from 'date-fns';
-import { Vehicle, Rental } from '../types';
+import { Vehicle, Rental } from '../types'; // Assuming Rental is imported from '../types'
 
 // Default rental rates (whole numbers)
 export const RENTAL_RATES = {
@@ -17,46 +18,63 @@ export const calculateRentalCost = (
   type: RentalType,
   vehicle?: Vehicle,
   reason?: RentalReason,
-  negotiatedRate?: number
+  negotiatedRate?: number,
+  storageCost?: number, // Optional storage cost passed in
+  recoveryCost?: number, // Optional recovery cost passed in
+  // ---> NEW: Add parameters for new charges <---
+  deliveryCharge?: number,
+  collectionCharge?: number,
+  insurancePerDay?: number
 ): number => {
+  // ---> NEW: Handle free rentals for 'staff' and 'o/d' upfront <---
+  if (reason === 'staff' || reason === 'o/d') return 0;
+
+  // Ensure dates are valid before calculation
+  if (!startDate || !endDate || isAfter(startDate, endDate)) {
+     console.warn('Invalid start/end dates provided for rental cost calculation.');
+     return 0; // Or throw an error, depending on desired handling
+  }
+
   // Get vehicle-specific pricing or use defaults
-  const dailyRate = negotiatedRate || vehicle?.dailyRentalPrice || RENTAL_RATES.daily;
-  const weeklyRate = negotiatedRate || vehicle?.weeklyRentalPrice || RENTAL_RATES.weekly;
-  const claimRate = negotiatedRate || vehicle?.claimRentalPrice || RENTAL_RATES.claim;
+  const dailyRate = negotiatedRate ?? vehicle?.dailyRentalPrice ?? RENTAL_RATES.daily;
+  const weeklyRate = negotiatedRate ?? vehicle?.weeklyRentalPrice ?? RENTAL_RATES.weekly;
+  const claimRate = negotiatedRate ?? vehicle?.claimRentalPrice ?? RENTAL_RATES.claim;
 
-  // Special rates based on reason
-  if (reason === 'staff') return 0; // Staff rentals are free
-  if (reason === 'claim') return differenceInDays(endDate, startDate) * claimRate;
+  let baseCost = 0; // Initialize baseCost
 
-  // Calculate total days (including end date)
+  // Calculate total days (including end date) - ensure dates are valid
   const totalDays = differenceInDays(endDate, startDate) + 1;
 
-  // For claim rentals
-  if (type === 'claim') {
-    return totalDays * claimRate;
-  }
-
-   if (type === 'weekly') {
-    // Calculate total days between dates
-    const totalDays = differenceInDays(endDate, startDate) + 1;
-    // Calculate full weeks (rounding up)
+  // Calculate base cost based on rental type/reason
+  if (type === 'claim' || reason === 'claim') { // Consolidated claim logic
+    baseCost = totalDays * claimRate;
+  } else if (type === 'weekly') {
     const weeks = Math.ceil(totalDays / 7);
-    return weeks * weeklyRate;
-  }
+    baseCost = weeks * weeklyRate;
+  } else { // Daily type calculation
+    const weeks = Math.floor(totalDays / 7);
+    const remainingDays = totalDays % 7;
+    const dailyTotalCost = remainingDays * dailyRate;
 
-  // For daily rentals
-  const weeks = Math.floor(totalDays / 7);
-  const remainingDays = totalDays % 7;
-
-  if (weeks > 0) {
-    // If remaining days cost more than a week, charge weekly rate
-    if (remainingDays * dailyRate > weeklyRate) {
-      return (weeks + 1) * weeklyRate;
+    // Check if charging remaining days individually is more expensive than a full week
+    if (weeks > 0 && dailyTotalCost > weeklyRate) {
+      baseCost = (weeks + 1) * weeklyRate; // Charge an extra week
+    } else {
+      baseCost = (weeks * weeklyRate) + dailyTotalCost; // Charge weeks + remaining days
     }
-    return (weeks * weeklyRate) + (remainingDays * dailyRate);
   }
 
-  return totalDays * dailyRate;
+  // ---> NEW: Calculate total insurance cost <---
+  const insuranceCost = totalDays * (insurancePerDay ?? 0); // Default to 0 if undefined
+
+  // ---> NEW: Add all additional costs (storage, recovery, delivery, collection, insurance) <---
+  const totalAdditionalCosts = (storageCost ?? 0) +
+                               (recoveryCost ?? 0) +
+                               (deliveryCharge ?? 0) +
+                               (collectionCharge ?? 0) +
+                               insuranceCost;
+
+  return baseCost + totalAdditionalCosts;
 };
 
 export const calculateOverdueCost = (

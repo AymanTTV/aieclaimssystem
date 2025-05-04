@@ -16,7 +16,10 @@ import {
   Truck,
   UserPlus,
   FileText,
-  Calculator
+  Calculator,
+  Mail,
+  Share2,
+  MessageSquare
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import logo from '../assets/logo.png';
@@ -43,6 +46,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Vehicles', href: '/vehicles', icon: Truck, permission: 'vehicles' },
     { name: 'Maintenance', href: '/maintenance', icon: Wrench, permission: 'maintenance' },
     { name: 'Rentals', href: '/rentals', icon: Calendar, permission: 'rentals' },
+    { name: 'Share', href: '/share', icon: Share2, permission: 'share' },
     { name: 'Accidents', href: '/accidents', icon: AlertTriangle, permission: 'accidents' },
     { 
       name: 'Claims', 
@@ -50,9 +54,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       permission: 'claims',
       submenu: [
         { name: 'All Claims', href: '/claims' },
-        // { name: 'Personal Injury', href: '/claims/personal-injury' },
-        { name: 'VD Finance', href: '/claims/vd-finance' }
+        { name: 'VD Finance', href: '/claims/vd-finance' },
+        { name: 'VD Invoice', href: '/claims/vd-invoice' }
       ]
+
     },
     { 
       name: 'Skyline Cabs', 
@@ -75,12 +80,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       ]
     },
     { name: 'Customers', href: '/customers', icon: UserPlus, permission: 'customers' },
+    
     { 
-      name: 'Users & Company', 
+      name: 'Company', 
       href: '/users', 
       icon: Users, 
       permission: 'users',
       submenu: [
+        { 
+          name: 'Bulk Email', 
+          href: '/bulk-email', 
+          icon: Mail,
+          permission: 'users' 
+        },
         { name: 'Users', href: '/users' },
         { name: 'Company', href: '/company-managers' }
       ]
@@ -212,6 +224,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                    <Link
+                      to="/chat"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      <div className="flex items-center">
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Chat
+                      </div>
+                    </Link>
                     <Link
                       to="/profile"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

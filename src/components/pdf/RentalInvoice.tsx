@@ -1,93 +1,11 @@
+// src/components/pdf/RentalInvoice.tsx
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format } from 'date-fns';
+import { format, differenceInDays, isAfter } from 'date-fns';
 import logo from '../../assets/logo.png';
-
-const styles = StyleSheet.create({
-  page: {
-    padding: 30,
-    fontSize: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-  logo: {
-    width: 120,
-    height: 'auto',
-  },
-  companyInfo: {
-    textAlign: 'right',
-  },
-  title: {
-    fontSize: 24,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#374151',
-    borderBottom: '1 solid #E5E7EB',
-    paddingBottom: 10,
-  },
-  section: {
-    marginBottom: 15,
-    borderBottom: '1 solid #eee',
-    paddingBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    marginBottom: 8,
-    color: '#374151',
-    fontWeight: 'bold',
-  },
-  row: {
-    flexDirection: 'row',
-    marginBottom: 5,
-  },
-  label: {
-    width: 150,
-    color: '#6B7280',
-  },
-  value: {
-    flex: 1,
-  },
-  costSummary: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#F9FAFB',
-  },
-  costRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  costLabel: {
-    color: '#6B7280',
-  },
-  costValue: {
-    fontWeight: 'bold',
-  },
-  paymentHistory: {
-    marginTop: 10,
-    padding: 10,
-  },
-  paymentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-    paddingBottom: 5,
-    borderBottom: '1 solid #E5E7EB',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 30,
-    right: 30,
-    fontSize: 8,
-    textAlign: 'center',
-    color: '#6B7280',
-  }
-});
+import { styles } from './styles';
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
 
 const RentalInvoice: React.FC<{
   rental: Rental;
@@ -95,43 +13,76 @@ const RentalInvoice: React.FC<{
   customer: Customer;
   companyDetails: any;
 }> = ({ rental, vehicle, customer, companyDetails }) => {
-  const formatDateTime = (date: Date | string | null | undefined): string => {
-  if (!date) return 'N/A';
-  
-  try {
-    // Handle Firestore Timestamp
-    if (date?.toDate) {
-      date = date.toDate();
-    }
-    
-    // Handle string dates
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
-    // Validate date
-    if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
-      return format(dateObj, 'dd/MM/yyyy HH:mm');
-    }
-    
-    return 'N/A';
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'N/A';
-  }
-};
+  // normalize dates
+  const toDate = (d: any): Date | null => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    if (typeof d.toDate === 'function') return d.toDate();
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
+  const fmtDT = (d: any) => {
+    const dt = toDate(d);
+    return dt ? format(dt, 'dd/MM/yyyy HH:mm') : 'N/A';
+  };
 
+  // days inclusive
+  const sd = toDate(rental.startDate)!;
+  const ed = toDate(rental.endDate)!;
+  const days = sd && ed ? differenceInDays(ed, sd) + 1 : 0;
 
-  // Calculate total cost including all charges
-  const baseCost = rental.cost;
-  const ongoingCharges = rental.ongoingCharges || 0;
-  const additionalCharges = rental.returnCondition?.totalCharges || 0;
-  const discountAmount = rental.discountAmount || 0;
-  const totalCost = baseCost + ongoingCharges + additionalCharges - discountAmount;
+  // per-day rate
+  const perDay = rental.negotiatedRate ?? vehicle.claimRentalPrice!;
+
+  // core charges
+  const hireTotal    = days * perDay;
+  const storage      = rental.storageCost      || 0;
+  const recovery     = rental.recoveryCost     || 0;
+  const delivery     = rental.deliveryCharge   || 0;
+  const collection   = rental.collectionCharge || 0;
+  const insurance    = days * (rental.insurancePerDay || 0);
+  const ongoing      = isAfter(new Date(), ed)
+    ? calculateOverdueCost(rental, new Date(), vehicle)
+    : 0;
+
+  // grand total (including any overdue)
+  const grandTotal = hireTotal + storage + recovery + delivery + collection + insurance + ongoing;
+
+  // build rows for the breakdown table
+  const rows = [
+    {
+      desc: 'Hire Charges',
+      details: `£${perDay.toFixed(2)} per day`,
+      rate: perDay.toFixed(2),
+      units: String(days),
+      total: hireTotal.toFixed(2),
+    },
+    { desc: 'Storage Charges',   details: '', rate: '', units: '', total: storage.toFixed(2) },
+    { desc: 'Recovery Charges',  details: '', rate: '', units: '', total: recovery.toFixed(2) },
+    { desc: 'Delivery Charges',  details: '', rate: '', units: '', total: delivery.toFixed(2) },
+    { desc: 'Collection Charges',details: '', rate: '', units: '', total: collection.toFixed(2) },
+    {
+      desc: 'Insurance',
+      details: `${days} days cover`,
+      rate: (rental.insurancePerDay || 0).toFixed(2),
+      units: String(days),
+      total: insurance.toFixed(2),
+    },
+    // optionally show overdue as a separate row:
+    ...(ongoing > 0 ? [{
+      desc: 'Overdue Charges',
+      details: '',
+      rate: '',
+      units: '',
+      total: ongoing.toFixed(2),
+    }] : []),
+  ];
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={styles.header} wrap={false}>
           <Image src={logo} style={styles.logo} />
           <View style={styles.companyInfo}>
             <Text>{companyDetails.fullName}</Text>
@@ -142,145 +93,129 @@ const RentalInvoice: React.FC<{
           </View>
         </View>
 
-        <Text style={styles.title}>RENTAL INVOICE</Text>
+        {/* Title */}
+        <Text style={styles.title} wrap={false}>RENTAL INVOICE</Text>
 
-        {/* Invoice Details */}
-        <View style={styles.section}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Invoice Number:</Text>
-            <Text style={styles.value}>AIE-{rental.id.slice(-8).toUpperCase()}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Date:</Text>
-            <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Due Date:</Text>
-            <Text style={styles.value}>{formatDateTime(rental.endDate)}</Text>
-          </View>
+        {/* Invoice Info */}
+        <View style={[styles.section, styles.sectionBreak]} wrap={false}>
+          {[
+            ['Invoice Number:', `AIE-${rental.id.slice(-8).toUpperCase()}`],
+            ['Date:',           fmtDT(rental.startDate)],
+            ['Due Date:',       fmtDT(rental.endDate)],
+          ].map(([label, value], i) => (
+            <View key={i} style={styles.row}>
+              <Text style={styles.label}>{label}</Text>
+              <Text style={styles.value}>{value}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* Customer Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bill To:</Text>
-          <Text>{customer.name}</Text>
-          <Text>{customer.address}</Text>
-          <Text>{customer.mobile}</Text>
-          <Text>{customer.email}</Text>
-        </View>
-
-        {/* Vehicle Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vehicle Details:</Text>
-          <Text>{vehicle.make} {vehicle.model}</Text>
-          <Text>Registration: {vehicle.registrationNumber}</Text>
-          <Text>Mileage: {vehicle.mileage.toLocaleString()} miles</Text>
+        {/* Bill To & Vehicle */}
+        <View
+          style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'space-between' }, styles.pageBreak]}
+          wrap={false}
+        >
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.sectionTitle}>Bill To:</Text>
+            <Text>{customer.name}</Text>
+            <Text>{customer.address}</Text>
+            <Text>{customer.mobile}</Text>
+            <Text>{customer.email}</Text>
+          </View>
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.sectionTitle}>Vehicle Details:</Text>
+            <Text>{vehicle.make} {vehicle.model}</Text>
+            <Text>Reg: {vehicle.registrationNumber}</Text>
+            <Text>Mileage: {vehicle.mileage.toLocaleString()} miles</Text>
+          </View>
         </View>
 
         {/* Rental Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rental Details:</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Period:</Text>
-            <Text style={styles.value}>
-              {formatDateTime(rental.startDate)} - {formatDateTime(rental.endDate)}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Type:</Text>
-            <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
+        <View style={[styles.section, styles.sectionBreak]} wrap={false}>
+          <Text style={styles.sectionTitle}>Rental Details</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              {['Period','Type','Days','Ongoing'].map((h,i) => (
+                <Text key={i} style={[styles.tableCell, { flex: 1 }]}>{h}</Text>
+              ))}
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {fmtDT(rental.startDate)} – {fmtDT(rental.endDate)}
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {rental.type.toUpperCase()}
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>{days}</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {differenceInDays(new Date(), ed) + 1}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Cost Summary */}
-        <View style={styles.costSummary}>
-          <Text style={styles.sectionTitle}>Cost Summary</Text>
-          
-          <View style={styles.costRow}>
-            <Text style={styles.costLabel}>Base Rental Cost:</Text>
-            <Text style={styles.costValue}>£{baseCost.toFixed(2)}</Text>
-          </View>
-
-          {ongoingCharges > 0 && (
-            <View style={styles.costRow}>
-              <Text style={styles.costLabel}>Ongoing Charges:</Text>
-              <Text style={styles.costValue}>£{ongoingCharges.toFixed(2)}</Text>
+        {/* === REPLACED COST SUMMARY === */}
+        <View style={[styles.section, styles.sectionBreak]} wrap={false}>
+          <Text style={styles.sectionTitle}>Rental Charges Breakdown</Text>
+          <View style={styles.table}>
+            {/* header */}
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderCell}>Description</Text>
+              <Text style={styles.tableHeaderCell}>Details</Text>
+              <Text style={styles.tableHeaderCell}>Rate (£)</Text>
+              <Text style={styles.tableHeaderCell}>Days / Units</Text>
+              <Text style={styles.tableHeaderCell}>Total (£)</Text>
             </View>
-          )}
-
-          {rental.returnCondition && (
-            <>
-              {rental.returnCondition.damageCost > 0 && (
-                <View style={styles.costRow}>
-                  <Text style={styles.costLabel}>Damage Charges:</Text>
-                  <Text style={styles.costValue}>£{rental.returnCondition.damageCost.toFixed(2)}</Text>
-                </View>
-              )}
-              {rental.returnCondition.fuelCharge > 0 && (
-                <View style={styles.costRow}>
-                  <Text style={styles.costLabel}>Fuel Charges:</Text>
-                  <Text style={styles.costValue}>£{rental.returnCondition.fuelCharge.toFixed(2)}</Text>
-                </View>
-              )}
-              {rental.returnCondition.cleaningCharge > 0 && (
-                <View style={styles.costRow}>
-                  <Text style={styles.costLabel}>Cleaning Charges:</Text>
-                  <Text style={styles.costValue}>£{rental.returnCondition.cleaningCharge.toFixed(2)}</Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {discountAmount > 0 && (
-            <View style={styles.costRow}>
-              <Text style={styles.costLabel}>Discount ({rental.discountPercentage}%):</Text>
-              <Text style={styles.costValue}>-£{discountAmount.toFixed(2)}</Text>
+            {/* rows */}
+            {rows.map((r, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={styles.tableCell}>{r.desc}</Text>
+                <Text style={styles.tableCell}>{r.details}</Text>
+                <Text style={styles.tableCell}>{r.rate}</Text>
+                <Text style={styles.tableCell}>{r.units}</Text>
+                <Text style={styles.tableCell}>{r.total}</Text>
+              </View>
+            ))}
+            {/* grand total */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>Total Amount</Text>
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
+                £{grandTotal.toFixed(2)}
+              </Text>
             </View>
-          )}
-
-          <View style={{ ...styles.costRow, marginTop: 10, borderTop: '1 solid #000', paddingTop: 5 }}>
-            <Text style={{ ...styles.costLabel, fontWeight: 'bold' }}>Total Amount:</Text>
-            <Text style={styles.costValue}>£{totalCost.toFixed(2)}</Text>
           </View>
         </View>
 
         {/* Payment History */}
-{rental.payments && rental.payments.length > 0 && (
-  <View style={styles.paymentHistory}>
-    <Text style={styles.sectionTitle}>Payment History</Text>
-    {rental.payments.map((payment, index) => (
-      <View key={index} style={styles.paymentRow}>
-        <View>
-          <Text>{formatDateTime(payment.date)}</Text>
-          <Text style={styles.costLabel}>
-            {payment.method.replace('_', ' ').toUpperCase()}
-            {payment.reference && ` (Ref: ${payment.reference})`}
-          </Text>
-        </View>
-        <Text>£{payment.amount.toFixed(2)}</Text>
-      </View>
-    ))}
-    <View style={{ ...styles.costRow, marginTop: 10, borderTop: '1 solid #000', paddingTop: 5 }}>
-      <Text style={styles.costLabel}>Amount Paid:</Text>
-      <Text style={styles.costValue}>£{rental.paidAmount.toFixed(2)}</Text>
-    </View>
-    {rental.remainingAmount > 0 && (
-      <View style={styles.costRow}>
-        <Text style={styles.costLabel}>Remaining Amount:</Text>
-        <Text style={styles.costValue}>£{rental.remainingAmount.toFixed(2)}</Text>
-      </View>
-    )}
-  </View>
-)}
+        {rental.payments?.length > 0 && (
+          <View style={[styles.section, styles.sectionBreak]} wrap={false}>
+            <Text style={styles.sectionTitle}>Payment History</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                {['Date','Type','Ref','Amount'].map((h,i)=>(
+                  <Text key={i} style={[styles.tableCell,{flex:1}]}>{h}</Text>
+                ))}
+              </View>
+              {rental.payments.map((p,i)=>(
+                <View key={i} style={styles.tableRow}>
+                  <Text style={[styles.tableCell,{flex:1}]}>{fmtDT(p.date)}</Text>
+                  <Text style={[styles.tableCell,{flex:1}]}>{p.method.replace('_',' ').toUpperCase()}</Text>
+                  <Text style={[styles.tableCell,{flex:1}]}>{p.reference||'N/A'}</Text>
+                  <Text style={[styles.tableCell,{flex:1}]}>£{p.amount.toFixed(2)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
-
-        {/* Payment Instructions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Details:</Text>
-          <Text>Bank: {companyDetails.bankName}</Text>
-          <Text>Sort Code: {companyDetails.sortCode}</Text>
-          <Text>Account Number: {companyDetails.accountNumber}</Text>
-          <Text>Reference: AIE-{rental.id.slice(-8).toUpperCase()}</Text>
+        {/* Payment Terms */}
+        <View style={[styles.section, styles.sectionBreak]} wrap={false}>
+          <Text style={styles.sectionTitle}>Payment Terms & Conditions</Text>
+          <Text>Payment must be made by the due date stated on this invoice.</Text>
+          <Text>Late payments may be subject to additional fees and penalties.</Text>
         </View>
 
         {/* Footer */}

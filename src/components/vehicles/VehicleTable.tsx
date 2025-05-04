@@ -8,7 +8,7 @@ import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
 import { addDays } from 'date-fns';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-// In each table component
+
 import { generateAndUploadDocument } from '../../utils/documentGenerator';
 import { VehicleDocument } from '../pdf/documents';
 
@@ -19,7 +19,7 @@ interface VehicleTableProps {
   onDelete: (vehicle: Vehicle) => void;
   onMarkAsSold: (vehicle: Vehicle) => void;
   onUndoSale: (vehicle: Vehicle) => void;
-   onGenerateDocument: (vehicle: Vehicle) => Promise<void>;
+  onGenerateDocument: (vehicle: Vehicle) => Promise<void>;
   onViewDocument: (url: string) => void;
 }
 
@@ -41,7 +41,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     motExpiryDate.setMonth(motExpiryDate.getMonth() + 6);
     return motExpiryDate.toISOString();
   };
-
 
   const sortedVehicles = [...vehicles].sort((a, b) => {
     const now = new Date();
@@ -71,14 +70,14 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     }
 
     const aEarliestExpiry = Math.min(
-      new Date(a.motExpiry).getTime(), // Ensure they are dates
+      new Date(a.motExpiry).getTime(),
       new Date(a.insuranceExpiry).getTime(),
       new Date(a.nslExpiry).getTime(),
       new Date(a.roadTaxExpiry).getTime()
     );
 
     const bEarliestExpiry = Math.min(
-      new Date(b.motExpiry).getTime(), // Ensure they are dates
+      new Date(b.motExpiry).getTime(),
       new Date(b.insuranceExpiry).getTime(),
       new Date(b.nslExpiry).getTime(),
       new Date(b.roadTaxExpiry).getTime()
@@ -86,23 +85,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
     return aEarliestExpiry - bEarliestExpiry;
   });
-  const handleGenerateDocument = async (record: Vehicle) => {
-  try {
-    const documentUrl = await generateAndUploadDocument(
-      VehicleDocument,
-      record,
-      'vehicles',
-      record.id,
-      'vehicles'
-    );
-    
-    toast.success('Document generated successfully');
-    return documentUrl;
-  } catch (error) {
-    console.error('Error generating document:', error);
-    toast.error('Failed to generate document');
-  }
-};
+
   const columns = [
     {
       header: 'Vehicle',
@@ -133,9 +116,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           <div className="font-medium">
             {row.original.owner?.name || 'AIE Skyline'}
           </div>
-          {/* {row.original.owner?.address && !row.original.owner?.isDefault && (
-            <div className="text-sm text-gray-500">{row.original.owner.address}</div>
-          )} */}
         </div>
       ),
     },
@@ -145,7 +125,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         const vehicle = row.original;
         const statuses = vehicle.activeStatuses || [];
         
-        // Map status to display text
         const getDisplayStatus = (status: string) => {
           switch (status) {
             case 'rented':
@@ -158,7 +137,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         };
 
         return (
-          <div className="flex flex-col space-y-1"> {/* Changed from space-x-1 to space-y-1 */}
+          <div className="flex flex-col space-y-1">
             {statuses.length > 0 ? (
               statuses.map((status, index) => (
                 <StatusBadge 
@@ -187,16 +166,15 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       header: 'Vehicle Documents',
       cell: ({ row }) => {
         const vehicle = row.original;
-        const motExpiry = new Date(vehicle.motTestDate);
-        motExpiry.setMonth(motExpiry.getMonth() + 6);
+        const motExpiryDate = vehicle.motExpiry instanceof Date ? vehicle.motExpiry : vehicle.motExpiry?.toDate();
 
         return (
           <div className="space-y-2">
             <div className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-red-600 font-medium' : ''}>
               MOT Test Date: {formatDate(vehicle.motTestDate)}
             </div>
-            <div className={isExpiringOrExpired(motExpiry) ? 'text-red-600 font-medium' : ''}>
-              MOT Expiry: {formatDate(motExpiry)}
+            <div className={isExpiringOrExpired(motExpiryDate) ? 'text-red-600 font-medium' : ''}>
+              MOT Expiry: {formatDate(motExpiryDate)}
             </div>
             <div className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
               Insurance: {formatDate(vehicle.insuranceExpiry)}
@@ -214,7 +192,10 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     {
       header: 'Mileage',
       cell: ({ row }) => (
-        <span>{row.original.mileage.toLocaleString()} Mi</span>
+        <div className="space-y-1">
+          <div>Current: {row.original.mileage.toLocaleString()} Mi</div>
+          <div>Next Service: {(row.original.mileage + 25000).toLocaleString()} Mi</div>
+        </div>
       ),
     },
     {

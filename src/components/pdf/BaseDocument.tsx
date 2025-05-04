@@ -1,58 +1,59 @@
 import React from 'react';
-import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import logo from '../../assets/logo.png';
+import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { styles } from './styles';
+import { format } from 'date-fns';
 
 interface BaseDocumentProps {
   title: string;
-  companyDetails: any;
   children: React.ReactNode;
+  companyDetails: any;
+  showFooter?: boolean;
 }
 
-export const BaseDocument: React.FC<BaseDocumentProps> = ({
-  title,
+const BaseDocument: React.FC<BaseDocumentProps> = ({ 
+  title, 
+  children, 
   companyDetails,
-  children
-}) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      {/* Header with Logo and Company Info */}
-      <View style={styles.header}>
-        <View style={{ width: '40%' }}>
-          <Image src={logo} style={styles.logo} />
+  showFooter = true
+}) => {
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header with logo and company details */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            {companyDetails.logoUrl && (
+              <Image src={companyDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{companyDetails.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyDetail}>{companyDetails.officialAddress || ''}</Text>
+            <Text style={styles.companyDetail}>Phone: {companyDetails.phone || ''}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails.email || ''}</Text>
+          </View>
         </View>
-        <View style={styles.companyInfo}>
-          <Text style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>
-            {companyDetails.fullName}
-          </Text>
-          <Text style={{ marginBottom: 2 }}>{companyDetails.officialAddress}</Text>
-          <Text style={{ marginBottom: 2 }}>Tel: {companyDetails.phone}</Text>
-          <Text style={{ marginBottom: 2 }}>Email: {companyDetails.email}</Text>
-          {companyDetails.vatNumber && (
-            <Text style={{ marginBottom: 2 }}>VAT No: {companyDetails.vatNumber}</Text>
-          )}
+
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{title}</Text>
         </View>
-      </View>
 
-      {/* Document Title */}
-      <View style={styles.title}>
-        <Text>{title.toUpperCase()}</Text>
-      </View>
+        {/* Content */}
+        <View style={styles.content}>
+          {children}
+        </View>
 
-      {/* Main Content */}
-      <View style={{ flex: 1 }}>
-        {children}
-      </View>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text>
-          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
-        </Text>
-        <Text>Registered Office: {companyDetails.officialAddress}</Text>
-      </View>
-    </Page>
-  </Document>
-);
+        {/* Footer */}
+        {showFooter && (
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>Aie Skyline Limited | Registered in England and Wales | Company No: 12592207</Text>
+            <Text style={styles.footerText}>Generated on {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
+          </View>
+        )}
+      </Page>
+    </Document>
+  );
+};
 
 export default BaseDocument;

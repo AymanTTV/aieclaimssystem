@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Upload, Plus, FileText } from 'lucide-react';
+import { Download, Upload, Plus,  } from 'lucide-react';
 
 interface VehicleHeaderProps {
   onAdd: () => void;
@@ -38,14 +38,7 @@ const VehicleHeader: React.FC<VehicleHeaderProps> = ({
           Export
         </button> */}
 
-        <button
-          onClick={onGeneratePDF}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-        >
-          <FileText className="h-5 w-5 mr-2" />
-          Generate PDF
-        </button>
-
+        
         {/* <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
           <Upload className="h-5 w-5 mr-2" />
           Import

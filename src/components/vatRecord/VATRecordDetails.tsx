@@ -10,7 +10,7 @@ interface VATRecordDetailsProps {
   record: VATRecord;
 }
 
-const { formatCurrency } = useFormattedDisplay();
+
 
 const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -20,12 +20,13 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
     </div>
   );
 
-  const Field = ({ label, value }: { label: string; value: string | number }) => (
-    <div className="mb-4">
-      <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900">{value}</dd>
+  const Field = ({ label, value, horizontal = false }: { label: string; value: string | number; horizontal?: boolean }) => (
+    <div className={`mb-4 ${horizontal ? 'flex items-center' : ''}`}>
+      <dt className={`text-sm font-medium text-gray-500 ${horizontal ? 'mr-2' : ''}`}>{label}</dt>
+      <dd className={`mt-1 text-sm text-gray-900 ${horizontal ? 'ml-2' : ''}`}>{value}</dd>
     </div>
   );
+  const { formatCurrency } = useFormattedDisplay();
 
   return (
     <div className="space-y-6">
@@ -71,6 +72,9 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
               </tr>
             </tbody>
           </table>
+        </div>
+        <div className="mt-4">
+          <Field label="VAT Received" value={formatCurrency(record.vatReceived !== undefined ? record.vatReceived : 0)} horizontal />
         </div>
       </Section>
 

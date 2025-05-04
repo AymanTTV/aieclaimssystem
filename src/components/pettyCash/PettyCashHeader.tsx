@@ -7,6 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import { exportToExcel } from '../../utils/excel';
 import toast from 'react-hot-toast';
 
+
+
 interface PettyCashHeaderProps {
   onSearch: (query: string) => void;
   onAdd: () => void;
@@ -16,7 +18,7 @@ interface PettyCashHeaderProps {
 const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
   onSearch,
   onAdd,
-  title = 'Petty Cash' // Default title
+  title = 'AIE Petty Cash' // Default title
 }) => {
   
   const { can } = usePermissions();
@@ -32,12 +34,48 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
     }
   };
 
+  // const handleGeneratePDF = async () => {
+  //   try {
+  //     // Get company details
+  //     const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+  //     if (!companyDoc.exists()) {
+  //       throw new Error('Company details not found');
+  //     }
+  //     const companyDetails = companyDoc.data();
+  
+  //     // Generate PDF with all filtered vehicles
+  //     const pdfBlob = await generateBulkDocuments(
+  //       VehicleBulkDocument,
+  //       filteredVehicles,
+  //       companyDetails
+  //     );
+  
+  //     // Create URL and open in new tab
+  //     const pdfUrl = URL.createObjectURL(pdfBlob);
+  //     window.open(pdfUrl, '_blank');
+  
+  //     toast.success('Vehicle summary PDF generated successfully');
+  //   } catch (error) {
+  //     console.error('Error generating vehicle PDF:', error);
+  //     toast.error('Failed to generate vehicle PDF');
+  //   }
+  // };
+
   return (
     <div className="space-y-4">
       {/* Title and Buttons */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <div className="flex space-x-2">
+
+        {/* <button
+          onClick={handleGeneratePDF}
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+        >
+          <FileText className="h-5 w-5 mr-2" />
+          Generate PDF
+        </button> */}
+
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}

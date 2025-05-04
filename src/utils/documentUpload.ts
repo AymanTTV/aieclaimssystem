@@ -1,34 +1,45 @@
+// src/utils/documentUpload.ts
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
+import { storage, db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+
+type Blobs = {
+  agreement: Blob;
+  invoice: Blob;
+  claimDocuments?: Record<string, Blob>;
+};
 
 export const uploadRentalDocuments = async (
-  rentalId: string, 
-  documents: { agreement: Blob; invoice: Blob }
-) => {
-  try {
-    // Upload agreement
-    const agreementRef = ref(storage, `rentals/${rentalId}/agreement.pdf`);
-    const agreementSnapshot = await uploadBytes(agreementRef, documents.agreement);
-    const agreementUrl = await getDownloadURL(agreementSnapshot.ref);
+  rentalId: string,
+  documents: Blobs
+): Promise<Record<string,string>> => {
+  // this will collect all the URLs we generate
+  const urls: Record<string,string> = {};
 
-    // Upload invoice
-    const invoiceRef = ref(storage, `rentals/${rentalId}/invoice.pdf`);
-    const invoiceSnapshot = await uploadBytes(invoiceRef, documents.invoice);
-    const invoiceUrl = await getDownloadURL(invoiceSnapshot.ref);
-
-    // Update rental document with URLs
-    await updateDoc(doc(db, 'rentals', rentalId), {
-      documents: {
-        agreement: agreementUrl,
-        invoice: invoiceUrl
-      }
-    });
-
-    return { agreementUrl, invoiceUrl };
-  } catch (error) {
-    console.error('Error uploading documents:', error);
-    throw error;
+  // helper to upload one blob
+  async function upload(name: string, blob: Blob) {
+    const path = `rentals/${rentalId}/${name}.pdf`;
+    const storageRef = ref(storage, path);
+    const snap = await uploadBytes(storageRef, blob);
+    const url = await getDownloadURL(snap.ref);
+    urls[name] = url;
   }
+
+  // always upload agreement & invoice
+  await upload('agreement', documents.agreement);
+  await upload('invoice',  documents.invoice);
+
+  // if there are claim docs, upload each under its own key
+  if (documents.claimDocuments) {
+    for (const [key, blob] of Object.entries(documents.claimDocuments)) {
+      await upload(key, blob);
+    }
+  }
+
+  // write the entire map back to Firestore (merges or replaces your `documents` field)
+  await updateDoc(doc(db, 'rentals', rentalId), {
+    documents: urls
+  });
+
+  return urls;
 };

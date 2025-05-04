@@ -20,6 +20,16 @@ export interface GPInformation {
   gpNotes?: string;
 }
 
+export interface HospitalInformation {
+  visited: boolean;
+  hospitalName?: string;
+  hospitalAddress?: string;
+  hospitalDoctorName?: string;
+  hospitalDate?: Date;
+  hospitalContactNumber?: string;
+  hospitalNotes?: string;
+}
+
 export interface Claim {
   id: string;
   clientRef?: string;
@@ -32,6 +42,8 @@ export interface Claim {
     email: string;
     dateOfBirth: Date;
     nationalInsuranceNumber: string;
+    driverLicenseNumber: string;  // ← new
+    licenseExpiry: Date;          // ← new
     address: string;
     signature?: string;
   };
@@ -72,6 +84,7 @@ export interface Claim {
 
   // GP Information
   gpInformation?: GPInformation;
+  hospitalInformation?: HospitalInformation;
 
   // Passengers
   passengers?: Array<{

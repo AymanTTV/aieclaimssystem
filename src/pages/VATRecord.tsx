@@ -9,11 +9,11 @@ import VATRecordForm from '../components/vatRecord/VATRecordForm';
 import VATRecordDetails from '../components/vatRecord/VATRecordDetails';
 import VATRecordFilters from '../components/vatRecord/VATRecordFilters';
 import Modal from '../components/ui/Modal';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, FileText } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { VATRecord } from '../types/vatRecord';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { db, storage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { exportToExcel } from '../utils/excel';
@@ -21,6 +21,10 @@ import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { VATRecordDocument } from '../components/pdf/documents';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 
+import { generateBulkDocuments } from '../utils/documentGenerator';
+import { VATRecordBulkDocument } from '../components/pdf/documents';
+
+import StatusUpdateModal from '../components/vatRecord/StatusUpdateModal';
 
 const VATRecordPage = () => {
   const { records, loading } = useVATRecords();
@@ -43,7 +47,7 @@ const VATRecordPage = () => {
   const [selectedRecord, setSelectedRecord] = useState<VATRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<VATRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<VATRecord | null>(null);
-
+  const [updatingRecord, setUpdatingRecord] = useState<VATRecord | null>(null);
   const handleExport = () => {
     try {
       const exportData = records.map(record => ({
@@ -101,6 +105,37 @@ const VATRecordPage = () => {
     window.open(url, '_blank');
   };
 
+  const handleGeneratePDF = async () => {
+    try {
+      // Get company details
+      const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+      if (!companyDoc.exists()) {
+        throw new Error('Company details not found');
+      }
+      const companyDetails = companyDoc.data();
+  
+      // Generate PDF with all filtered vehicles
+      const pdfBlob = await generateBulkDocuments(
+        VATRecordBulkDocument,
+        filteredRecords,
+        companyDetails
+      );
+  
+      // Create URL and open in new tab
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+  
+      toast.success('VAT Records summary PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating VAT Records PDF:', error);
+      toast.error('Failed to generate VAT Records PDF');
+    }
+  };
+
+  const handleUpdateStatus = (record: VATRecord) => {
+    setUpdatingRecord(record); // Set the record to be updated
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -146,6 +181,15 @@ const VATRecordPage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
         <div className="flex space-x-2">
+
+          <button
+                    onClick={handleGeneratePDF}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    Generate PDF
+                  </button>
+
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}
@@ -185,6 +229,7 @@ const VATRecordPage = () => {
         onDelete={setDeletingRecord}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={handleViewDocument}
+        onUpdateStatus={handleUpdateStatus}
       />
 
       {/* Modals */}
@@ -205,6 +250,20 @@ const VATRecordPage = () => {
             setEditingRecord(null);
           }}
         />
+      </Modal>
+
+      <Modal
+        isOpen={!!updatingRecord}
+        onClose={() => setUpdatingRecord(null)}
+        title="Update VAT Record Status"
+        size="md"
+      >
+        {updatingRecord && (
+          <StatusUpdateModal
+            record={updatingRecord}
+            onClose={() => setUpdatingRecord(null)}
+          />
+        )}
       </Modal>
 
       <Modal

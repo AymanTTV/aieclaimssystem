@@ -10,7 +10,9 @@ import InvoiceEditModal from '../components/finance/InvoiceEditModal';
 import InvoiceDeleteModal from '../components/finance/InvoiceDeleteModal';
 import InvoicePaymentModal from '../components/finance/InvoicePaymentModal';
 import Modal from '../components/ui/Modal';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, FileText} from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db, storage } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
 import { Invoice } from '../types';
 import { deleteInvoicePayment } from '../utils/invoiceUtils';
@@ -18,6 +20,9 @@ import toast from 'react-hot-toast';
 import InvoiceFilters from '../components/finance/InvoiceFilters';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+
+import { generateBulkDocuments } from '../utils/documentGenerator';
+import { InvoiceBulkDocument } from '../components/pdf/documents';
 
 
 
@@ -73,6 +78,33 @@ const Invoices = () => {
     }
   };
 
+  const handleGeneratePDF = async () => {
+    try {
+      // Get company details
+      const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+      if (!companyDoc.exists()) {
+        throw new Error('Company details not found');
+      }
+      const companyDetails = companyDoc.data();
+  
+      // Generate PDF with all filtered vehicles
+      const pdfBlob = await generateBulkDocuments(
+        InvoiceBulkDocument,
+        filteredInvoices,
+        companyDetails
+      );
+  
+      // Create URL and open in new tab
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+  
+      toast.success('Invoice summary PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating Invoice PDF:', error);
+      toast.error('Failed to generate Invoice PDF');
+    }
+  };
+
   if (vehiclesLoading || customersLoading || invoicesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -87,6 +119,14 @@ const Invoices = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
         <div className="flex space-x-2">
+
+           <button
+                    onClick={handleGeneratePDF}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    Generate PDF
+                  </button>
           
           {user?.role === 'manager' && (
   <button

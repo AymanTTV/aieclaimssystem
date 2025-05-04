@@ -7,16 +7,19 @@ import VDFinanceSummary from '../components/vdFinance/VDFinanceSummary';
 import VDFinanceDetails from '../components/vdFinance/VDFinanceDetails';
 import VDFinanceFilters from '../components/vdFinance/VDFinanceFilters';
 import Modal from '../components/ui/Modal';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, FileText } from 'lucide-react';
 import { VDFinanceRecord } from '../types/vdFinance';
 import { usePermissions } from '../hooks/usePermissions';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { db, storage } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { VDFinanceDocument } from '../components/pdf/documents';
+
+import { generateBulkDocuments } from '../utils/documentGenerator';
+import { VDFinanceBulkDocument } from '../components/pdf/documents';
 
 const VDFinance = () => {
   const { records, loading } = useVDFinance();
@@ -95,6 +98,7 @@ const VDFinance = () => {
     window.open(url, '_blank');
   };
 
+
   // Filter records based on search and date range
   const filteredRecords = records.filter(record => {
     const matchesSearch = 
@@ -109,6 +113,33 @@ const VDFinance = () => {
 
     return matchesSearch && matchesDateRange;
   });
+
+  const handleGeneratePDF = async () => {
+    try {
+      // Get company details
+      const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+      if (!companyDoc.exists()) {
+        throw new Error('Company details not found');
+      }
+      const companyDetails = companyDoc.data();
+  
+      // Generate PDF with all filtered vehicles
+      const pdfBlob = await generateBulkDocuments(
+        VDFinanceBulkDocument,
+        filteredRecords,
+        companyDetails
+      );
+  
+      // Create URL and open in new tab
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+  
+      toast.success('VDFinance summary PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating VDFinance PDF:', error);
+      toast.error('Failed to generate VDFinance PDF');
+    }
+  };
 
   if (loading) {
     return (
@@ -127,6 +158,13 @@ const VDFinance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VD Finance</h1>
         <div className="flex space-x-2">
+          <button
+            onClick={handleGeneratePDF}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Generate PDF
+          </button>
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}

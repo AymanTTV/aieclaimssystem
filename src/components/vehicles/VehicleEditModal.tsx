@@ -4,7 +4,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { Upload } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 import FormField from '../ui/FormField';
 import { validateImage } from '../../utils/imageUpload';
 import toast from 'react-hot-toast';
@@ -21,6 +21,22 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle.image || null);
   const [owner, setOwner] = useState<Vehicle['owner']>(vehicle.owner || DEFAULT_OWNER);
   const [isCustomOwner, setIsCustomOwner] = useState(!vehicle.owner?.isDefault);
+  
+  // Document images
+  const [nslImages, setNslImages] = useState<File[]>([]);
+  const [motImages, setMotImages] = useState<File[]>([]);
+  const [v5Images, setV5Images] = useState<File[]>([]);
+  const [insuranceImages, setInsuranceImages] = useState<File[]>([]);
+  // Document images
+  const [MeterCertificateImages, setMeterCertificateImages] = useState<File[]>([]);
+
+// Document image previews
+const [MeterCertificateImagePreviews, setMeterCertificateImagePreviews] = useState<string[]>(vehicle.documents?.MeterCertificateImage || []);
+  // Document image previews
+  const [nslImagePreviews, setNslImagePreviews] = useState<string[]>(vehicle.documents?.nslImage || []);
+  const [motImagePreviews, setMotImagePreviews] = useState<string[]>(vehicle.documents?.motImage || []);
+  const [v5ImagePreviews, setV5ImagePreviews] = useState<string[]>(vehicle.documents?.v5Image || []);
+  const [insuranceImagePreviews, setInsuranceImagePreviews] = useState<string[]>(vehicle.documents?.insuranceImage || []);
   
   const [formData, setFormData] = useState({
     vin: vehicle.vin || '',
@@ -57,6 +73,102 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
     };
     reader.readAsDataURL(file);
   };
+  
+  const handleDocumentImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'nsl' | 'mot' | 'v5' | 'MeterCertificateImage' | 'insurance') => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    // Convert FileList to array
+    const fileArray = Array.from(files);
+    
+    // Validate each file
+    const validFiles = fileArray.filter(file => validateImage(file));
+    
+    if (validFiles.length === 0) return;
+    
+    // Update state based on document type
+    switch (type) {
+      case 'nsl':
+        setNslImages(prevImages => [...prevImages, ...validFiles]);
+        // Create previews
+        fileArray.forEach(file => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setNslImagePreviews(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        });
+        break;
+      case 'mot':
+        setMotImages(prevImages => [...prevImages, ...validFiles]);
+        // Create previews
+        fileArray.forEach(file => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setMotImagePreviews(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        });
+        break;
+      case 'v5':
+        setV5Images(prevImages => [...prevImages, ...validFiles]);
+        // Create previews
+        fileArray.forEach(file => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setV5ImagePreviews(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        });
+        break;
+        case 'MeterCertificateImage':
+          setMeterCertificateImages(prevImages => [...prevImages, ...validFiles]);
+          fileArray.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              setMeterCertificateImagePreviews(prev => [...prev, reader.result as string]);
+            };
+            reader.readAsDataURL(file);
+          });
+          break;
+      case 'insurance':
+        setInsuranceImages(prevImages => [...prevImages, ...validFiles]);
+        // Create previews
+        fileArray.forEach(file => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setInsuranceImagePreviews(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        });
+        break;
+    }
+  };
+  
+  const removeDocumentPreview = (type: 'nsl' | 'mot' | 'v5' | 'MeterCertificateImage' | 'insurance', index: number) => {
+    switch (type) {
+      case 'nsl':
+        setNslImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setNslImages(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'mot':
+        setMotImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setMotImages(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'v5':
+        setV5ImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setV5Images(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'MeterCertificateImage':
+        setMeterCertificateImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setMeterCertificateImages(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'insurance':
+        setInsuranceImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setInsuranceImages(prev => prev.filter((_, i) => i !== index));
+        break;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +187,29 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
       const motTestDate = new Date(formData.motTestDate);
       const motExpiry = new Date(motTestDate);
       motExpiry.setMonth(motExpiry.getMonth() + 6);
+      
+      // Upload document images and get URLs
+      const uploadDocumentImages = async (files: File[], existingUrls: string[]): Promise<string[]> => {
+        const urls = [...existingUrls];
+        
+        for (const file of files) {
+          const imageRef = ref(storage, `vehicle-documents/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(imageRef, file);
+          const url = await getDownloadURL(snapshot.ref);
+          urls.push(url);
+        }
+        
+        return urls;
+      };
+      
+      // Upload all document images
+  const [nslUrls, motUrls, v5Urls, insuranceUrls, meterCertificateUrls] = await Promise.all([
+    uploadDocumentImages(nslImages, vehicle.documents?.nslImage || []),
+    uploadDocumentImages(motImages, vehicle.documents?.motImage || []),
+    uploadDocumentImages(v5Images, vehicle.documents?.v5Image || []),
+    uploadDocumentImages(insuranceImages, vehicle.documents?.insuranceImage || []),
+    uploadDocumentImages(MeterCertificateImages, vehicle.documents?.MeterCertificateImage || [])
+  ]);
 
       const vehicleData = {
         ...formData,
@@ -92,7 +227,15 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
         dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
         claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
         owner: isCustomOwner ? owner : DEFAULT_OWNER,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        documents: {
+          ...(vehicle.documents || {}),
+          nslImage: nslUrls,
+          motImage: motUrls,
+          v5Image: v5Urls,
+          insuranceImage: insuranceUrls,
+          MeterCertificateImage: meterCertificateUrls
+        }
       };
 
       await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
@@ -325,6 +468,231 @@ const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose })
                 <p className="pl-1">or drag and drop</p>
               </div>
               <p className="text-xs text-gray-500">PNG, JPG, WebP up to 5MB</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Document Images */}
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Document Images</h3>
+          
+          {/* NSL Images */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">NSL Images</label>
+            {nslImagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {nslImagePreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={preview} 
+                      alt={`NSL document ${index + 1}`} 
+                      className="h-24 w-full object-cover rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentPreview('nsl', index)}
+                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <Upload className="mx-auto h-8 w-8 text-gray-400" />
+                <div className="flex text-sm text-gray-600">
+                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                    <span>Upload NSL images</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleDocumentImageChange(e, 'nsl')}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* MOT Images */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">MOT Images</label>
+            {motImagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {motImagePreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={preview} 
+                      alt={`MOT document ${index + 1}`} 
+                      className="h-24 w-full object-cover rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentPreview('mot', index)}
+                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <Upload className="mx-auto h-8 w-8 text-gray-400" />
+                <div className="flex text-sm text-gray-600">
+                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                    <span>Upload MOT images</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleDocumentImageChange(e, 'mot')}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* V5 Images */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">V5 Images</label>
+            {v5ImagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {v5ImagePreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={preview} 
+                      alt={`V5 document ${index + 1}`} 
+                      className="h-24 w-full object-cover rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentPreview('v5', index)}
+                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <Upload className="mx-auto h-8 w-8 text-gray-400" />
+                <div className="flex text-sm text-gray-600">
+                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                    <span>Upload V5 images</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleDocumentImageChange(e, 'v5')}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+              </div>
+            </div>
+          </div>
+
+          {/* MeterCertificateImage Images */}
+<div className="mb-6">
+  <label className="block text-sm font-medium text-gray-700 mb-2">Meter Certificate Images</label>
+  {MeterCertificateImagePreviews.length > 0 && (
+    <div className="grid grid-cols-3 gap-2 mb-2">
+      {MeterCertificateImagePreviews.map((preview, index) => (
+        <div key={index} className="relative">
+          <img
+            src={preview}
+            alt={`Meter Certificate Image document ${index + 1}`}
+            className="h-24 w-full object-cover rounded-md"
+          />
+          <button
+            type="button"
+            onClick={() => removeDocumentPreview('MeterCertificateImage', index)}
+            className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+          >
+            <X className="h-4 w-4 text-red-600" />
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+  <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+    <div className="space-y-1 text-center">
+      <Upload className="mx-auto h-8 w-8 text-gray-400" />
+      <div className="flex text-sm text-gray-600">
+        <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+          <span>Upload Meter Certificate images</span>
+          <input
+            type="file"
+            className="sr-only"
+            accept="image/*"
+            multiple
+            onChange={(e) => handleDocumentImageChange(e, 'MeterCertificateImage')}
+          />
+        </label>
+        <p className="pl-1">or drag and drop</p>
+      </div>
+      <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+    </div>
+  </div>
+</div>
+          
+          {/* Insurance Images */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Insurance Images</label>
+            {insuranceImagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {insuranceImagePreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={preview} 
+                      alt={`Insurance document ${index + 1}`} 
+                      className="h-24 w-full object-cover rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentPreview('insurance', index)}
+                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <Upload className="mx-auto h-8 w-8 text-gray-400" />
+                <div className="flex text-sm text-gray-600">
+                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                    <span>Upload Insurance images</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleDocumentImageChange(e, 'insurance')}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+              </div>
             </div>
           </div>
         </div>

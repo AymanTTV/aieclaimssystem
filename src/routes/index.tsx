@@ -13,6 +13,7 @@ const Maintenance = React.lazy(() => import('../pages/Maintenance'));
 const Rentals = React.lazy(() => import('../pages/Rentals'));
 const Accidents = React.lazy(() => import('../pages/Accidents'));
 const Claims = React.lazy(() => import('../pages/Claims'));
+const Share = React.lazy(() => import('../pages/Share'));
 const Finance = React.lazy(() => import('../pages/Finance'));
 const Users = React.lazy(() => import('../pages/Users'));
 const Customers = React.lazy(() => import('../pages/Customers'));
@@ -73,6 +74,14 @@ const AppRoutes = () => {
       
       <Route path="/claims" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
+          <Layout>
+            <Claims />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+<Route path="/share" element={
+        <ProtectedRoute requiredPermission={{ module: 'share', action: 'view' }}>
           <Layout>
             <Claims />
           </Layout>

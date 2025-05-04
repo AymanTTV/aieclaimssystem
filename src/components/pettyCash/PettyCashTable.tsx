@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { DataTable } from '../DataTable/DataTable';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
@@ -7,7 +9,6 @@ import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface PettyCashTableProps {
-  transactions: PettyCashTransaction[];
   onView: (transaction: PettyCashTransaction) => void;
   onEdit: (transaction: PettyCashTransaction) => void;
   onDelete: (transaction: PettyCashTransaction) => void;
@@ -17,16 +18,50 @@ interface PettyCashTableProps {
 }
 
 const PettyCashTable: React.FC<PettyCashTableProps> = ({
-  transactions,
   onView,
   onEdit,
   onDelete,
   onGenerateDocument,
   onViewDocument,
-  collectionName = 'pettyCash'
+  collectionName = 'pettyCash',
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
+  const [calculatedTransactions, setCalculatedTransactions] = useState([]);
+
+  useEffect(() => {
+    const transactionsQuery = query(
+      collection(db, collectionName),
+      orderBy('date', 'desc'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(transactionsQuery, (snapshot) => {
+      const fetchedTransactions = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date instanceof Timestamp ? doc.data().date.toDate() : doc.data().date,
+      }));
+
+      let currentBalance = 0;
+      const transactionsWithBalance = fetchedTransactions.map((transaction) => {
+        currentBalance += (transaction.amountIn || 0) - (transaction.amountOut || 0);
+        return { ...transaction, calculatedBalance: currentBalance };
+      });
+
+      transactionsWithBalance.reverse();
+
+      let runningBalance = 0;
+      const reversedTransactionsWithCorrectedBalance = transactionsWithBalance.map((transaction) => {
+        runningBalance += (transaction.amountIn || 0) - (transaction.amountOut || 0);
+        return { ...transaction, calculatedBalance: runningBalance };
+      });
+
+      setCalculatedTransactions(reversedTransactionsWithCorrectedBalance.reverse());
+    });
+    return () => unsubscribe();
+  }, [collectionName]);
+
   const columns = [
     {
       header: 'Date & Time',
@@ -69,7 +104,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     {
       header: 'Balance',
       cell: ({ row }) => {
-        const balance = Number(row.original.balance) || 0;
+        const balance = row.original.calculatedBalance || 0;
         return (
           <span className={balance >= 0 ? 'text-green-600' : 'text-red-600'}>
             {formatCurrency(Math.abs(balance))}
@@ -80,7 +115,8 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     {
       header: 'Status',
       cell: ({ row }) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
           ${row.original.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
             row.original.status === 'paid' ? 'bg-green-100 text-green-800' :
             'bg-red-100 text-red-800'}`}
@@ -160,7 +196,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
 
   return (
     <DataTable
-      data={transactions}
+      data={calculatedTransactions}
       columns={columns}
       onRowClick={(transaction) => can('pettyCash', 'view') && onView(transaction)}
     />

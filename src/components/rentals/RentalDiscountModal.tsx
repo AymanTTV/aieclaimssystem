@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Rental, Vehicle } from '../../types';
+import { Rental } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
@@ -18,59 +18,46 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [formData, setFormData] = useState({
-    discountPercentage: rental.discountPercentage ? parseFloat(rental.discountPercentage.toFixed(1)) : 0,
+    discountPercentage: rental.discountPercentage || 0,
     discountAmount: rental.discountAmount || 0,
     freePeriod: 0,
     notes: ''
   });
 
-  // Fetch vehicle details
-  useEffect(() => {
-    const fetchVehicle = async () => {
-      try {
-        const vehicleDoc = await getDoc(doc(db, 'vehicles', rental.vehicleId));
-        if (vehicleDoc.exists()) {
-          setVehicle(vehicleDoc.data() as Vehicle);
-        }
-      } catch (error) {
-        console.error('Error fetching vehicle:', error);
-        toast.error('Failed to fetch vehicle details');
-      }
-    };
-    fetchVehicle();
-  }, [rental.vehicleId]);
+  // Calculate rates based on rental type
+  const periodRate = rental.type === 'weekly' ? 360 : 60;
 
-  // Get correct vehicle rates
-  const getVehicleRate = () => {
-    if (!vehicle) return rental.type === 'weekly' ? 360 : 60;
-    return rental.type === 'weekly' ? vehicle.weeklyRentalPrice : vehicle.dailyRentalPrice;
-  };
-
-  const vehicleRate = getVehicleRate();
-
-  // Update percentage and amount when one changes
-  const handlePercentageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const percentage = parseFloat(e.target.value) || 0;
-    const roundedPercentage = parseFloat(percentage.toFixed(1));
-    const amount = (rental.cost * roundedPercentage) / 100;
-    setFormData({ ...formData, discountPercentage: roundedPercentage, discountAmount: amount });
-  };
-
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseFloat(e.target.value) || 0;
+  // Handle discount amount change
+  const handleDiscountAmountChange = (amount: number) => {
     const percentage = (amount / rental.cost) * 100;
-    const roundedPercentage = parseFloat(percentage.toFixed(1));
-    setFormData({ ...formData, discountAmount: amount, discountPercentage: roundedPercentage });
+    setFormData(prev => ({
+      ...prev,
+      discountAmount: amount,
+      discountPercentage: Number(percentage.toFixed(2))
+    }));
   };
 
-  const handleFreePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, freePeriod: parseInt(e.target.value) });
+  // Handle discount percentage change
+  const handleDiscountPercentageChange = (percentage: number) => {
+    const amount = (percentage * rental.cost) / 100;
+    setFormData(prev => ({
+      ...prev,
+      discountPercentage: percentage,
+      discountAmount: Number(amount.toFixed(2))
+    }));
   };
 
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setFormData({ ...formData, notes: e.target.value });
+  // Handle free period change
+  const handleFreePeriodChange = (period: number) => {
+    const amount = period * periodRate;
+    const percentage = (amount / rental.cost) * 100;
+    setFormData(prev => ({
+      ...prev,
+      freePeriod: period,
+      discountAmount: amount,
+      discountPercentage: Number(percentage.toFixed(2))
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,26 +66,24 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
     setLoading(true);
 
     try {
-      // Calculate discount amounts
-      const discountAmountEntered = formData.discountAmount;
-      const freePeriodDiscount = formData.freePeriod * vehicleRate;
-      const totalDiscountAmount = discountAmountEntered + freePeriodDiscount;
+      const discountAmount = parseFloat(formData.discountAmount.toString()) || 0;
+      const freePeriodDiscount = formData.freePeriod * periodRate;
+      const totalDiscountAmount = discountAmount + freePeriodDiscount;
       const remainingAmount = rental.cost - rental.paidAmount - totalDiscountAmount;
-
-      // Get existing discount history
-      const existingHistory = rental.discountHistory || [];
 
       // Create new discount history entry
       const newDiscountEntry = {
         date: new Date(),
         percentage: formData.discountPercentage,
-        amount: discountAmountEntered,
+        amount: discountAmount,
         freePeriod: formData.freePeriod,
         freePeriodType: rental.type,
         notes: formData.notes,
-        appliedBy: user.name,
-        vehicleRateUsed: vehicleRate
+        appliedBy: user.name
       };
+
+      // Initialize discountHistory array if it doesn't exist
+      const currentDiscountHistory = Array.isArray(rental.discountHistory) ? rental.discountHistory : [];
 
       await updateDoc(doc(db, 'rentals', rental.id), {
         discountPercentage: formData.discountPercentage,
@@ -110,7 +95,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
         paymentStatus: remainingAmount <= 0 ? 'paid' : 'partially_paid',
         updatedAt: new Date(),
         updatedBy: user.id,
-        discountHistory: [...existingHistory, newDiscountEntry]
+        discountHistory: [...currentDiscountHistory, newDiscountEntry]
       });
 
       toast.success('Discount applied successfully');
@@ -122,15 +107,6 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
       setLoading(false);
     }
   };
-
-  // Calculate preview values
-  const freePeriodDiscount = formData.freePeriod * vehicleRate;
-  const totalDiscountAmount = formData.discountAmount + freePeriodDiscount;
-  const newRemainingAmount = rental.cost - rental.paidAmount - totalDiscountAmount;
-
-  if (!vehicle) {
-    return <div>Loading vehicle details...</div>;
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -149,7 +125,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
         </div>
         <div className="text-sm text-gray-500 pt-2 border-t">
           <div>
-            Vehicle {rental.type === 'weekly' ? 'Weekly' : 'Daily'} Rate: £{vehicleRate}
+            Vehicle {rental.type === 'weekly' ? 'Weekly' : 'Daily'} Rate: £{periodRate}
           </div>
         </div>
       </div>
@@ -158,17 +134,17 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
         type="number"
         label="Discount Percentage"
         value={formData.discountPercentage}
-        onChange={handlePercentageChange}
+        onChange={(e) => handleDiscountPercentageChange(parseFloat(e.target.value) || 0)}
         min="0"
         max="100"
-        step="0.1"
+        step="0.01"
       />
 
       <FormField
         type="number"
         label="Discount Amount (£)"
         value={formData.discountAmount}
-        onChange={handleAmountChange}
+        onChange={(e) => handleDiscountAmountChange(parseFloat(e.target.value) || 0)}
         min="0"
         max={rental.cost}
         step="0.1"
@@ -178,7 +154,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
         type="number"
         label={`Free ${rental.type === 'weekly' ? 'Weeks' : 'Days'}`}
         value={formData.freePeriod}
-        onChange={handleFreePeriodChange}
+        onChange={(e) => handleFreePeriodChange(parseInt(e.target.value) || 0)}
         min="0"
         max={rental.type === 'weekly' ? 52 : 365}
         step="1"
@@ -187,48 +163,10 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({
       <TextArea
         label="Notes"
         value={formData.notes}
-        onChange={handleNotesChange}
+        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
         placeholder="Add notes about this discount..."
         required
       />
-
-      <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-        {rental.discountAmount && rental.discountAmount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Existing Discount:</span>
-            <span className="text-blue-600">£{rental.discountAmount.toFixed(2)}</span>
-          </div>
-        )}
-        {formData.discountPercentage > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Percentage Discount:</span>
-            <span className="text-blue-600">{formData.discountPercentage.toFixed(2)}%</span>
-          </div>
-        )}
-        {formData.discountAmount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Discount Amount:</span>
-            <span className="text-blue-600">£{formData.discountAmount.toFixed(2)}</span>
-          </div>
-        )}
-        {formData.freePeriod > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>
-              Free Period Discount ({formData.freePeriod}{' '}
-              {rental.type === 'weekly' ? 'weeks' : 'days'} @ £{vehicleRate}):
-            </span>
-            <span className="text-blue-600">£{freePeriodDiscount.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-sm font-medium pt-2 border-t">
-          <span>Total Discount:</span>
-          <span>£{totalDiscountAmount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm font-medium">
-          <span>New Remaining Amount:</span>
-          <span>£{newRemainingAmount.toFixed(2)}</span>
-        </div>
-      </div>
 
       <div className="flex justify-end space-x-3">
         <button

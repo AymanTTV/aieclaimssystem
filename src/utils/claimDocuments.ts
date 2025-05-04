@@ -2,8 +2,8 @@
 
 import { pdf } from '@react-pdf/renderer';
 import { Claim } from '../types';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { createElement } from 'react';
 import { format } from 'date-fns';
@@ -20,97 +20,98 @@ import {
 
 export const generateClaimDocuments = async (claimId: string, claim: Claim) => {
   try {
-    // Get company details for documents
+    // Fetch company details
     const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
-    if (!companyDoc.exists()) {
-      throw new Error('Company details not found');
-    }
-    const companyDetails = companyDoc.data();
+    if (!companyDoc.exists()) throw new Error('Company details not found');
 
-    // Validate required company details
+    const companyDetails = companyDoc.data();
     if (!companyDetails.fullName || !companyDetails.officialAddress) {
       throw new Error('Incomplete company details');
     }
 
-    const documents = [];
     const claimReasons = Array.isArray(claim.claimReason) ? claim.claimReason : [claim.claimReason];
-    
+
     // VD only - no documents
     if (claimReasons.length === 1 && claimReasons[0] === 'VD') {
+      await updateDoc(doc(db, 'claims', claimId), {
+        documents: {},
+        updatedAt: new Date()
+      });
       return;
     }
 
-    // Generate Notice of Right to Cancel if H is selected
-    if (claimReasons.includes('H')) {
-      documents.push({
-        name: 'noticeOfRightToCancel',
-        blob: await generateNoticeOfRightToCancel(claim, companyDetails)
-      });
-    }
+    // Decide which documents to generate
+    const documentsToGenerate: { name: string; generator: () => Promise<Blob> }[] = [];
 
-    // Generate hire-related documents if H is selected
+    // --- Hire related ---
     if (claimReasons.includes('H')) {
-      documents.push(
-        {
-          name: 'conditionOfHire',
-          blob: await generateConditionOfHire(claim, companyDetails)
-        },
-        {
-          name: 'hireAgreement',
-          blob: await generateHireAgreement(claim, companyDetails)
-        }
+      documentsToGenerate.push(
+        { name: 'noticeOfRightToCancel', generator: () => generateNoticeOfRightToCancel(claim, companyDetails) },
+        { name: 'conditionOfHire', generator: () => generateConditionOfHire(claim, companyDetails) },
+        { name: 'hireAgreement', generator: () => generateHireAgreement(claim, companyDetails) }
       );
     }
 
-    // Generate storage documents if S is selected
+    // --- Storage related ---
     if (claimReasons.includes('S')) {
-      documents.push({
+      documentsToGenerate.push({
         name: 'creditStorageAndRecovery',
-        blob: await generateCreditStorageAndRecovery(claim, companyDetails)
+        generator: () => generateCreditStorageAndRecovery(claim, companyDetails)
       });
     }
 
-    // Generate all documents if PI is selected
+    // --- PI related (full pack) ---
     if (claimReasons.includes('PI')) {
-      documents.push(
-        {
-          name: 'conditionOfHire',
-          blob: await generateConditionOfHire(claim, companyDetails)
-        },
-        {
-          name: 'creditHireMitigation',
-          blob: await generateCreditHireMitigation(claim, companyDetails)
-        },
-        {
-          name: 'creditStorageAndRecovery',
-          blob: await generateCreditStorageAndRecovery(claim, companyDetails)
-        },
-        {
-          name: 'hireAgreement',
-          blob: await generateHireAgreement(claim, companyDetails)
-        }
+      documentsToGenerate.push(
+        { name: 'conditionOfHire', generator: () => generateConditionOfHire(claim, companyDetails) },
+        { name: 'creditHireMitigation', generator: () => generateCreditHireMitigation(claim, companyDetails) },
+        { name: 'creditStorageAndRecovery', generator: () => generateCreditStorageAndRecovery(claim, companyDetails) },
+        { name: 'hireAgreement', generator: () => generateHireAgreement(claim, companyDetails) }
       );
     }
 
-    // Satisfaction notice - only for completed claims
+    // --- Claim Completed ---
     if (claim.progress === 'Claim Complete') {
-      documents.push({
+      documentsToGenerate.push({
         name: 'satisfactionNotice',
-        blob: await generateSatisfactionNotice(claim, companyDetails)
+        generator: () => generateSatisfactionNotice(claim, companyDetails)
       });
     }
 
-    // Upload documents to storage and get URLs
-    const documentUrls: Record<string, string> = {};
-    for (const doc of documents) {
-      const filename = `${doc.name}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-      const storageRef = ref(storage, `claims/${claimId}/${filename}`);
-      await uploadBytes(storageRef, doc.blob);
-      documentUrls[doc.name] = await getDownloadURL(storageRef);
+    // --- Get previously stored documents ---
+    const claimDocRef = doc(db, 'claims', claimId);
+    const claimSnapshot = await getDoc(claimDocRef);
+    const existingDocuments: Record<string, string> = claimSnapshot.data()?.documents || {};
+
+    // --- Determine documents to remove ---
+    const requiredDocNames = documentsToGenerate.map(d => d.name);
+    const documentsToDelete = Object.keys(existingDocuments).filter(name => !requiredDocNames.includes(name));
+
+    // --- Delete unused files from storage ---
+    for (const docName of documentsToDelete) {
+      const filenamePattern = `${docName}_`;
+      const storageRef = ref(storage, `claims/${claimId}/`);
+      const fileToDeleteRef = ref(storage, `claims/${claimId}/${filenamePattern}${format(new Date(), 'yyyyMMdd')}.pdf`);
+      try {
+        await deleteObject(fileToDeleteRef);
+      } catch (err) {
+        console.warn(`Could not delete old document ${docName}:`, err);
+      }
     }
 
-    // Update claim with document URLs
-    await updateDoc(doc(db, 'claims', claimId), {
+    // --- Generate new documents ---
+    const documentUrls: Record<string, string> = {};
+    for (const docItem of documentsToGenerate) {
+      const blob = await docItem.generator();
+      const filename = `${docItem.name}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      const storageRef = ref(storage, `claims/${claimId}/${filename}`);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+      documentUrls[docItem.name] = url;
+    }
+
+    // --- Update Firestore ---
+    await updateDoc(claimDocRef, {
       documents: documentUrls,
       updatedAt: new Date()
     });
@@ -122,7 +123,7 @@ export const generateClaimDocuments = async (claimId: string, claim: Claim) => {
   }
 };
 
-// Helper functions to generate individual documents
+// Helper functions
 const generateConditionOfHire = async (claim: Claim, companyDetails: any): Promise<Blob> => {
   const element = createElement(ConditionOfHire, { claim, companyDetails });
   return pdf(element).toBlob();

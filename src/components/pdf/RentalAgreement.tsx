@@ -1,232 +1,83 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'; // Import StyleSheet
 import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types';
-import { format, isValid, parseISO } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import logo from '../../assets/logo.png';
-import { formatPDFDate } from './dateUtils';
+import { formatDate } from '../../utils/dateHelpers';
+import { styles } from './styles'; // Assuming styles are imported from the provided file
 
-
-const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontSize: 10,
-  },
-  header: {
+// Create a local style for the signature section positioning
+// This does NOT modify the imported global styles object
+const localStyles = StyleSheet.create({
+  signatureSectionPositioning: {
+    position: 'absolute', // Position absolutely
+    bottom: 50, // Adjusted this value to position above the footer (footer is at bottom: 30)
+    left: 40, // Match page padding
+    right: 40, // Match page padding
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  logo: {
-    width: 120,
-  },
-  companyInfo: {
-    textAlign: 'right',
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-    borderBottom: 1,
-    borderBottomColor: '#000',
-    paddingBottom: 5,
-  },
-  agreementNumber: {
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  section: {
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    backgroundColor: '#f3f4f6',
-    padding: 5,
-  },
-  row: {
-    flexDirection: 'row',
-    marginBottom: 5,
-  },
-  column: {
-    flex: 1,
-  },
-  label: {
-    fontWeight: 'bold',
-    width: 120,
-  },
-  value: {
-    flex: 1,
-  },
-  paymentSection: {
-    marginTop: 10,
-    padding: 5,
-    backgroundColor: '#f3f4f6',
-  },
-  signatureSection: {
-    marginTop: 30,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  signatureBox: {
-    width: '45%',
-  },
-  signature: {
-    width: '100%',
-    height: 50,
-    marginBottom: 5,
-  },
-  signatureLine: {
-    borderTopWidth: 1,
-    borderTopColor: '#000',
-    marginTop: 5,
-    paddingTop: 5,
-    textAlign: 'center',
-  },
-  terms: {
-    marginTop: 20,
-    fontSize: 8,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    fontSize: 8,
-    textAlign: 'center',
-    color: '#6b7280',
-  },
-  maxPeriodWarning: {
-    marginTop: 10,
-    fontSize: 9,
-    color: '#DC2626',
-    fontWeight: 'bold',
-  },
-conditionSection: {
-    marginTop: 20,
-    borderTop: 1,
-    borderColor: '#E5E7EB',
-    paddingTop: 10,
-  },
-  conditionTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  conditionGrid: {
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 5,
-  },
-  conditionItem: {
-    width: '50%',
-    marginBottom: 5,
-  },
-  conditionLabel: {
-    fontSize: 10,
-    color: '#6B7280',
-  },
-  conditionValue: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  damageDescription: {
-    fontSize: 10,
-    marginTop: 5,
-    color: '#DC2626',
-  },
-  conditionImages: {
-    marginTop: 10,
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  conditionImage: {
-    width: 150,
-    height: 100,
-    objectFit: 'cover',
+    breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    // Remove marginBottom as positioning is absolute
   },
 });
 
-// Function to generate agreement number
+
 const generateAgreementNumber = (id: string): string => {
-  // Get last 3 characters of ID and pad with zeros if needed
   const number = id.slice(-3).padStart(3, '0');
   return `AIE-${number}`;
 };
-
-
 
 const RentalAgreement: React.FC<{
   rental: Rental;
   vehicle: Vehicle;
   customer: Customer;
-  companyDetails: {
-    name?: string;
-    fullName?: string;
-    officialAddress?: string;
-    phone?: string;
-    email?: string;
-    vatNumber?: string;
-    registrationNumber?: string;
-    termsAndConditions?: string;
-    signature?: string;
-  };
-}> = ({
-  rental,
-  vehicle,
-  customer,
-  companyDetails = {},
-}) => {
+  companyDetails: any;
+}> = ({ rental, vehicle, customer, companyDetails = {} }) => {
   const formatDateTime = (date: Date | string | null | undefined): string => {
-  if (!date) return 'N/A';
-  
-  try {
-    // Handle Firestore Timestamp
-    if (date?.toDate) {
-      date = date.toDate();
+    if (!date) return 'N/A';
+
+    try {
+      // Handle Firestore Timestamps if present
+      if ((date as any).toDate) {
+        date = (date as any).toDate();
+      }
+
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+
+      if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
+        return format(dateObj, 'dd/MM/yyyy HH:mm');
+      }
+
+      return 'N/A';
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
     }
-    
-    // Handle string dates
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
-    // Validate date
-    if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
-      return format(dateObj, 'dd/MM/yyyy HH:mm');
+  };
+
+  const getRentalRate = (rentalType: Rental['type'], vehicle: Vehicle): number => {
+    switch (rentalType) {
+      case 'weekly':
+        return vehicle.weeklyRentalPrice ?? DEFAULT_RENTAL_PRICES.weekly;
+      case 'daily':
+        return vehicle.dailyRentalPrice ?? DEFAULT_RENTAL_PRICES.daily;
+      case 'claim':
+        return vehicle.claimRentalPrice ?? DEFAULT_RENTAL_PRICES.claim;
+      default:
+        return 0;
     }
-    
-    return 'N/A';
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'N/A';
-  }
-};
+  };
 
-const getRentalRate = (rentalType: Rental['type'], vehicle: Vehicle): number => {
-  switch (rentalType) {
-    case 'weekly':
-      return vehicle.weeklyRentalPrice !== undefined ? vehicle.weeklyRentalPrice : DEFAULT_RENTAL_PRICES.weekly;
-    case 'daily':
-      return vehicle.dailyRentalPrice !== undefined ? vehicle.dailyRentalPrice : DEFAULT_RENTAL_PRICES.daily;
-    case 'claim':
-      return vehicle.claimRentalPrice !== undefined ? vehicle.claimRentalPrice : DEFAULT_RENTAL_PRICES.claim;
-    default:
-      return 0; // Or some default value if the rental type is unknown
-  }
-};
+  const rentalRate = getRentalRate(rental.type, vehicle);
 
-const rentalRate = getRentalRate(rental.type, vehicle);
-
-
-
+  // Calculate the default end date (90 days from start date)
+  const defaultEndDate = rental.startDate ? addDays(new Date(rental.startDate), 90) : null;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+        {/* HEADER */}
         <View style={styles.header}>
           <Image src={logo} style={styles.logo} />
           <View style={styles.companyInfo}>
@@ -238,207 +89,166 @@ const rentalRate = getRentalRate(rental.type, vehicle);
           </View>
         </View>
 
+        {/* TITLE */}
         <Text style={styles.title}>VEHICLE RENTAL AGREEMENT</Text>
+        {/* <Text style={styles.agreementNumber}>Agreement No: {generateAgreementNumber(rental.id)}</Text> */}
 
-        {/* Agreement Number */}
-        <Text style={styles.agreementNumber}>
-          Agreement No: {generateAgreementNumber(rental.id)}
-        </Text>
-
-        {/* Hirer Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>HIRER DETAILS</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Name:</Text>
-            <Text style={styles.value}>{customer.name}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Date of Birth:</Text>
-            <Text style={styles.value}>{formatDateTime(customer.dateOfBirth)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Address:</Text>
-            <Text style={styles.value}>{customer.address}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Contact Number:</Text>
-            <Text style={styles.value}>{customer.mobile}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>License Number:</Text>
-            <Text style={styles.value}>{customer.driverLicenseNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>License Valid Until:</Text>
-            <Text style={styles.value}>{formatDateTime(customer.licenseExpiry)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Badge Number:</Text>
-            <Text style={styles.value}>{customer.badgeNumber}</Text>
-          </View>
-        </View>
-
-        {/* Vehicle Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>VEHICLE DETAILS</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Make & Model:</Text>
-            <Text style={styles.value}>{vehicle.make} {vehicle.model}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Registration:</Text>
-            <Text style={styles.value}>{vehicle.registrationNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Current Mileage:</Text>
-            <Text style={styles.value}>{vehicle.mileage.toLocaleString()} miles</Text>
-          </View>
-        </View>
-
-        {/* Rental Details */}
-        <View style={styles.section}>
-  <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
-  <View style={styles.row}>
-    <Text style={styles.label}>Rental Type:</Text>
-    <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
-  </View>
-  <View style={styles.row}>
-    <Text style={styles.label}>Start Date & Time:</Text>
-    <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
-  </View>
-  <View style={styles.row}>
-  <Text style={styles.label}> End Date & Time:</Text>
-  <Text style={styles.value}>
-    {formatDateTime(
-      rental.status === 'completed' && rental.endDate
-        ? rental.endDate // Use the updated end date
-        : new Date(new Date(rental.startDate).setFullYear(new Date(rental.startDate).getFullYear() + 1)) // Default logic
-    )}
-  </Text>
-</View>
-
-
-</View>
-
-
-        {/* Payment Details */}
-        <View style={styles.paymentSection}>
-          <Text style={styles.sectionTitle}>PAYMENT DETAILS</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Payment Type:</Text>
-            <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Rate:</Text>
-            <Text style={styles.value}>
-              £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Payment Due:</Text>
-            <Text style={styles.value}>
-              {rental.type === 'weekly' ? 'Every Monday' : 'Daily'}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.maxPeriodWarning}>
-          Maximum Period of Hire: 90 Days
-        </Text>
-
-        {rental.checkOutCondition && (
-          <View style={styles.conditionSection}>
-            <Text style={styles.conditionTitle}>Vehicle Condition at Check-Out</Text>
-            
-            <View style={styles.conditionGrid}>
-              <View style={styles.conditionItem}>
-                <Text style={styles.conditionLabel}>Check-Out Date & Time:</Text>
-                <Text style={styles.conditionValue}>
-                  {formatDateTime(rental.checkOutCondition.date)}
-                </Text>
-              </View>
-
-              <View style={styles.conditionItem}>
-                <Text style={styles.conditionLabel}>Mileage:</Text>
-                <Text style={styles.conditionValue}>
-                  {rental.checkOutCondition.mileage.toLocaleString()} miles
-                </Text>
-              </View>
-
-              <View style={styles.conditionItem}>
-                <Text style={styles.conditionLabel}>Fuel Level:</Text>
-                <Text style={styles.conditionValue}>
-                  {rental.checkOutCondition.fuelLevel}%
-                </Text>
-              </View>
-
-              <View style={styles.conditionItem}>
-                <Text style={styles.conditionLabel}>Vehicle Condition:</Text>
-                <Text style={styles.conditionValue}>
-                  {rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}
-                </Text>
-              </View>
+        {/* HIRER & VEHICLE DETAILS */}
+        <View style={{ ...styles.sectionBreak, flexDirection: 'row', justifyContent: 'space-between' }} wrap={false}>
+          {/* HIRER DETAILS */}
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.sectionTitle}>HIRER DETAILS</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Name:</Text>
+              <Text style={styles.value}>{customer.name}</Text>
             </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Date of Birth:</Text>
+              <Text style={styles.value}>{formatDateTime(customer.dateOfBirth)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Address:</Text>
+              <Text style={styles.value}>{customer.address}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Contact Number:</Text>
+              <Text style={styles.value}>{customer.mobile}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>License Number:</Text>
+              <Text style={styles.value}>{customer.driverLicenseNumber}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>License Valid Until:</Text>
+              <Text style={styles.value}>{formatDateTime(customer.licenseExpiry)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Badge Number:</Text>
+              <Text style={styles.value}>{customer.badgeNumber}</Text>
+            </View>
+          </View>
 
-            {rental.checkOutCondition.hasDamage && (
-              <View>
-                <Text style={styles.conditionLabel}>Existing Damage:</Text>
-                <Text style={styles.damageDescription}>
-                  {rental.checkOutCondition.damageDescription}
-                </Text>
-              </View>
-            )}
+          {/* VEHICLE DETAILS */}
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.sectionTitle}>VEHICLE DETAILS</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Make & Model:</Text>
+              <Text style={styles.value}>{vehicle.make} {vehicle.model}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Registration:</Text>
+              <Text style={styles.value}>{vehicle.registrationNumber}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Current Mileage:</Text>
+              <Text style={styles.value}>{vehicle.mileage.toLocaleString()} miles</Text>
+            </View>
+          </View>
+        </View>
 
-            {rental.checkOutCondition.images && rental.checkOutCondition.images.length > 0 && (
-              <View style={styles.conditionImages}>
-                {rental.checkOutCondition.images.map((url, index) => (
-                  <Image
-                    key={index}
-                    src={url}
-                    style={styles.conditionImage}
-                  />
-                ))}
+        {/* RENTAL DETAILS */}
+        <View style={styles.sectionBreak} wrap={false}>
+          <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableCell, { flex: 1 }]}>Rental Type</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>Start Date & Time</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>End Date & Time</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, { flex: 1 }]}>{rental.type.toUpperCase()}</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>{formatDateTime(rental.startDate)}</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {formatDateTime(
+                  rental.status === 'completed' && rental.endDate
+                    ? rental.endDate
+                    : defaultEndDate // Use the calculated 90-day end date
+                )}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* PAYMENT DETAILS */}
+        <View style={styles.sectionBreak} wrap={false}>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>PAYMENT DETAILS</Text>
+            <View style={styles.row}><Text style={styles.label}>Payment Type:</Text><Text style={styles.value}>{rental.type.toUpperCase()}</Text></View>
+            <View style={styles.row}><Text style={styles.label}>Rate:</Text><Text style={styles.value}>£{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}</Text></View>
+            <View style={styles.row}><Text style={styles.label}>Payment Due:</Text><Text style={styles.value}>{rental.type === 'weekly' ? 'Every Monday' : 'Daily'}</Text></View>
+          </View>
+        </View>
+
+        <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
+
+        {/* VEHICLE CONDITION AT CHECK-OUT */}
+        {rental.checkOutCondition && (
+          <View style={styles.sectionBreak} wrap={false}>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>Vehicle Condition at Check-Out</Text>
+
+              <View style={styles.grid}>
+                <View style={styles.gridItem}><Text style={styles.label}>Check-Out Date & Time:</Text><Text style={styles.value}>{formatDateTime(rental.checkOutCondition.date)}</Text></View>
+                <View style={styles.gridItem}><Text style={styles.label}>Mileage:</Text><Text style={styles.value}>{rental.checkOutCondition.mileage.toLocaleString()} miles</Text></View>
+                <View style={styles.gridItem}><Text style={styles.label}>Fuel Level:</Text><Text style={styles.value}>{rental.checkOutCondition.fuelLevel}%</Text></View>
+                <View style={styles.gridItem}><Text style={styles.label}>Vehicle Condition:</Text><Text style={styles.value}>{rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}</Text></View>
               </View>
-            )}
+
+              {rental.checkOutCondition.hasDamage && (
+                <View style={styles.highlight}>
+                  <Text style={styles.highlightText}>Existing Damage:</Text>
+                  <Text>{rental.checkOutCondition.damageDescription}</Text>
+                </View>
+              )}
+
+              {/* Vehicle Images Grid */}
+              {rental.checkOutCondition.images?.length > 0 && (
+                <View style={styles.grid}>
+                  {rental.checkOutCondition.images.map((url, index) => (
+                    <View key={index} style={{ width: '33.33%', padding: 4 }}>
+                     <Image src={url} style={{ width: '100%', height: 100, objectFit: 'contain' }} />
+
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
         )}
 
         {/* Terms and Conditions */}
-        <View style={styles.terms}>
+        {/* Removed marginBottom from this section to allow signature section to position correctly */}
+        <View style={[styles.section, styles.sectionBreak, { marginBottom: 0 }]}>
           <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
           <Text>{companyDetails.termsAndConditions || 'Standard terms and conditions apply.'}</Text>
         </View>
 
-        {/* Signatures */}
-        <View style={styles.signatureSection}>
+        {/* Signatures - Now positioned absolutely */}
+        <View style={[styles.signatureSection, styles.sectionBreak]}>
           <View style={styles.signatureBox}>
             {rental.signature && (
               <Image src={rental.signature} style={styles.signature} />
             )}
             <Text style={styles.signatureLine}>Hirer's Signature</Text>
             <Text>{customer.name}</Text>
-            <Text>{formatDateTime(rental.createdAt)}</Text>
+            <Text>Date {formatDate(rental.startDate, true)}</Text>
           </View>
           <View style={styles.signatureBox}>
             {companyDetails.signature && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName || 'AIE SKYLINE'}</Text>
-            <Text>{companyDetails.name || ''}</Text>
-            <Text>{formatDateTime(rental.createdAt)}</Text>
+            <Text style={styles.signatureLine}>Authorized Signature</Text>
+            <Text>{companyDetails.name || 'AIE SKYLINE'}</Text>
+            <Text>Date: {formatDate(rental.startDate, true)}</Text>
           </View>
         </View>
 
         {/* Footer */}
-        <View style={styles.footer}>
-          <Text>
-            {companyDetails.fullName || 'AIE SKYLINE'} | Registered in England and Wales 
-            {companyDetails.registrationNumber ? ` | Company No: ${companyDetails.registrationNumber}` : ''}
-          </Text>
-          <Text>
-            Registered Office: {companyDetails.officialAddress || ''}
-          </Text>
-        </View>
+        {/* Added the footer back using the provided structure and global styles */}
+        <Text style={styles.footer}>
+          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
+        </Text>
+
       </Page>
     </Document>
   );

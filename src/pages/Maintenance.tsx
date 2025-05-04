@@ -14,9 +14,6 @@ import { MaintenanceLog } from '../types';
 import { FileText } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
-// import { generateAndUploadDocument } from '../utils/documentGenerator';
-// import { MaintenanceDocument } from '../components/pdf/documents';
-
 import Modal from '../components/ui/Modal';
 import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
 import { MaintenanceDocument, MaintenanceBulkDocument } from '../components/pdf/documents';
@@ -109,7 +106,8 @@ const Maintenance = () => {
       const pdfBlob = await generateBulkDocuments(
         MaintenanceBulkDocument,
         filteredLogs,
-        companyDetails
+        companyDetails,
+        vehiclesMap // Pass vehiclesMap here
       );
 
       saveAs(pdfBlob, 'maintenance_records.pdf');

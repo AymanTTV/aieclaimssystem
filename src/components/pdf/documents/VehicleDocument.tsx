@@ -1,169 +1,300 @@
 import React from 'react';
-import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
+import { Page, Text, View, Document, Image } from '@react-pdf/renderer';
+// Make sure this path and type definition are correct for your project
 import { Vehicle } from '../../../types';
+import { format } from 'date-fns';
+// Importing the combined styles (ensure this path is correct)
 import { styles } from '../styles';
-import { formatDate } from '../../../utils/dateHelpers';
-import { isExpiringOrExpired } from '../../../utils/vehicleUtils';
+
+// Helper function to format dates
+const formatDateString = (date: Date | string | undefined | null): string => {
+  if (!date) return 'N/A';
+  try {
+    // Ensure valid Date object before formatting
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (!dateObj || isNaN(dateObj.getTime())) { // Check for null/invalid date object
+        // Optional: Log the invalid date value
+        // console.warn("Invalid date encountered in formatDateString:", date);
+        return 'Invalid date';
+    }
+    return format(dateObj, 'dd/MM/yyyy');
+  } catch (error) {
+    console.error("Error formatting date:", date, error); // Add logging
+    return 'Invalid date';
+  }
+};
+
+// Helper function to check if a date is expired
+const isExpired = (date: Date | string | undefined | null): boolean => {
+  if (!date) return false;
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+     if (!dateObj || isNaN(dateObj.getTime())) { // Check for null/invalid date object
+       // Optional: Log the invalid date value
+       // console.warn("Invalid date encountered in isExpired:", date);
+        return false; // Treat invalid dates as not expired for safety
+    }
+    // Uses the runtime date for comparison
+    const now = new Date();
+    return now > dateObj;
+  } catch (error) {
+    console.error("Error checking expiry:", date, error); // Add logging
+    return false;
+  }
+};
 
 interface VehicleDocumentProps {
   data: Vehicle;
-  companyDetails: any;
+  companyDetails: any; // Define a more specific type if possible
 }
 
 const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails }) => {
-  // Calculate MOT expiry (6 months after test date)
-  const motExpiry = new Date(data.motTestDate);
-  motExpiry.setMonth(motExpiry.getMonth() + 6);
+  const vehicle = data;
+
+  // Calculate MOT expiry (6 months after test date) - Handle potential invalid motTestDate
+  let motExpiry: Date | null = null;
+  if (vehicle.motTestDate) {
+    try {
+      const testDate = new Date(vehicle.motTestDate);
+      if (!isNaN(testDate.getTime())) {
+        motExpiry = new Date(testDate);
+        motExpiry.setMonth(motExpiry.getMonth() + 6);
+      } else {
+         console.warn("Invalid MOT Test Date received:", vehicle.motTestDate);
+      }
+    } catch (e) {
+      console.error("Error calculating MOT expiry:", vehicle.motTestDate, e);
+    }
+  }
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Image src={companyDetails.logoUrl} style={styles.logo} />
-          <View style={styles.companyInfo}>
-            <Text>{companyDetails.fullName}</Text>
-            <Text>{companyDetails.officialAddress}</Text>
-            <Text>Tel: {companyDetails.phone}</Text>
-            <Text>Email: {companyDetails.email}</Text>
+          <View style={styles.headerLeft}>
+            {companyDetails?.logoUrl && (
+              <Image src={companyDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Phone: {companyDetails?.phone || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
           </View>
         </View>
 
-        <Text style={styles.title}>Vehicle Details</Text>
-
-        {/* Basic Information */}
-        <View style={[styles.section, styles.keepTogether]}>
-          <Text style={styles.sectionTitle}>Vehicle Information</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.row}>
-              <Text style={styles.label}>Registration Number:</Text>
-              <Text style={styles.value}>{data.registrationNumber}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>VIN:</Text>
-              <Text style={styles.value}>{data.vin}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Make:</Text>
-              <Text style={styles.value}>{data.make}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Model:</Text>
-              <Text style={styles.value}>{data.model}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Year:</Text>
-              <Text style={styles.value}>{data.year}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Status:</Text>
-              <Text style={styles.value}>{data.status}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Current Mileage:</Text>
-              <Text style={styles.value}>{data.mileage.toLocaleString()} miles</Text>
-            </View>
-          </View>
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Vehicle Details</Text>
         </View>
 
-        {/* Document Expiry Dates */}
-        <View style={[styles.section, styles.keepTogether]}>
-          <Text style={styles.sectionTitle}>Document Expiry Dates</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.row}>
-              <Text style={styles.label}>MOT Test Date:</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(data.motTestDate) && { color: '#DC2626' }
-              ]}>
-                {formatDate(data.motTestDate)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>MOT Expiry (6 months):</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(motExpiry) && { color: '#DC2626' }
-              ]}>
-                {formatDate(motExpiry)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>NSL Expiry:</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(data.nslExpiry) && { color: '#DC2626' }
-              ]}>
-                {formatDate(data.nslExpiry)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Road Tax Expiry:</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(data.roadTaxExpiry) && { color: '#DC2626' }
-              ]}>
-                {formatDate(data.roadTaxExpiry)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Insurance Expiry:</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(data.insuranceExpiry) && { color: '#DC2626' }
-              ]}>
-                {formatDate(data.insuranceExpiry)}
-              </Text>
-            </View>
+        {/* Vehicle Image */}
+        {vehicle.image && (
+          <View style={styles.imageContainer}>
+            <Image src={vehicle.image} style={styles.vehicleImage} />
           </View>
-        </View>
+        )}
 
-        {/* Maintenance Information */}
-        <View style={[styles.section, styles.keepTogether]}>
-          <Text style={styles.sectionTitle}>Maintenance Information</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.row}>
-              <Text style={styles.label}>Last Maintenance:</Text>
-              <Text style={styles.value}>{formatDate(data.lastMaintenance)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Next Maintenance:</Text>
-              <Text style={[
-                styles.value,
-                isExpiringOrExpired(data.nextMaintenance) && { color: '#DC2626' }
-              ]}>
-                {formatDate(data.nextMaintenance)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Owner Information */}
-        <View style={[styles.section, styles.keepTogether]}>
-          <Text style={styles.sectionTitle}>Owner Information</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.row}>
-              <Text style={styles.label}>Owner:</Text>
-              <Text style={styles.value}>{data.owner?.name || 'AIE Skyline'}</Text>
-            </View>
-            {data.owner?.address && !data.owner?.isDefault && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Address:</Text>
-                <Text style={styles.value}>{data.owner.address}</Text>
+        {/* Vehicle Information Summary Card */}
+        <View style={[styles.section, styles.infoCard, { borderLeft: '3 solid #3B82F6', breakInside: 'avoid' }]}>
+          <Text style={styles.infoCardTitle}>Vehicle Information</Text>
+          {/* Using a table-like structure within the card */}
+          <View style={styles.table}>
+            {/* Row 1: Reg Number & VIN */}
+            <View style={styles.tableRow}>
+              <View style={styles.tableCol}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Registration Number: </Text>
+                  <Text style={styles.value}>{vehicle.registrationNumber || 'N/A'}</Text>
+                </Text>
               </View>
+              {/* FIX: Added marginLeft to the second column View */}
+              <View style={[styles.tableCol, { marginLeft: 15 }]}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>VIN: </Text>
+                  <Text style={styles.value}>{vehicle.vin || 'N/A'}</Text>
+                </Text>
+              </View>
+            </View>
+            {/* Row 2: Make & Model */}
+            <View style={styles.tableRow}>
+              <View style={styles.tableCol}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Make: </Text>
+                  <Text style={styles.value}>{vehicle.make || 'N/A'}</Text>
+                </Text>
+              </View>
+              {/* FIX: Added marginLeft to the second column View */}
+              <View style={[styles.tableCol, { marginLeft: 15 }]}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Model: </Text>
+                  <Text style={styles.value}>{vehicle.model || 'N/A'}</Text>
+                </Text>
+              </View>
+            </View>
+            {/* Row 3: Year & Status */}
+            <View style={styles.tableRow}>
+              <View style={styles.tableCol}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Year: </Text>
+                  <Text style={styles.value}>{vehicle.year || 'N/A'}</Text>
+                </Text>
+              </View>
+              {/* FIX: Added marginLeft to the second column View */}
+              <View style={[styles.tableCol, { marginLeft: 15 }]}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Status: </Text>
+                  <Text style={styles.value}>{vehicle.status || 'N/A'}</Text>
+                  {/* Example usage of statusBadge (if needed/defined in Vehicle type) */}
+                  {/* {vehicle.status === 'Active' && <View style={[styles.statusBadge, {backgroundColor: 'green'}]}><Text>Active</Text></View>} */}
+                </Text>
+              </View>
+            </View>
+            {/* Row 4: Mileage */}
+            <View style={styles.tableRow}>
+              <View style={styles.tableCol}>
+                <Text style={styles.flexRow}>
+                  <Text style={[styles.label, { paddingLeft: 5 }]}>Current Mileage: </Text>
+                  <Text style={styles.value}>{vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'N/A'}</Text>
+                </Text>
+              </View>
+               {/* Empty column for alignment */}
+               <View style={[styles.tableCol, { marginLeft: 15 }]}></View>
+            </View>
+          </View>
+        </View>
+
+        {/* Document Expiry Dates Table */}
+        <View style={[styles.section, styles.sectionBreak]}>
+          <Text style={styles.sectionTitle}>Document Expiry Dates</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>MOT Test Date</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>MOT Expiry</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>NSL Expiry</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>Road Tax Expiry</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>Insurance Expiry</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, isExpired(vehicle.motTestDate) && styles.expiredText]}>
+                {formatDateString(vehicle.motTestDate)}
+              </Text>
+              <Text style={[styles.tableCell, motExpiry && isExpired(motExpiry) && styles.expiredText]}>
+                {formatDateString(motExpiry)}
+              </Text>
+              <Text style={[styles.tableCell, isExpired(vehicle.nslExpiry) && styles.expiredText]}>
+                {formatDateString(vehicle.nslExpiry)}
+              </Text>
+              <Text style={[styles.tableCell, isExpired(vehicle.roadTaxExpiry) && styles.expiredText]}>
+                {formatDateString(vehicle.roadTaxExpiry)}
+              </Text>
+              <Text style={[styles.tableCell, isExpired(vehicle.insuranceExpiry) && styles.expiredText]}>
+                {formatDateString(vehicle.insuranceExpiry)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Maintenance Information Table */}
+        {/* === FIX: Added wrap={false} to prevent content splitting === */}
+        <View style={[styles.section, styles.sectionBreak, { minHeight: 100 }]} wrap={false}>
+          <Text style={styles.sectionTitle}>Maintenance Information</Text>
+           {/* Added breakInside: 'avoid' to the table View itself */}
+          <View style={[styles.table, { breakInside: 'avoid' }]}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>Last Maintenance</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}>Next Maintenance</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={styles.tableCell}>{formatDateString(vehicle.lastMaintenance)}</Text>
+              <Text style={[styles.tableCell, isExpired(vehicle.nextMaintenance) && styles.expiredText]}>
+                {formatDateString(vehicle.nextMaintenance)}
+              </Text>
+            </View>
+             {/* Optional empty rows for spacing */}
+             {/* <View style={styles.tableRow}><Text style={styles.tableCell}> </Text><Text style={styles.tableCell}> </Text></View> */}
+          </View>
+        </View>
+
+        {/* Owner Information Card */}
+        <View style={[styles.section, styles.sectionBreak, { alignItems: 'flex-end' }]}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Owner Information</Text>
+            <Text style={styles.cardContent}>{vehicle.owner?.name || 'AIE Skyline'}</Text>
+            {vehicle.owner?.address && !vehicle.owner?.isDefault && (
+              <Text style={styles.cardContent}>{vehicle.owner.address}</Text>
             )}
           </View>
         </View>
 
+        {/* Document Images Grid */}
+        {/* Check if vehicle.documents exists and has any image arrays with content */}
+        {vehicle.documents && Object.values(vehicle.documents).some(arr => Array.isArray(arr) && arr.length > 0) && (
+          <View style={[styles.section, styles.sectionBreak]}>
+            <Text style={styles.sectionTitle}>Document Images</Text>
+            <View style={styles.grid}>
+              {Object.entries(vehicle.documents)
+                // Filter out entries that are not arrays or are empty arrays
+                .filter(([key, value]) => Array.isArray(value) && value.length > 0)
+                .map(([key, images]) =>
+                  (images as string[]).map((image, index) => { // Assert images as string[] after filtering
+                    // Create a friendlier caption
+                    const caption = key
+                      .replace(/Image$/, '') // Remove 'Image' suffix
+                      .replace(/([A-Z]+)/g, ' $1') // Add space before groups of Caps (like V5)
+                      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space before single Cap following lower
+                      .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+                      + ` Document ${index + 1}`;
+
+                    return (
+                      // Use a unique key combining type and index
+                      <View key={`${key}-${index}`} style={styles.gridItem}>
+                         {/* Ensure image source is valid */}
+                        <Image src={image || ''} style={styles.documentImage} onError={(e) => console.error("Error loading image:", image, e)} />
+                        <Text style={styles.imageCaption}>{caption}</Text>
+                      </View>
+                    );
+                  })
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Sale Information (if sold) */}
+        {vehicle.status === 'sold' && (
+          <View style={[styles.section, styles.sectionBreak]}>
+            <Text style={styles.sectionTitle}>Sale Information</Text>
+            <View style={[styles.table, { breakInside: 'avoid' }]}>
+              <View style={styles.tableRow}>
+                <View style={styles.tableColHalf}>
+                  <Text style={styles.subLabel}>Sale Date</Text>
+                  <Text style={styles.subValue}>{formatDateString(vehicle.soldDate)}</Text>
+                </View>
+                <View style={styles.tableColHalf}>
+                  <Text style={styles.subLabel}>Sale Price</Text>
+                  <Text style={styles.subValue}>{vehicle.salePrice ? `£${vehicle.salePrice.toLocaleString()}` : 'N/A'}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Footer */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName} | Generated on {formatDate(new Date())}
-        </Text>
+        {/* Ensure footer doesn't overlap content by adjusting page bottom padding */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>Aie Skyline Limited | Registered in England and Wales | Company No: 12592207</Text>
+          {/* Note: Using current date from runtime */}
+          <Text style={styles.footerText}>Generated on {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
+          <Text
+             style={styles.pageNumber}
+             render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+           />
+        </View>
       </Page>
     </Document>
   );
 };
 
 export default VehicleDocument;
-
-export { VehicleDocument }

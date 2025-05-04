@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { DriverPay, PaymentPeriod } from '../../types/driverPay';
+import { DriverPay } from '../../types/driverPay';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
@@ -56,10 +56,9 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !selectedPeriod) return;
-
+    
     const paymentAmount = parseFloat(formData.amount);
     const roundedRemainingAmount = selectedPeriod?.remainingAmount ? parseFloat(selectedPeriod.remainingAmount.toFixed(2)) : 0;
-
 
     if (paymentAmount <= 0 || paymentAmount > roundedRemainingAmount) {
       toast.error('Invalid payment amount');
@@ -175,9 +174,9 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           required
         >
-          <option value="cash">Cash</option>
-          <option value="bank_transfer">Bank Transfer</option>
-          <option value="cheque">Cheque</option>
+          <option key="cash" value="cash">Cash</option>
+          <option key="bank_transfer" value="bank_transfer">Bank Transfer</option>
+          <option key="cheque" value="cheque">Cheque</option>
         </select>
       </div>
 

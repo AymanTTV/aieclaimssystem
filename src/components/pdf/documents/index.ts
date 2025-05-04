@@ -8,13 +8,20 @@ export { default as MaintenanceBulkDocument } from './MaintenanceBulkDocument';
 export { default as RentalBulkDocument } from './RentalBulkDocument';
 export { default as AccidentBulkDocument } from './AccidentBulkDocument';
 export { default as InvoiceDocument } from './InvoiceDocument';
+export { default as InvoiceBulkDocument } from './InvoiceBulkDocument';
+
 export { default as FinanceDocument } from './FinanceDocument';
 export { default as ClaimDocument } from './ClaimDocument';
 export { default as PersonalInjuryDocument } from './PersonalInjuryDocument';
 export { default as VDFinanceDocument } from './VDFinanceDocument';
+export { default as VDFinanceBulkDocument } from './VDFinanceBulkDocument';
 export { default as VATRecordDocument } from './VATRecordDocument';
+export { default as VATRecordBulkDocument } from './VATRecordBulkDocument';
 export { default as PettyCashDocument } from './PettyCashDocument';
+export { default as PettyCashBulkDocument } from './PettyCashBulkDocument';
 export { default as DriverPayDocument } from './DriverPayDocument';
+export { default as DriverPayBulkDocument } from './DriverPayBulkDocument';
+
 export { default as CustomerDocument } from './CustomerDocument';
 
 

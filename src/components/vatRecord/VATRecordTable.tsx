@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { VATRecord } from '../../types/vatRecord';
-import { Eye, Edit, Trash2, FileText } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, CheckCircle } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -13,6 +13,7 @@ interface VATRecordTableProps {
   onDelete: (record: VATRecord) => void;
   onGenerateDocument: (record: VATRecord) => void;
   onViewDocument: (url: string) => void;
+  onUpdateStatus: (record: VATRecord) => void; // Add this prop
 }
 
 const VATRecordTable: React.FC<VATRecordTableProps> = ({
@@ -21,7 +22,8 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
   onEdit,
   onDelete,
   onGenerateDocument,
-  onViewDocument
+  onViewDocument,
+  onUpdateStatus
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -114,6 +116,19 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
                 <FileText className="h-4 w-4" />
               </button>
             </>
+          )}
+
+            {can('vatRecord', 'update') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdateStatus(row.original); // Call the update status handler
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="Update Status"
+            >
+              <CheckCircle className="h-4 w-4" />
+            </button>
           )}
           {can('vatRecord', 'delete') && (
             <button

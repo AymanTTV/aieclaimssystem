@@ -1,131 +1,112 @@
 import React from 'react';
-import { Search } from 'lucide-react';
+import { Account, Customer } from '../../types';
+import { FINANCE_CATEGORIES } from '../../utils/financeCategories';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface FinanceFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  startDate: Date | null;
-  endDate: Date | null;
-  setDateRange: (range: { start: Date | null; end: Date | null }) => void;
+  statusFilter: string;
   type: 'all' | 'income' | 'expense';
   onTypeChange: (type: 'all' | 'income' | 'expense') => void;
-  category: string;
-  onCategoryChange: (category: string) => void;
-  paymentStatus: 'all' | 'pending' | 'completed';
-  onPaymentStatusChange: (status: 'all' | 'pending' | 'completed') => void;
+  onStatusFilterChange: (status: string) => void;
+  categoryFilter: string;
+  onCategoryFilterChange: (category: string) => void;
+  dateRange: {
+    start: Date | null;
+    end: Date | null;
+  };
+  onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
+  accountFilter: string;
+  onAccountFilterChange: (account: string) => void;
+  accountFromFilter: string;
+  onAccountFromFilterChange: (account: string) => void;
+  accountToFilter: string;
+  onAccountToFilterChange: (account: string) => void;
+  accounts: Account[];
   owner: string;
   onOwnerChange: (owner: string) => void;
   owners: string[];
-  customers: { id: string; name: string }[];
-  selectedCustomerId: string;
-  onCustomerChange: (customerId: string) => void;
+  customers?: Customer[];
+  selectedCustomerId?: string;
+  onCustomerChange?: (customerId: string) => void;
+  accountSummary?: { income: number; expense: number; balance: number } | null;
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   searchQuery,
   onSearchChange,
-  startDate,
-  endDate,
-  setDateRange,
+  statusFilter,
   type,
   onTypeChange,
-  category,
-  onCategoryChange,
-  paymentStatus,
-  onPaymentStatusChange,
+  onStatusFilterChange,
+  categoryFilter,
+  onCategoryFilterChange,
+  dateRange,
+  onDateRangeChange,
+  accountFilter,
+  onAccountFilterChange,
+  accountFromFilter,
+  onAccountFromFilterChange,
+  accountToFilter,
+  onAccountToFilterChange,
+  accounts,
   owner,
   onOwnerChange,
   owners,
-  customers,
+  customers = [],
   selectedCustomerId,
   onCustomerChange,
+  accountSummary
 }) => {
-  const allCategories = {
-    income: [
-      'Rental',
-      'Maintenance Income',
-      'Refunded Income',
-      'Insurance Income',
-      'Advertising Income',
-      'VD Payment Income',
-      'WINDSCREEN REPLACEMENT',
-      'VD SPLIT JAY',
-      'VD SPLIT AIE',
-      'Road Tax Refund Income',
-      'Commission Income',
-      'Investment Income',
-      'Loan Repayments Income',
-      'AIE Claims VD Income',
-      'AIE Claims Hire Income',
-      'AIE Claims PI Income',
-      'AIE Claims Domestic Income',
-      'AIE Claims PH Income',
-      'Skyline Cabs Commission Income',
-    ],
-    expense: [
-      'Vehicle Insurance',
-      'Road Tax',
-      'VAT Referral',
-      'MOT',
-      'Fuel',
-      'WINDSCREEN REPLACEMENT',
-      'VD SPLIT JAY',
-      'VD SPLIT AIE',
-      'CLIENT VD PAID',
-      'CLEINT REFERRAL FEE',
-      'VD REPAIRE',
-      'Vehicle Finance (Loan or Lease Payments)',
-      'Maintenance',
-      'Registration Fee',
-      'NSL',
-      'Repair',
-      'Parts',
-      'Cleaning',
-      'Breakdown Cover',
-      'Tyres & Wheel Alignment',
-      'Toll Charges & Congestion Fees',
-      'Parking Fees (PCN)',
-      'Fleet Management Software',
-      'Telematics & Tracking System',
-      'Vehicle Depreciation',
-      'Replacement Vehicle Costs',
-      'Taxi Meter',
-      'CCTV Installation & Monitoring',
-      'Office Rent',
-      'Phone & Internet Bill',
-      'Office Stationery & Supplies',
-      'Staff Salaries & Wages',
-      'Staff Travel Expenses',
-      'IT & Software Expenses',
-      'Bank Fees & Transaction Charges',
-      'Loan Repayments & Interest',
-      'Advertising & Marketing',
-      'Legal & Compliance Fees',
-      'Training & Certification for Staff',
-      'Call Centre & Customer Support Costs',
-    ],
-  };
+  const { formatCurrency } = useFormattedDisplay();
+  
+  // Get all categories
+  const allCategories = React.useMemo(() => {
+    const categories: string[] = [];
 
-  const handleStartDateChange = (dateString: string) => {
-    const newStartDate = dateString ? new Date(dateString) : null;
-    setDateRange({ start: newStartDate, end: endDate });
-  };
+    // Process income categories
+    Object.entries(FINANCE_CATEGORIES.income).forEach(([_, value]) => {
+      if (Array.isArray(value)) {
+        categories.push(...value);
+      } else if (typeof value === 'object') {
+        Object.values(value).forEach(subValue => {
+          if (Array.isArray(subValue)) {
+            categories.push(...subValue);
+          }
+        });
+      }
+    });
 
-  const handleEndDateChange = (dateString: string) => {
-    const newEndDate = dateString ? new Date(dateString) : null;
-    setDateRange({ start: startDate, end: newEndDate });
-  };
+    // Process expense categories
+    Object.entries(FINANCE_CATEGORIES.expense).forEach(([_, value]) => {
+      if (Array.isArray(value)) {
+        categories.push(...value);
+      } else if (typeof value === 'object') {
+        Object.values(value).forEach(subValue => {
+          if (Array.isArray(subValue)) {
+            categories.push(...subValue);
+          }
+        });
+      }
+    });
+
+    return Array.from(new Set(categories)).sort();
+  }, []);
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Date Range */}
         <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={startDate ? startDate.toISOString().split('T')[0] : ''}
-            onChange={(e) => handleStartDateChange(e.target.value)}
+            value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
+            onChange={(e) => onDateRangeChange({
+              ...dateRange,
+              start: e.target.value ? new Date(e.target.value) : null
+            })}
             className="form-input mt-1"
           />
         </div>
@@ -134,14 +115,16 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={endDate ? endDate.toISOString().split('T')[0] : ''}
-            onChange={(e) => handleEndDateChange(e.target.value)}
-            min={startDate ? startDate.toISOString().split('T')[0] : undefined}
+            value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
+            onChange={(e) => onDateRangeChange({
+              ...dateRange,
+              end: e.target.value ? new Date(e.target.value) : null
+            })}
+            min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
             className="form-input mt-1"
           />
         </div>
 
-        {/* Type Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
@@ -155,39 +138,87 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Category Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
-          <select
-            value={category}
-            onChange={(e) => onCategoryChange(e.target.value)}
-            className="form-select mt-1"
-          >
-            <option value="all">All Categories</option>
-            {Object.entries(allCategories).map(([type, categories]) => (
-              <optgroup key={type} label={type === 'income' ? 'Income' : 'Expense'}>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </optgroup>
-            ))}
-            <option value="other">Other</option>
-          </select>
-        </div>
-
         {/* Payment Status Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Payment Status</label>
           <select
-            value={paymentStatus}
-            onChange={(e) => onPaymentStatusChange(e.target.value as typeof paymentStatus)}
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
             className="form-select mt-1"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
+            <option value="paid">Paid</option>
+            <option value="partially_paid">Partially Paid</option>
           </select>
         </div>
+
+        {/* Category Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => onCategoryFilterChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Categories</option>
+            {allCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Account Filter */}
+        <div>
+          {/* <label className="block text-sm font-medium text-gray-700">Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => onAccountFilterChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Accounts</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select> */}
+          {/* {accountSummary && (
+            <div className="mt-2 text-xs">
+              <div className="text-green-600">In: {formatCurrency(accountSummary.income)}</div>
+              <div className="text-red-600">Out: {formatCurrency(accountSummary.expense)}</div>
+              <div className="font-medium">Balance: {formatCurrency(accountSummary.balance)}</div>
+            </div>
+          )} */}
+        </div>
+        
+        {/* Account From Filter */}
+        {/* <div>
+          <label className="block text-sm font-medium text-gray-700">Account From</label>
+          <select
+            value={accountFromFilter}
+            onChange={(e) => onAccountFromFilterChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Source Accounts</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div> */}
+        
+        {/* Account To Filter */}
+        {/* <div>
+          <label className="block text-sm font-medium text-gray-700">Account To</label>
+          <select
+            value={accountToFilter}
+            onChange={(e) => onAccountToFilterChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Destination Accounts</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div> */}
 
         {/* Owner Filter */}
         <div>
@@ -204,22 +235,25 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             ))}
           </select>
         </div>
+
         {/* Customer Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Customer</label>
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => onCustomerChange(e.target.value)}
-            className="form-select mt-1"
-          >
-            <option value="">All Customers</option>
-            {customers && customers.map((customer) => ( // Check if customers exists before mapping.
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {onCustomerChange && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Customer</label>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => onCustomerChange(e.target.value)}
+              className="form-select mt-1"
+            >
+              <option value="">All Customers</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );

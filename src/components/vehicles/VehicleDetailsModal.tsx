@@ -15,6 +15,7 @@ interface VehicleDetailsModalProps {
 
 const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onClose }) => {
   const [createdByName, setCreatedByName] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
@@ -90,7 +91,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
               <StatusBadge status={vehicle.status} />
             </div>
           </div>
-          <DetailItem label="Mileage" value={`${vehicle.mileage.toLocaleString()} Mi`} />
+          <DetailItem label="Current Mileage" value={vehicle.mileage.toLocaleString()} />
+          <DetailItem label="Next Service Mileage" value={(vehicle.mileage + 25000).toLocaleString()} />
         </div>
 
         {/* Document Expiry Dates */}
@@ -159,6 +161,102 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           </div>
         </div>
 
+        {/* Document Images */}
+        {vehicle.documents && (
+          <div className="border-b border-gray-200 pb-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Document Images</h3>
+            
+            {/* NSL Images */}
+            {vehicle.documents.nslImage && vehicle.documents.nslImage.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-700 mb-2">NSL Documents</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {vehicle.documents.nslImage.map((image, index) => (
+                    <img 
+                      key={`nsl-${index}`}
+                      src={image} 
+                      alt={`NSL document ${index + 1}`}
+                      className="h-24 w-full object-cover rounded-md cursor-pointer"
+                      onClick={() => setSelectedImage(image)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* MOT Images */}
+            {vehicle.documents.motImage && vehicle.documents.motImage.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-700 mb-2">MOT Documents</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {vehicle.documents.motImage.map((image, index) => (
+                    <img 
+                      key={`mot-${index}`}
+                      src={image} 
+                      alt={`MOT document ${index + 1}`}
+                      className="h-24 w-full object-cover rounded-md cursor-pointer"
+                      onClick={() => setSelectedImage(image)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* V5 Images */}
+            {vehicle.documents.v5Image && vehicle.documents.v5Image.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-700 mb-2">V5 Documents</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {vehicle.documents.v5Image.map((image, index) => (
+                    <img 
+                      key={`v5-${index}`}
+                      src={image} 
+                      alt={`V5 document ${index + 1}`}
+                      className="h-24 w-full object-cover rounded-md cursor-pointer"
+                      onClick={() => setSelectedImage(image)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+{vehicle.documents.MeterCertificateImage && vehicle.documents.MeterCertificateImage.length > 0 && (
+      <div className="mb-4">
+        <h4 className="text-md font-medium text-gray-700 mb-2">Meter Certificate Documents</h4>
+        <div className="grid grid-cols-3 gap-2">
+          {vehicle.documents.MeterCertificateImage.map((image, index) => (
+            <img 
+              key={`meter-certificate-${index}`}
+              src={image} 
+              alt={`Meter Certificate document ${index + 1}`}
+              className="h-24 w-full object-cover rounded-md cursor-pointer"
+              onClick={() => setSelectedImage(image)}
+            />
+          ))}
+        </div>
+      </div>
+    )}
+            
+            {/* Insurance Images */}
+            {vehicle.documents.insuranceImage && vehicle.documents.insuranceImage.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-700 mb-2">Insurance Documents</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {vehicle.documents.insuranceImage.map((image, index) => (
+                    <img 
+                      key={`insurance-${index}`}
+                      src={image} 
+                      alt={`Insurance document ${index + 1}`}
+                      className="h-24 w-full object-cover rounded-md cursor-pointer"
+                      onClick={() => setSelectedImage(image)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Sale Information (if sold) */}
         {vehicle.status === 'sold' && (
           <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
@@ -187,6 +285,19 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           />
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75" onClick={() => setSelectedImage(null)}>
+          <div className="max-w-4xl max-h-screen p-4">
+            <img 
+              src={selectedImage} 
+              alt="Document preview" 
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };

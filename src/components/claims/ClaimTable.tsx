@@ -80,28 +80,28 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
         </div>
       ),
     },
-    {
-      header: 'Generated Documents',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          {row.original.documents && Object.entries(row.original.documents).map(([key, url]) => (
-            url && (
-              <button
-                key={key}
-                onClick={() => window.open(url, '_blank')}
-                className="flex items-center text-sm text-primary hover:text-primary-600"
-              >
-                <FileText className="h-4 w-4 mr-1" />
-                <span>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-              </button>
-            )
-          ))}
-          {(!row.original.documents || Object.keys(row.original.documents).length === 0) && (
-            <span className="text-sm text-gray-500">No documents generated</span>
-          )}
-        </div>
-      ),
-    },
+    // {
+    //   header: 'Generated Documents',
+    //   cell: ({ row }) => (
+    //     <div className="space-y-1">
+    //       {row.original.documents && Object.entries(row.original.documents).map(([key, url]) => (
+    //         url && (
+    //           <button
+    //             key={key}
+    //             onClick={() => window.open(url, '_blank')}
+    //             className="flex items-center text-sm text-primary hover:text-primary-600"
+    //           >
+    //             <FileText className="h-4 w-4 mr-1" />
+    //             <span>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+    //           </button>
+    //         )
+    //       ))}
+    //       {(!row.original.documents || Object.keys(row.original.documents).length === 0) && (
+    //         <span className="text-sm text-gray-500">No documents generated</span>
+    //       )}
+    //     </div>
+    //   ),
+    // },
     {
       header: 'Actions',
       cell: ({ row }) => (

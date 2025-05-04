@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { calculateCosts } from '../../utils/maintenanceCostUtils';
-import { createMaintenanceTransaction } from '../../utils/financeTransactions';
-
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 
 import FormField from '../ui/FormField';
@@ -35,7 +33,10 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
   const [paidAmount, setPaidAmount] = useState(log.paidAmount || 0);
   const [paymentMethod, setPaymentMethod] = useState(log.paymentMethod || 'cash');
   const [paymentReference, setPaymentReference] = useState(log.paymentReference || '');
+  const [existingTransaction, setExistingTransaction] = useState<any | null>(null);
+  const [amountToPay, setAmountToPay] = useState('0');
   const { formatCurrency } = useFormattedDisplay();
+  
   const [formData, setFormData] = useState({
     type: log.type,
     description: log.description,
@@ -48,78 +49,152 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
     nextServiceMileage: log.nextServiceMileage,
     nextServiceDate: formatDateForInput(log.nextServiceDate) || formatDateForInput(addYears(log.date, 1)),
     notes: log.notes || '',
-    status: log.status,
+    status: log.status
   });
+
+  // Fetch existing transaction when component mounts
+  useEffect(() => {
+    const fetchExistingTransaction = async () => {
+      try {
+        const transactionsRef = collection(db, 'transactions');
+        const q = query(
+          transactionsRef, 
+          where('referenceId', '==', log.id),
+          where('category', '==', 'maintenance')
+        );
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          setExistingTransaction({
+            id: snapshot.docs[0].id,
+            ...snapshot.docs[0].data()
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching existing transaction:', error);
+      }
+    };
+    
+    fetchExistingTransaction();
+  }, [log.id]);
 
   const costs = calculateCosts(parts, formData.laborHours, formData.laborRate, includeVATOnLabor);
   const remainingAmount = costs.totalAmount - paidAmount;
   const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' : 
                        paidAmount > 0 ? 'partially_paid' : 'unpaid';
 
+  const handlePaidAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      value = Math.round(value * 100) / 100; // Ensures only two decimal places
+      setPaidAmount(value);
+    } else {
+      setPaidAmount(0);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) return;
-  setLoading(true);
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
 
-  try {
-    const docRef = doc(db, 'maintenanceLogs', log.id);
-    const docSnap = await getDoc(docRef);
+    try {
+      const docRef = doc(db, 'maintenanceLogs', log.id);
+      const docSnap = await getDoc(docRef);
 
-    if (!docSnap.exists()) {
-      throw new Error('Maintenance log not found');
-    }
+      if (!docSnap.exists()) {
+        throw new Error('Maintenance log not found');
+      }
 
-    const selectedVehicle = vehicles.find(v => v.id === log.vehicleId);
-    if (!selectedVehicle) throw new Error('Vehicle not found');
+      const selectedVehicle = vehicles.find(v => v.id === log.vehicleId);
+      if (!selectedVehicle) throw new Error('Vehicle not found');
 
-    // Calculate new payment amounts
-    const amountToPay = parseFloat(formData.amountToPay || '0') || 0;
-    const totalPaidAmount = log.paidAmount + amountToPay;
-    const remainingAmount = costs.totalAmount - totalPaidAmount;
-    const paymentStatus = totalPaidAmount >= costs.totalAmount ? 'paid' : 
-                         totalPaidAmount > 0 ? 'partially_paid' : 'unpaid';
+      // Calculate new payment amounts
+      const additionalPayment = parseFloat(amountToPay) || 0;
+      const totalPaidAmount = paidAmount;
+      const remainingAmount = costs.totalAmount - totalPaidAmount;
+      const paymentStatus = totalPaidAmount >= costs.totalAmount ? 'paid' : 
+                           totalPaidAmount > 0 ? 'partially_paid' : 'unpaid';
 
-    // Update maintenance log
-    const maintenanceData = {
-      ...formData,
-      paidAmount: totalPaidAmount,
-      remainingAmount,
-      paymentStatus,
-      updatedAt: new Date(),
-      updatedBy: user.id
-    };
-
-    await updateDoc(docRef, maintenanceData);
-
-    // Create finance transaction for new payment if amount is paid
-    if (amountToPay > 0) {
-      await createMaintenanceTransaction(
-        {
-          id: log.id,
-          ...maintenanceData,
-          vehicleId: log.vehicleId,
-          type: log.type,
-          cost: costs.totalAmount
+      // Update maintenance log
+      const maintenanceData = {
+        ...formData,
+        type: formData.type,
+        description: formData.description,
+        serviceProvider: formData.serviceProvider,
+        location: formData.location,
+        date: new Date(formData.date),
+        currentMileage: formData.currentMileage,
+        nextServiceMileage: formData.nextServiceMileage,
+        nextServiceDate: new Date(formData.nextServiceDate || addYears(new Date(formData.date), 1)),
+        parts: parts.map(({ includeVAT, ...part }) => part),
+        laborHours: formData.laborHours,
+        laborRate: formData.laborRate,
+        laborCost: costs.laborTotal,
+        cost: costs.totalAmount,
+        paidAmount: totalPaidAmount,
+        remainingAmount,
+        paymentStatus,
+        paymentMethod,
+        paymentReference,
+        status: formData.status,
+        notes: formData.notes,
+        vatDetails: {
+          partsVAT: parts.map(part => ({
+            partName: part.name,
+            includeVAT: part.includeVAT
+          })),
+          laborVAT: includeVATOnLabor
         },
-        selectedVehicle,
-        amountToPay,
-        formData.paymentMethod,
-        formData.paymentReference
-      );
+        updatedAt: new Date(),
+        updatedBy: user.id
+      };
+
+      await updateDoc(docRef, maintenanceData);
+
+      // Handle finance transaction
+      if (additionalPayment > 0) {
+        if (existingTransaction) {
+          // Update existing transaction
+          await updateDoc(doc(db, 'transactions', existingTransaction.id), {
+            amount: existingTransaction.amount + additionalPayment,
+            description: `Updated maintenance payment for ${formData.description}`,
+            paymentMethod,
+            paymentReference,
+            paymentStatus,
+            updatedAt: new Date()
+          });
+          
+          toast.success('Maintenance and transaction updated successfully');
+        } else {
+          // Create new transaction
+          await createFinanceTransaction({
+            type: 'expense',
+            category: 'maintenance',
+            amount: additionalPayment,
+            description: `Maintenance payment for ${formData.description}`,
+            referenceId: log.id,
+            vehicleId: log.vehicleId,
+            vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+            paymentMethod,
+            paymentReference,
+            paymentStatus
+          });
+          
+          toast.success('Maintenance updated and transaction created successfully');
+        }
+      } else {
+        toast.success('Maintenance updated successfully');
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Error updating maintenance log:', error);
+      toast.error('Failed to update maintenance log');
+    } finally {
+      setLoading(false);
     }
-
-    toast.success('Maintenance log updated successfully');
-    onClose();
-  } catch (error) {
-    console.error('Error updating maintenance log:', error);
-    toast.error('Failed to update maintenance log');
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -339,50 +414,57 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         </div>
       </div>
 
-      
+      {/* Payment Section */}
+      <div className="border-t pt-4 space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            type="number"
+            label="Current Paid Amount"
+            value={paidAmount}
+            onChange={handlePaidAmountChange}
+            min="0"
+            max={costs.totalAmount}
+            step="0.01"
+          />
 
-        {/* Payment Section */}
-<div className="border-t pt-4 space-y-4">
-  <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
-  
-  <div className="grid grid-cols-2 gap-4">
-    <FormField
-      type="number"
-      label="Amount Paid"
-      value={paidAmount}
-      onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-      min="0"
-      max={costs.totalAmount}
-      step="0.01"
-    />
+          <FormField
+            type="number"
+            label="Additional Payment"
+            value={amountToPay}
+            onChange={(e) => setAmountToPay(e.target.value)}
+            min="0"
+            max={costs.totalAmount - paidAmount}
+            step="0.01"
+          />
 
-    <div>
-      <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-      <select
-        value={paymentMethod}
-        onChange={(e) => setPaymentMethod(e.target.value)}
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-      >
-        <option value="cash">Cash</option>
-        <option value="card">Card</option>
-        <option value="bank_transfer">Bank Transfer</option>
-        <option value="cheque">Cheque</option>
-      </select>
-    </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          </div>
 
-    <div className="col-span-2">
-      <FormField
-        label="Payment Reference"
-        value={paymentReference}
-        onChange={(e) => setPaymentReference(e.target.value)}
-        placeholder="Enter payment reference or transaction ID"
-      />
-    </div>
-  </div>
+          <div className="col-span-2">
+            <FormField
+              label="Payment Reference"
+              value={paymentReference}
+              onChange={(e) => setPaymentReference(e.target.value)}
+              placeholder="Enter payment reference or transaction ID"
+            />
+          </div>
+        </div>
 
-  {/* Cost Summary */}
-{/* Cost Summary */}
-<div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        {/* Cost Summary */}
+        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           {/* NET Amount */}
           <div className="flex justify-between text-sm font-medium">
             <span>NET Amount:</span>
@@ -419,8 +501,7 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
             </div>
           </div>
         </div>
-
-</div>
+      </div>
 
       <div className="flex justify-end space-x-3">
         <button
@@ -443,4 +524,3 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
 };
 
 export default MaintenanceEditModal;
-

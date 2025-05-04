@@ -15,7 +15,7 @@ import AccidentTable from '../components/accidents/AccidentClaimTable';
 import AccidentClaimForm from '../components/accidents/AccidentClaimForm';
 import AccidentClaimView from '../components/accidents/AccidentClaimView';
 import AccidentClaimEdit from '../components/accidents/AccidentClaimEdit';
-import AccidentClaimModal from '../components/accidents/AccidentClaimModal';
+
 import Modal from '../components/ui/Modal';
 import { useVehicles } from '../hooks/useVehicles';
 import { Accident } from '../types';

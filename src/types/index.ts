@@ -8,3 +8,4 @@ export * from './claim';
 export * from './finance';
 export * from './customer';
 export * from './roles';
+export * from './share';

@@ -14,6 +14,14 @@ export interface VehicleOwner {
   isDefault?: boolean;
 }
 
+export interface VehicleDocuments {
+  nslImage?: string[];
+  MeterCertificateImage?: string[];
+  motImage?: string[];
+  v5Image?: string[];
+  insuranceImage?: string[];
+}
+
 export interface Vehicle {
   id: string;
   vin: string;
@@ -40,13 +48,15 @@ export interface Vehicle {
   weeklyRentalPrice: number;
   dailyRentalPrice: number;
   claimRentalPrice: number;
+  documents?: VehicleDocuments;
+  documentUrl?: string;
 }
 
 // Default rental prices as whole numbers
 export const DEFAULT_RENTAL_PRICES = {
-  weekly: 360,
-  daily: 60,
-  claim: 340
+  weekly: 360,   // £360 per week
+  daily: 60,     // £60 per day
+  claim: 340     // £340 per day for claim rentals
 } as const;
 
 // Default owner address

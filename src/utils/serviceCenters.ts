@@ -1,58 +1,112 @@
-import { collection, query, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore'; 
+import { collection, query, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
+import toast from 'react-hot-toast';
 
-interface ServiceCenter {
+export interface ServiceCenter {
+  id?: string;
   name: string;
   address: string;
   postcode: string;
   phone: string;
+  email: string;
   hourlyRate: number;
   specialties: string[];
 }
 
 let cachedServiceCenters: ServiceCenter[] = [];
 
-// Function to fetch service centers from Firestore
 export const fetchServiceCenters = async (): Promise<ServiceCenter[]> => {
-  const q = query(collection(db, 'serviceCenters'));
-  const snapshot = await getDocs(q);
-  const centers = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  } as ServiceCenter));
-  
-  // Update cache
-  cachedServiceCenters = centers;
-  return centers;
+  try {
+    const q = query(collection(db, 'serviceCenters'));
+    const snapshot = await getDocs(q);
+    const centers = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as ServiceCenter));
+    
+    cachedServiceCenters = centers;
+    return centers;
+  } catch (error) {
+    console.error('Error fetching service centers:', error);
+    toast.error('Failed to load service centers');
+    return [];
+  }
 };
 
-
-
-// Function to add a new service center
 export const addServiceCenter = async (center: Omit<ServiceCenter, 'id'>): Promise<ServiceCenter> => {
-  const docRef = await addDoc(collection(db, 'serviceCenters'), {
-    ...center,
-    createdAt: new Date()
-  });
-  
-  const newCenter = {
-    id: docRef.id,
-    ...center
-  };
-  
-  // Update cache
-  cachedServiceCenters = [...cachedServiceCenters, newCenter];
-  
-  return newCenter;
+  try {
+    const docRef = await addDoc(collection(db, 'serviceCenters'), {
+      ...center,
+      createdAt: new Date()
+    });
+    
+    const newCenter = {
+      id: docRef.id,
+      ...center
+    };
+    
+    cachedServiceCenters = [...cachedServiceCenters, newCenter];
+    toast.success('Service center added successfully');
+    return newCenter;
+  } catch (error) {
+    console.error('Error adding service center:', error);
+    toast.error('Failed to add service center');
+    throw error;
+  }
+};
+
+export const updateServiceCenter = async (id: string, updates: Partial<ServiceCenter>): Promise<void> => {
+  try {
+    const centerRef = doc(db, 'serviceCenters', id);
+    await updateDoc(centerRef, {
+      ...updates,
+      updatedAt: new Date()
+    });
+
+    // Update cache
+    cachedServiceCenters = cachedServiceCenters.map(center => 
+      center.id === id ? { ...center, ...updates } : center
+    );
+    
+    toast.success('Service center updated successfully');
+  } catch (error) {
+    console.error('Error updating service center:', error);
+    toast.error('Failed to update service center');
+    throw error;
+  }
+};
+
+export const deleteServiceCenter = async (centerId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'serviceCenters', centerId));
+    
+    cachedServiceCenters = cachedServiceCenters.filter(center => center.id !== centerId);
+    toast.success('Service center deleted successfully');
+  } catch (error) {
+    console.error('Error deleting service center:', error);
+    toast.error('Failed to delete service center');
+    throw error;
+  }
+};
+
+export const searchServiceCenters = (query: string): ServiceCenter[] => {
+  const searchTerm = query.toLowerCase();
+  return cachedServiceCenters.filter(center => 
+    center.name.toLowerCase().includes(searchTerm) ||
+    center.address.toLowerCase().includes(searchTerm) ||
+    center.postcode.toLowerCase().includes(searchTerm) ||
+    center.email.toLowerCase().includes(searchTerm) ||
+    center.specialties.some(specialty => specialty.toLowerCase().includes(searchTerm))
+  );
 };
 
 export const SERVICE_CENTERS: ServiceCenter[] = [
-  // LEVC Service Centers
   {
     name: "LEVC London Central",
     address: "8 Brewery Road, London",
     postcode: "N7 9NH",
     phone: "020 7700 0888",
+    email: "service.central@levc.com",
     hourlyRate: 85,
     specialties: ["LEVC", "TX4", "Electric Taxi"]
   },
@@ -61,15 +115,16 @@ export const SERVICE_CENTERS: ServiceCenter[] = [
     address: "Unit 4, Premier Park Road, London",
     postcode: "NW10 7NZ",
     phone: "020 8838 3988",
+    email: "service.parkroyal@levc.com",
     hourlyRate: 82,
     specialties: ["LEVC", "TX4", "Electric Taxi"]
   },
-  // TX4 Specialists
   {
     name: "KPM Taxi Engineering",
     address: "Unit 5, Thames Road Industrial Estate, London",
     postcode: "SE28 0RJ",
     phone: "020 8311 8250",
+    email: "service@kpmtaxi.co.uk",
     hourlyRate: 75,
     specialties: ["TX4", "London Taxi"]
   },
@@ -78,15 +133,16 @@ export const SERVICE_CENTERS: ServiceCenter[] = [
     address: "Unit 7, Waterworks Road, London",
     postcode: "E16 2AT",
     phone: "020 7474 5050",
+    email: "service@londontaxigroup.co.uk",
     hourlyRate: 78,
     specialties: ["TX4", "London Taxi", "Mercedes Vito"]
   },
-  // Mercedes Vito Specialists
   {
     name: "Mercedes-Benz Taxi Centre",
     address: "Western Avenue, London",
     postcode: "W3 0RZ",
     phone: "020 8749 3311",
+    email: "taxi.service@mercedes-benz.co.uk",
     hourlyRate: 95,
     specialties: ["Mercedes Vito", "London Taxi"]
   },
@@ -95,40 +151,17 @@ export const SERVICE_CENTERS: ServiceCenter[] = [
     address: "Unit 2, Advent Way, London",
     postcode: "N18 3AF",
     phone: "020 8803 4411",
+    email: "service@vitotaxi.co.uk",
     hourlyRate: 88,
     specialties: ["Mercedes Vito"]
   },
-  // General Taxi Services
   {
     name: "London Taxi Maintenance",
     address: "Unit 10, River Road, Barking",
     postcode: "IG11 0DS",
     phone: "020 8594 1111",
+    email: "service@londontaximaintenance.co.uk",
     hourlyRate: 72,
     specialties: ["TX4", "LEVC", "Mercedes Vito", "London Taxi"]
   }
 ];
-
-// Search function now uses cached data
-export const searchServiceCenters = (query: string): ServiceCenter[] => {
-  const searchTerm = query.toLowerCase();
-  return cachedServiceCenters.filter(center => 
-    center.name.toLowerCase().includes(searchTerm) ||
-    center.address.toLowerCase().includes(searchTerm) ||
-    center.postcode.toLowerCase().includes(searchTerm) ||
-    center.specialties.some(specialty => specialty.toLowerCase().includes(searchTerm))
-  );
-};
-
-// Add this function
-export const deleteServiceCenter = async (centerId: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, 'serviceCenters', centerId));
-    
-    // Update cache
-    cachedServiceCenters = cachedServiceCenters.filter(center => center.id !== centerId);
-  } catch (error) {
-    console.error('Error deleting service center:', error);
-    throw error;
-  }
-};

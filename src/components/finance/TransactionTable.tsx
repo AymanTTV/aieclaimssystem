@@ -1,45 +1,48 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { Transaction, Vehicle, Customer } from '../../types';
-import { Eye, Edit, Trash2, FileText } from 'lucide-react';
+import { Transaction, Vehicle, Customer, Account } from '../../types';
+import { Eye, Edit, Trash2, FileText, Share2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface TransactionTableProps {
   transactions: Transaction[];
   vehicles: Vehicle[];
   customers: Customer[];
+  accounts: Account[];
   onView: (transaction: Transaction) => void;
   onEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
   onGenerateDocument: (transaction: Transaction) => void;
   onViewDocument: (url: string) => void;
+  onAssignAccount: (transaction: Transaction) => void;
+  selectedCustomerId?: string;
+  onCustomerChange?: (customerId: string) => void;
 }
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions,
-  vehicles = [],
-  customers = [],
+  vehicles,
+  customers,
+  accounts,
   onView,
   onEdit,
   onDelete,
   onGenerateDocument,
-  onViewDocument
+  onViewDocument,
+  onAssignAccount,
+  selectedCustomerId,
+  onCustomerChange
 }) => {
   const { can } = usePermissions();
-
-  // Sort transactions by date in descending order
-  const sortedTransactions = [...transactions].sort((a, b) => 
-    b.date.getTime() - a.date.getTime()
-  );
+  const { formatCurrency } = useFormattedDisplay();
 
   const columns = [
     {
       header: 'Date',
       cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
-      sortable: true,
-      sortDescFirst: true
     },
     {
       header: 'Type & Status',
@@ -51,40 +54,20 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         </div>
       ),
     },
-    {
-      header: 'Customer',
-      cell: ({ row }) => {
-        if (row.original.customerName) {
-          return <div className="font-medium">{row.original.customerName}</div>;
-        }
-        const customer = customers.find(c => c.id === row.original.customerId);
-        return customer ? (
-          <div>
-            <div className="font-medium">{customer.name}</div>
-            <div className="text-sm text-gray-500">{customer.mobile}</div>
-          </div>
-        ) : null;
-      },
-    },
-    {
-      header: 'Vehicle',
-      cell: ({ row }) => {
-        if (!row.original.vehicleId) return null;
-        const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
-        if (!vehicle) return null;
-
-        return (
-          <div>
-            <div className="font-medium">
-              {vehicle.make} {vehicle.model}
-            </div>
-            <div className="text-sm text-gray-500">
-              {vehicle.registrationNumber}
-            </div>
-          </div>
-        );
-      },
-    },
+    // {
+    //   header: 'Accounts',
+    //   cell: ({ row }) => {
+    //     const fromAccount = accounts.find(a => a.id === row.original.accountFrom);
+    //     const toAccount = accounts.find(a => a.id === row.original.accountTo);
+        
+    //     return (
+    //       <div>
+    //         {fromAccount && <div className="font-medium">From: {fromAccount.name}</div>}
+    //         {toAccount && <div className="text-sm text-gray-500">To: {toAccount.name}</div>}
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       header: 'Category',
       accessorKey: 'category',
@@ -93,10 +76,57 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       header: 'Amount',
       cell: ({ row }) => (
         <span className={row.original.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-          £{row.original.amount.toFixed(2)}
+          {formatCurrency(row.original.amount)}
         </span>
       ),
-      sortable: true
+    },
+    {
+      header: 'Customer',
+      cell: ({ row }) => {
+        // First check for manually entered customer name
+        if (row.original.customerName) {
+          return <div>{row.original.customerName}</div>;
+        }
+        
+        // Then check for customer from the customers array
+        if (row.original.customerId) {
+          const customer = customers.find(c => c.id === row.original.customerId);
+          if (customer) {
+            return (
+              <div>
+                <div className="font-medium">{customer.name}</div>
+                <div className="text-sm text-gray-500">{customer.mobile}</div>
+              </div>
+            );
+          }
+        }
+        
+        return <div className="text-gray-400">N/A</div>;
+      },
+    },
+    {
+      header: 'Vehicle',
+      cell: ({ row }) => {
+        // First check for vehicle name
+        if (row.original.vehicleName) {
+          return <div>{row.original.vehicleName}</div>;
+        }
+        
+        // Then check for vehicle from the vehicles array
+        if (row.original.vehicleId) {
+          const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
+          if (vehicle) {
+            return (
+              <div>
+                <div className="font-medium">{vehicle.make} {vehicle.model}</div>
+                <div className="text-sm text-gray-500">{vehicle.registrationNumber}</div>
+              </div>
+            );
+          }
+        }
+        
+        return <div className="text-gray-400">N/A</div>;
+      },
     },
     {
       header: 'Actions',
@@ -136,6 +166,16 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
               >
                 <FileText className="h-4 w-4" />
               </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignAccount(row.original);
+                }}
+                className="text-purple-600 hover:text-purple-800"
+                title="Assign Account"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
             </>
           )}
           {can('finance', 'delete') && (
@@ -169,11 +209,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
   return (
     <DataTable
-      data={sortedTransactions}
+      data={transactions}
       columns={columns}
       onRowClick={(transaction) => can('finance', 'view') && onView(transaction)}
-      defaultSortColumn="date"
-      defaultSortDirection="desc"
     />
   );
 };

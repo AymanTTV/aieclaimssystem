@@ -99,6 +99,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               >
                 <Edit className="h-4 w-4" />
               </button>
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation();

@@ -12,13 +12,14 @@ export interface InvoicePayment {
 
 export interface Transaction {
   id: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'transfer';
   category: string;
   amount: number;
   description: string;
   date: Date;
   referenceId?: string;
   vehicleId?: string;
+  vehicleName?: string;
   vehicleOwner?: {
     name: string;
     isDefault: boolean;
@@ -30,6 +31,28 @@ export interface Transaction {
   paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'cheque';
   paymentReference?: string;
   status?: 'pending' | 'completed' | 'cancelled';
+  createdAt: Date;
+  createdBy: string;
+  accountFrom?: string;
+  accountTo?: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  balance: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TransferHistory {
+  id: string;
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+  description?: string;
+  date: Date;
+  createdBy: string;
   createdAt: Date;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
@@ -12,17 +12,21 @@ import RentalDeleteModal from '../components/rentals/RentalDeleteModal';
 import RentalPaymentModal from '../components/rentals/RentalPaymentModal';
 import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
 import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
+import ReturnConditionForm from '../components/rentals/ReturnConditionForm.tsx'
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Car, RotateCw, FileText } from 'lucide-react';
+import { Plus, Download, Car, RotateCw } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import RentalSummaryCards from '../components/rentals/RentalSummaryCards';
 
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import { useVehiclesContext } from '../utils/VehicleProvider';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, FileText } from 'lucide-react';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
 
@@ -31,18 +35,14 @@ import { RentalDocument, RentalBulkDocument } from '../components/pdf/documents'
 import { saveAs } from 'file-saver';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
 
-
 const Rentals = () => {
-  // const { vehicles, loading } = useVehiclesContext();
   const { rentals, loading } = useRentals();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-
   const { customers, loading: customersLoading } = useCustomers();
-   const { can } = usePermissions();
+  const { can } = usePermissions();
   const { user } = useAuth();
-  const { companyDetails } = useCompanyDetails();
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
-
+  const { companyDetails } = useCompanyDetails();
   const {
     searchQuery,
     setSearchQuery,
@@ -99,34 +99,14 @@ const Rentals = () => {
     }
   };
 
-  
-  
-  const handleGenerateDocument = async (rental: Rental) => {
-    try {
-      const vehicle = vehicles.find(v => v.id === rental.vehicleId);
-      const customer = customers.find(c => c.id === rental.customerId);
-
-      await generateAndUploadDocument(
-        RentalDocument,
-        { ...rental, vehicle, customer },
-        'rentals',
-        rental.id,
-        'rentals'
-      );
-
-      toast.success('Document generated successfully');
-    } catch (error) {
-      console.error('Error generating document:', error);
-      toast.error('Failed to generate document');
-    }
-  };
-  
   const handleGenerateBulkDocument = async () => {
     try {
       const pdfBlob = await generateBulkDocuments(
         RentalBulkDocument,
         filteredRentals,
-        companyDetails
+        companyDetails,
+        vehicles,
+        customers
       );
 
       saveAs(pdfBlob, 'rental_summary.pdf');
@@ -137,7 +117,7 @@ const Rentals = () => {
     }
   };
 
-if (loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -147,10 +127,12 @@ if (loading) {
 
   return (
     <div className="space-y-6">
+      <RentalSummaryCards rentals={filteredRentals} />
+
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
         <div className="flex space-x-2">
-        <button
+          <button
             onClick={handleGenerateBulkDocument}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
@@ -158,16 +140,16 @@ if (loading) {
             Generate PDF
           </button>
 
-
-         {user?.role === 'manager' && (
-  <button
-    onClick={handleExport}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}  <button
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
+          <button
             onClick={() => setShowAvailableVehicles(true)}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
@@ -175,27 +157,24 @@ if (loading) {
             Available Vehicles
           </button>
           <button
-        onClick={syncVehicleStatuses}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <RefreshCw className="h-5 w-5 mr-2" />
-        Sync Statuses
-      </button>
+            onClick={syncVehicleStatuses}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <RefreshCw className="h-5 w-5 mr-2" />
+            Sync Statuses
+          </button>
 
-
-          
-        
           {can('rentals', 'create') && (
-      <>
-        <button
-          onClick={() => setShowForm(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Schedule Rental
-        </button>
-      </>
-    )}
+            <>
+              <button
+                onClick={() => setShowForm(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Schedule Rental
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -211,7 +190,7 @@ if (loading) {
         vehicles={vehicles}
       />
 
-     <RentalTable
+      <RentalTable
         rentals={filteredRentals}
         vehicles={vehicles}
         customers={customers}
@@ -239,7 +218,6 @@ if (loading) {
         )}
       </Modal>
 
-      {/* Modals */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -314,11 +292,30 @@ if (loading) {
       <Modal
         isOpen={!!completingRental}
         onClose={() => setCompletingRental(null)}
-        title="Complete Rental"
+        title="Vehicle Return Condition"
       >
         {completingRental && (
-          <RentalCompleteModal
-            rental={completingRental}
+          <ReturnConditionForm
+            checkOutCondition={completingRental.checkOutCondition}
+            onSubmit={async (condition) => {
+              try {
+                const newTotalCost = completingRental.cost + condition.totalCharges;
+                const newRemainingAmount = newTotalCost - completingRental.paidAmount;
+
+                await updateDoc(doc(db, 'rentals', completingRental.id), {
+                  returnCondition: condition,
+                  cost: newTotalCost,
+                  remainingAmount: newRemainingAmount,
+                  updatedAt: new Date()
+                });
+
+                toast.success('Return condition saved successfully');
+                setCompletingRental(null);
+              } catch (error) {
+                console.error('Error saving return condition:', error);
+                toast.error('Failed to save return condition');
+              }
+            }}
             onClose={() => setCompletingRental(null)}
           />
         )}

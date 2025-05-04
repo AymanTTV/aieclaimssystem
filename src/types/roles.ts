@@ -20,9 +20,11 @@ export interface RolePermissions {
   finance: Permission;
   invoices: Permission;
   pettyCash: Permission;
+  share: Permission;
   driverPay: Permission; // Add this line
   vdFinance: Permission; // Add this line
   users: Permission;
+  vatRecord: Permission;
   customers: Permission;
   company: Permission;
 }
@@ -35,6 +37,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     rentals: { view: true, create: true, update: true, delete: true },
     accidents: { view: true, create: true, update: true, delete: true },
     claims: { view: true, create: true, update: true, delete: true },
+    share: { view: true, create: true, update: true, delete: true },
     personalInjury: { view: true, create: true, update: true, delete: true },
     finance: { view: true, create: true, update: true, delete: true },
     invoices: { view: true, create: true, update: true, delete: true },

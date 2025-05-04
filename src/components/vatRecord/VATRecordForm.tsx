@@ -32,7 +32,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
   );
 
   const { formatCurrency } = useFormattedDisplay();
-
+  const [vatRecievedDisplay, setVatRecievedDisplay] = useState<number | undefined>(record?.vatReceived);
   const [formData, setFormData] = useState({
     receiptNo: record?.receiptNo || '',
     accountant: record?.accountant || '',
@@ -42,7 +42,9 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     customerId: record?.customerId || '',
     status: record?.status || 'awaiting',
     notes: record?.notes || '',
-    date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+    date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    vatReceived: record?.vatReceived !== undefined ? record.vatReceived : 0,
+
   });
 
   // Calculate totals
@@ -99,7 +101,8 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         descriptions,
         ...totals,
         date: new Date(formData.date),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        vatReceived: formData.vatReceived, // Include vatReceived in the record
       };
 
       if (record) {
@@ -152,6 +155,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         />
       </div>
 
+
       {/* Descriptions Section */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -164,6 +168,8 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
             Add Description
           </button>
         </div>
+
+        
 
         {descriptions.map((desc) => (
           <div key={desc.id} className="bg-gray-50 p-4 rounded-lg space-y-4 border rounded">
@@ -237,6 +243,15 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         ))}
       </div>
 
+      <FormField
+        type="number"
+        label="VAT Received"
+        value={formData.vatReceived}
+        onChange={(e) => setFormData({ ...formData, vatReceived: parseFloat(e.target.value) || 0 })}
+        min="0"
+        step="0.01"
+      />
+
       {/* Totals Section */}
       <div className="bg-gray-100 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
@@ -247,6 +262,13 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           <span>Total VAT:</span>
           <span className="font-medium">{formatCurrency(calculateTotals().vat)}</span>
         </div>
+        
+        {record && (
+          <div className="flex justify-between text-sm">
+            <span>VAT Received:</span>
+            <span className="font-medium">{formatCurrency(formData.vatReceived)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-sm font-bold">
           <span>Total GROSS:</span>
           <span>{formatCurrency(calculateTotals().gross)}</span>

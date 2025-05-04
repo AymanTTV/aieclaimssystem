@@ -1,27 +1,30 @@
-// src/components/driverPay/DriverPayForm.tsx
-
-import React, { useState } from 'react';
-import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { DriverPay, CollectionPoint } from '../../types/driverPay';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
+import TextArea from '../ui/TextArea';
 import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers';
-import { v4 as uuidv4 } from 'uuid'; // Import uuid library
-import TextArea from '../ui/TextArea';
 
 interface DriverPayFormProps {
   record?: DriverPay;
   onClose: () => void;
+  collectionName?: string;
 }
 
-const DriverPayForm: React.FC<DriverPayFormProps> = ({ record, onClose }) => {
+const DriverPayForm: React.FC<DriverPayFormProps> = ({
+  record,
+  onClose,
+  collectionName = 'driverPay'
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  
-    // Initialize form data
+
+  // Initialize form data
   const [formData, setFormData] = useState({
     driverNo: record?.driverNo || '',
     tidNo: record?.tidNo?.toString() || '',
@@ -33,46 +36,44 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({ record, onClose }) => {
 
   // Initialize payment periods with proper date handling
   const [periods, setPeriods] = useState<Array<{
-    id?: string; // Add optional id
+    id?: string;
     startDate: string;
     endDate: string;
     totalAmount: string;
     commissionPercentage: string;
-    notes?: string; // Add notes to period state
-}>>(() => {
+    notes?: string;
+  }>>(() => {
     if (record?.paymentPeriods?.length) {
-        return record.paymentPeriods.map(period => ({
-            id: period.id, // Preserve the ID
-            startDate: format(ensureValidDate(period.startDate), 'yyyy-MM-dd'),
-            endDate: format(ensureValidDate(period.endDate), 'yyyy-MM-dd'),
-            totalAmount: period.totalAmount.toString(),
-            commissionPercentage: period.commissionPercentage.toString(),
-            notes: period.notes || '',
-        }));
+      return record.paymentPeriods.map(period => ({
+        id: period.id,
+        startDate: format(ensureValidDate(period.startDate), 'yyyy-MM-dd'),
+        endDate: format(ensureValidDate(period.endDate), 'yyyy-MM-dd'),
+        totalAmount: period.totalAmount.toString(),
+        commissionPercentage: period.commissionPercentage.toString(),
+        notes: period.notes || '',
+      }));
     }
     const today = new Date();
-    return [{ // First period when creating record
-        startDate: format(today, 'yyyy-MM-dd'),
-        endDate: format(today, 'yyyy-MM-dd'),
-        totalAmount: '',
-        commissionPercentage: '6',
-        notes: '', // Initialize notes for new period
-        
+    return [{
+      startDate: format(today, 'yyyy-MM-dd'),
+      endDate: format(today, 'yyyy-MM-dd'),
+      totalAmount: '',
+      commissionPercentage: '6',
+      notes: '',
     }];
-});
+  });
 
-
-const addPeriod = () => {
+  const addPeriod = () => {
     const today = new Date();
     setPeriods([...periods, {
-        id: uuidv4(), // Generate new ID for new period
-        startDate: format(today, 'yyyy-MM-dd'),
-        endDate: format(today, 'yyyy-MM-dd'),
-        totalAmount: '',
-        commissionPercentage: '6',
-        notes: '', // Initialize notes for new period
+      id: uuidv4(),
+      startDate: format(today, 'yyyy-MM-dd'),
+      endDate: format(today, 'yyyy-MM-dd'),
+      totalAmount: '',
+      commissionPercentage: '6',
+      notes: '',
     }]);
-};
+  };
 
   const removePeriod = (index: number) => {
     setPeriods(periods.filter((_, i) => i !== index));
@@ -83,8 +84,6 @@ const addPeriod = () => {
     newPeriods[index] = { ...newPeriods[index], [field]: value };
     setPeriods(newPeriods);
   };
-
-  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +109,12 @@ const addPeriod = () => {
             commissionPercentage,
             commissionAmount,
             netPay,
-            remainingAmount: parseFloat((netPay - (existingPeriod?.paidAmount || 0)).toFixed(2)),
-            status: netPay - (existingPeriod?.paidAmount || 0) <= 0 ? 'paid' : 'partially_paid',
+            paidAmount: existingPeriod?.paidAmount || 0,
+            remainingAmount: netPay - (existingPeriod?.paidAmount || 0),
+            status: netPay === (existingPeriod?.paidAmount || 0) ? 'paid' : 
+                   (existingPeriod?.paidAmount || 0) > 0 ? 'partially_paid' : 'unpaid',
             notes: period.notes,
+            payments: existingPeriod?.payments || []
           };
         } else {
           return {
@@ -123,10 +125,10 @@ const addPeriod = () => {
             commissionPercentage,
             commissionAmount,
             netPay,
-            paidAmount: 0, // Initialize paid amount to 0
-            remainingAmount: netPay, // Set remaining amount to full netPay
-            status: 'unpaid', // Set initial status to unpaid
-            payments: [], // Initialize empty payments array
+            paidAmount: 0,
+            remainingAmount: netPay,
+            status: 'unpaid',
+            payments: [],
             notes: period.notes,
           };
         }
@@ -140,10 +142,10 @@ const addPeriod = () => {
       };
 
       if (record) {
-        await updateDoc(doc(db, 'driverPay', record.id), driverPayData);
+        await updateDoc(doc(db, collectionName, record.id), driverPayData);
         toast.success('Driver pay record updated successfully');
       } else {
-        await addDoc(collection(db, 'driverPay'), {
+        await addDoc(collection(db, collectionName), {
           ...driverPayData,
           createdBy: user.id,
           createdAt: new Date()
@@ -159,7 +161,6 @@ const addPeriod = () => {
       setLoading(false);
     }
   };
-
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -264,21 +265,21 @@ const addPeriod = () => {
               step="0.01"
             />
 
-<FormField
-            type="number"
-            label="Commission Percentage"
-            value={period.commissionPercentage} // This will now correctly display "6"
-            onChange={(e) => updatePeriod(index, 'commissionPercentage', e.target.value)}
-            required
-            min="0"
-            max="100"
-            step="1"
-          />
+            <FormField
+              type="number"
+              label="Commission Percentage"
+              value={period.commissionPercentage}
+              onChange={(e) => updatePeriod(index, 'commissionPercentage', e.target.value)}
+              required
+              min="0"
+              max="100"
+              step="1"
+            />
 
-<div className="col-span-2"> {/* Span both columns */}
+            <div className="col-span-2">
               <TextArea
                 label="Period Notes"
-                value={period.notes || ''} // Use value or empty string
+                value={period.notes || ''}
                 onChange={(e) => updatePeriod(index, 'notes', e.target.value)}
                 placeholder="Add any notes for this period"
               />

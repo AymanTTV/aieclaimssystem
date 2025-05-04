@@ -17,9 +17,9 @@ export interface VATRecord {
   supplier: string;
   regNo: string;
   descriptions: VATRecordDescription[];
-  net: number; // Total NET from all descriptions
-  vat: number; // Total VAT from all descriptions
-  gross: number; // Total GROSS from all descriptions
+  net: number;
+  vat: number;
+  gross: number;
   customerName: string;
   customerId?: string;
   status: 'awaiting' | 'processing' | 'paid';
@@ -28,4 +28,6 @@ export interface VATRecord {
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
+  vatReceived?: number; // Add this line
+  documentUrl?: string; //Add if not already present
 }

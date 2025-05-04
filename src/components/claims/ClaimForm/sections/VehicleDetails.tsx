@@ -15,7 +15,7 @@ const VehicleDetails = () => {
           label="Registration Number"
           error={errors.clientVehicle?.registration?.message as string}
           {...register('clientVehicle.registration')}
-          required
+          
         />
 
         <FormField
@@ -23,7 +23,7 @@ const VehicleDetails = () => {
           label="MOT Expiry"
           error={errors.clientVehicle?.motExpiry?.message as string}
           {...register('clientVehicle.motExpiry')}
-          required
+          
         />
 
         <FormField
@@ -31,7 +31,7 @@ const VehicleDetails = () => {
           label="Road Tax Expiry"
           error={errors.clientVehicle?.roadTaxExpiry?.message as string}
           {...register('clientVehicle.roadTaxExpiry')}
-          required
+          
         />
       </div>
 

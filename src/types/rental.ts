@@ -8,7 +8,7 @@ export interface Rental {
   reason: RentalReason;
   status: RentalStatus;
   paymentStatus: PaymentStatus;
-  cost: number;
+  cost: number; // This will include the new charges
   paidAmount: number;
   remainingAmount: number;
   ongoingCharges: number;
@@ -20,6 +20,24 @@ export interface Rental {
   paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'cheque';
   paymentReference?: string;
   standardCost?: number;
+
+  // Storage details
+  storageStartDate?: Date;
+  storageEndDate?: Date;
+  storageCostPerDay?: number;
+  storageDays?: number;
+  includeStorageVAT?: boolean;
+  storageCost?: number; // Cost calculated from storage days/rate
+
+  // Recovery cost
+  recoveryCost?: number;
+
+  // ---> NEW: Add Hire-related charges <---
+  deliveryCharge?: number;
+  collectionCharge?: number;
+  insurancePerDay?: number;
+  // Note: Total insurance cost isn't stored directly, it's calculated and added to 'cost'
+  claimRef?: string;
   negotiated?: boolean;
   numberOfWeeks?: number;
   extensionHistory?: RentalExtension[];
@@ -29,14 +47,14 @@ export interface Rental {
     invoice?: string;
   };
   signature?: string;
+
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string;
   updatedBy?: string;
   checkOutCondition?: VehicleCondition;
   checkInCondition?: ReturnCondition;
-  checkOutCondition?: VehicleCondition;
-  returnCondition?: ReturnCondition;
+  returnCondition?: ReturnCondition; // Duplicate checkout/return condition fields? Review needed.
 }
 
 export interface VehicleCondition {

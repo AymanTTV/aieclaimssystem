@@ -1,14 +1,27 @@
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
-import { Rental, Vehicle, Customer } from '../../../types';
+import { Rental, Vehicle, Customer, VehicleCondition } from '../../../types';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
 
 interface RentalDocumentProps {
-  data: Rental;
+  data: Rental & {
+    checkOutCondition?: VehicleCondition;
+    checkOutImages?: string[];
+    customerSignature?: string;
+    customerSignatureDate?: Date;
+    companySignature?: string;
+    companySignatureDate?: Date;
+  };
   vehicle?: Vehicle;
   customer?: Customer;
-  companyDetails: any;
+  companyDetails: {
+    logoUrl: string;
+    fullName: string;
+    officialAddress: string;
+    phone: string;
+    email: string;
+  };
 }
 
 const RentalDocument: React.FC<RentalDocumentProps> = ({ 
@@ -31,7 +44,7 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
           </View>
         </View>
 
-        <Text style={styles.title}>Rental Record</Text>
+        <Text style={styles.title}>Rental Agreement</Text>
 
         {/* Rental Details */}
         <View style={[styles.section, styles.keepTogether]}>
@@ -73,6 +86,45 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
                 <Text style={styles.label}>Current Mileage:</Text>
                 <Text style={styles.value}>{vehicle.mileage.toLocaleString()} miles</Text>
               </View>
+            </View>
+          </View>
+        )}
+
+        {/* Vehicle Condition at Check-Out */}
+        <View style={[styles.section, styles.keepTogether]}>
+          <Text style={styles.sectionTitle}>Vehicle Condition at Check-Out</Text>
+          <View style={styles.infoCard}>
+            <View style={styles.row}>
+              <Text style={styles.label}>Exterior Condition:</Text>
+              <Text style={styles.value}>{data.checkOutCondition?.exteriorCondition || 'Not assessed'}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Notes:</Text>
+              <Text style={styles.value}>{data.checkOutCondition?.conditionNotes || 'No notes'}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Fuel Level:</Text>
+              <Text style={styles.value}>{data.checkOutCondition?.fuelLevel || 'Not recorded'}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Vehicle Check-Out Images */}
+        {data.checkOutImages && data.checkOutImages.length > 0 && (
+          <View style={[styles.section, styles.keepTogether]}>
+            <Text style={styles.sectionTitle}>Vehicle Check-Out Images</Text>
+            <View style={styles.imageContainer}>
+              {data.checkOutImages.map((image: string, index: number) => (
+                <Image 
+                  key={index}
+                  src={image} 
+                  style={{
+                    ...styles.vehicleImage,
+                    width: 180,
+                    height: 120
+                  }}
+                />
+              ))}
             </View>
           </View>
         )}
@@ -124,6 +176,39 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
               <Text style={styles.label}>Payment Status:</Text>
               <Text style={styles.value}>{data.paymentStatus}</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Terms and Conditions */}
+        <View style={[styles.section, styles.keepTogether]}>
+          <Text style={styles.sectionTitle}>Terms and Conditions</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.value}>
+              1. The vehicle must be returned in the same condition as at check-out.{'\n'}
+              2. Any damage beyond normal wear and tear will be charged to the customer.{'\n'}
+              3. Late returns will incur additional charges.{'\n'}
+              4. Fuel must be returned at the same level as at check-out.{'\n'}
+              5. The vehicle must not be used for any illegal purposes.{'\n'}
+              6. The customer is responsible for any traffic violations during the rental period.
+            </Text>
+          </View>
+        </View>
+
+        {/* Signatures */}
+        <View style={styles.signatureSection}>
+          <View style={styles.signatureBox}>
+            <Text>Customer Signature</Text>
+            <Image style={styles.signature} src={data.customerSignature} />
+            <Text style={styles.signatureLine}>
+              Date: {data.customerSignatureDate ? formatDate(data.customerSignatureDate) : 'Not signed'}
+            </Text>
+          </View>
+          <View style={styles.signatureBox}>
+            <Text>Company Representative</Text>
+            <Image style={styles.signature} src={data.companySignature} />
+            <Text style={styles.signatureLine}>
+              Date: {data.companySignatureDate ? formatDate(data.companySignatureDate) : 'Not signed'}
+            </Text>
           </View>
         </View>
 
