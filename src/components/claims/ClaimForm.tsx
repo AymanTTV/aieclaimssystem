@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
-
+import RegisterKeeperDetails from './ClaimForm/sections/RegisterKeeperDetails';
 
 // Import all sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
@@ -53,7 +53,18 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         email: '',
         dateOfBirth: '',
         nationalInsuranceNumber: '',
+        occupation: '',
+        injuryDetails: '',
         address: ''
+      },
+      registerKeeper: {
+        enabled: false,
+        name: '',
+        address: '',
+        phone: '',
+        email: '',
+        dateOfBirth: '',
+        signature: '',
       },
       clientVehicle: {
         registration: '',
@@ -87,7 +98,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       },
       fileHandlers: {
         aieHandler: '',
-        legalHandler: ''
+        legalHandler: null,  // Change default to null
       },
       claimType: 'Domestic',
       caseProgress: 'Awaiting',
@@ -126,6 +137,7 @@ function formatFieldName(fieldName: string) {
   const showVehicleDetails = claimReason.includes('VD');
   const showGPInformation = claimReason.includes('PI');
   const showHospitalInformation = claimReason.includes('PI');
+  const showRK = methods.watch('registerKeeper.enabled');
 
   const onSubmit = async (data: ClaimFormData) => {
     if (!user) {
@@ -180,6 +192,10 @@ function formatFieldName(fieldName: string) {
           engineerReport: evidenceUrls.engineerReport,
           bankStatement: evidenceUrls.bankStatement,
           adminDocuments: evidenceUrls.adminDocuments
+        },
+        fileHandlers: {
+          aieHandler: data.fileHandlers.aieHandler,
+          legalHandler: data.fileHandlers.legalHandler,
         },
         clientInfo: {
           ...data.clientInfo,
@@ -260,6 +276,21 @@ function formatFieldName(fieldName: string) {
         }]
       };
 
+      // after you build your claimData object:
+      claimData.registerKeeper = data.registerKeeper.enabled
+      ? {
+          enabled: true,                            // ← include this!
+          name: data.registerKeeper.name,
+          address: data.registerKeeper.address,
+          phone: data.registerKeeper.phone,
+          email: data.registerKeeper.email,
+          dateOfBirth: data.registerKeeper.dateOfBirth
+            ? new Date(data.registerKeeper.dateOfBirth)
+            : null,
+          signature: data.registerKeeper.signature,
+        }
+      : null;
+
       // Add to Firestore
       const docRef = await addDoc(collection(db, 'claims'), claimData);
 
@@ -307,6 +338,12 @@ function formatFieldName(fieldName: string) {
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
           </div>
+
+          {showRK && (
+            <div className="bg-white rounded-lg p-6">
+              <RegisterKeeperDetails />
+            </div>
+          )}
 
           <div className="bg-white rounded-lg p-6">
             <AccidentDetails />

@@ -13,6 +13,8 @@ import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import toast from 'react-hot-toast';
 
+import RegisterKeeperDetails from './ClaimForm/sections/RegisterKeeperDetails';
+
 // Import all sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
 import DriverDetails from './ClaimForm/sections/DriverDetails';
@@ -109,6 +111,18 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         ...claim.incidentDetails,
         date: formatDate(claim.incidentDetails.date),
       },
+      // ← HERE: pick up the saved registerKeeper
+    registerKeeper: {
+      enabled: !!claim.registerKeeper?.enabled,
+      name: claim.registerKeeper?.name ?? '',
+      address: claim.registerKeeper?.address ?? '',
+      phone: claim.registerKeeper?.phone ?? '',
+      email: claim.registerKeeper?.email ?? '',
+      dateOfBirth: claim.registerKeeper?.dateOfBirth
+        ? formatDate(claim.registerKeeper.dateOfBirth)
+        : '',
+      signature: claim.registerKeeper?.signature ?? '',
+    },
       thirdParty: claim.thirdParty,
       passengers: claim.passengers || [],
       witnesses: claim.witnesses || [],
@@ -121,7 +135,10 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
       paramedicNames: claim.paramedicNames || '',
       ambulanceReference: claim.ambulanceReference || '',
       ambulanceService: claim.ambulanceService || '',
-      fileHandlers: claim.fileHandlers,
+      fileHandlers: {
+        aieHandler: claim.fileHandlers.aieHandler || '',
+        legalHandler: claim.fileHandlers.legalHandler || null,  // Change to null if missing
+      },
       claimType: claim.claimType,
       caseProgress: claim.caseProgress,
       progress: claim.progress,
@@ -203,16 +220,12 @@ function formatFieldName(fieldName: string) {
       toast.error('You must be logged in to update a claim');
       return;
     }
-
-    if (data.recovery?.cost === '') {
-      data.recovery.cost = undefined;
-    }
-
+  
     setLoading(true);
     setSubmitError(null);
-
+  
     try {
-      // Upload vehicle documents
+      // 1) Upload any new vehicle documents
       const vehicleDocumentUrls: Record<string, string> = {};
       for (const [key, file] of Object.entries(data.clientVehicle.documents)) {
         if (file instanceof File) {
@@ -226,20 +239,53 @@ function formatFieldName(fieldName: string) {
           vehicleDocumentUrls[key] = file;
         }
       }
-
-      // Upload evidence files
-      const evidenceUrls = {
-        images: await uploadAllFiles(data.evidence.images.filter((f): f is File => f instanceof File), 'claims/images'),
-        videos: await uploadAllFiles(data.evidence.videos.filter((f): f is File => f instanceof File), 'claims/videos'),
-        clientVehiclePhotos: await uploadAllFiles(data.evidence.clientVehiclePhotos.filter((f): f is File => f instanceof File), 'claims/vehicle-photos'),
-        engineerReport: await uploadAllFiles(data.evidence.engineerReport.filter((f): f is File => f instanceof File), 'claims/engineer-reports'),
-        bankStatement: await uploadAllFiles(data.evidence.bankStatement.filter((f): f is File => f instanceof File), 'claims/bank-statements'),
-        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter((f): f is File => f instanceof File), 'claims/admin-documents'),
+  
+      // 2) Upload any new evidence files
+      const newEvidenceUploads = {
+        images: await uploadAllFiles(
+          data.evidence.images.filter((f): f is File => f instanceof File),
+          'claims/images'
+        ),
+        videos: await uploadAllFiles(
+          data.evidence.videos.filter((f): f is File => f instanceof File),
+          'claims/videos'
+        ),
+        clientVehiclePhotos: await uploadAllFiles(
+          data.evidence.clientVehiclePhotos.filter((f): f is File => f instanceof File),
+          'claims/vehicle-photos'
+        ),
+        engineerReport: await uploadAllFiles(
+          data.evidence.engineerReport.filter((f): f is File => f instanceof File),
+          'claims/engineer-reports'
+        ),
+        bankStatement: await uploadAllFiles(
+          data.evidence.bankStatement.filter((f): f is File => f instanceof File),
+          'claims/bank-statements'
+        ),
+        adminDocuments: await uploadAllFiles(
+          data.evidence.adminDocuments.filter((f): f is File => f instanceof File),
+          'claims/admin-documents'
+        ),
       };
-
-      // Prepare claim data
+  
+      // 3) Extract the URLs the user left in each array (i.e. drop removed ones)
+      const existingImages = data.evidence.images
+        .filter((f): f is string => typeof f === 'string');
+      const existingVideos = data.evidence.videos
+        .filter((f): f is string => typeof f === 'string');
+      const existingVehiclePhotos = data.evidence.clientVehiclePhotos
+        .filter((f): f is string => typeof f === 'string');
+      const existingEngineerReports = data.evidence.engineerReport
+        .filter((f): f is string => typeof f === 'string');
+      const existingBankStatements = data.evidence.bankStatement
+        .filter((f): f is string => typeof f === 'string');
+      const existingAdminDocs = data.evidence.adminDocuments
+        .filter((f): f is string => typeof f === 'string');
+  
+      // 4) Build the final claimData using current form values + newly uploaded URLs
       const claimData = {
-        ...data,
+        ...data, // Include all fields from the form data
+        clientRef: data.clientRef, // Explicitly include clientRef
         clientVehicle: {
           ...data.clientVehicle,
           documents: {
@@ -248,13 +294,26 @@ function formatFieldName(fieldName: string) {
           },
         },
         evidence: {
-          images: [...claim.evidence.images, ...evidenceUrls.images],
-          videos: [...claim.evidence.videos, ...evidenceUrls.videos],
-          clientVehiclePhotos: [...claim.evidence.clientVehiclePhotos, ...evidenceUrls.clientVehiclePhotos],
-          engineerReport: [...claim.evidence.engineerReport, ...evidenceUrls.engineerReport],
-          bankStatement: [...claim.evidence.bankStatement, ...evidenceUrls.bankStatement],
-          adminDocuments: [...claim.evidence.adminDocuments, ...evidenceUrls.adminDocuments],
+          images: [...existingImages, ...newEvidenceUploads.images],
+          videos: [...existingVideos, ...newEvidenceUploads.videos],
+          clientVehiclePhotos: [
+            ...existingVehiclePhotos,
+            ...newEvidenceUploads.clientVehiclePhotos,
+          ],
+          engineerReport: [
+            ...existingEngineerReports,
+            ...newEvidenceUploads.engineerReport,
+          ],
+          bankStatement: [
+            ...existingBankStatements,
+            ...newEvidenceUploads.bankStatement,
+          ],
+          adminDocuments: [
+            ...existingAdminDocs,
+            ...newEvidenceUploads.adminDocuments,
+          ],
         },
+        // convert dates back to Date objects
         clientInfo: {
           ...data.clientInfo,
           dateOfBirth: new Date(data.clientInfo.dateOfBirth),
@@ -263,79 +322,82 @@ function formatFieldName(fieldName: string) {
           ...data.incidentDetails,
           date: new Date(data.incidentDetails.date),
         },
-        hireDetails: showHireDetails && data.hireDetails?.enabled
+        // hire/storage/recovery logic as before...
+        hireDetails: data.hireDetails?.enabled
           ? {
               ...data.hireDetails,
-              startDate: data.hireDetails.startDate ? new Date(data.hireDetails.startDate) : null,
-              endDate: data.hireDetails.endDate ? new Date(data.hireDetails.endDate) : null,
+              startDate: data.hireDetails.startDate
+                ? new Date(data.hireDetails.startDate)
+                : null,
+              endDate: data.hireDetails.endDate
+                ? new Date(data.hireDetails.endDate)
+                : null,
               enabled: true,
             }
           : null,
-        storage: showStorageDetails && data.storage?.enabled
+        storage: data.storage?.enabled
           ? {
               ...data.storage,
-              startDate: data.storage.startDate ? new Date(data.storage.startDate) : null,
-              endDate: data.storage.endDate ? new Date(data.storage.endDate) : null,
+              startDate: data.storage.startDate
+                ? new Date(data.storage.startDate)
+                : null,
+              endDate: data.storage.endDate
+                ? new Date(data.storage.endDate)
+                : null,
               enabled: true,
             }
           : null,
-          recovery: data.recovery?.enabled ? {
-            date: data.recovery.date ? new Date(data.recovery.date) : null,
-            locationPickup: data.recovery.locationPickup || '',
-            locationDropoff: data.recovery.locationDropoff || '',
-            cost: data.recovery.cost || 0,
-            enabled: true
-          } : null,
-        passengers: data.passengers.filter(passenger => 
-          passenger.name || 
-          passenger.address || 
-          passenger.postCode || 
-          passenger.dob || 
-          passenger.contactNumber
+        recovery: data.recovery?.enabled
+          ? {
+              date: data.recovery.date
+                ? new Date(data.recovery.date)
+                : null,
+              locationPickup: data.recovery.locationPickup,
+              locationDropoff: data.recovery.locationDropoff,
+              cost: data.recovery.cost || 0,
+              enabled: true,
+            }
+          : null,
+        passengers: data.passengers.filter(p =>
+          Boolean(p.name || p.address || p.postCode || p.dob || p.contactNumber)
+        ),
+        witnesses: data.witnesses.filter(w =>
+          Boolean(w.name || w.address || w.postCode || w.dob || w.contactNumber)
         ),
         policeOfficerName: data.policeOfficerName || null,
         policeBadgeNumber: data.policeBadgeNumber || null,
-        policeStation: data.policeStation || null, 
+        policeStation: data.policeStation || null,
         policeIncidentNumber: data.policeIncidentNumber || null,
         policeContactInfo: data.policeContactInfo || null,
         paramedicNames: data.paramedicNames || null,
         ambulanceReference: data.ambulanceReference || null,
         ambulanceService: data.ambulanceService || null,
-        gpInformation: showGPInformation
-          ? {
-              ...data.gpInformation,
-              visited: true,
-            }
-          : { visited: false },
-        hospitalInformation: showHospitalInformation
-          ? {
-              ...data.hospitalInformation,
-              visited: true,
-            }
-          : { visited: false },
+        fileHandlers: {
+          aieHandler: data.fileHandlers.aieHandler,
+          legalHandler: data.fileHandlers.legalHandler,
+        },
+        claimType: data.claimType,
+        claimReason: data.claimReason,
+        caseProgress: data.caseProgress,
+        progress: data.progress,
         updatedAt: new Date(),
         updatedBy: user.id,
       };
-
-      // Update claim
+  
+      // 5) Finally, push to Firestore
       await updateDoc(doc(db, 'claims', claim.id), claimData);
-
-      // // Generate and upload new documents
-      // await generateClaimDocuments(claim.id, {
-      //   id: claim.id,
-      //   ...claimData,
-      // });
-
+  
       toast.success('Claim updated successfully');
       onClose();
-    } catch (error: any) {
-      console.error('Error updating claim:', error);
-      setSubmitError(error.message || 'Failed to update claim. Please check all required fields and try again.');
-      toast.error(error.message || 'Failed to update claim');
+    } catch (err: any) {
+      console.error('Error updating claim:', err);
+      setSubmitError(err.message || 'Failed to update claim.');
+      toast.error(err.message || 'Failed to update claim');
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <FormProvider {...methods}>
@@ -363,6 +425,10 @@ function formatFieldName(fieldName: string) {
 
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
+          </div>
+
+          <div className="bg-white rounded-lg p-6">
+            <RegisterKeeperDetails />
           </div>
 
           <div className="bg-white rounded-lg p-6">

@@ -1,3 +1,4 @@
+// src/components/finance/VDFinanceTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { VDFinanceRecord } from '../../types/vdFinance';
@@ -24,14 +25,17 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   onViewDocument
 }) => {
   const { can } = usePermissions();
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  const { formatCurrency } = useFormattedDisplay();
+
   const columns = [
     {
       header: 'Name & Reference',
       cell: ({ row }) => (
         <div>
           <div className="font-medium">{row.original.name}</div>
-          <div className="text-sm text-gray-500">Ref: {row.original.reference}</div>
+          <div className="text-sm text-gray-500">
+            Ref: {row.original.reference}
+          </div>
         </div>
       ),
     },
@@ -41,13 +45,24 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     },
     {
       header: 'Amount Details',
-      cell: ({ row }) => (
-        <div className="space-y-1 text-sm">
-          <div>Total: {formatCurrency(row.original.totalAmount)}</div>
-          <div>NET: {formatCurrency(row.original.netAmount)}</div>
-          <div>VAT IN: {formatCurrency(row.original.vatIn)}</div>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const rec = row.original;
+        // We assume VDFinanceRecord now has `totalDiscount`
+        const discount = rec.totalDiscount || 0;
+
+        return (
+          <div className="space-y-1 text-sm">
+            <div>Total: {formatCurrency(rec.totalAmount)}</div>
+            <div>NET: {formatCurrency(rec.netAmount)}</div>
+            <div>VAT IN: {formatCurrency(rec.vatIn)}</div>
+            {discount > 0 && (
+              <div className="text-red-600">
+                Discount: –{formatCurrency(discount)}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'Fees & Repairs',
@@ -77,7 +92,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
         <div className="flex space-x-2">
           {can('claims', 'view') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onView(row.original);
               }}
@@ -90,7 +105,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
           {can('claims', 'update') && (
             <>
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   onEdit(row.original);
                 }}
@@ -99,9 +114,8 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               >
                 <Edit className="h-4 w-4" />
               </button>
-              
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   onGenerateDocument(row.original);
                 }}
@@ -114,7 +128,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
           )}
           {can('claims', 'delete') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onDelete(row.original);
               }}
@@ -126,7 +140,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
           )}
           {row.original.documentUrl && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onViewDocument(row.original.documentUrl!);
               }}
@@ -145,7 +159,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     <DataTable
       data={records}
       columns={columns}
-      onRowClick={(record) => can('claims', 'view') && onView(record)}
+      onRowClick={rec => can('claims', 'view') && onView(rec)}
     />
   );
 };

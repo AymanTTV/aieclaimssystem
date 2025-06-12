@@ -1,3 +1,5 @@
+// src/types/vdInvoice.ts
+
 export interface VDInvoicePayment {
   id: string;
   date: Date;
@@ -14,6 +16,7 @@ export interface VDInvoicePart {
   quantity: number;
   price: number;
   includeVAT: boolean;
+  discount: number; // <— newly added
 }
 
 export interface VDInvoice {
@@ -45,7 +48,7 @@ export interface VDInvoice {
   // Cost Items
   parts: VDInvoicePart[];
   paintMaterials: number;
-  paintMaterialsVAT: boolean; // Add this line
+  paintMaterialsVAT: boolean;
   laborCost: number;
   partsTotal: number;
   vatAmount: number;

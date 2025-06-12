@@ -10,6 +10,8 @@ export interface Message {
   attachments?: Attachment[];
   reactions?: Reaction[];
   deleted?: boolean;
+  readBy?: string[]; // Add readBy array to store user IDs who read the message
+  mentions?: string[]; // Added: Array of user IDs who were mentioned in the message
 }
 
 export interface Attachment {
@@ -42,7 +44,7 @@ export interface UserPresence {
   status: 'online' | 'offline' | 'away';
   lastSeen: Date;
   typing?: {
-    roomId: string;
+    roomId: string; // Assuming a single chat room for now, but good to have
     timestamp: Date;
   };
 }

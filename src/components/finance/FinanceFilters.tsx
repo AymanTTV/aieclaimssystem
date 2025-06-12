@@ -1,6 +1,7 @@
+// src/components/finance/FinanceFilters.tsx
+
 import React from 'react';
-import { Account, Customer } from '../../types';
-import { FINANCE_CATEGORIES } from '../../utils/financeCategories';
+import { Customer, Account } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface FinanceFiltersProps {
@@ -31,6 +32,9 @@ interface FinanceFiltersProps {
   selectedCustomerId?: string;
   onCustomerChange?: (customerId: string) => void;
   accountSummary?: { income: number; expense: number; balance: number } | null;
+
+  /** ── NEW: Finance-specific categories, as plain string names ── **/
+  categories: string[];
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
@@ -57,74 +61,50 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   customers = [],
   selectedCustomerId,
   onCustomerChange,
-  accountSummary
+  accountSummary,
+
+  /** ── Receive finance page categories here ── **/
+  categories,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
-  
-  // Get all categories
-  const allCategories = React.useMemo(() => {
-    const categories: string[] = [];
-
-    // Process income categories
-    Object.entries(FINANCE_CATEGORIES.income).forEach(([_, value]) => {
-      if (Array.isArray(value)) {
-        categories.push(...value);
-      } else if (typeof value === 'object') {
-        Object.values(value).forEach(subValue => {
-          if (Array.isArray(subValue)) {
-            categories.push(...subValue);
-          }
-        });
-      }
-    });
-
-    // Process expense categories
-    Object.entries(FINANCE_CATEGORIES.expense).forEach(([_, value]) => {
-      if (Array.isArray(value)) {
-        categories.push(...value);
-      } else if (typeof value === 'object') {
-        Object.values(value).forEach(subValue => {
-          if (Array.isArray(subValue)) {
-            categories.push(...subValue);
-          }
-        });
-      }
-    });
-
-    return Array.from(new Set(categories)).sort();
-  }, []);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Date Range */}
+        {/* Date “From” */}
         <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
             value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
-            onChange={(e) => onDateRangeChange({
-              ...dateRange,
-              start: e.target.value ? new Date(e.target.value) : null
-            })}
+            onChange={(e) =>
+              onDateRangeChange({
+                ...dateRange,
+                start: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
             className="form-input mt-1"
           />
         </div>
 
+        {/* Date “To” */}
         <div>
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
             value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
-            onChange={(e) => onDateRangeChange({
-              ...dateRange,
-              end: e.target.value ? new Date(e.target.value) : null
-            })}
+            onChange={(e) =>
+              onDateRangeChange({
+                ...dateRange,
+                end: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
             min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
             className="form-input mt-1"
           />
         </div>
 
+        {/* Type Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
@@ -138,7 +118,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Payment Status Filter */}
+        {/* Payment Status */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Payment Status</label>
           <select
@@ -153,7 +133,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Category Filter */}
+        {/* ── Category Filter (dynamically from props) ── */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Category</label>
           <select
@@ -162,13 +142,15 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1"
           >
             <option value="all">All Categories</option>
-            {allCategories.map((category) => (
-              <option key={category} value={category}>{category}</option>
+            {categories.map((catName) => (
+              <option key={catName} value={catName}>
+                {catName}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* Account Filter */}
+        {/* Account Filter (optional / can be ignored) */}
         <div>
           {/* <label className="block text-sm font-medium text-gray-700">Account</label>
           <select
@@ -177,10 +159,13 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1"
           >
             <option value="all">All Accounts</option>
-            {accounts.map(account => (
-              <option key={account.id} value={account.id}>{account.name}</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
             ))}
           </select> */}
+
           {/* {accountSummary && (
             <div className="mt-2 text-xs">
               <div className="text-green-600">In: {formatCurrency(accountSummary.income)}</div>
@@ -189,36 +174,6 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </div>
           )} */}
         </div>
-        
-        {/* Account From Filter */}
-        {/* <div>
-          <label className="block text-sm font-medium text-gray-700">Account From</label>
-          <select
-            value={accountFromFilter}
-            onChange={(e) => onAccountFromFilterChange(e.target.value)}
-            className="form-select mt-1"
-          >
-            <option value="all">All Source Accounts</option>
-            {accounts.map(account => (
-              <option key={account.id} value={account.id}>{account.name}</option>
-            ))}
-          </select>
-        </div> */}
-        
-        {/* Account To Filter */}
-        {/* <div>
-          <label className="block text-sm font-medium text-gray-700">Account To</label>
-          <select
-            value={accountToFilter}
-            onChange={(e) => onAccountToFilterChange(e.target.value)}
-            className="form-select mt-1"
-          >
-            <option value="all">All Destination Accounts</option>
-            {accounts.map(account => (
-              <option key={account.id} value={account.id}>{account.name}</option>
-            ))}
-          </select>
-        </div> */}
 
         {/* Owner Filter */}
         <div>
@@ -229,14 +184,15 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1"
           >
             <option value="all">All Owners</option>
-            <option value="company">AIE Skyline</option>
             {owners.map((ownerName) => (
-              <option key={ownerName} value={ownerName}>{ownerName}</option>
+              <option key={ownerName} value={ownerName}>
+                {ownerName}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* Customer Filter */}
+        {/* Customer Filter (optional) */}
         {onCustomerChange && (
           <div>
             <label className="block text-sm font-medium text-gray-700">Customer</label>

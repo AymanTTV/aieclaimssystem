@@ -1,3 +1,4 @@
+// VDFinanceDocument.tsx
 import React from 'react';
 import { Text, View } from '@react-pdf/renderer';
 import { VDFinanceRecord } from '../../../types/vdFinance';
@@ -105,21 +106,21 @@ const VDFinanceDocument: React.FC<VDFinanceDocumentProps> = ({ data, companyDeta
     <View style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'flex-end' }]} wrap={false}>
       <View style={[styles.infoCard, { width: '50%' }]}>
         <Text style={styles.infoCardTitle}>Summary</Text>
-        <View style={styles.row}>
+        <View style={styles.spaceBetweenRow}>
           <Text style={styles.label}>Purchased Items:</Text>
-          <Text style={styles.value}>£{data.purchasedItems.toFixed(2)}</Text>
+          <Text style={[styles.value, { textAlign: 'right' }]}>£{data.purchasedItems.toFixed(2)}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={styles.spaceBetweenRow}>
           <Text style={styles.label}>Client Repair:</Text>
-          <Text style={styles.value}>£{data.clientRepair.toFixed(2)}</Text>
+          <Text style={[styles.value, { textAlign: 'right' }]}>£{data.clientRepair.toFixed(2)}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={styles.spaceBetweenRow}>
           <Text style={styles.label}>Solicitor Fee:</Text>
-          <Text style={styles.value}>£{data.solicitorFee.toFixed(2)}</Text>
+          <Text style={[styles.value, { textAlign: 'right' }]}>£{data.solicitorFee.toFixed(2)}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={styles.spaceBetweenRow}>
           <Text style={[styles.label, { color: '#059669' }]}>Profit:</Text>
-          <Text style={[styles.value, { color: '#059669', fontWeight: 'bold' }]}>
+          <Text style={[styles.value, { color: '#059669', fontWeight: 'bold', textAlign: 'right' }]}>
             £{data.profit.toFixed(2)}
           </Text>
         </View>

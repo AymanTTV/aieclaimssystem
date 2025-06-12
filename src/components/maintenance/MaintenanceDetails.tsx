@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
-import { Wrench, DollarSign, MapPin, Calendar } from 'lucide-react';
+import { Wrench, DollarSign, MapPin, Calendar, FileText } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -19,9 +19,9 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
-      if (log.updatedBy) {
+      if (log.createdBy) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', log.updatedBy)); // Assuming 'users' collection
+          const userDoc = await getDoc(doc(db, 'users', log.createdBy)); // Assuming 'users' collection
           if (userDoc.exists()) {
             setCreatedByName(userDoc.data().name); // Assuming 'name' field in user document
           } else {
@@ -35,7 +35,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
     };
 
     fetchCreatedByName();
-  }, [log.updatedBy]);
+  }, [log.createdBy]);
 
   const DetailItem = ({ label, value, isDate = false, isExpiring = false }: { 
       label: string;
@@ -170,6 +170,31 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           </div>
         </div>
 
+        {log.attachments?.length > 0 && (
+  <div className="mt-6">
+    <h3 className="text-lg font-medium text-gray-900 mb-2">Attachments</h3>
+    <div className="grid grid-cols-2 gap-4">
+      {log.attachments.map((att, i) => (
+        <a
+          key={i}
+          href={att.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50"
+        >
+          {att.type.startsWith('image/') ? (
+            <img src={att.url} alt={att.name} className="h-12 w-12 object-cover rounded" />
+          ) : (
+            <FileText className="h-6 w-6 text-gray-500" />
+          )}
+          <span className="text-sm truncate">{att.name}</span>
+        </a>
+      ))}
+    </div>
+  </div>
+)}
+
+
         {/* Payment Summary */}
         <div className="border-t pt-4 space-y-2">
           <div className="flex justify-between text-sm">
@@ -199,7 +224,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         />
         <DetailItem
           label="Created By"
-          value={createdByName || log.updatedBy || 'Loading...'} // Display fetched name or ID
+          value={createdByName || log.createdBy || 'Loading...'} // Display fetched name or ID
         />
       </div>
       

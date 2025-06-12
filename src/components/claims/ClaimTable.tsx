@@ -1,10 +1,18 @@
+// src/components/claims/ClaimTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Claim } from '../../types';
-import { Eye, Edit, Trash2, FileText, Download, Play, CheckCircle, Clock } from 'lucide-react';
+import {
+  Eye,
+  Edit,
+  Trash2,
+  Clock,
+  FileText,
+  MessageSquare
+} from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 
 interface ClaimTableProps {
   claims: Claim[];
@@ -12,6 +20,9 @@ interface ClaimTableProps {
   onEdit: (claim: Claim) => void;
   onDelete: (claim: Claim) => void;
   onUpdateProgress: (claim: Claim) => void;
+  onGeneratePdf: (claim: Claim) => void;
+  
+  onNotes: (claim: Claim) => void;
 }
 
 const ClaimTable: React.FC<ClaimTableProps> = ({
@@ -20,6 +31,8 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
   onEdit,
   onDelete,
   onUpdateProgress,
+  onGeneratePdf,
+  onNotes
 }) => {
   const { can } = usePermissions();
 
@@ -51,7 +64,9 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       header: 'Incident Details',
       cell: ({ row }) => (
         <div>
-          <div className="text-sm">{format(row.original.incidentDetails.date, 'dd/MM/yyyy')}</div>
+          <div className="text-sm">
+            {format(row.original.incidentDetails.date, 'dd/MM/yyyy')}
+          </div>
           <div className="text-sm text-gray-500">{row.original.incidentDetails.time}</div>
           <div className="text-sm text-gray-500 truncate max-w-xs">
             {row.original.incidentDetails.location}
@@ -71,89 +86,102 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     },
     {
       header: 'Type & Progress',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.claimType} />
-          <StatusBadge status={row.original.claimReason} />
-          <StatusBadge status={row.original.caseProgress} />
-          <StatusBadge status={row.original.progress} />
-        </div>
-      ),
+      cell: ({ row }) => {
+        const { updatedAt, progress } = row.original;
+        const daysSinceUpdate = differenceInDays(new Date(), updatedAt);
+        const showWarning = progress !== 'Claim Complete';
+        const isYellow = showWarning && daysSinceUpdate > 0 && daysSinceUpdate < 7;
+        const isRed = showWarning && daysSinceUpdate >= 7;
+
+        return (
+          <div
+            className={[
+              'space-y-1 p-2 rounded',
+              isYellow ? 'bg-yellow-50' : '',
+              isRed ? 'bg-red-50' : ''
+            ].join(' ')}
+          >
+            <StatusBadge status={row.original.claimType} />
+            <StatusBadge status={row.original.claimReason} />
+            <StatusBadge status={row.original.caseProgress} />
+            <StatusBadge status={row.original.progress} />
+
+            {showWarning && daysSinceUpdate > 0 && (
+              <div
+                className={`text-xs font-medium ${
+                  isRed ? 'text-red-800' : 'text-yellow-800'
+                }`}
+              >
+                {daysSinceUpdate} day{daysSinceUpdate !== 1 ? 's' : ''} ago
+              </div>
+            )}
+          </div>
+        );
+      },
     },
-    // {
-    //   header: 'Generated Documents',
-    //   cell: ({ row }) => (
-    //     <div className="space-y-1">
-    //       {row.original.documents && Object.entries(row.original.documents).map(([key, url]) => (
-    //         url && (
-    //           <button
-    //             key={key}
-    //             onClick={() => window.open(url, '_blank')}
-    //             className="flex items-center text-sm text-primary hover:text-primary-600"
-    //           >
-    //             <FileText className="h-4 w-4 mr-1" />
-    //             <span>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-    //           </button>
-    //         )
-    //       ))}
-    //       {(!row.original.documents || Object.keys(row.original.documents).length === 0) && (
-    //         <span className="text-sm text-gray-500">No documents generated</span>
-    //       )}
-    //     </div>
-    //   ),
-    // },
     {
       header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onUpdateProgress(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Update Progress"
-          >
-            <Clock className="h-4 w-4" />
-          </button>
-          {can('claims', 'view') && (
+      cell: ({ row }) => {
+        const claim = row.original;
+        return (
+          <div className="flex space-x-2">
+
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
+              onClick={e => { e.stopPropagation(); onNotes(claim); }}
+              className="text-gray-600 hover:text-gray-800"
+              title="Notes"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }}
               className="text-blue-600 hover:text-blue-800"
-              title="View Details"
+              title="Update Progress"
             >
-              <Eye className="h-4 w-4" />
+              <Clock className="h-4 w-4" />
             </button>
-          )}
-          {can('claims', 'update') && (
+
+            {can('claims', 'view') && (
+              <button
+                onClick={e => { e.stopPropagation(); onView(claim); }}
+                className="text-blue-600 hover:text-blue-800"
+                title="View Details"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            )}
+
+            {can('claims', 'update') && (
+              <button
+                onClick={e => { e.stopPropagation(); onEdit(claim); }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit Claim"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            )}
+
+            {can('claims', 'delete') && (
+              <button
+                onClick={e => { e.stopPropagation(); onDelete(claim); }}
+                className="text-red-600 hover:text-red-800"
+                title="Delete Claim"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* ALWAYS show the PDF button */}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Edit"
+              onClick={e => { e.stopPropagation(); onGeneratePdf(claim); }}
+              className="text-green-600 hover:text-green-800"
+              title="Generate PDF"
             >
-              <Edit className="h-4 w-4" />
+              <FileText className="h-4 w-4" />
             </button>
-          )}
-          {can('claims', 'delete') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
-              className="text-red-600 hover:text-red-800"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
@@ -161,7 +189,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     <DataTable
       data={claims}
       columns={columns}
-      onRowClick={(claim) => can('claims', 'view') && onView(claim)}
+      onRowClick={claim => can('claims', 'view') && onView(claim)}
     />
   );
 };

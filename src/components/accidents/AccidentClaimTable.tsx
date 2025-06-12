@@ -144,10 +144,18 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
 
   return (
     <DataTable
-      data={accidents}
-      columns={columns}
-      onRowClick={(accident) => can('accidents', 'view') && onView(accident)}
-    />
+    data={accidents}
+    columns={columns}
+    onRowClick={(accident, event) => {
+      // bail out if the click target is a button, icon, or link:
+      const tag = (event.target as HTMLElement).tagName.toLowerCase();
+      if (['button','svg','path','a','input','select','textarea'].includes(tag)) {
+        return;
+      }
+      can('accidents','view') && onView(accident);
+    }}
+  />
+
   );
 };
 

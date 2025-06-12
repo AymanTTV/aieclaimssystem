@@ -173,16 +173,20 @@ const { vehicles } = useVehicles();
 };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setLoading(true);
+  e.preventDefault();
+  if (!user) return;
 
-    if (!validateForm()) {
-    return; // Prevent submission if validation fails
+  setLoading(true);
+
+  // If validation fails, turn off loading and exit early
+  if (!validateForm()) {
+    setLoading(false);
+    return;
   }
 
-    try {
-       const imageUrls = await Promise.all(
+  try {
+    // Upload images to Firebase Storage and collect their download URLs
+    const imageUrls = await Promise.all(
       imageFiles.map(async (file) => {
         const timestamp = Date.now();
         const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
@@ -191,29 +195,33 @@ const { vehicles } = useVehicles();
       })
     );
 
-      const accidentData = {
-        ...formData,
-        refNo: Number(formData.refNo),
-        referenceName: formData.referenceName,
-        passengers: formData.passengers.slice(0, passengerCount),
-        witnesses: formData.witnesses.slice(0, witnessCount),
-        images: imageUrls,
-        status: 'reported',
-        submittedBy: user.id,
-        submittedAt: new Date(),
-        updatedAt: new Date()
-      };
+    // Build the accident claim object to save
+    const accidentData = {
+      ...formData,
+      refNo: Number(formData.refNo),
+      referenceName: formData.referenceName,
+      passengers: formData.passengers.slice(0, passengerCount),
+      witnesses: formData.witnesses.slice(0, witnessCount),
+      images: imageUrls,
+      status: 'reported',
+      submittedBy: user.id,
+      submittedAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-      await addDoc(collection(db, 'accidents'), accidentData);
-      toast.success('Accident claim submitted successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error submitting claim:', error);
-      toast.error('Failed to submit claim');
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Add a new document to the "accidents" collection
+    await addDoc(collection(db, 'accidents'), accidentData);
+
+    toast.success('Accident claim submitted successfully');
+    onClose();
+  } catch (error) {
+    console.error('Error submitting claim:', error);
+    toast.error('Failed to submit claim');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handlePassengerChange = (index: number, field: string, value: string) => {
     const newPassengers = [...formData.passengers];

@@ -1,8 +1,9 @@
+// src/components/pdf/documents/InvoiceBulkDocument.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
-import { Invoice } from '../../../types';
+import { Invoice } from '../../../types/finance';
 import { styles } from '../styles';
-import { formatDate } from '../../../utils/dateHelpers';
+import { format } from 'date-fns';
 
 interface InvoiceBulkDocumentProps {
   records: Invoice[];
@@ -10,42 +11,57 @@ interface InvoiceBulkDocumentProps {
   title?: string;
 }
 
-const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({ 
-  records, 
+const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
+  records,
   companyDetails,
-  title = 'Invoice Summary'
+  title = 'Invoice Summary',
 }) => {
   // Calculate summary statistics
-  const totalAmount = records.reduce((sum, r) => sum + r.amount, 0);
+  const totalAmount = records.reduce((sum, r) => sum + r.total, 0);
   const totalPaid = records.reduce((sum, r) => sum + r.paidAmount, 0);
   const totalOutstanding = records.reduce((sum, r) => sum + r.remainingAmount, 0);
-  const overdueInvoices = records.filter(r => 
-    r.paymentStatus !== 'paid' && new Date() > r.dueDate
+  const overdueInvoices = records.filter(
+    (r) => r.paymentStatus !== 'paid' && new Date() > r.dueDate
   ).length;
 
   const ITEMS_PER_PAGE = 10;
   const pages = Math.ceil(records.length / ITEMS_PER_PAGE);
 
+  // Utility to format a JS Date or Firestore Timestamp
+  const formatDate = (date: Date | any): string => {
+    if (!date) return 'N/A';
+    try {
+      if (date?.toDate) {
+        date = date.toDate();
+      }
+      const dObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dObj.getTime())) return 'N/A';
+      return format(dObj, 'dd/MM/yyyy');
+    } catch {
+      return 'N/A';
+    }
+  };
+
   return (
     <Document>
       {Array.from({ length: pages }).map((_, pageIndex) => (
         <Page key={pageIndex} size="A4" style={styles.page}>
-          {/* Header - on every page */}
+          {/* ── HEADER ── */}
           <View style={styles.header}>
             <Image src={companyDetails.logoUrl} style={styles.logo} />
             <View style={styles.companyInfo}>
-              <Text>{companyDetails.fullName}</Text>
-              <Text>{companyDetails.officialAddress}</Text>
-              <Text>Tel: {companyDetails.phone}</Text>
-              <Text>Email: {companyDetails.email}</Text>
+              <Text style={styles.companyName}>{companyDetails.fullName}</Text>
+              <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
+              <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
+              <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
             </View>
           </View>
 
-          {/* Title and Summary - only on first page */}
+          {/* ── TITLE & SUMMARY (only on first page) ── */}
           {pageIndex === 0 && (
             <>
               <Text style={styles.title}>{title}</Text>
-              
+
               <View style={[styles.section, styles.keepTogether]}>
                 <Text style={styles.sectionTitle}>Invoice Overview</Text>
                 <View style={styles.grid}>
@@ -66,8 +82,8 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
             </>
           )}
 
-          {/* Invoice Records */}
-          <View style={styles.section}>
+          {/* ── Invoice Records Table ── */}
+          <View style={[styles.section, styles.keepTogether]}>
             <Text style={styles.sectionTitle}>Invoice Records</Text>
             <View style={styles.tableContainer}>
               {/* Table Header */}
@@ -75,9 +91,9 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
                 <Text style={[styles.tableCell, { width: '15%' }]}>Date</Text>
                 <Text style={[styles.tableCell, { width: '20%' }]}>Customer</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Status</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Amount</Text>
+                <Text style={[styles.tableCell, { width: '15%' }]}>Total</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Paid</Text>
-                <Text style={[styles.tableCell, { width: '20%' }]}>Due</Text>
+                <Text style={[styles.tableCell, { width: '20%' }]}>Due Date</Text>
               </View>
 
               {/* Table Rows */}
@@ -95,7 +111,7 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
                       {record.paymentStatus}
                     </Text>
                     <Text style={[styles.tableCell, { width: '15%' }]}>
-                      £{record.amount.toFixed(2)}
+                      £{record.total.toFixed(2)}
                     </Text>
                     <Text style={[styles.tableCell, { width: '15%' }]}>
                       £{record.paidAmount.toFixed(2)}
@@ -108,12 +124,10 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
             </View>
           </View>
 
-          {/* Footer */}
+          {/* ── Footer & Page Number ── */}
           <Text style={styles.footer}>
             {companyDetails.fullName} | Generated on {formatDate(new Date())}
           </Text>
-
-          {/* Page Number */}
           <Text style={styles.pageNumber}>
             Page {pageIndex + 1} of {pages}
           </Text>

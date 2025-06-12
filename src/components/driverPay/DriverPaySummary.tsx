@@ -3,7 +3,7 @@
 import React from 'react';
 import { DollarSign, PieChart, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
-
+import { usePermissions } from '../../hooks/usePermissions';
 interface DriverPaySummaryProps {
   total: number;
   commission: number;
@@ -20,6 +20,13 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
   totalRemaining = 0
 }) => {
   const { formatCurrency } = useFormattedDisplay(); // Use the hook
+
+  const { can } = usePermissions();
+  
+    // Don't even render the cards if the user lacks the 'cards' permission
+    if (!can('driverPay', 'cards')) {
+      return null;
+    }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

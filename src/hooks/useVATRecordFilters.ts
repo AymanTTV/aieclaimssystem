@@ -16,10 +16,14 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
     return records.filter(record => {
       // Search filter
       const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         record.receiptNo.toLowerCase().includes(searchLower) ||
         record.supplier.toLowerCase().includes(searchLower) ||
-        record.customerName.toLowerCase().includes(searchLower);
+        record.customerName.toLowerCase().includes(searchLower) ||
+        record.regNo.toLowerCase().includes(searchLower) || // Add this line to search by REG No
+        record.gross.toFixed(2).includes(searchLower) || // Add this line to search by gross amount
+        record.net.toFixed(2).includes(searchLower) || // Add this line to search by net amount
+        record.vat.toFixed(2).includes(searchLower); // Add this line to search by vat amount
 
       // Status filter
       const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
@@ -44,7 +48,7 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
         gross: acc.gross + record.gross,
         vat: acc.vat + record.vat,
         net: acc.net + record.net,
-        vatReceived: acc.vatReceived + (record.vatReceived || 0) // Ensure vatReceived is accounted for
+        vatReceived: acc.vatReceived + (record.vatReceived || 0)
       }),
       { gross: 0, vat: 0, net: 0, vatReceived: 0 }
     );

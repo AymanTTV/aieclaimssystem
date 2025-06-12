@@ -20,7 +20,13 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(record.paymentPeriods[0]?.id || '');
+
+  // Which period is selected
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(
+    record.paymentPeriods[0]?.id || ''
+  );
+
+  // Form inputs
   const [formData, setFormData] = useState({
     amount: '',
     method: 'cash' as const,
@@ -28,27 +34,27 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
     notes: ''
   });
 
+  // Find that period object
   const selectedPeriod = record.paymentPeriods.find(p => p.id === selectedPeriodId);
 
+  // Whenever the selected period changes (or its remainingAmount), prefill the amount
   useEffect(() => {
     if (selectedPeriod) {
-      const roundedRemainingAmount = parseFloat(selectedPeriod.remainingAmount.toFixed(2));
-      setFormData({
-        ...formData,
-        amount: roundedRemainingAmount.toFixed(2)
-      });
+      const remaining = parseFloat(selectedPeriod.remainingAmount.toFixed(2));
+      setFormData(fd => ({
+        ...fd,
+        amount: remaining.toFixed(2)
+      }));
     } else {
-      setFormData({ ...formData, amount: '' });
+      setFormData(fd => ({ ...fd, amount: '' }));
     }
   }, [selectedPeriod, record.paymentPeriods]);
 
-  const formatDate = (date: Date | null | undefined): string => {
-    if (!date) return 'N/A';
+  const formatDate = (d: Date | null | undefined) => {
+    if (!d) return 'N/A';
     try {
-      const validDate = ensureValidDate(date);
-      return format(validDate, 'dd/MM/yyyy');
-    } catch (error) {
-      console.error('Error formatting date:', error);
+      return format(ensureValidDate(d), 'dd/MM/yyyy');
+    } catch {
       return 'N/A';
     }
   };
@@ -56,22 +62,20 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !selectedPeriod) return;
-    
-    const paymentAmount = parseFloat(formData.amount);
-    const roundedRemainingAmount = selectedPeriod?.remainingAmount ? parseFloat(selectedPeriod.remainingAmount.toFixed(2)) : 0;
 
-    if (paymentAmount <= 0 || paymentAmount > roundedRemainingAmount) {
+    const amt = parseFloat(formData.amount);
+    const remain = parseFloat(selectedPeriod.remainingAmount.toFixed(2));
+    if (amt <= 0 || amt > remain) {
       toast.error('Invalid payment amount');
       return;
     }
 
     setLoading(true);
-
     try {
       const payment = {
         id: Date.now().toString(),
         date: new Date(),
-        amount: paymentAmount,
+        amount: amt,
         method: formData.method,
         reference: formData.reference || null,
         notes: formData.notes || null,
@@ -80,19 +84,19 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
         periodId: selectedPeriodId
       };
 
-      const updatedPeriods = record.paymentPeriods.map(period => {
-        if (period.id === selectedPeriodId) {
-          const newPaidAmount = parseFloat((period.paidAmount + paymentAmount).toFixed(2));
-          const newRemainingAmount = parseFloat((period.netPay - newPaidAmount).toFixed(2));
+      const updatedPeriods = record.paymentPeriods.map(p => {
+        if (p.id === selectedPeriodId) {
+          const newPaid = parseFloat((p.paidAmount + amt).toFixed(2));
+          const newRemain = parseFloat((p.netPay - newPaid).toFixed(2));
           return {
-            ...period,
-            paidAmount: newPaidAmount,
-            remainingAmount: newRemainingAmount,
-            status: newRemainingAmount <= 0 ? 'paid' : 'partially_paid',
-            payments: [...period.payments, payment]
+            ...p,
+            paidAmount: newPaid,
+            remainingAmount: newRemain,
+            status: newRemain <= 0 ? 'paid' : 'partially_paid',
+            payments: [...p.payments, payment]
           };
         }
-        return period;
+        return p;
       });
 
       await updateDoc(doc(db, 'driverPay', record.id), {
@@ -102,8 +106,8 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
 
       toast.success('Payment recorded successfully');
       onClose();
-    } catch (error) {
-      console.error('Error recording payment:', error);
+    } catch (err) {
+      console.error(err);
       toast.error('Failed to record payment');
     } finally {
       setLoading(false);
@@ -112,52 +116,54 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Select Payment Period</label>
-        <select
-          value={selectedPeriodId}
-          onChange={(e) => setSelectedPeriodId(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        >
-          {record.paymentPeriods.map((period) => (
-            <option key={period.id} value={period.id}>
-              {formatDate(period.startDate)} - {formatDate(period.endDate)}
-              {' '}(£{period.remainingAmount.toFixed(2)} remaining)
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Choose period */}
+      <label className="block text-sm font-medium text-gray-700">
+  Select Payment Period
+</label>
+<select
+  className="mt-1 block w-full rounded-md border-gray-300"
+  value={selectedPeriodId}
+  onChange={e => setSelectedPeriodId(e.target.value)}
+  required
+>
+  {record.paymentPeriods.map(p => (
+    <option key={p.id} value={p.id}>
+      {formatDate(p.startDate)} – {formatDate(p.endDate)} (£{p.remainingAmount.toFixed(2)} left)
+    </option>
+  ))}
+</select>
 
+      {/* Summary */}
       {selectedPeriod && (
-        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+        <div className="bg-gray-50 p-4 rounded-lg">
           <div className="flex justify-between text-sm">
             <span>Net Pay:</span>
-            <span className="font-medium">£{selectedPeriod.netPay.toFixed(2)}</span>
+            <span>£{selectedPeriod.netPay.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span>Amount Paid:</span>
             <span className="text-green-600">£{selectedPeriod.paidAmount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Remaining Amount:</span>
+            <span>Remaining:</span>
             <span className="text-amber-600">£{selectedPeriod.remainingAmount.toFixed(2)}</span>
           </div>
         </div>
       )}
 
+      {/* Payment inputs */}
       <FormField
         type="number"
         label="Amount to Pay"
         value={formData.amount}
-        onChange={(e) => {
-          let value = parseFloat(e.target.value);
-          if (!isNaN(value)) {
-            const roundedRemainingAmount = selectedPeriod?.remainingAmount ? parseFloat(selectedPeriod.remainingAmount.toFixed(2)) : 0;
-            value = Math.min(value, roundedRemainingAmount);
-            setFormData({ ...formData, amount: value.toFixed(2) });
+        onChange={e => {
+          let val = parseFloat(e.target.value);
+          if (!isNaN(val) && selectedPeriod) {
+            const max = parseFloat(selectedPeriod.remainingAmount.toFixed(2));
+            val = Math.min(val, max);
+            setFormData(fd => ({ ...fd, amount: val.toFixed(2) }));
           } else {
-            setFormData({ ...formData, amount: '' });
+            setFormData(fd => ({ ...fd, amount: '' }));
           }
         }}
         required
@@ -166,32 +172,33 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
         step="0.01"
       />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-        <select
-          value={formData.method}
-          onChange={(e) => setFormData({ ...formData, method: e.target.value as any })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        >
-          <option key="cash" value="cash">Cash</option>
-          <option key="bank_transfer" value="bank_transfer">Bank Transfer</option>
-          <option key="cheque" value="cheque">Cheque</option>
-        </select>
-      </div>
+<label className="block text-sm font-medium text-gray-700">
+  Payment Method
+</label>
+<select
+  className="mt-1 block w-full rounded-md border-gray-300"
+  value={formData.method}
+  onChange={e => setFormData(fd => ({ ...fd, method: e.target.value as any }))}
+  required
+>
+  <option value="cash">Cash</option>
+  <option value="bank_transfer">Bank Transfer</option>
+  <option value="cheque">Cheque</option>
+</select>
+
 
       <FormField
-        label="Payment Reference"
+        label="Reference"
         value={formData.reference}
-        onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-        placeholder="Enter payment reference or transaction ID"
+        onChange={e => setFormData(fd => ({ ...fd, reference: e.target.value }))}
+        placeholder="Transaction ID, cheque no., etc."
       />
 
       <TextArea
-        label="Notes"
+        label="Notes (optional)"
         value={formData.notes}
-        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        placeholder="Add any notes about this payment"
+        onChange={e => setFormData(fd => ({ ...fd, notes: e.target.value }))}
+        placeholder="Any notes about this payment"
       />
 
       <div className="flex justify-end space-x-3">
@@ -207,7 +214,7 @@ const DriverPayPaymentModal: React.FC<DriverPayPaymentModalProps> = ({
           disabled={loading}
           className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
         >
-          {loading ? 'Processing...' : 'Record Payment'}
+          {loading ? 'Processing…' : 'Record Payment'}
         </button>
       </div>
     </form>

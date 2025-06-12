@@ -1,5 +1,4 @@
 // src/components/claims/ClaimForm/sections/DriverDetails.tsx
-
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
@@ -12,6 +11,7 @@ const DriverDetails = () => {
   const { customers } = useCustomers();
   const [manualEntry, setManualEntry] = React.useState(false);
   const signature = watch('clientInfo.signature');
+  const claimReason: string[] = watch('claimReason');
 
   const handleCustomerSelect = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
@@ -19,12 +19,14 @@ const DriverDetails = () => {
       setValue('clientInfo.name', customer.name);
       setValue('clientInfo.phone', customer.mobile);
       setValue('clientInfo.email', customer.email);
-      setValue('clientInfo.dateOfBirth', customer.dateOfBirth.toISOString().split('T')[0]);
+      setValue('clientInfo.dateOfBirth', customer.dateOfBirth.toISOString().slice(0,10));
       setValue('clientInfo.nationalInsuranceNumber', customer.nationalInsuranceNumber);
       setValue('clientInfo.address', customer.address);
       setValue('clientInfo.signature', customer.signature || '');
     }
   };
+
+  const showPIFields = claimReason.includes('PI');
 
   return (
     <div className="space-y-4">
@@ -34,44 +36,27 @@ const DriverDetails = () => {
           <input
             type="checkbox"
             checked={manualEntry}
-            onChange={(e) => {
-              setManualEntry(e.target.checked);
-              if (!e.target.checked) {
-                // Clear form fields when switching back to search
-                setValue('clientInfo.name', '');
-                setValue('clientInfo.phone', '');
-                setValue('clientInfo.email', '');
-                setValue('clientInfo.dateOfBirth', '');
-                setValue('clientInfo.nationalInsuranceNumber', '');
-                setValue('clientInfo.address', '');
-                setValue('clientInfo.signature', '');
-              }
-            }}
+            onChange={e => setManualEntry(e.target.checked)}
             className="rounded border-gray-300 text-primary focus:ring-primary"
           />
           <span className="text-sm text-gray-700">Enter Details Manually</span>
         </label>
       </div>
 
-      {/* Always show search if not in manual entry mode */}
       {!manualEntry && (
-        <div className="mb-4">
-          <SearchableSelect
-            label="Select Customer"
-            options={customers.map(c => ({
-              id: c.id,
-              label: c.name,
-              subLabel: `${c.mobile} - ${c.email}`
-            }))}
-            value=""
-            onChange={handleCustomerSelect}
-            placeholder="Search customers..."
-          />
-        </div>
+        <SearchableSelect
+          label="Select Customer"
+          options={customers.map(c => ({
+            id: c.id, label: c.name, subLabel: `${c.mobile} · ${c.email}`
+          }))}
+          value=""
+          onChange={handleCustomerSelect}
+          placeholder="Search customers..."
+        />
       )}
 
-      {/* Always show the form fields */}
       <div className="grid grid-cols-2 gap-4">
+        {/* Name */}
         <FormField
           label="Name"
           error={errors.clientInfo?.name?.message as string}
@@ -80,6 +65,7 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
+        {/* Address */}
         <FormField
           label="Address"
           error={errors.clientInfo?.address?.message as string}
@@ -88,6 +74,7 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
+        {/* Phone */}
         <FormField
           type="tel"
           label="Phone Number"
@@ -97,6 +84,7 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
+        {/* Email */}
         <FormField
           type="email"
           label="Email"
@@ -106,6 +94,7 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
+        {/* DOB */}
         <FormField
           type="date"
           label="Date of Birth"
@@ -115,6 +104,7 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
+        {/* NI Number */}
         <FormField
           label="National Insurance Number"
           error={errors.clientInfo?.nationalInsuranceNumber?.message as string}
@@ -122,17 +112,46 @@ const DriverDetails = () => {
           required
           disabled={!manualEntry}
         />
+
+{showPIFields && (
+  <>
+    <FormField
+      label="Occupation"
+      error={errors.clientInfo?.occupation?.message as string}
+      {...register('clientInfo.occupation')}
+      required
+    />
+
+    <div className="col-span-2">
+      <label className="block text-sm font-medium text-gray-700">
+        Injury Details
+      </label>
+      <textarea
+        {...register('clientInfo.injuryDetails')}
+        rows={5}
+        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
+                   focus:border-primary focus:ring-primary sm:text-sm"
+        placeholder="Describe the injury in detail…"
+      />
+      {errors.clientInfo?.injuryDetails && (
+        <p className="mt-1 text-sm text-red-600">
+          {errors.clientInfo.injuryDetails.message as string}
+        </p>
+      )}
+    </div>
+  </>
+)}
       </div>
 
-      {/* Signature Section */}
-      <div className="col-span-2">
+      {/* Signature */}
+      <div>
         <label className="block text-sm font-medium text-gray-700">
           Driver Signature
         </label>
         <SignaturePad
           value={signature || ''}
-          onChange={(value) => setValue('clientInfo.signature', value)}
-          className="mt-1 border rounded-md"
+          onChange={value => setValue('clientInfo.signature', value)}
+          className="mt-1 w-full h-32 border rounded-md"
         />
         {errors.clientInfo?.signature && (
           <p className="mt-1 text-sm text-red-600">

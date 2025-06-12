@@ -1,76 +1,61 @@
-// src/components/claims/ClaimSummaryCards.tsx
-
 import React from 'react';
 import { Claim } from '../../types';
-import { Car, Warehouse, Wrench, DollarSign } from 'lucide-react'; // Import DollarSign icon
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-
+import { Car , Bus, Home, User } from 'lucide-react';
+import { usePermissions } from '../../hooks/usePermissions';
 interface ClaimSummaryCardsProps {
   claims: Claim[];
 }
 
 const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
-  const { formatCurrency } = useFormattedDisplay();
+  // Count claims by type
+  const taxiCount = claims.filter(c => c.claimType === 'Taxi').length;
+  const pcoCount = claims.filter(c => c.claimType === 'PCO').length;
+  const domesticCount = claims.filter(c => c.claimType === 'Domestic').length;
+  const piCount = claims.filter(c => c.claimType === 'PI').length;
 
-  // Calculate total costs
-  const totalHireCost = claims.reduce((total, claim) => claim.hireDetails?.totalCost ? total + claim.hireDetails.totalCost : total, 0);
-  const totalStorageCost = claims.reduce((total, claim) => claim.storage?.totalCost ? total + claim.storage.totalCost : total, 0);
-  const totalRecoveryCost = claims.reduce((total, claim) => claim.recovery?.cost ? total + claim.recovery.cost : total, 0);
 
-  // Calculate grand total cost
-  const grandTotalCost = totalHireCost + totalStorageCost + totalRecoveryCost;
+  const { can } = usePermissions();
+
+  // Don't even render the cards if the user lacks the 'cards' permission
+  if (!can('claims', 'cards')) {
+    return null;
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6"> {/* Updated grid-cols-4 */}
-      {/* Hire Cost Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <Car className="h-8 w-8 text-primary" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Hire Total Cost</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalHireCost)}
-            </p>
-          </div>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      {/* Taxi Claims */}
+      <div className="bg-white rounded-lg shadow-sm p-6 flex items-center">
+        <Car className="h-8 w-8 text-yellow-500" />
+        <div className="ml-4">
+          <p className="text-lg font-medium text-gray-700">Taxi</p>
+          <p className="text-2xl font-semibold text-gray-900">{taxiCount}</p>
         </div>
       </div>
 
-      {/* Storage Cost Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <Warehouse className="h-8 w-8 text-blue-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Storage Cost</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalStorageCost)}
-            </p>
-          </div>
+      {/* PCO Claims */}
+      <div className="bg-white rounded-lg shadow-sm p-6 flex items-center">
+        <Bus className="h-8 w-8 text-blue-500" />
+        <div className="ml-4">
+          <p className="text-lg font-medium text-gray-700">PCO</p>
+          <p className="text-2xl font-semibold text-gray-900">{pcoCount}</p>
         </div>
       </div>
 
-      {/* Recovery Cost Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <Wrench className="h-8 w-8 text-green-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Recovery Cost</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalRecoveryCost)}
-            </p>
-          </div>
+      {/* Domestic Claims */}
+      <div className="bg-white rounded-lg shadow-sm p-6 flex items-center">
+        <Home className="h-8 w-8 text-green-500" />
+        <div className="ml-4">
+          <p className="text-lg font-medium text-gray-700">Domestic</p>
+          <p className="text-2xl font-semibold text-gray-900">{domesticCount}</p>
         </div>
       </div>
 
-      {/* Grand Total Cost Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <DollarSign className="h-8 w-8 text-indigo-500" /> {/* Use DollarSign icon */}
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Total Claim Cost</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(grandTotalCost)}
-            </p>
-          </div>
+      {/* PI Claims */}
+      <div className="bg-white rounded-lg shadow-sm p-6 flex items-center">
+        <User className="h-8 w-8 text-indigo-500" />
+        <div className="ml-4">
+          <p className="text-lg font-medium text-gray-700">PI</p>
+          <p className="text-2xl font-semibold text-gray-900">{piCount}</p>
         </div>
       </div>
     </div>

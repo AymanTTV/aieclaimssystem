@@ -1,248 +1,186 @@
+// src/components/vehicles/VehicleEditModal.tsx
 import React, { useState } from 'react';
-import { Vehicle, DEFAULT_RENTAL_PRICES, DEFAULT_OWNER } from '../../types/vehicle';
+import { Vehicle, DEFAULT_OWNER } from '../../types/vehicle';
 import { doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { Upload, X } from 'lucide-react';
-import FormField from '../ui/FormField';
-import { validateImage } from '../../utils/imageUpload';
+import { validateImage, uploadImage } from '../../utils/imageUpload';
 import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
+import FormField from '../ui/FormField';
+import { Upload, X } from 'lucide-react';
 
 interface VehicleEditModalProps {
   vehicle: Vehicle;
   onClose: () => void;
 }
 
-const VehicleEditModal: React.FC<VehicleEditModalProps> = ({ vehicle, onClose }) => {
+export const VehicleEditModal: React.FC<VehicleEditModalProps> = ({
+  vehicle,
+  onClose,
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(vehicle.image || null);
-  const [owner, setOwner] = useState<Vehicle['owner']>(vehicle.owner || DEFAULT_OWNER);
-  const [isCustomOwner, setIsCustomOwner] = useState(!vehicle.owner?.isDefault);
-  
-  // Document images
-  const [nslImages, setNslImages] = useState<File[]>([]);
-  const [motImages, setMotImages] = useState<File[]>([]);
-  const [v5Images, setV5Images] = useState<File[]>([]);
-  const [insuranceImages, setInsuranceImages] = useState<File[]>([]);
-  // Document images
-  const [MeterCertificateImages, setMeterCertificateImages] = useState<File[]>([]);
 
-// Document image previews
-const [MeterCertificateImagePreviews, setMeterCertificateImagePreviews] = useState<string[]>(vehicle.documents?.MeterCertificateImage || []);
-  // Document image previews
-  const [nslImagePreviews, setNslImagePreviews] = useState<string[]>(vehicle.documents?.nslImage || []);
-  const [motImagePreviews, setMotImagePreviews] = useState<string[]>(vehicle.documents?.motImage || []);
-  const [v5ImagePreviews, setV5ImagePreviews] = useState<string[]>(vehicle.documents?.v5Image || []);
-  const [insuranceImagePreviews, setInsuranceImagePreviews] = useState<string[]>(vehicle.documents?.insuranceImage || []);
-  
+  // --- Basic fields ---
   const [formData, setFormData] = useState({
-    vin: vehicle.vin || '',
-    make: vehicle.make || '',
-    model: vehicle.model || '',
-    year: vehicle.year?.toString() || new Date().getFullYear().toString(),
-    registrationNumber: vehicle.registrationNumber || '',
-    mileage: vehicle.mileage?.toString() || '0',
-    insuranceExpiry: vehicle?.insuranceExpiry ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0] : '',
-    motTestDate: vehicle?.motTestDate ? new Date(vehicle.motTestDate).toISOString().split('T')[0] : '',
-    nslExpiry: vehicle?.nslExpiry ? new Date(vehicle.nslExpiry).toISOString().split('T')[0] : '',
-    roadTaxExpiry: vehicle?.roadTaxExpiry ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0] : '',
-    lastMaintenance: vehicle?.lastMaintenance ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0] : '',
-    nextMaintenance: vehicle?.nextMaintenance ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0] : '',
-    image: null as File | null,
-    weeklyRentalPrice: vehicle?.weeklyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.weekly.toString(),
-    dailyRentalPrice: vehicle?.dailyRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.daily.toString(),
-    claimRentalPrice: vehicle?.claimRentalPrice?.toString() || DEFAULT_RENTAL_PRICES.claim.toString(),
+    vin: vehicle.vin,
+    make: vehicle.make,
+    model: vehicle.model,
+    year: vehicle.year.toString(),
+    registrationNumber: vehicle.registrationNumber,
+    mileage: vehicle.mileage.toString(),
+    motTestDate: vehicle.motTestDate
+      ? new Date(vehicle.motTestDate).toISOString().split('T')[0]
+      : '',
+    nslExpiry: vehicle.nslExpiry
+      ? new Date(vehicle.nslExpiry).toISOString().split('T')[0]
+      : '',
+    roadTaxExpiry: vehicle.roadTaxExpiry
+      ? new Date(vehicle.roadTaxExpiry).toISOString().split('T')[0]
+      : '',
+    insuranceExpiry: vehicle.insuranceExpiry
+      ? new Date(vehicle.insuranceExpiry).toISOString().split('T')[0]
+      : '',
+    lastMaintenance: vehicle.lastMaintenance
+      ? new Date(vehicle.lastMaintenance).toISOString().split('T')[0]
+      : '',
+    nextMaintenance: vehicle.nextMaintenance
+      ? new Date(vehicle.nextMaintenance).toISOString().split('T')[0]
+      : '',
+    weeklyRentalPrice: vehicle.weeklyRentalPrice.toString(),
+    dailyRentalPrice: vehicle.dailyRentalPrice.toString(),
+    claimRentalPrice: vehicle.claimRentalPrice.toString(),
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // --- Owner logic ---
+  const [owner, setOwner] = useState<Vehicle['owner']>(
+    vehicle.owner || DEFAULT_OWNER
+  );
+  const [isCustomOwner, setIsCustomOwner] = useState(
+    !vehicle.owner?.isDefault
+  );
 
-    if (!validateImage(file)) {
-      return;
-    }
+  // --- Main image ---
+  const [imagePreview, setImagePreview] = useState<string | null>(
+    vehicle.image || null
+  );
+  const [newMainImage, setNewMainImage] = useState<File | null>(null);
+  const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !validateImage(f)) return;
+    setNewMainImage(f);
+    const r = new FileReader();
+    r.onload = () => setImagePreview(r.result as string);
+    r.readAsDataURL(f);
+  };
 
-    setFormData({ ...formData, image: file });
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
+  // --- Document‐type helper factory ---
+  function useDoc(key: keyof Vehicle['documents']) {
+    const existing = vehicle.documents?.[key] || [];
+    const [existingUrls, setExistingUrls] = useState<string[]>([...existing]);
+    const [newFiles, setNewFiles] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([...existing]);
+
+    const onAdd = (files: FileList) => {
+      const arr = Array.from(files).filter(validateImage);
+      arr.forEach((f) => {
+        const r = new FileReader();
+        r.onload = () => setPreviews((p) => [...p, r.result as string]);
+        r.readAsDataURL(f);
+      });
+      setNewFiles((n) => [...n, ...arr]);
     };
-    reader.readAsDataURL(file);
-  };
-  
-  const handleDocumentImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'nsl' | 'mot' | 'v5' | 'MeterCertificateImage' | 'insurance') => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    // Convert FileList to array
-    const fileArray = Array.from(files);
-    
-    // Validate each file
-    const validFiles = fileArray.filter(file => validateImage(file));
-    
-    if (validFiles.length === 0) return;
-    
-    // Update state based on document type
-    switch (type) {
-      case 'nsl':
-        setNslImages(prevImages => [...prevImages, ...validFiles]);
-        // Create previews
-        fileArray.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setNslImagePreviews(prev => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(file);
-        });
-        break;
-      case 'mot':
-        setMotImages(prevImages => [...prevImages, ...validFiles]);
-        // Create previews
-        fileArray.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setMotImagePreviews(prev => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(file);
-        });
-        break;
-      case 'v5':
-        setV5Images(prevImages => [...prevImages, ...validFiles]);
-        // Create previews
-        fileArray.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setV5ImagePreviews(prev => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(file);
-        });
-        break;
-        case 'MeterCertificateImage':
-          setMeterCertificateImages(prevImages => [...prevImages, ...validFiles]);
-          fileArray.forEach(file => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              setMeterCertificateImagePreviews(prev => [...prev, reader.result as string]);
-            };
-            reader.readAsDataURL(file);
-          });
-          break;
-      case 'insurance':
-        setInsuranceImages(prevImages => [...prevImages, ...validFiles]);
-        // Create previews
-        fileArray.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setInsuranceImagePreviews(prev => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(file);
-        });
-        break;
-    }
-  };
-  
-  const removeDocumentPreview = (type: 'nsl' | 'mot' | 'v5' | 'MeterCertificateImage' | 'insurance', index: number) => {
-    switch (type) {
-      case 'nsl':
-        setNslImagePreviews(prev => prev.filter((_, i) => i !== index));
-        setNslImages(prev => prev.filter((_, i) => i !== index));
-        break;
-      case 'mot':
-        setMotImagePreviews(prev => prev.filter((_, i) => i !== index));
-        setMotImages(prev => prev.filter((_, i) => i !== index));
-        break;
-      case 'v5':
-        setV5ImagePreviews(prev => prev.filter((_, i) => i !== index));
-        setV5Images(prev => prev.filter((_, i) => i !== index));
-        break;
-      case 'MeterCertificateImage':
-        setMeterCertificateImagePreviews(prev => prev.filter((_, i) => i !== index));
-        setMeterCertificateImages(prev => prev.filter((_, i) => i !== index));
-        break;
-      case 'insurance':
-        setInsuranceImagePreviews(prev => prev.filter((_, i) => i !== index));
-        setInsuranceImages(prev => prev.filter((_, i) => i !== index));
-        break;
-    }
-  };
+
+    const onRemove = (idx: number) => {
+      if (idx < existingUrls.length) {
+        setExistingUrls((u) => u.filter((_, i) => i !== idx));
+      } else {
+        const ni = idx - existingUrls.length;
+        setNewFiles((n) => n.filter((_, i) => i !== ni));
+      }
+      setPreviews((p) => p.filter((_, i) => i !== idx));
+    };
+
+    return { existingUrls, newFiles, previews, onAdd, onRemove };
+  }
+
+  const nsl    = useDoc('nslImage');
+  const mot    = useDoc('motImage');
+  const v5doc  = useDoc('v5Image');
+  const meter  = useDoc('MeterCertificateImage');
+  const insure = useDoc('insuranceImage');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      let imageUrl = vehicle.image || '';
-
-      if (formData.image) {
-        const imageRef = ref(storage, `vehicles/${Date.now()}_${formData.image.name}`);
-        const snapshot = await uploadBytes(imageRef, formData.image);
-        imageUrl = await getDownloadURL(snapshot.ref);
+      // 1) upload helper
+      async function uploadBatch(files: File[], base: string[]) {
+        const out = [...base];
+        for (let f of files) out.push(await uploadImage(f, 'vehicle-documents'));
+        return out;
       }
 
-      // Calculate MOT expiry date (6 months after test date)
-      const motTestDate = new Date(formData.motTestDate);
-      const motExpiry = new Date(motTestDate);
-      motExpiry.setMonth(motExpiry.getMonth() + 6);
-      
-      // Upload document images and get URLs
-      const uploadDocumentImages = async (files: File[], existingUrls: string[]): Promise<string[]> => {
-        const urls = [...existingUrls];
-        
-        for (const file of files) {
-          const imageRef = ref(storage, `vehicle-documents/${Date.now()}_${file.name}`);
-          const snapshot = await uploadBytes(imageRef, file);
-          const url = await getDownloadURL(snapshot.ref);
-          urls.push(url);
-        }
-        
-        return urls;
-      };
-      
-      // Upload all document images
-  const [nslUrls, motUrls, v5Urls, insuranceUrls, meterCertificateUrls] = await Promise.all([
-    uploadDocumentImages(nslImages, vehicle.documents?.nslImage || []),
-    uploadDocumentImages(motImages, vehicle.documents?.motImage || []),
-    uploadDocumentImages(v5Images, vehicle.documents?.v5Image || []),
-    uploadDocumentImages(insuranceImages, vehicle.documents?.insuranceImage || []),
-    uploadDocumentImages(MeterCertificateImages, vehicle.documents?.MeterCertificateImage || [])
-  ]);
+      // 2) re-upload brand new docs
+      const [nslUrls, motUrls, v5Urls, meterUrls, insUrls] =
+        await Promise.all([
+          uploadBatch(nsl.newFiles,    nsl.existingUrls),
+          uploadBatch(mot.newFiles,    mot.existingUrls),
+          uploadBatch(v5doc.newFiles,  v5doc.existingUrls),
+          uploadBatch(meter.newFiles,  meter.existingUrls),
+          uploadBatch(insure.newFiles, insure.existingUrls),
+        ]);
 
-      const vehicleData = {
-        ...formData,
-        image: imageUrl,
-        mileage: parseInt(formData.mileage),
-        year: parseInt(formData.year),
-        motTestDate: new Date(formData.motTestDate),
-        motExpiry, // Add calculated MOT expiry
+      // 3) compute MOT expiry
+      const motDate = formData.motTestDate
+        ? new Date(formData.motTestDate)
+        : vehicle.motTestDate!;
+      const motExpiry = new Date(motDate);
+      motExpiry.setMonth(motExpiry.getMonth() + 6);
+
+      // 4) build update payload – *always* overwrite `documents`
+      const updateData: Partial<Vehicle> = {
+        vin: formData.vin,
+        make: formData.make,
+        model: formData.model,
+        year: parseInt(formData.year, 10),
+        registrationNumber: formData.registrationNumber,
+        mileage: parseInt(formData.mileage, 10),
+        motTestDate: motDate,
+        motExpiry,
         nslExpiry: new Date(formData.nslExpiry),
         roadTaxExpiry: new Date(formData.roadTaxExpiry),
         insuranceExpiry: new Date(formData.insuranceExpiry),
         lastMaintenance: new Date(formData.lastMaintenance),
         nextMaintenance: new Date(formData.nextMaintenance),
-        weeklyRentalPrice: Math.round(parseFloat(formData.weeklyRentalPrice)) || DEFAULT_RENTAL_PRICES.weekly,
-        dailyRentalPrice: Math.round(parseFloat(formData.dailyRentalPrice)) || DEFAULT_RENTAL_PRICES.daily,
-        claimRentalPrice: Math.round(parseFloat(formData.claimRentalPrice)) || DEFAULT_RENTAL_PRICES.claim,
+        weeklyRentalPrice: Math.round(+formData.weeklyRentalPrice),
+        dailyRentalPrice: Math.round(+formData.dailyRentalPrice),
+        claimRentalPrice: Math.round(+formData.claimRentalPrice),
         owner: isCustomOwner ? owner : DEFAULT_OWNER,
         updatedAt: new Date(),
         documents: {
-          ...(vehicle.documents || {}),
           nslImage: nslUrls,
           motImage: motUrls,
           v5Image: v5Urls,
-          insuranceImage: insuranceUrls,
-          MeterCertificateImage: meterCertificateUrls
-        }
+          MeterCertificateImage: meterUrls,
+          insuranceImage: insUrls,
+        },
       };
 
-      await updateDoc(doc(db, 'vehicles', vehicle.id), vehicleData);
+      // 5) upload main image if provided
+      if (newMainImage) {
+        const url = await uploadImage(newMainImage, 'vehicle-main');
+        ;(updateData as any).image = url;
+      }
+
+      // 6) write to Firestore
+      await updateDoc(doc(db, 'vehicles', vehicle.id), updateData);
+
       toast.success('Vehicle updated successfully');
       onClose();
-    } catch (error) {
-      console.error('Error updating vehicle:', error);
+    } catch (err) {
+      console.error(err);
       toast.error('Failed to update vehicle');
     } finally {
       setLoading(false);
@@ -250,467 +188,191 @@ const [MeterCertificateImagePreviews, setMeterCertificateImagePreviews] = useSta
   };
 
   return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      title="Edit Vehicle"
-      size="xl"
-    >
+    <Modal isOpen onClose={onClose} title="Edit Vehicle" size="xl">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Vehicle Information */}
+        {/* — Basic Info — */}
         <div className="grid grid-cols-2 gap-4">
-          <FormField
-            label="VIN"
-            value={formData.vin}
-            onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
-            required
-          />
-
-          <FormField
-            label="Registration Number"
-            value={formData.registrationNumber}
-            onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-            required
-          />
-
-          <FormField
-            label="Make"
-            value={formData.make}
-            onChange={(e) => setFormData({ ...formData, make: e.target.value })}
-            required
-          />
-
-          <FormField
-            label="Model"
-            value={formData.model}
-            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="number"
-            label="Year"
-            value={formData.year}
-            onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="number"
-            label="Mileage"
-            value={formData.mileage}
-            onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
-            required
-          />
+          {[
+            { label: 'VIN', name: 'vin' },
+            { label: 'Reg Number', name: 'registrationNumber' },
+            { label: 'Make', name: 'make' },
+            { label: 'Model', name: 'model' },
+            { label: 'Year', name: 'year', type: 'number' },
+            { label: 'Mileage', name: 'mileage', type: 'number' },
+          ].map((f) => (
+            <FormField
+              key={f.name}
+              label={f.label}
+              type={(f.type as any) || 'text'}
+              value={(formData as any)[f.name]}
+              onChange={(e) =>
+                setFormData({ ...formData, [f.name]: e.target.value })
+              }
+              required
+            />
+          ))}
         </div>
 
-        {/* Rental Pricing Section */}
+        {/* — Dates — */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { label: 'MOT Test Date', name: 'motTestDate' },
+            { label: 'NSL Expiry', name: 'nslExpiry' },
+            { label: 'Road Tax Expiry', name: 'roadTaxExpiry' },
+            { label: 'Insurance Expiry', name: 'insuranceExpiry' },
+            { label: 'Last Maint', name: 'lastMaintenance' },
+            { label: 'Next Maint', name: 'nextMaintenance' },
+          ].map((f) => (
+            <FormField
+              key={f.name}
+              label={f.label}
+              type="date"
+              value={(formData as any)[f.name]}
+              onChange={(e) =>
+                setFormData({ ...formData, [f.name]: e.target.value })
+              }
+              required
+            />
+          ))}
+        </div>
+
+        {/* — Rental Pricing — */}
         <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
+          <h3 className="text-lg font-medium mb-4">Rental Pricing</h3>
           <div className="grid grid-cols-3 gap-4">
-            <FormField
-              type="number"
-              label="Weekly Rental Price (£)"
-              value={formData.weeklyRentalPrice}
-              onChange={(e) => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
-              min="0"
-              step="1"
-              required
-            />
-            <FormField
-              type="number"
-              label="Daily Rental Price (£)"
-              value={formData.dailyRentalPrice}
-              onChange={(e) => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
-              min="0"
-              step="1"
-              required
-            />
-            <FormField
-              type="number"
-              label="Claim Rental Price (£)"
-              value={formData.claimRentalPrice}
-              onChange={(e) => setFormData({ ...formData, claimRentalPrice: e.target.value })}
-              min="0"
-              step="1"
-              required
-            />
-          </div>
-        </div>
-
-        {/* Owner Information */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
-          
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="customOwner"
-                checked={isCustomOwner}
-                onChange={(e) => {
-                  setIsCustomOwner(e.target.checked);
-                  if (!e.target.checked) {
-                    setOwner(DEFAULT_OWNER);
-                  }
-                }}
-                className="rounded border-gray-300 text-primary focus:ring-primary"
+            {[
+              { label: 'Weekly (£)', name: 'weeklyRentalPrice' },
+              { label: 'Daily (£)', name: 'dailyRentalPrice' },
+              { label: 'Claim (£)', name: 'claimRentalPrice' },
+            ].map((f) => (
+              <FormField
+                key={f.name}
+                label={f.label}
+                type="number"
+                value={(formData as any)[f.name]}
+                onChange={(e) =>
+                  setFormData({ ...formData, [f.name]: e.target.value })
+                }
+                required
               />
-              <label htmlFor="customOwner" className="text-sm text-gray-700">
-                Custom Owner
-              </label>
-            </div>
-
-            {isCustomOwner ? (
-              <div className="space-y-4">
-                <FormField
-                  label="Owner Name"
-                  value={owner.name}
-                  onChange={(e) => setOwner({ ...owner, name: e.target.value, isDefault: false })}
-                  required
-                />
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Owner Address</label>
-                  <textarea
-                    value={owner.address}
-                    onChange={(e) => setOwner({ ...owner, address: e.target.value })}
-                    rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                    required
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">
-                Default owner: {DEFAULT_OWNER.name}
-                <br />
-                Address: {DEFAULT_OWNER.address}
-              </div>
-            )}
+            ))}
           </div>
         </div>
 
-        {/* Document Expiry Dates */}
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            type="date"
-            label="MOT Test Date"
-            value={formData.motTestDate}
-            onChange={(e) => setFormData({ ...formData, motTestDate: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="date"
-            label="NSL Expiry"
-            value={formData.nslExpiry}
-            onChange={(e) => setFormData({ ...formData, nslExpiry: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="date"
-            label="Road Tax Expiry"
-            value={formData.roadTaxExpiry}
-            onChange={(e) => setFormData({ ...formData, roadTaxExpiry: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="date"
-            label="Insurance Expiry"
-            value={formData.insuranceExpiry}
-            onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="date"
-            label="Last Maintenance"
-            value={formData.lastMaintenance}
-            onChange={(e) => setFormData({ ...formData, lastMaintenance: e.target.value })}
-            required
-          />
-
-          <FormField
-            type="date"
-            label="Next Maintenance"
-            value={formData.nextMaintenance}
-            onChange={(e) => setFormData({ ...formData, nextMaintenance: e.target.value })}
-            required
-          />
-        </div>
-
-        {/* Vehicle Image */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Vehicle Image</label>
-          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-            <div className="space-y-1 text-center">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Vehicle preview"
-                  className="mx-auto h-32 w-auto object-cover rounded-md"
-                />
-              ) : (
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-              )}
-              <div className="flex text-sm text-gray-600">
-                <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                  <span>Upload a photo</span>
-                  <input
-                    type="file"
-                    className="sr-only"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                </label>
-                <p className="pl-1">or drag and drop</p>
-              </div>
-              <p className="text-xs text-gray-500">PNG, JPG, WebP up to 5MB</p>
-            </div>
-          </div>
-        </div>
-        
-        {/* Document Images */}
+        {/* — Owner — */}
         <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Document Images</h3>
-          
-          {/* NSL Images */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">NSL Images</label>
-            {nslImagePreviews.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {nslImagePreviews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={preview} 
-                      alt={`NSL document ${index + 1}`} 
-                      className="h-24 w-full object-cover rounded-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeDocumentPreview('nsl', index)}
-                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-                    >
-                      <X className="h-4 w-4 text-red-600" />
-                    </button>
-                  </div>
-                ))}
+          <h3 className="text-lg font-medium mb-4">Vehicle Owner</h3>
+          <label className="inline-flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={isCustomOwner}
+              onChange={(e) => {
+                setIsCustomOwner(e.target.checked);
+                if (!e.target.checked) setOwner(DEFAULT_OWNER);
+              }}
+              className="rounded border-gray-300"
+            />
+            <span>Custom Owner</span>
+          </label>
+          {isCustomOwner ? (
+            <>
+              <FormField
+                label="Owner Name"
+                value={owner.name}
+                onChange={(e) =>
+                  setOwner({ ...owner, name: e.target.value, isDefault: false })
+                }
+                required
+              />
+              <div>
+                <label>Owner Address</label>
+                <textarea
+                  rows={3}
+                  className="w-full rounded border-gray-300"
+                  value={owner.address}
+                  onChange={(e) =>
+                    setOwner((o) => ({ ...o, address: e.target.value }))
+                  }
+                />
               </div>
-            )}
-            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                    <span>Upload NSL images</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleDocumentImageChange(e, 'nsl')}
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* MOT Images */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">MOT Images</label>
-            {motImagePreviews.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {motImagePreviews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={preview} 
-                      alt={`MOT document ${index + 1}`} 
-                      className="h-24 w-full object-cover rounded-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeDocumentPreview('mot', index)}
-                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-                    >
-                      <X className="h-4 w-4 text-red-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                    <span>Upload MOT images</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleDocumentImageChange(e, 'mot')}
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* V5 Images */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">V5 Images</label>
-            {v5ImagePreviews.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {v5ImagePreviews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={preview} 
-                      alt={`V5 document ${index + 1}`} 
-                      className="h-24 w-full object-cover rounded-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeDocumentPreview('v5', index)}
-                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-                    >
-                      <X className="h-4 w-4 text-red-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                    <span>Upload V5 images</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleDocumentImageChange(e, 'v5')}
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
-              </div>
-            </div>
-          </div>
-
-          {/* MeterCertificateImage Images */}
-<div className="mb-6">
-  <label className="block text-sm font-medium text-gray-700 mb-2">Meter Certificate Images</label>
-  {MeterCertificateImagePreviews.length > 0 && (
-    <div className="grid grid-cols-3 gap-2 mb-2">
-      {MeterCertificateImagePreviews.map((preview, index) => (
-        <div key={index} className="relative">
-          <img
-            src={preview}
-            alt={`Meter Certificate Image document ${index + 1}`}
-            className="h-24 w-full object-cover rounded-md"
-          />
-          <button
-            type="button"
-            onClick={() => removeDocumentPreview('MeterCertificateImage', index)}
-            className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-          >
-            <X className="h-4 w-4 text-red-600" />
-          </button>
+            </>
+          ) : (
+            <p className="text-gray-500">
+              Default: {DEFAULT_OWNER.name}, {DEFAULT_OWNER.address}
+            </p>
+          )}
         </div>
-      ))}
-    </div>
-  )}
-  <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-    <div className="space-y-1 text-center">
-      <Upload className="mx-auto h-8 w-8 text-gray-400" />
-      <div className="flex text-sm text-gray-600">
-        <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-          <span>Upload Meter Certificate images</span>
-          <input
-            type="file"
-            className="sr-only"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleDocumentImageChange(e, 'MeterCertificateImage')}
-          />
-        </label>
-        <p className="pl-1">or drag and drop</p>
-      </div>
-      <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
-    </div>
-  </div>
-</div>
-          
-          {/* Insurance Images */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Insurance Images</label>
-            {insuranceImagePreviews.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {insuranceImagePreviews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={preview} 
-                      alt={`Insurance document ${index + 1}`} 
-                      className="h-24 w-full object-cover rounded-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeDocumentPreview('insurance', index)}
-                      className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-                    >
-                      <X className="h-4 w-4 text-red-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+
+        {/* — Main Image — */}
+        <div>
+          <label>Vehicle Image</label>
+          <div className="relative mt-1 flex justify-center p-6 border-2 border-gray-300 rounded">
+            {imagePreview ? (
+              <img src={imagePreview} className="h-32" />
+            ) : (
+              <Upload className="h-12 w-12 text-gray-400" />
             )}
-            <div className="flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                    <span>Upload Insurance images</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleDocumentImageChange(e, 'insurance')}
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
-              </div>
-            </div>
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              onChange={handleMainImageChange}
+            />
           </div>
         </div>
 
+        {/* — Documents — */}
+        {[
+          { title: 'NSL Images', dt: nsl },
+          { title: 'MOT Images', dt: mot },
+          { title: 'V5 Images', dt: v5doc },
+          { title: 'Meter Certificate Images', dt: meter },
+          { title: 'Insurance Images', dt: insure },
+        ].map(({ title, dt }) => (
+          <div key={title} className="border-t pt-6">
+            <h3 className="text-lg font-medium mb-4">{title}</h3>
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {dt.previews.map((src, i) => (
+                <div key={i} className="relative">
+                  <img src={src} className="h-24 w-full rounded object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => dt.onRemove(i)}
+                    className="absolute top-0 right-0 bg-white rounded-full p-1"
+                  >
+                    <X className="h-4 w-4 text-red-600" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="relative flex justify-center p-6 border-2 border-gray-300 rounded">
+              <Upload className="h-8 w-8 text-gray-400" />
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                onChange={(e) => dt.onAdd(e.target.files!)}
+              />
+            </div>
+          </div>
+        ))}
+
+        {/* — Actions — */}
         <div className="flex justify-end space-x-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-4 py-2 border rounded"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+            className="px-4 py-2 bg-primary text-white rounded"
           >
-            {loading ? 'Updating...' : 'Update Vehicle'}
+            {loading ? 'Updating…' : 'Update Vehicle'}
           </button>
         </div>
       </form>

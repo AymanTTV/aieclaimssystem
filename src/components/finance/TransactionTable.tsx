@@ -166,7 +166,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
               >
                 <FileText className="h-4 w-4" />
               </button>
-              <button
+              {/* <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onAssignAccount(row.original);
@@ -175,7 +175,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                 title="Assign Account"
               >
                 <Share2 className="h-4 w-4" />
-              </button>
+              </button> */}
             </>
           )}
           {can('finance', 'delete') && (

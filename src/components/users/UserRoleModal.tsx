@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { DEFAULT_PERMISSIONS, type RolePermissions } from '../../types/roles';
+import { DEFAULT_PERMISSIONS, type RolePermissions, type PermissionAction } from '../../types/roles';
 import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -18,7 +18,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   const { user: currentUser } = useAuth();
   const isManager = currentUser?.role === 'manager';
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState(user.role);
+  const [role, setRole] = useState<User['role']>(user.role);
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(
     user.permissions || DEFAULT_PERMISSIONS[user.role]
   );
@@ -29,16 +29,13 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
       toast.error('Only managers can modify user permissions');
       return;
     }
-    
     setLoading(true);
-
     try {
       await updateDoc(doc(db, 'users', user.id), {
         role,
         permissions: customPermissions,
         updatedAt: new Date()
       });
-
       toast.success('User permissions updated successfully');
       onClose();
     } catch (error) {
@@ -62,6 +59,17 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
       default:
         return module.charAt(0).toUpperCase() + module.slice(1);
     }
+  };  
+
+  const handleToggle = (module: keyof RolePermissions, action: PermissionAction) => {
+    if (!isManager) return;
+    setCustomPermissions(prev => ({
+      ...prev,
+      [module]: {
+        ...prev[module],
+        [action]: !prev[module][action]
+      }
+    }));
   };
 
   return (
@@ -71,8 +79,9 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         <select
           value={role}
           onChange={(e) => {
-            setRole(e.target.value as User['role']);
-            setCustomPermissions(DEFAULT_PERMISSIONS[e.target.value as User['role']]);
+            const newRole = e.target.value as User['role'];
+            setRole(newRole);
+            setCustomPermissions(DEFAULT_PERMISSIONS[newRole]);
           }}
           className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm ${!isManager ? 'bg-gray-100' : ''}`}
           disabled={!isManager}
@@ -84,7 +93,6 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         </select>
       </div>
 
-      {/* Show all permissions but disable editing for non-managers */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Custom Permissions</h3>
         {Object.entries(customPermissions).map(([module, permissions]) => (
@@ -92,31 +100,24 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
             <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">
               {getModuleDisplayName(module)}
             </h4>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.entries(permissions).map(([action, enabled]) => (
-                <label key={action} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) => {
-                      if (isManager) {
-                        setCustomPermissions({
-                          ...customPermissions,
-                          [module]: {
-                            ...customPermissions[module],
-                            [action]: e.target.checked
-                          }
-                        });
-                      }
-                    }}
-                    className={`rounded border-gray-300 text-primary focus:ring-primary ${!isManager ? 'cursor-not-allowed opacity-60' : ''}`}
-                    disabled={!isManager}
-                  />
-                  <span className={`ml-2 text-sm text-gray-700 capitalize ${!isManager ? 'opacity-60' : ''}`}>
-                    {action}
-                  </span>
-                </label>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {Object.entries(permissions).map(([action, enabled]) => {
+                const label = action === 'cards'
+                  ? 'View summary cards'
+                  : action.charAt(0).toUpperCase() + action.slice(1);
+                return (
+                  <label key={action} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={() => handleToggle(module as keyof RolePermissions, action as PermissionAction)}
+                      className={`rounded border-gray-300 text-primary focus:ring-primary ${!isManager ? 'cursor-not-allowed opacity-60' : ''}`}
+                      disabled={!isManager}
+                    />
+                    <span className={`ml-2 text-sm text-gray-700 capitalize ${!isManager ? 'opacity-60' : ''}`}>{label}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         ))}

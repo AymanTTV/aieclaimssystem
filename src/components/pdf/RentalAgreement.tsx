@@ -1,32 +1,25 @@
+// src/components/pdf/documents/RentalAgreement.tsx
 import React from 'react';
-import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'; // Import StyleSheet
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types';
 import { format, addDays } from 'date-fns';
 import logo from '../../assets/logo.png';
 import { formatDate } from '../../utils/dateHelpers';
-import { styles } from './styles'; // Assuming styles are imported from the provided file
+import { styles } from './styles'; // ← your existing styles.ts
 
-// Create a local style for the signature section positioning
-// This does NOT modify the imported global styles object
+// Local style for the absolutely‐positioned signature section
 const localStyles = StyleSheet.create({
   signatureSectionPositioning: {
-    position: 'absolute', // Position absolutely
-    bottom: 50, // Adjusted this value to position above the footer (footer is at bottom: 30)
-    left: 40, // Match page padding
-    right: 40, // Match page padding
+    position: 'absolute',
+    bottom: 50,
+    left: 40,
+    right: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
-    // Remove marginBottom as positioning is absolute
   },
 });
-
-
-const generateAgreementNumber = (id: string): string => {
-  const number = id.slice(-3).padStart(3, '0');
-  return `AIE-${number}`;
-};
 
 const RentalAgreement: React.FC<{
   rental: Rental;
@@ -36,43 +29,43 @@ const RentalAgreement: React.FC<{
 }> = ({ rental, vehicle, customer, companyDetails = {} }) => {
   const formatDateTime = (date: Date | string | null | undefined): string => {
     if (!date) return 'N/A';
-
     try {
-      // Handle Firestore Timestamps if present
-      if ((date as any).toDate) {
-        date = (date as any).toDate();
+      let processed: any = date;
+      if (typeof (date as any)?.toDate === 'function') {
+        processed = (date as any).toDate();
       }
-
-      const dateObj = typeof date === 'string' ? new Date(date) : date;
-
+      const dateObj = typeof processed === 'string' ? new Date(processed) : processed;
       if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
         return format(dateObj, 'dd/MM/yyyy HH:mm');
       }
-
       return 'N/A';
-    } catch (error) {
-      console.error('Error formatting date:', error);
+    } catch {
       return 'N/A';
     }
   };
 
-  const getRentalRate = (rentalType: Rental['type'], vehicle: Vehicle): number => {
+  const getRentalRate = (rentalType: Rental['type'], v: Vehicle): number => {
     switch (rentalType) {
       case 'weekly':
-        return vehicle.weeklyRentalPrice ?? DEFAULT_RENTAL_PRICES.weekly;
+        return v.weeklyRentalPrice ?? DEFAULT_RENTAL_PRICES.weekly;
       case 'daily':
-        return vehicle.dailyRentalPrice ?? DEFAULT_RENTAL_PRICES.daily;
+        return v.dailyRentalPrice ?? DEFAULT_RENTAL_PRICES.daily;
       case 'claim':
-        return vehicle.claimRentalPrice ?? DEFAULT_RENTAL_PRICES.claim;
+        return v.claimRentalPrice ?? DEFAULT_RENTAL_PRICES.claim;
       default:
         return 0;
     }
   };
 
   const rentalRate = getRentalRate(rental.type, vehicle);
-
-  // Calculate the default end date (90 days from start date)
-  const defaultEndDate = rental.startDate ? addDays(new Date(rental.startDate), 90) : null;
+  const defaultEndDate = rental.startDate
+    ? addDays(
+        new Date(
+          rental.startDate instanceof Date ? rental.startDate : String(rental.startDate)
+        ),
+        90
+      )
+    : null;
 
   return (
     <Document>
@@ -81,20 +74,31 @@ const RentalAgreement: React.FC<{
         <View style={styles.header}>
           <Image src={logo} style={styles.logo} />
           <View style={styles.companyInfo}>
-            <Text>{companyDetails.fullName || 'AIE SKYLINE'}</Text>
-            <Text>{companyDetails.officialAddress || ''}</Text>
-            <Text>Tel: {companyDetails.phone || ''}</Text>
-            <Text>Email: {companyDetails.email || ''}</Text>
-            <Text>VAT No: {companyDetails.vatNumber || ''}</Text>
+            <Text style={styles.companyName}>
+              {companyDetails.fullName || 'AIE SKYLINE'}
+            </Text>
+            <Text style={styles.companyDetail}>
+              {companyDetails.officialAddress || ''}
+            </Text>
+            <Text style={styles.companyDetail}>Tel: {companyDetails.phone || ''}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails.email || ''}</Text>
+            <Text style={styles.companyDetail}>VAT No: {companyDetails.vatNumber || ''}</Text>
           </View>
         </View>
 
         {/* TITLE */}
-        <Text style={styles.title}>VEHICLE RENTAL AGREEMENT</Text>
-        {/* <Text style={styles.agreementNumber}>Agreement No: {generateAgreementNumber(rental.id)}</Text> */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>VEHICLE RENTAL AGREEMENT</Text>
+        </View>
 
         {/* HIRER & VEHICLE DETAILS */}
-        <View style={{ ...styles.sectionBreak, flexDirection: 'row', justifyContent: 'space-between' }} wrap={false}>
+        <View
+          style={{
+            marginBottom: 15,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+          }}
+        >
           {/* HIRER DETAILS */}
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>HIRER DETAILS</Text>
@@ -104,15 +108,13 @@ const RentalAgreement: React.FC<{
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>{formatDateTime(customer.dateOfBirth)}</Text>
+              <Text style={styles.value}>
+                {formatDateTime(customer.dateOfBirth)}
+              </Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Address:</Text>
               <Text style={styles.value}>{customer.address}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Contact Number:</Text>
-              <Text style={styles.value}>{customer.mobile}</Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>License Number:</Text>
@@ -120,7 +122,9 @@ const RentalAgreement: React.FC<{
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>License Valid Until:</Text>
-              <Text style={styles.value}>{formatDateTime(customer.licenseExpiry)}</Text>
+              <Text style={styles.value}>
+                {formatDateTime(customer.licenseExpiry)}
+              </Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Badge Number:</Text>
@@ -133,7 +137,9 @@ const RentalAgreement: React.FC<{
             <Text style={styles.sectionTitle}>VEHICLE DETAILS</Text>
             <View style={styles.row}>
               <Text style={styles.label}>Make & Model:</Text>
-              <Text style={styles.value}>{vehicle.make} {vehicle.model}</Text>
+              <Text style={styles.value}>
+                {vehicle.make} {vehicle.model}
+              </Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Registration:</Text>
@@ -141,41 +147,69 @@ const RentalAgreement: React.FC<{
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Current Mileage:</Text>
-              <Text style={styles.value}>{vehicle.mileage.toLocaleString()} miles</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* RENTAL DETAILS */}
-        <View style={styles.sectionBreak} wrap={false}>
-          <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableCell, { flex: 1 }]}>Rental Type</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>Start Date & Time</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>End Date & Time</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{rental.type.toUpperCase()}</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{formatDateTime(rental.startDate)}</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>
-                {formatDateTime(
-                  rental.status === 'completed' && rental.endDate
-                    ? rental.endDate
-                    : defaultEndDate // Use the calculated 90-day end date
-                )}
+              <Text style={styles.value}>
+                {vehicle.mileage?.toLocaleString() ?? 'N/A'} miles
               </Text>
             </View>
           </View>
         </View>
 
-        {/* PAYMENT DETAILS */}
-        <View style={styles.sectionBreak} wrap={false}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoCardTitle}>PAYMENT DETAILS</Text>
-            <View style={styles.row}><Text style={styles.label}>Payment Type:</Text><Text style={styles.value}>{rental.type.toUpperCase()}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Rate:</Text><Text style={styles.value}>£{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Payment Due:</Text><Text style={styles.value}>{rental.type === 'weekly' ? 'Every Monday' : 'Daily'}</Text></View>
+        {/* RENTAL + PAYMENT DETAILS (kept together) */}
+        <View wrap={false}>
+          {/* RENTAL DETAILS */}
+          <View style={{ marginBottom: 15 }} wrap={false}>
+            <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rental Type</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
+                  Start Date & Time
+                </Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
+                  End Date & Time
+                </Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  {rental.type.toUpperCase()}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  {formatDateTime(rental.startDate)}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  {rental.status === 'completed' && rental.endDate
+                    ? formatDateTime(rental.endDate)
+                    : formatDateTime(defaultEndDate)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* PAYMENT DETAILS */}
+          <View style={{ marginBottom: 15 }} wrap={false}>
+            <Text style={styles.sectionTitle}>PAYMENT DETAILS</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
+                  Payment Type
+                </Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rate</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
+                  Payment Due
+                </Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  {rental.type.toUpperCase()}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+                  {rental.type === 'weekly' ? 'Every Monday' : 'Daily'}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -183,15 +217,41 @@ const RentalAgreement: React.FC<{
 
         {/* VEHICLE CONDITION AT CHECK-OUT */}
         {rental.checkOutCondition && (
-          <View style={styles.sectionBreak} wrap={false}>
+          <View style={[styles.sectionBreak]} wrap={false}>
             <View style={styles.infoCard}>
-              <Text style={styles.infoCardTitle}>Vehicle Condition at Check-Out</Text>
+              <Text style={styles.infoCardTitle}>
+                Vehicle Condition at Check-Out
+              </Text>
 
               <View style={styles.grid}>
-                <View style={styles.gridItem}><Text style={styles.label}>Check-Out Date & Time:</Text><Text style={styles.value}>{formatDateTime(rental.checkOutCondition.date)}</Text></View>
-                <View style={styles.gridItem}><Text style={styles.label}>Mileage:</Text><Text style={styles.value}>{rental.checkOutCondition.mileage.toLocaleString()} miles</Text></View>
-                <View style={styles.gridItem}><Text style={styles.label}>Fuel Level:</Text><Text style={styles.value}>{rental.checkOutCondition.fuelLevel}%</Text></View>
-                <View style={styles.gridItem}><Text style={styles.label}>Vehicle Condition:</Text><Text style={styles.value}>{rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}</Text></View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Check-Out Date & Time:</Text>
+                  <Text style={styles.subValue}>
+                    {formatDateTime(rental.checkOutCondition.date)}
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Mileage:</Text>
+                  <Text style={styles.subValue}>
+                    {rental.checkOutCondition.mileage?.toLocaleString() ??
+                      'N/A'}{' '}
+                    miles
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Fuel Level:</Text>
+                  <Text style={styles.subValue}>
+                    {rental.checkOutCondition.fuelLevel}%
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Vehicle Condition:</Text>
+                  <Text style={styles.subValue}>
+                    {rental.checkOutCondition.isClean
+                      ? 'Clean'
+                      : 'Needs Cleaning'}
+                  </Text>
+                </View>
               </View>
 
               {rental.checkOutCondition.hasDamage && (
@@ -203,37 +263,64 @@ const RentalAgreement: React.FC<{
 
               {/* Vehicle Images Grid */}
               {rental.checkOutCondition.images?.length > 0 && (
-                <View style={styles.grid}>
-                  {rental.checkOutCondition.images.map((url, index) => (
-                    <View key={index} style={{ width: '33.33%', padding: 4 }}>
-                     <Image src={url} style={{ width: '100%', height: 100, objectFit: 'contain' }} />
-
-                    </View>
-                  ))}
+                <View style={{ marginTop: 10 }}>
+                  <Text style={{ ...styles.subLabel, marginBottom: 5 }}>
+                    Vehicle Images:
+                  </Text>
+                  <View style={styles.grid}>
+                    {(rental.checkOutCondition.images || [])
+                      .filter(
+                        (url): url is string =>
+                          typeof url === 'string' && url.startsWith('http')
+                      )
+                      .slice(0, 5)
+                      .map((url, idx) => (
+                        <View key={idx} style={styles.gridItem}>
+                          <View style={styles.imageContainer}>
+                            <Image
+                              src={url}
+                              style={{ width: '100%', height: 120, objectFit: 'contain' }}
+                              onError={(err) =>
+                                console.error(
+                                  `PDF Image ${idx} failed to load:`,
+                                  err.message || err
+                                )
+                              }
+                            />
+                          </View>
+                          <Text style={styles.imageCaption}>{`Image ${idx + 1}`}</Text>
+                        </View>
+                      ))}
+                  </View>
                 </View>
               )}
             </View>
           </View>
         )}
 
-        {/* Terms and Conditions */}
-        {/* Removed marginBottom from this section to allow signature section to position correctly */}
-        <View style={[styles.section, styles.sectionBreak, { marginBottom: 0 }]}>
+        {/* TERMS AND CONDITIONS */}
+        <View style={[styles.section, styles.sectionBreak, { marginBottom: 100 }]}>
           <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          <Text>{companyDetails.termsAndConditions || 'Standard terms and conditions apply.'}</Text>
+          <Text style={styles.text}>
+            {companyDetails.termsAndConditions ||
+              'Standard terms and conditions apply.'}
+          </Text>
         </View>
 
-        {/* Signatures - Now positioned absolutely */}
-        <View style={[styles.signatureSection, styles.sectionBreak]}>
-          <View style={styles.signatureBox}>
+        {/* SIGNATURES – absolutely positioned above footer */}
+        <View style={[localStyles.signatureSectionPositioning]}>
+          {/* Hirer’s Signature Box */}
+          <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
             {rental.signature && (
               <Image src={rental.signature} style={styles.signature} />
             )}
-            <Text style={styles.signatureLine}>Hirer's Signature</Text>
+            <Text style={styles.signatureLine}>Hirer’s Signature</Text>
             <Text>{customer.name}</Text>
-            <Text>Date {formatDate(rental.startDate, true)}</Text>
+            <Text>Date: {formatDate(rental.startDate, true)}</Text>
           </View>
-          <View style={styles.signatureBox}>
+
+          {/* Authorized Signature Box */}
+          <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
             {companyDetails.signature && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
@@ -243,12 +330,11 @@ const RentalAgreement: React.FC<{
           </View>
         </View>
 
-        {/* Footer */}
-        {/* Added the footer back using the provided structure and global styles */}
+        {/* FOOTER */}
         <Text style={styles.footer}>
-          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
+          {companyDetails.fullName || 'AIE SKYLINE'} | Registered in England and Wales | Company No:{' '}
+          {companyDetails.registrationNumber || 'N/A'}
         </Text>
-
       </Page>
     </Document>
   );

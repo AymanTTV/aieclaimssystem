@@ -1,3 +1,4 @@
+// rental.ts
 export interface Rental {
   id: string;
   vehicleId: string;
@@ -21,6 +22,7 @@ export interface Rental {
   paymentReference?: string;
   standardCost?: number;
 
+
   // Storage details
   storageStartDate?: Date;
   storageEndDate?: Date;
@@ -31,6 +33,7 @@ export interface Rental {
 
   // Recovery cost
   recoveryCost?: number;
+  includeRecoveryCostVAT?: boolean; // NEW: Add field for Recovery Cost VAT
 
   // ---> NEW: Add Hire-related charges <---
   deliveryCharge?: number;
@@ -38,6 +41,11 @@ export interface Rental {
   insurancePerDay?: number;
   // Note: Total insurance cost isn't stored directly, it's calculated and added to 'cost'
   claimRef?: string;
+
+  includeVAT?: boolean; // New field for overall rental VAT
+  deliveryChargeIncludeVAT?: boolean; // New field for delivery charge VAT
+  collectionChargeIncludeVAT?: boolean; // New field for collection charge VAT
+  insurancePerDayIncludeVAT?: boolean; // New field for insurance per day VAT
   negotiated?: boolean;
   numberOfWeeks?: number;
   extensionHistory?: RentalExtension[];
@@ -45,6 +53,7 @@ export interface Rental {
   documents?: {
     agreement?: string;
     invoice?: string;
+    permit?: string;
   };
   signature?: string;
 

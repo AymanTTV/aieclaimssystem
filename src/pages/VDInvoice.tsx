@@ -7,8 +7,9 @@ import { db } from '../lib/firebase';
 import { Plus, Search } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
-import { VDInvoiceDocument } from '../components/pdf/documents/VDInvoiceDocument';
+import { VDInvoiceDocument } from '../components/pdf/documents';
 
 // Import components
 import VDInvoiceTable from '../components/vdInvoice/VDInvoiceTable';
@@ -25,6 +26,7 @@ const VDInvoicePage = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<VDInvoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<VDInvoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<VDInvoice | null>(null);
+  const { user } = useAuth();
 
   React.useEffect(() => {
     const q = query(collection(db, 'vdInvoices'), orderBy('date', 'desc'));
@@ -142,6 +144,7 @@ const VDInvoicePage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VD Invoices</h1>
         <div className="flex space-x-2">
+          {user?.role === 'manager' && (
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
@@ -149,6 +152,7 @@ const VDInvoicePage = () => {
             <Plus className="h-5 w-5 mr-2" />
             Create Invoice
           </button>
+          )}
         </div>
       </div>
 
@@ -183,6 +187,7 @@ const VDInvoicePage = () => {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         title="Create Invoice"
+        size="xl"
       >
         <VDInvoiceForm
           customers={customers}
@@ -196,6 +201,7 @@ const VDInvoicePage = () => {
         isOpen={!!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
         title="Invoice Details"
+        size="xl"
       >
         {selectedInvoice && (
           <VDInvoiceDetails invoice={selectedInvoice} />
@@ -206,6 +212,7 @@ const VDInvoicePage = () => {
         isOpen={!!editingInvoice}
         onClose={() => setEditingInvoice(null)}
         title="Edit Invoice"
+        size="xl"
       >
         {editingInvoice && (
           <VDInvoiceForm

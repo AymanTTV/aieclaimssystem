@@ -4,11 +4,33 @@ import TextArea from '../../../ui/TextArea';
 
 const PROGRESS_OPTIONS = [
   'Your Claim Has Started',
-  'Reported to Legal Team',
-  'Engineer Report Pending',
-  'Awaiting TPI',
-  'Claim in Progress',
-  'Claim Complete'
+  'Report to Legal Team - Pending',
+  'TPI (Third Party Insurer) - Notified and Awaiting Response',
+  'Engineer Report - Pending Completion',
+  'Vehicle Damage Assessment - Scheduled',
+  'Liability Accepted',
+  'Liability Disputed',
+  'TPI Refuses to Deal with Claim',
+  'VD Completed Hire Pack - Awaiting Review',
+  'Claim - Referred to MIB (Motor Insurers\' Bureau)',
+  'MIB Claim - Under Review/In Progress',
+  'Awaiting MIB Response/Decision',
+  'MIB - Completed (Outcome Received)',
+  'Client Documentation - Pending Submission',
+  'Hire Pack - Successfully Submitted',
+  'Accident Circumstances - Under Investigation',
+  'MIB Claim - Initial Review in Progress',
+  'Additional Information - Requested from Client',
+  'Legal Notice - Issued to Third Party',
+  'Court Proceedings - Initiated',
+  'Settlement Offer - Under Review',
+  'Client Approval - Pending for Settlement',
+  'Negotiation with TPI - Ongoing',
+  'Settlement Agreement - Finalized',
+  'Payment Processing - Initiated',
+  'Final Payment - Received and Confirmed',
+  'Client Payment Disbursed',
+  'Claim Completed - Record Archived',
 ] as const;
 
 const CLAIM_REASONS = [
@@ -74,6 +96,7 @@ const ClaimProgress = () => {
           >
             <option value="Domestic">Domestic</option>
             <option value="Taxi">Taxi</option>
+            <option value="PI">PI</option>
             <option value="PCO">PCO</option>
           </select>
           {errors.claimType && (

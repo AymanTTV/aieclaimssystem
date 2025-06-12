@@ -7,6 +7,7 @@ export interface Permission {
   create: boolean;
   update: boolean;
   delete: boolean;
+  cards: boolean;
 }
 
 export interface RolePermissions {
@@ -21,88 +22,96 @@ export interface RolePermissions {
   invoices: Permission;
   pettyCash: Permission;
   share: Permission;
-  driverPay: Permission; // Add this line
-  vdFinance: Permission; // Add this line
+  driverPay: Permission;
+  vdFinance: Permission;
   users: Permission;
   vatRecord: Permission;
   customers: Permission;
   company: Permission;
+  products: Permission;
 }
 
 export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   manager: {
-    dashboard: { view: true, create: true, update: true, delete: true },
-    vehicles: { view: true, create: true, update: true, delete: true },
-    maintenance: { view: true, create: true, update: true, delete: true },
-    rentals: { view: true, create: true, update: true, delete: true },
-    accidents: { view: true, create: true, update: true, delete: true },
-    claims: { view: true, create: true, update: true, delete: true },
-    share: { view: true, create: true, update: true, delete: true },
-    personalInjury: { view: true, create: true, update: true, delete: true },
-    finance: { view: true, create: true, update: true, delete: true },
-    invoices: { view: true, create: true, update: true, delete: true },
-    pettyCash: { view: true, create: true, update: true, delete: true },
-    driverPay: { view: true, create: true, update: true, delete: true }, // Add this line
-    vatRecord: { view: true, create: true, update: true, delete: true },
-    vdFinance: { view: true, create: true, update: true, delete: true },
-    users: { view: true, create: true, update: true, delete: true },
-    customers: { view: true, create: true, update: true, delete: true },
-    company: { view: true, create: true, update: true, delete: true }
+    dashboard:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    vehicles:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    maintenance:   { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    rentals:       { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    accidents:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    claims:        { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    personalInjury:{ view: true,  create: true,  update: true,  delete: true,  cards: true },
+    finance:       { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    pettyCash:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    share:         { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    driverPay:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    vdFinance:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    users:         { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    vatRecord:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    customers:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    company:       { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    products:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
   },
   admin: {
-    dashboard: { view: true, create: true, update: true, delete: false },
-    vehicles: { view: true, create: true, update: true, delete: false },
-    maintenance: { view: true, create: true, update: true, delete: false },
-    rentals: { view: true, create: true, update: true, delete: false },
-    accidents: { view: true, create: true, update: true, delete: false },
-    claims: { view: true, create: true, update: true, delete: false },
-    personalInjury: { view: true, create: true, update: true, delete: false },
-    finance: { view: true, create: false, update: false, delete: false },
-    invoices: { view: true, create: true, update: true, delete: true },
-    pettyCash: { view: true, create: true, update: true, delete: false },
-    driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
-    vatRecord: { view: true, create: true, update: true, delete: false },
-    vdFinance: { view: true, create: true, update: true, delete: false },
-    users: { view: true, create: false, update: false, delete: false },
-    customers: { view: true, create: true, update: true, delete: false },
-    company: { view: true, create: false, update: false, delete: false }
+    dashboard:     { view: true,  create: false, update: true,  delete: false, cards: true },
+    vehicles:      { view: true,  create: false, update: true,  delete: false, cards: true },
+    maintenance:   { view: true,  create: false, update: true,  delete: false, cards: true },
+    rentals:       { view: true,  create: false, update: true,  delete: false, cards: true },
+    accidents:     { view: true,  create: false, update: true,  delete: false, cards: true },
+    claims:        { view: true,  create: false, update: true,  delete: false, cards: true },
+    personalInjury:{ view: true,  create: false, update: true,  delete: false, cards: true },
+    finance:       { view: true,  create: false, update: false, delete: false, cards: true },
+    invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    pettyCash:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    share:         { view: true,  create: true,  update: true,  delete: false, cards: true },
+    driverPay:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    users:         { view: false, create: false, update: false, delete: false, cards: false },
+    vatRecord:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    customers:     { view: true,  create: false, update: false, delete: false, cards: true },
+    company:       { view: true,  create: false, update: false, delete: false, cards: true },
+    products:      { view: true,  create: false, update: false, delete: false, cards: true },
   },
   finance: {
-    dashboard: { view: true, create: false, update: false, delete: false },
-    vehicles: { view: true, create: false, update: false, delete: false },
-    maintenance: { view: false, create: false, update: false, delete: false },
-    rentals: { view: true, create: false, update: false, delete: false },
-    accidents: { view: false, create: false, update: false, delete: false },
-    claims: { view: true, create: false, update: false, delete: false },
-    personalInjury: { view: false, create: false, update: false, delete: false },
-    invoices: { view: true, create: true, update: true, delete: true },
-    finance: { view: true, create: true, update: true, delete: false },
-    pettyCash: { view: true, create: true, update: true, delete: false },
-    driverPay: { view: true, create: true, update: true, delete: false }, // Add this line
-    vatRecord: { view: true, create: true, update: true, delete: false },
-    vdFinance: { view: true, create: true, update: true, delete: false },
-    users: { view: false, create: false, update: false, delete: false },
-    customers: { view: true, create: false, update: false, delete: false },
-    company: { view: true, create: false, update: false, delete: false }
+    dashboard:     { view: true,  create: false, update: false, delete: false, cards: true },
+    vehicles:      { view: true,  create: false, update: false, delete: false, cards: true },
+    maintenance:   { view: false, create: false, update: false, delete: false, cards: false },
+    rentals:       { view: true,  create: false, update: false, delete: false, cards: true },
+    accidents:     { view: false, create: false, update: false, delete: false, cards: false },
+    claims:        { view: true,  create: false, update: false, delete: false, cards: true },
+    personalInjury:{ view: false, create: false, update: false, delete: false, cards: false },
+    finance:       { view: true,  create: true,  update: true,  delete: false, cards: true },
+    invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    pettyCash:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    share:         { view: true,  create: true,  update: true,  delete: false, cards: true },
+    driverPay:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    users:         { view: false, create: false, update: false, delete: false, cards: false },
+    vatRecord:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    customers:     { view: true,  create: false, update: false, delete: false, cards: true },
+    company:       { view: true,  create: false, update: false, delete: false, cards: true },
+    products:      { view: true,  create: false, update: false, delete: false, cards: true },
   },
   claims: {
-    dashboard: { view: true, create: false, update: false, delete: false },
-    vehicles: { view: true, create: false, update: false, delete: false },
-    maintenance: { view: false, create: false, update: false, delete: false },
-    rentals: { view: true, create: false, update: false, delete: false },
-    accidents: { view: true, create: true, update: true, delete: false },
-    claims: { view: true, create: true, update: true, delete: false },
-    personalInjury: { view: true, create: true, update: true, delete: false },
-    invoices: { view: true, create: true, update: true, delete: true },
-    finance: { view: false, create: false, update: false, delete: false },
-    pettyCash: { view: false, create: false, update: false, delete: false },
-    driverPay: { view: false, create: false, update: false, delete: false }, // Add this line
-    vatRecord: { view: false, create: false, update: false, delete: false },
-    vdFinance: { view: true, create: true, update: true, delete: false },
-    users: { view: false, create: false, update: false, delete: false },
-    customers: { view: true, create: true, update: true, delete: false },
-    company: { view: true, create: false, update: false, delete: false }
-  }
+    dashboard:     { view: true,  create: false, update: false, delete: false, cards: true },
+    vehicles:      { view: true,  create: false, update: false, delete: false, cards: true },
+    maintenance:   { view: false, create: false, update: false, delete: false, cards: false },
+    rentals:       { view: true,  create: false, update: false, delete: false, cards: true },
+    accidents:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    claims:        { view: true,  create: true,  update: true,  delete: false, cards: true },
+    personalInjury:{ view: true,  create: true,  update: true,  delete: false, cards: true },
+    finance:       { view: false, create: false, update: false, delete: false, cards: false },
+    invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    pettyCash:     { view: false, create: false, update: false, delete: false, cards: false },
+    share:         { view: false, create: false, update: false, delete: false, cards: false },
+    driverPay:     { view: false, create: false, update: false, delete: false, cards: false },
+    vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    users:         { view: false, create: false, update: false, delete: false, cards: false },
+    vatRecord:     { view: false, create: false, update: false, delete: false, cards: false },
+    customers:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    company:       { view: true,  create: false, update: false, delete: false, cards: true },
+    products:      { view: true,  create: false, update: false, delete: false, cards: true },
+  },
 };
 
 export function getDefaultPermissions(role: Role): RolePermissions {

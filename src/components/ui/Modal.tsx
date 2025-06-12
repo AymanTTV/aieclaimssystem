@@ -1,3 +1,4 @@
+// Modal.tsx
 import React, { Fragment } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -31,7 +32,8 @@ export default function Modal({
       <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
         <div
           className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-          onClick={onClose}
+          // Remove or comment out this line to prevent closing on outside click
+          // onClick={onClose}
         />
 
         <div

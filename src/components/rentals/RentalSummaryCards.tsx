@@ -1,7 +1,10 @@
+// src/components/rentals/RentalSummaryCards.tsx
+
 import React from 'react';
 import { Rental } from '../../types';
-import { Calendar, Clock, FileText, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, FileText } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface RentalSummaryCardsProps {
   rentals: Rental[];
@@ -9,44 +12,49 @@ interface RentalSummaryCardsProps {
 
 const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
   const { formatCurrency } = useFormattedDisplay();
+  const { can } = usePermissions();
+
+  // Don't even render the cards if the user lacks the 'cards' permission
+  if (!can('rentals', 'cards')) {
+    return null;
+  }
 
   // Calculate rental type counts and financial details
-  const summary = rentals.reduce((acc, rental) => {
-    // Count by type
-    acc.counts[rental.type] = (acc.counts[rental.type] || 0) + 1;
-    
-    // Sum total cost by type
-    acc.totalCost[rental.type] = (acc.totalCost[rental.type] || 0) + rental.cost;
-    
-    // Sum paid amount by type
-    acc.paidAmount[rental.type] = (acc.paidAmount[rental.type] || 0) + rental.paidAmount;
-    
-    // Sum discount amount by type
-    acc.discountAmount[rental.type] = (acc.discountAmount[rental.type] || 0) + (rental.discountAmount || 0);
-    
-    // Sum remaining amount by type
-    acc.remainingAmount[rental.type] = (acc.remainingAmount[rental.type] || 0) + rental.remainingAmount;
-    
-    // Count by status
-    if (rental.status === 'active') acc.active++;
-    if (rental.status === 'scheduled') acc.scheduled++;
-    if (rental.status === 'completed') acc.completed++;
-    
-    return acc;
-  }, {
-    counts: {} as Record<string, number>,
-    totalCost: {} as Record<string, number>,
-    paidAmount: {} as Record<string, number>,
-    discountAmount: {} as Record<string, number>,
-    remainingAmount: {} as Record<string, number>,
-    active: 0,
-    scheduled: 0,
-    completed: 0
-  });
+  const summary = rentals.reduce(
+    (acc, rental) => {
+      // Count by type
+      acc.counts[rental.type] = (acc.counts[rental.type] || 0) + 1;
+      // Sum total cost by type
+      acc.totalCost[rental.type] = (acc.totalCost[rental.type] || 0) + rental.cost;
+      // Sum paid amount
+      acc.paidAmount[rental.type] = (acc.paidAmount[rental.type] || 0) + rental.paidAmount;
+      // Sum discount
+      acc.discountAmount[rental.type] = (acc.discountAmount[rental.type] || 0) + (rental.discountAmount || 0);
+      // Sum remaining
+      acc.remainingAmount[rental.type] = (acc.remainingAmount[rental.type] || 0) + rental.remainingAmount;
+
+      // Status counts
+      if (rental.status === 'active') acc.active++;
+      if (rental.status === 'scheduled') acc.scheduled++;
+      if (rental.status === 'completed') acc.completed++;
+
+      return acc;
+    },
+    {
+      counts: {} as Record<string, number>,
+      totalCost: {} as Record<string, number>,
+      paidAmount: {} as Record<string, number>,
+      discountAmount: {} as Record<string, number>,
+      remainingAmount: {} as Record<string, number>,
+      active: 0,
+      scheduled: 0,
+      completed: 0,
+    }
+  );
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-      {/* Daily Rentals Card */}
+      {/* Daily Rentals */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -75,7 +83,7 @@ const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
         </div>
       </div>
 
-      {/* Weekly Rentals Card */}
+      {/* Weekly Rentals */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -104,7 +112,7 @@ const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
         </div>
       </div>
 
-      {/* Claim Rentals Card */}
+      {/* Claim Rentals */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -133,7 +141,7 @@ const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
         </div>
       </div>
 
-      {/* Status Summary Card */}
+      {/* Rental Status */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-medium text-gray-500">Rental Status</p>

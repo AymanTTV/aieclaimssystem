@@ -1,3 +1,4 @@
+// src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
 import { Rental, Vehicle, Customer } from '../types';
 
@@ -15,7 +16,7 @@ export const useRentalFilters = (
     return rentals.filter(rental => {
       const searchLower = searchQuery.toLowerCase();
 
-      // Get related vehicle and customer (no change)
+      // Get related vehicle and customer
       const vehicle = vehicles.find(v => v.id === rental.vehicleId);
       const customer = customers.find(c => c.id === rental.customerId);
 
@@ -30,16 +31,20 @@ export const useRentalFilters = (
         rental.reason?.toLowerCase().includes(searchLower) ||
         false;
 
-      // Status filter (NO CHANGE)
-      let matchesStatus = true; // Initialize to true
+      // Status filter
+      let matchesStatus = true;
       if (statusFilter !== 'all') {
-        // ... (Your existing status filter logic)
+        if (statusFilter === 'claim') {
+          matchesStatus = rental.reason === 'claim';
+        } else {
+          matchesStatus = rental.status === statusFilter;
+        }
       }
 
-      // Type filter (NO CHANGE)
+      // Type filter
       const matchesType = typeFilter === 'all' || rental.type === typeFilter;
 
-      // Vehicle filter (NO CHANGE)
+      // Vehicle filter
       const matchesVehicle = !vehicleFilter || rental.vehicleId === vehicleFilter;
 
       return matchesSearch && matchesStatus && matchesType && matchesVehicle;
@@ -49,7 +54,7 @@ export const useRentalFilters = (
   return {
     searchQuery,
     setSearchQuery,
-    statusFilter, 
+    statusFilter,
     setStatusFilter,
     typeFilter,
     setTypeFilter,

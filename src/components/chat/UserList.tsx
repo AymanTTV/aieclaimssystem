@@ -14,7 +14,7 @@ const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
 
   useEffect(() => {
     // Subscribe to users
-    const usersUnsubscribe = onSnapshot(
+    const usersQuery = onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
         const userData = snapshot.docs.map(doc => ({
@@ -38,7 +38,7 @@ const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
     );
 
     return () => {
-      usersUnsubscribe();
+      usersQuery();
       presenceUnsubscribe();
     };
   }, []);
@@ -78,7 +78,7 @@ const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
                   }`}
                 />
               </div>
-              
+
               <div className="flex-1">
                 <div className="font-medium text-gray-900">{user.name}</div>
                 <div className="text-sm text-gray-500">

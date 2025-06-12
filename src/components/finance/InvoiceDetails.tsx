@@ -1,9 +1,15 @@
 import React from 'react';
-import { Invoice, Vehicle, Customer } from '../../types';
+import { Invoice, Vehicle, Customer } from '../../types/finance';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
-import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  Car,
+  User,
+  Calendar,
+} from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface InvoiceDetailsProps {
@@ -17,33 +23,42 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   invoice,
   vehicle,
   customer,
-  onDownload
+  onDownload,
 }) => {
   const formatDate = (date: any): string => {
-    // Handle Firestore Timestamp
     if (date?.toDate) {
       return format(date.toDate(), 'dd/MM/yyyy HH:mm');
     }
-    
-    // Handle regular Date objects
     if (date instanceof Date) {
       return format(date, 'dd/MM/yyyy HH:mm');
     }
-    
     return 'N/A';
   };
 
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  const { formatCurrency } = useFormattedDisplay();
+
+  // Helper: compute each line’s net, vat, and total
+  const lineTotals = (item: Invoice['lineItems'][0]) => {
+    const gross = item.quantity * item.unitPrice;
+    const discountAmt = (item.discount / 100) * gross;
+    const netAfterDiscount = gross - discountAmt;
+    const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
+    return {
+      netAfterDiscount,
+      vatAmt,
+      totalLine: netAfterDiscount + vatAmt
+    };
+  };
 
   return (
     <div className="space-y-6">
-      {/* Status and Actions */}
+      {/* ── Status & Download ── */}
       <div className="flex justify-between items-center">
         <StatusBadge status={invoice.paymentStatus} />
         {invoice.documentUrl && (
           <button
             onClick={onDownload}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             <FileText className="h-4 w-4 mr-2" />
             Download Invoice
@@ -51,7 +66,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         )}
       </div>
 
-      {/* Basic Information */}
+      {/* ── Invoice Dates ── */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-medium text-gray-500">Invoice Date</h3>
@@ -69,38 +84,33 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       </div>
 
-      {/* Customer Information */}
+      {/* ── Customer Info ── */}
       <div>
-  <h3 className="text-sm font-medium text-gray-500">Customer</h3>
-  {customer ? (
-    <div className="mt-1">
-      <div className="flex items-center">
-        <User className="h-4 w-4 text-gray-400 mr-2" />
-        <div>
-          <p className="font-medium">{customer.name}</p>
-          <p className="text-sm text-gray-500">{customer.mobile}</p>
-          {/* <p className="text-sm text-gray-500">{customer.email}</p> */}
-        </div>
+        <h3 className="text-sm font-medium text-gray-500">Customer</h3>
+        {customer ? (
+          <div className="mt-1 flex items-center">
+            <User className="h-4 w-4 text-gray-400 mr-2" />
+            <div>
+              <p className="font-medium">{customer.name}</p>
+              <p className="text-sm text-gray-500">{customer.mobile}</p>
+            </div>
+          </div>
+        ) : invoice.customerName ? (
+          <div className="mt-1 flex items-center">
+            <User className="h-4 w-4 text-gray-400 mr-2" />
+            <div>
+              <p className="font-medium">{invoice.customerName}</p>
+              {invoice.customerPhone && (
+                <p className="text-sm text-gray-500">{invoice.customerPhone}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 text-gray-500">No customer information</p>
+        )}
       </div>
-    </div>
-  ) : invoice.customerName ? (
-    <div className="mt-1">
-      <div className="flex items-center">
-        <User className="h-4 w-4 text-gray-400 mr-2" />
-        <div>
-          <p className="font-medium">{invoice.customerName}</p>
-          {invoice.customerPhone && (
-            <p className="text-sm text-gray-500">{invoice.customerPhone}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  ) : (
-    <p className="mt-1 text-gray-500">No customer information</p>
-  )}
-</div>
 
-      {/* Vehicle Information */}
+      {/* ── Vehicle Info ── */}
       {vehicle && (
         <div>
           <h3 className="text-sm font-medium text-gray-500">Related Vehicle</h3>
@@ -114,42 +124,80 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       )}
 
-<div className="bg-gray-50 p-4 rounded-lg space-y-2">
+      {/* ── Cost Summary ── */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
           <span>Total Amount:</span>
-          <span className="font-medium">{formatCurrency(invoice.amount)}</span>
+          <span className="font-medium">{formatCurrency(invoice.total)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Amount Paid:</span>
-          <span className="text-green-600">{formatCurrency(invoice.paidAmount || 0)}</span>
+          <span className="text-green-600">{formatCurrency(invoice.paidAmount)}</span>
         </div>
-        {(invoice.remainingAmount || 0) > 0 && (
+        {invoice.remainingAmount > 0 && (
           <div className="flex justify-between text-sm">
             <span>Remaining Amount:</span>
-            <span className="text-amber-600">{formatCurrency(invoice.remainingAmount)}</span>
+            <span className="text-amber-600">
+              {formatCurrency(invoice.remainingAmount)}
+            </span>
           </div>
         )}
         <div className="flex justify-between text-sm pt-2 border-t">
           <span>Payment Status:</span>
-          <span className="font-medium capitalize">{invoice.paymentStatus.replace('_', ' ')}</span>
+          <span className="font-medium capitalize">
+            {invoice.paymentStatus.replace('_', ' ')}
+          </span>
         </div>
       </div>
 
-      {/* Payment History */}
+      {/* ── Payment History ── */}
       {invoice.payments && invoice.payments.length > 0 && (
-        <InvoicePaymentHistory 
+        <InvoicePaymentHistory
           payments={invoice.payments}
-          onDownloadDocument={(url) => window.open(url, '_blank')}
+          onDownloadDocument={url => window.open(url, '_blank')}
         />
       )}
 
-      {/* Description */}
+      {/* ── LINE ITEMS ── */}
       <div>
-        <h3 className="text-sm font-medium text-gray-500">Description</h3>
-        <p className="mt-1 text-gray-900">{invoice.description}</p>
+        <h3 className="text-sm font-medium text-gray-500 mb-2">Line Items</h3>
+        <div className="border border-gray-200 rounded-md">
+          {/* Table Header */}
+          <div className="grid grid-cols-6 bg-gray-100 text-xs font-semibold text-gray-600 px-3 py-2">
+            <div className="col-span-2">Description</div>
+            <div className="text-right">Qty</div>
+            <div className="text-right">Unit Price</div>
+            <div className="text-right">Discount (%)</div>
+            <div className="text-center">VAT?</div>
+            <div className="text-right">Line Total</div>
+          </div>
+          {/* Table Rows */}
+          {invoice.lineItems.map((item, idx) => {
+            const gross = item.quantity * item.unitPrice;
+            const discountAmt = (item.discount / 100) * gross;
+            const netAfterDiscount = gross - discountAmt;
+            const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
+            const totalLine = netAfterDiscount + vatAmt;
+            return (
+              <div
+                key={item.id}
+                className={`grid grid-cols-6 text-sm border-t border-gray-100 px-3 py-2 ${
+                  idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                }`}
+              >
+                <div className="col-span-2">{item.description}</div>
+                <div className="text-right">{item.quantity}</div>
+                <div className="text-right">{formatCurrency(item.unitPrice)}</div>
+                <div className="text-right">{item.discount.toFixed(1)}%</div>
+                <div className="text-center">{item.includeVAT ? '✓' : '-'}</div>
+                <div className="text-right">{formatCurrency(totalLine)}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Creation Info */}
+      {/* ── Creation & Update Info ── */}
       <div className="text-sm text-gray-500 border-t pt-4">
         <p>Created: {formatDate(invoice.createdAt)}</p>
         <p>Last Updated: {formatDate(invoice.updatedAt)}</p>

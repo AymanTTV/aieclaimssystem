@@ -1,3 +1,4 @@
+// RentalDetails.tsx
 // src/components/rentals/RentalDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
@@ -7,12 +8,15 @@ import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSig
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; 
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { isAfter, differenceInDays } from 'date-fns';
 import VehicleConditionDetails from './VehicleConditionDetails';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 // ← ADD THIS:
 import RentalPaymentHistory from './RentalPaymentHistory';
+
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
+
 
 
 interface RentalDetailsProps {
@@ -21,17 +25,19 @@ interface RentalDetailsProps {
   customer: Customer | null;
   onDownloadAgreement: () => void;
   onDownloadInvoice: () => void;
+  onDownloadPermit: () => void;
 }
 
-const RentalDetails: React.FC<RentalDetailsProps> = ({ 
-  rental, 
-  vehicle, 
-  customer, 
-  onDownloadAgreement, 
-  onDownloadInvoice 
+const RentalDetails: React.FC<RentalDetailsProps> = ({
+  rental,
+  vehicle,
+  customer,
+  onDownloadAgreement,
+  onDownloadInvoice,
+  onDownloadPermit
 }) => {
   const [createdByName, setCreatedByName] = useState<string | null>(null);
-  const { formatCurrency } = useFormattedDisplay(); 
+  const { formatCurrency } = useFormattedDisplay();
 
 
 // parse start/end into real Date objects:
@@ -46,7 +52,8 @@ const baseCost = calculateRentalCost(
   vehicle!,
   rental.reason,
   rental.negotiatedRate ?? undefined,
-  0, 0, 0, 0, 0
+  0, 0, 0, 0, 0,
+  false, false, false, false, false // Base cost display does not include VAT for any extra
 );
 
   // Calculate insurance days
@@ -64,24 +71,49 @@ const baseCost = calculateRentalCost(
     return 0; // Return 0 if dates are invalid or calculation fails
   }, [rental.startDate, rental.endDate]);
 
-// 2) Compute extras (only for “claim” type):
-const storageCost    = rental.storageCost      || 0;
-const recoveryCost   = rental.recoveryCost     || 0;
-const deliveryCharge = rental.deliveryCharge   || 0;
-const collectionFee  = rental.collectionCharge || 0;
-const insuranceCost  = insuranceDays * (rental.insurancePerDay || 0);
+  const ongoingCharges = React.useMemo(() => {
+  if (!vehicle) return 0;
+  const now = new Date();
+  if (rental.status === 'active' && isAfter(now, ensureValidDate(rental.endDate))) {
+    return calculateOverdueCost(rental, now, vehicle);
+  }
+  return 0;
+}, [rental, vehicle]);
 
-// 3) Subtotal before discount:
-const subtotal = baseCost + storageCost + recoveryCost + deliveryCharge + collectionFee + insuranceCost;
+// Re-calculate claim specific costs with their stored VAT settings for display clarity
+const displayStorageCost = (rental.storageCost || 0); // Display stored value which includes its VAT if applicable
+const displayRecoveryCost = (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1); // NEW: Apply VAT for display
+const displayDeliveryCharge = (rental.deliveryCharge || 0); // Display stored value which includes its VAT if applicable
+const displayCollectionFee = (rental.collectionCharge || 0); // Display stored value which includes its VAT if applicable
+const displayInsuranceCost = insuranceDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1); // Calculate for display
 
-// 4) Discount & final:
-const discountAmt        = rental.discountAmount || 0;
-const totalAfterDiscount = subtotal - discountAmt;
 
-// 5) Payments:
-const paid      = rental.paidAmount || 0;
+// Subtotal before overall VAT and discount:
+const subtotalBeforeOverallVAT =
+  baseCost
+  + displayStorageCost
+  + displayRecoveryCost
+  + displayDeliveryCharge
+  + displayCollectionFee
+  + displayInsuranceCost
+  + ongoingCharges;  // <-- include overdue charges
+
+
+
+// Apply overall rental VAT
+const totalWithOverallVAT = subtotalBeforeOverallVAT * (rental.includeVAT ? 1.2 : 1);
+
+
+// Discount & final:
+const discountAmt = rental.discountAmount || 0;
+const totalAfterDiscount = totalWithOverallVAT - discountAmt; // This is the final total amount due including all applicable VAT
+
+
+// Payments:
+const paid = rental.paidAmount || 0;
 const remaining = totalAfterDiscount - paid;
-  
+
+
   useEffect(() => {
     const fetchCreatedByName = async () => {
       if (rental.createdBy) {
@@ -109,14 +141,14 @@ const remaining = totalAfterDiscount - paid;
       if (date?.toDate) {
         date = date.toDate();
       }
-      
+
       // Ensure we have a valid Date object
       const dateObj = date instanceof Date ? date : new Date(date);
-      
+
       if (isNaN(dateObj.getTime())) {
         return 'N/A';
       }
-      
+
       return format(dateObj, 'dd/MM/yyyy HH:mm');
     } catch (error) {
       console.error('Error formatting date:', error);
@@ -155,6 +187,18 @@ const remaining = totalAfterDiscount - paid;
             Invoice
           </button>
         )}
+
+        {rental.documents?.permit && (
+          <button
+            onClick={() => window.open(rental.documents?.permit, '_blank')}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Parking Permit
+          </button>
+        )}
+
+
         {/* Claim Documents */}
         {rental.type === 'claim' && rental.documents?.conditionOfHire && (
           <button
@@ -301,7 +345,7 @@ const remaining = totalAfterDiscount - paid;
 
       {rental.checkOutCondition && (
         <Section title="Check-Out Condition">
-          <VehicleConditionDetails 
+          <VehicleConditionDetails
             condition={rental.checkOutCondition}
             type="check-out"
           />
@@ -311,7 +355,7 @@ const remaining = totalAfterDiscount - paid;
       {rental.returnCondition && (
         <Section title="Return Condition">
           <VehicleConditionDetails
-            condition={rental.returnCondition} 
+            condition={rental.returnCondition}
             type="return"
           />
         </Section>
@@ -351,33 +395,54 @@ const remaining = totalAfterDiscount - paid;
     {rental.type === 'claim' && (
       <>
         <div className="flex justify-between text-sm">
-          <span>Storage Cost:</span>
-          <span className="font-medium">{formatCurrency(storageCost)}</span>
+          <span>Storage Cost{rental.includeStorageVAT ? ' (Inc. VAT)' : ''}:</span>
+          <span className="font-medium">{formatCurrency(displayStorageCost)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Recovery Cost:</span>
-          <span className="font-medium">{formatCurrency(recoveryCost)}</span>
+          <span>Recovery Cost{rental.includeRecoveryCostVAT ? ' (Inc. VAT)' : ''}:</span> {/* NEW: Display VAT inclusion */}
+          <span className="font-medium">{formatCurrency(displayRecoveryCost)}</span> {/* NEW: Display VAT applied cost */}
         </div>
         <div className="flex justify-between text-sm">
-          <span>Delivery Charge:</span>
-          <span className="font-medium">{formatCurrency(deliveryCharge)}</span>
+          <span>Delivery Charge{rental.deliveryChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+          <span className="font-medium">{formatCurrency(displayDeliveryCharge)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Collection Charge:</span>
-          <span className="font-medium">{formatCurrency(collectionFee)}</span>
+          <span>Collection Charge{rental.collectionChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+          <span className="font-medium">{formatCurrency(displayCollectionFee)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Insurance ({insuranceDays} days):</span>
-          <span className="font-medium">{formatCurrency(insuranceCost)}</span>
+          <span>Insurance ({insuranceDays} days){rental.insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+          <span className="font-medium">{formatCurrency(displayInsuranceCost)}</span>
         </div>
       </>
     )}
+    
+    {ongoingCharges > 0 && (
+  <div className="flex justify-between text-sm text-red-600">
+    <span>Ongoing (Overdue) Charges:</span>
+    <span className="font-medium">{formatCurrency(ongoingCharges)}</span>
+  </div>
+)}
 
-    {/* Subtotal */}
+
+    {/* Subtotal before overall VAT */}
     <div className="flex justify-between text-sm pt-2 border-t">
-      <span>Subtotal:</span>
-      <span className="font-medium">{formatCurrency(subtotal)}</span>
+      <span>Subtotal (before VAT):</span>
+      <span className="font-medium">{formatCurrency(subtotalBeforeOverallVAT)}</span>
     </div>
+    {/* Overall VAT Amount */}
+    {rental.includeVAT && (
+      <div className="flex justify-between text-sm text-blue-600">
+        <span>VAT (20%):</span>
+        <span className="font-medium">{formatCurrency(totalWithOverallVAT - subtotalBeforeOverallVAT)}</span>
+      </div>
+    )}
+    {/* Subtotal with VAT */}
+     <div className="flex justify-between text-sm pt-2 border-t">
+      <span>Subtotal (with VAT):</span>
+      <span className="font-medium">{formatCurrency(totalWithOverallVAT)}</span>
+    </div>
+
 
     {/* Discount */}
     {discountAmt > 0 && (
@@ -387,7 +452,13 @@ const remaining = totalAfterDiscount - paid;
       </div>
     )}
 
-    {/* Total Due */}
+    {rental.discountNotes && (
+          <div className="text-sm italic text-gray-700 mt-1">
+            {rental.discountNotes}
+          </div>
+        )}
+
+    {/* Total Due (After Discount, Includes all VAT) */}
     <div className="flex justify-between text-lg font-semibold pt-2 border-t mt-2">
       <span>Total Amount Due:</span>
       <span className="font-medium">{formatCurrency(totalAfterDiscount)}</span>
@@ -423,9 +494,9 @@ const remaining = totalAfterDiscount - paid;
         <div className="border-t pt-4">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Signature</h3>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <img 
-              src={rental.signature} 
-              alt="Customer Signature" 
+            <img
+              src={rental.signature}
+              alt="Customer Signature"
               className="max-h-24 object-contain bg-white rounded border"
             />
           </div>

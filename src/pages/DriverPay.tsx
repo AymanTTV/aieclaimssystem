@@ -53,9 +53,11 @@ const DriverPayPage = () => {
     setStatusFilter,
     collectionFilter,
     setCollectionFilter,
-    dateRange,
-    setDateRange,
-    filteredRecords, // Original filtered records from the hook
+    periodDateRange, // Destructure existing state
+    setPeriodDateRange, // Destructure existing setter
+    periodOverlapDateRange, // Destructure the updated state name
+    setPeriodOverlapDateRange, // Destructure the updated setter name
+    filteredRecords,
     summary
   } = useDriverPayFilters(records);
 
@@ -67,11 +69,10 @@ const DriverPayPage = () => {
   const [deletingRecord, setDeletingRecord] = useState<DriverPay | null>(null);
 
   // --- Sort the filtered records by driver number descending ---
-  // Create a new sorted array to avoid modifying the original filteredRecords state directly
   const sortedFilteredRecords = [...filteredRecords].sort((a, b) => {
     const numA = getDriverNumber(a.driverNo);
     const numB = getDriverNumber(b.driverNo);
-  
+
     // Ascending order: Lower numbers come first
     return numA - numB;
   });
@@ -133,7 +134,7 @@ const DriverPayPage = () => {
         record,
         'driverPay',        // Collection name (optional)
         record.id,          // Document ID
-        'driverPayDocuments' // Storage path
+        'driverPay' // Correct collection name for updating the original record
       );
       toast.success('Document generated successfully');
       // You might need to refresh record data here if documentUrl is stored on the record
@@ -219,6 +220,7 @@ const DriverPayPage = () => {
         <div className="flex space-x-2">
 
           {/* Generate PDF Button (Original Style Implied) */}
+          {user?.role === 'manager' && (
           <button
             onClick={handleGeneratePDF}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -228,6 +230,7 @@ const DriverPayPage = () => {
             <FileText className="h-5 w-5 mr-2" />
             Generate PDF
           </button>
+          )}
 
           {/* Export Button (Original Style Implied & Role Check) */}
           {user?.role === 'manager' && (
@@ -257,7 +260,7 @@ const DriverPayPage = () => {
         </div>
       </div>
 
-      {/* Filters (Original Structure) */}
+      {/* Filters - Pass the updated props */}
       <DriverPayFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -265,8 +268,10 @@ const DriverPayPage = () => {
         onStatusFilterChange={setStatusFilter}
         collectionFilter={collectionFilter}
         onCollectionFilterChange={setCollectionFilter}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+        periodDateRange={periodDateRange}
+        onPeriodDateRangeChange={setPeriodDateRange}
+        periodOverlapDateRange={periodOverlapDateRange} // Pass updated prop
+        onPeriodOverlapDateRangeChange={setPeriodOverlapDateRange} // Pass updated setter
       />
 
       {/* Data Table (Original Structure) - Pass the sorted array */}

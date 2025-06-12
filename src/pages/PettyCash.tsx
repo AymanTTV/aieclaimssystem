@@ -89,6 +89,7 @@ const PettyCash = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
+      {can('pettyCash', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total In</h3>
@@ -107,6 +108,7 @@ const PettyCash = () => {
           <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
         </div>
       </div>
+      )}
 
       {/* Header with Search and Filters */}
       <PettyCashHeader
@@ -139,6 +141,7 @@ const PettyCash = () => {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         title="New Petty Cash Transaction"
+        size="xl"
       >
         <PettyCashForm onClose={() => setShowForm(false)} />
       </Modal>
@@ -158,6 +161,7 @@ const PettyCash = () => {
         isOpen={!!editingTransaction}
         onClose={() => setEditingTransaction(null)}
         title="Edit Transaction"
+        size="xl"
       >
         {editingTransaction && (
           <PettyCashForm

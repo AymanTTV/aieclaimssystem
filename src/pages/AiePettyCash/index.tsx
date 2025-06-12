@@ -88,6 +88,8 @@ const AiePettyCash = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
+
+      {can('pettyCash', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-sm font-medium text-gray-500">Total In</h3>
@@ -106,6 +108,8 @@ const AiePettyCash = () => {
           <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
         </div>
       </div>
+
+      )}
 
       {/* Header */}
       <PettyCashHeader
@@ -141,6 +145,7 @@ const AiePettyCash = () => {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         title="New Transaction"
+        size="xl"
       >
         <PettyCashForm 
           onClose={() => setShowForm(false)} 
@@ -163,6 +168,7 @@ const AiePettyCash = () => {
         isOpen={!!editingTransaction}
         onClose={() => setEditingTransaction(null)}
         title="Edit Transaction"
+        size="xl"
       >
         {editingTransaction && (
           <PettyCashForm

@@ -56,22 +56,44 @@ export interface TransferHistory {
   createdAt: Date;
 }
 
+export interface InvoiceLineItem {
+  id: string;                 // unique identifier
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;           // <— new field (%)
+  includeVAT: boolean;        // if true, 20% VAT applies on (net after discount)
+}
+
 export interface Invoice {
   id: string;
   date: Date;
   dueDate: Date;
-  amount: number;
+
+  // multiple line items
+  lineItems: InvoiceLineItem[];
+
+  // Computed fields (stored in Firestore):
+  subTotal: number;         // sum of (quantity × unitPrice – discountAmt)
+  vatAmount: number;        // total VAT across all lineItems (20% on net after discount)
+  total: number;            // subTotal + vatAmount
+
+  // old `amount` field is now alias for `total`
+  amount: number;           // <— kept for legacy
   paidAmount: number;
   remainingAmount: number;
+
   category: string;
   customCategory?: string;
   vehicleId?: string;
   customerId?: string;
   customerName?: string;
-  description: string;
+  customerPhone?: string;
+
   paymentStatus: 'pending' | 'partially_paid' | 'paid' | 'overdue';
   documentUrl?: string;
   payments: InvoicePayment[];
+
   createdAt: Date;
   updatedAt: Date;
 }

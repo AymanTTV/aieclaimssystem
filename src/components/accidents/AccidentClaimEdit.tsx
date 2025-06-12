@@ -143,40 +143,42 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
 
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setLoading(true);
+  e.preventDefault();
+  if (!user) return;
+  setLoading(true);
 
-    try {
-      const newImageUrls = await Promise.all(
-        imageFiles.map(async (file) => {
-          const timestamp = Date.now();
-          const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
-          const snapshot = await uploadBytes(storageRef, file);
-          return getDownloadURL(snapshot.ref);
-        })
-      );
+  try {
+    const newImageUrls = await Promise.all(
+      imageFiles.map(async (file) => {
+        const timestamp = Date.now();
+        const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        return getDownloadURL(snapshot.ref);
+      })
+    );
 
-      const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
-      const allImages = [...updatedImages, ...newImageUrls];
+    // Keep any images the user didn’t remove, then add newly uploaded ones:
+    const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
+    const allImages = [...updatedImages, ...newImageUrls];
 
-      const accidentRef = doc(db, 'accidents', accident.id);
-      await updateDoc(accidentRef, {
-        ...formData,
-        images: allImages,
-        updatedAt: new Date(),
-        updatedBy: user.id,
-      });
+    const accidentRef = doc(db, 'accidents', accident.id);
+    await updateDoc(accidentRef, {
+      ...formData,
+      images: allImages,
+      updatedAt: new Date(),
+      updatedBy: user.id,
+    });
 
-      toast.success('Accident claim updated successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error updating accident claim:', error);
-      toast.error('Failed to update accident claim');
-    } finally {
-      setLoading(false);
-    }
-  };
+    toast.success('Accident claim updated successfully');
+    onClose();
+  } catch (error) {
+    console.error('Error updating accident claim:', error);
+    toast.error('Failed to update accident claim');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">

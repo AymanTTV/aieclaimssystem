@@ -1,5 +1,8 @@
+// src/components/maintenance/MaintenanceFilters.tsx
+
 import React from 'react';
 import { Search } from 'lucide-react';
+import { Vehicle } from '../../types';
 
 interface MaintenanceFiltersProps {
   searchQuery: string;
@@ -10,7 +13,9 @@ interface MaintenanceFiltersProps {
   onTypeFilterChange: (type: string) => void;
   vehicleFilter: string;
   onVehicleFilterChange: (vehicleId: string) => void;
-  vehicles: Array<{ id: string; make: string; model: string; registrationNumber: string; }>;
+  vehicles: Vehicle[];
+  /** NEW: dynamic list of maintenance categories/types **/
+  categories: string[];
 }
 
 const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
@@ -23,10 +28,11 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
   vehicleFilter,
   onVehicleFilterChange,
   vehicles,
+  categories,
 }) => {
   return (
     <div className="space-y-4">
-      {/* Search Input - Full width with proper spacing */}
+      {/* Search Input - Full width */}
       <div className="w-full">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -42,8 +48,9 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         </div>
       </div>
 
-      {/* Filters Grid - Responsive layout */}
+      {/* Filters Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Status */}
         <select
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value)}
@@ -56,25 +63,21 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
           <option value="cancelled">Cancelled</option>
         </select>
 
+        {/* Type (now dynamic) */}
         <select
-  value={typeFilter}
-  onChange={(e) => onTypeFilterChange(e.target.value)}
-  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
->
-  <option value="all">All Types</option>
-  <option value="YEARLY-SERVICE">YEARLY SERVICE</option>
-  <option value="MILEAGE-SERVICE">MILEAGE SERVICE</option>
-  <option value="REPAIR">REPAIR</option>
-  <option value="EMERGENCY-REPAIR">EMERGENCY REPAIR</option>
-  <option value="MOT">MOT</option>
-  <option value="NSL">NSL</option>
-  <option value="TFL">TFL</option>
-  <option value="SERVICE">SERVICE</option>
-  <option value="MAINTENANCE">MAINTENANCE</option>
-  <option value="BODYWORK">BODYWORK</option>
-  <option value="ACCIDENT-REPAIR">ACCIDENT REPAIR</option>
-</select>
+          value={typeFilter}
+          onChange={(e) => onTypeFilterChange(e.target.value)}
+          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        >
+          <option value="all">All Types</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat.charAt(0).toUpperCase() + cat.slice(1).replace(/-/g, ' ')}
+            </option>
+          ))}
+        </select>
 
+        {/* Vehicle */}
         <select
           value={vehicleFilter}
           onChange={(e) => onVehicleFilterChange(e.target.value)}
@@ -83,7 +86,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
           <option value="">All Vehicles</option>
           {vehicles.map((vehicle) => (
             <option key={vehicle.id} value={vehicle.id}>
-              {vehicle.make} {vehicle.model} - {vehicle.registrationNumber}
+              {vehicle.make} {vehicle.model} – {vehicle.registrationNumber}
             </option>
           ))}
         </select>

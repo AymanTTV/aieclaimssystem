@@ -62,16 +62,22 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">Parts</h3>
         <div className="space-y-2">
-          {invoice.parts.map((part, index) => (
-            <div key={index} className="flex justify-between items-center">
-              <div>
-                <span className="font-medium">{part.name}</span>
-                <span className="text-gray-500 ml-2">x{part.quantity}</span>
-                {part.includeVAT && <span className="text-gray-500 ml-2">(+VAT)</span>}
+          {invoice.parts.map((part, index) => {
+            const lineTotal = (part.price * part.quantity * (1 - part.discount / 100));
+            return (
+              <div key={index} className="flex justify-between items-center">
+                <div>
+                  <span className="font-medium">{part.name}</span>
+                  <span className="text-gray-500 ml-2">×{part.quantity}</span>
+                  {part.discount > 0 && (
+                    <span className="text-gray-500 ml-2">({part.discount}% off)</span>
+                  )}
+                  {part.includeVAT && <span className="text-gray-500 ml-2">(+VAT)</span>}
+                </div>
+                <span>£{lineTotal.toFixed(2)}</span>
               </div>
-              <span>£{(part.price * part.quantity).toFixed(2)}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -100,29 +106,6 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
         <div className="flex justify-between text-lg font-bold pt-2 border-t">
           <span>Total:</span>
           <span>£{invoice.total.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* Payment Information */}
-      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Payment Information</h3>
-        <div className="flex justify-between text-sm">
-          <span>Amount Paid:</span>
-          <span className="text-green-600">£{invoice.paidAmount.toFixed(2)}</span>
-        </div>
-        {invoice.remainingAmount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Remaining Amount:</span>
-            <span className="text-amber-600">£{invoice.remainingAmount.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-sm pt-2 border-t">
-          <span>Payment Status:</span>
-          <StatusBadge status={invoice.paymentStatus} />
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>Payment Method:</span>
-          <span className="capitalize">{invoice.paymentMethod.toLowerCase().replace('_', ' ')}</span>
         </div>
       </div>
 

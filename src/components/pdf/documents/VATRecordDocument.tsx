@@ -1,3 +1,4 @@
+// VATRecordDocument.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { VATRecord } from '../../../types/vatRecord';
@@ -102,7 +103,7 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
       <Text style={styles.title}>VAT RECORD</Text>
 
       {/* Record Details Card */}
-      <View style={[styles.card, styles.sectionBreak]} wrap={false}>
+      <View style={[styles.card, styles.sectionBreak]}> {/* Removed wrap={false} */}
         <Text style={styles.infoCardTitle}>Record Details</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Receipt No:</Text>
@@ -192,7 +193,7 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
       </View>
 
       {/* Customer Information and Additional Details Cards */}
-      <View style={[styles.cardContainer, styles.sectionBreak]} wrap={false}>
+      <View style={[styles.cardContainer, styles.sectionBreak]}> {/* Removed wrap={false} */}
         {/* Customer Information Card */}
         <View style={[styles.card, styles.halfCard]}>
           <Text style={styles.infoCardTitle}>Customer Information</Text>

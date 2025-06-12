@@ -8,10 +8,17 @@ export { default as MaintenanceBulkDocument } from './MaintenanceBulkDocument';
 export { default as RentalBulkDocument } from './RentalBulkDocument';
 export { default as AccidentBulkDocument } from './AccidentBulkDocument';
 export { default as InvoiceDocument } from './InvoiceDocument';
-export { default as InvoiceBulkDocument } from './InvoiceBulkDocument';
+export { default as InvoiceBulkDocument } from './InvoiceBulkDocument'; 
+export { default as ProfitSharesDocument } from './ProfitSharesDocument'; 
+export { default as ShareDocument } from './ShareDocument';
+export { default as VDInvoiceDocument } from './VDInvoiceDocument';
+export { default as ShareBulkDocument } from './ShareBulkDocument';
+
+export { default as ClaimDocument } from './ClaimDocument';
+export { default as ClaimBulkDocument } from './ClaimBulkDocument';
 
 export { default as FinanceDocument } from './FinanceDocument';
-export { default as ClaimDocument } from './ClaimDocument';
+
 export { default as PersonalInjuryDocument } from './PersonalInjuryDocument';
 export { default as VDFinanceDocument } from './VDFinanceDocument';
 export { default as VDFinanceBulkDocument } from './VDFinanceBulkDocument';

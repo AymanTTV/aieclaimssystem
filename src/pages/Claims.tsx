@@ -1,112 +1,192 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Claim } from '../types';
-import { ensureValidDate } from '../utils/dateHelpers';
+// src/pages/Claims.tsx
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, FileText, Download, Search } from 'lucide-react';
+
+import { saveAs } from 'file-saver';
+import toast from 'react-hot-toast';
+import Modal from '../components/ui/Modal';
+import ClaimSummaryCards from '../components/claims/ClaimSummaryCards';
 import ClaimTable from '../components/claims/ClaimTable';
 import ClaimForm from '../components/claims/ClaimForm';
 import ClaimEditModal from '../components/claims/ClaimEditModal';
 import ClaimDetailsModal from '../components/claims/ClaimDetailsModal';
+import  NotesModal from '../components/claims/NotesModal';
 import ClaimDeleteModal from '../components/claims/ClaimDeleteModal';
 import ProgressUpdateModal from '../components/claims/ProgressUpdateModal';
-import Modal from '../components/ui/Modal';
 import { usePermissions } from '../hooks/usePermissions';
-import { Plus, Download, Search } from 'lucide-react';
-import { exportToExcel } from '../utils/excel';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { useAuth } from '../context/AuthContext';
 
-import ClaimSummaryCards from '../components/claims/ClaimSummaryCards';
+import { getDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  onSnapshot,
+  orderBy,
+  deleteDoc,
+  doc
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { ensureValidDate } from '../utils/dateHelpers';
+import { format } from 'date-fns';
+import { exportToExcel } from '../utils/excel';
+import {
+  generateAndUploadDocument,
+  generateBulkDocuments
+} from '../utils/documentGenerator';
+import { ClaimDocument, ClaimBulkDocument } from '../components/pdf/documents';
+import { Claim } from '../types';
 
-const Claims = () => {
+const Claims: React.FC = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
+  const { companyDetails } = useCompanyDetails();
 
-  
+  // raw list
   const [claims, setClaims] = useState<Claim[]>([]);
-   const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  // UI filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [submitterFilter, setSubmitterFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | string>('all');
+  const [submitterFilter, setSubmitterFilter] = useState<'all' | string>('all');
+  const [showCompletedOnly, setShowCompletedOnly] = useState(false);
+
+  // modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [updatingProgress, setUpdatingProgress] = useState<Claim | null>(null);
+  const [notesFor, setNotesFor] = useState<Claim | null>(null);
 
   useEffect(() => {
-    fetchClaims();
+    const q = query(collection(db, 'claims'), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d => {
+        const raw = d.data() as any;
+        return {
+          id: d.id,
+          // … your other converted fields …
+          notes: (raw.notes || []).map((n: any) => ({
+            ...n,
+            createdAt: n.createdAt.toDate(),
+            dueDate:    n.dueDate.toDate(),
+          })),
+        } as Claim;
+      });
+      setClaims(data);
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
-  
-  
-    const fetchClaims = async () => {
-      try {
-        const q = query(collection(db, 'claims'), orderBy('submittedAt', 'desc'));
-        
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          const claimsData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              ...data,
-              // Convert dates using ensureValidDate
-              submittedAt: ensureValidDate(data.submittedAt),
-              updatedAt: ensureValidDate(data.updatedAt),
-              clientInfo: {
-                ...data.clientInfo,
-                dateOfBirth: ensureValidDate(data.clientInfo.dateOfBirth)
-              },
-              incidentDetails: {
-                ...data.incidentDetails,
-                date: ensureValidDate(data.incidentDetails.date)
-              },
-              // Convert dates in payment periods if they exist
-              paymentPeriods: data.paymentPeriods?.map((period: any) => ({
-                ...period,
-                startDate: ensureValidDate(period.startDate),
-                endDate: ensureValidDate(period.endDate)
-              })) || [],
-              // Convert dates in progress history
-              progressHistory: data.progressHistory?.map((progress: any) => ({
-                ...progress,
-                date: ensureValidDate(progress.date)
-              })) || []
-            } as Claim;
-          });
-          
-          setClaims(claimsData);
-          setLoading(false);
-        });
 
-        return () => unsubscribe();
-      } catch (error) {
-        console.error('Error fetching claims:', error);
-        setLoading(false);
-      }
-    };
+  // subscribe once
+  useEffect(() => {
+    const q = query(collection(db, 'claims'), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d => {
+        const raw = d.data() as any;
+        return {
+          id: d.id,
+          ...raw,
+          submittedAt: ensureValidDate(raw.submittedAt),
+          updatedAt: ensureValidDate(raw.updatedAt),
+          clientInfo: {
+            ...raw.clientInfo,
+            dateOfBirth: ensureValidDate(raw.clientInfo.dateOfBirth)
+          },
+          incidentDetails: {
+            ...raw.incidentDetails,
+            date: ensureValidDate(raw.incidentDetails.date)
+          },
+          progressHistory: (raw.progressHistory || []).map((h: any) => ({
+            ...h,
+            date: ensureValidDate(h.date)
+          }))
+        } as Claim;
+      });
+      setClaims(data);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
 
-   
+  // filtered + sorted
+  const filteredClaims = useMemo(() => {
+    return claims
+      // 1) completed toggle
+      .filter(c =>
+        showCompletedOnly
+          ? c.progress === 'Claim Completed - Record Archived' // Use the new "Completed" status
+          : c.progress !== 'Claim Completed - Record Archived' // Use the new "Completed" status
+      )
+      // 2) search/status/type/submitter
+      .filter(c => {
+        const q = searchQuery.toLowerCase();
+        if (
+          !(
+            c.clientInfo.name.toLowerCase().includes(q) ||
+            c.clientInfo.phone.includes(q) ||
+            c.clientInfo.email.toLowerCase().includes(q) ||
+            // Ensure clientVehicle and its registration exist before accessing
+            (c.clientVehicle?.registration || '').toLowerCase().includes(q) ||
+            (c.clientRef || '').toLowerCase().includes(q) ||
+             // Ensure thirdParty and its properties exist
+            (c.thirdParty?.name || '').toLowerCase().includes(q) ||
+            (c.thirdParty?.registration || '').toLowerCase().includes(q)
+          )
+        ) {
+          return false;
+        }
+        // This filter logic is correct and will work with the new string values
+        if (statusFilter !== 'all' && c.progress !== statusFilter) return false;
+        if (typeFilter !== 'all' && c.claimType !== typeFilter) return false;
+        if (
+          submitterFilter !== 'all' &&
+          c.submitterType !== submitterFilter
+        )
+          return false;
+        return true;
+      })
+      // 3) sort by `updatedAt` ascending (oldest first)
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+  }, [
+    claims,
+    showCompletedOnly,
+    searchQuery,
+    statusFilter,
+    typeFilter,
+    submitterFilter
+  ]);
 
-  const handleView = (claim: Claim) => {
-    setSelectedClaim(claim);
-  };
-
-  const handleEdit = (claim: Claim) => {
-    setSelectedClaim(claim);
+  const handleView = (c: Claim) => setSelectedClaim(c);
+  const handleEdit = (c: Claim) => {
+    setSelectedClaim(c);
     setShowEditModal(true);
   };
-
-  const handleDelete = (claim: Claim) => {
-    setSelectedClaim(claim);
+  const handleDelete = (c: Claim) => {
+    setSelectedClaim(c);
     setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedClaim?.id) return;
+    try {
+      await deleteDoc(doc(db, 'claims', selectedClaim.id));
+      toast.success('Claim deleted');
+      setShowDeleteModal(false);
+      setSelectedClaim(null);
+    } catch {
+      toast.error('Failed to delete claim');
+    }
   };
 
   const handleExport = () => {
     try {
       const exportData = claims.map(claim => ({
-        'Reference': `AIE-${claim.id.slice(-8).toUpperCase()}`,
+        Reference: `AIE-${claim.id.slice(-8).toUpperCase()}`,
         'Client Ref': claim.clientRef || 'N/A',
         'Submitter Type': claim.submitterType,
         'Client Name': claim.clientInfo.name,
@@ -115,120 +195,184 @@ const Claims = () => {
         'Vehicle Reg': claim.clientVehicle.registration,
         'Incident Date': format(claim.incidentDetails.date, 'dd/MM/yyyy'),
         'Incident Time': claim.incidentDetails.time,
-        'Location': claim.incidentDetails.location,
+        Location: claim.incidentDetails.location,
         'Third Party': claim.thirdParty.name,
         'Third Party Reg': claim.thirdParty.registration,
         'Claim Type': claim.claimType,
         'Claim Reason': claim.claimReason,
         'Case Progress': claim.caseProgress,
-        'Status': claim.progress,
-        'Hire Details': claim.hireDetails ? `£${claim.hireDetails.totalCost} (${claim.hireDetails.daysOfHire} days)` : 'N/A',
+        Status: claim.progress,
+        'Hire Details': claim.hireDetails
+          ? `£${claim.hireDetails.totalCost} (${claim.hireDetails.daysOfHire} days)`
+          : 'N/A',
         'Recovery Cost': claim.recovery ? `£${claim.recovery.cost}` : 'N/A',
-        'Storage Cost': claim.storage ? `£${claim.storage.totalCost}` : 'N/A',
+        'Storage Cost': claim.storage
+          ? `£${claim.storage.totalCost}`
+          : 'N/A',
         'AIE Handler': claim.fileHandlers.aieHandler,
         'Legal Handler': claim.fileHandlers.legalHandler,
         'Submitted At': format(claim.submittedAt, 'dd/MM/yyyy HH:mm'),
         'Last Updated': format(claim.updatedAt, 'dd/MM/yyyy HH:mm')
       }));
-
       exportToExcel(exportData, 'claims_export');
       toast.success('Claims exported successfully');
-    } catch (error) {
-      console.error('Error exporting claims:', error);
+    } catch {
       toast.error('Failed to export claims');
     }
   };
-  
-   const filteredClaims = claims.filter(claim => {
-    const matchesSearch = 
-      claim.clientInfo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.clientInfo.phone.includes(searchQuery) ||
-      claim.clientInfo.email.toLowerCase().includes(searchQuery) ||
-      claim.clientVehicle.registration.toLowerCase().includes(searchQuery) ||
-      claim.clientRef?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.thirdParty.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.thirdParty.registration.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || claim.progress === statusFilter;
-    const matchesType = typeFilter === 'all' || claim.claimType === typeFilter;
-    const matchesSubmitter = submitterFilter === 'all' || claim.submitterType === submitterFilter;
-
-    return matchesSearch && matchesStatus && matchesType && matchesSubmitter;
-  });
+  const handleGeneratePdf = async (c: Claim) => {
+    if (!companyDetails) {
+      return toast.error('Company details not found');
+    }
   
+    // Ensure claimReason is always an array
+    const normalized: Claim = {
+      ...c,
+      claimReason: Array.isArray(c.claimReason)
+        ? c.claimReason
+        : [c.claimReason as any]  // cast if TS complains
+    };
+  
+    try {
+      const url = await generateAndUploadDocument(
+        ClaimDocument,
+        normalized,
+        'claims',
+        c.id!,
+        'claims'
+      );
+      window.open(url, '_blank');
+      toast.success('PDF generated and uploaded');
+    } catch (err: any) {
+      console.error('Error generating document:', err);
+      toast.error(`Error generating document: ${err.message || err}`);
+    }
+  };
+
+  const handleGenerateBulkPDF = async () => {
+    if (!companyDetails) {
+      return toast.error('Company details not found');
+    }
+    try {
+      const blob = await generateBulkDocuments(
+        ClaimBulkDocument,
+        filteredClaims,
+        companyDetails
+      );
+      saveAs(blob, 'claims_bulk.pdf');
+      toast.success('Bulk PDF generated successfully');
+    } catch {
+      /* no-op */
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      
+        <ClaimSummaryCards claims={filteredClaims} />
+      
+
+      {/* top bar */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Claim Management</h1>
+        <label className="inline-flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={showCompletedOnly}
+            onChange={e => setShowCompletedOnly(e.target.checked)}
+            className="form-checkbox"
+          />
+          <span>Show only completed</span>
+        </label>
 
         <div className="flex space-x-2">
-         
-              {user?.role === 'manager' && (
-  <button
-    onClick={handleExport}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    <Download className="h-5 w-5 mr-2" />
-    Export
-  </button>
-)}
-
-           {can('claims', 'create') && (
-            <>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Claim
-              </button>
-            </>
+          {user?.role === 'manager' && (
+          <button
+            onClick={handleGenerateBulkPDF}
+            className="inline-flex items-center px-4 py-2 border rounded"
+          >
+            <FileText className="mr-2" /> Bulk PDF
+          </button>
+          )}
+          {user?.role === 'manager' && (
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center px-4 py-2 border rounded"
+          >
+            <Download className="mr-2" /> Export
+          </button>
+          )}
+          {can('claims', 'create') && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-primary text-white rounded"
+            >
+              <Plus className="mr-2" /> Add Claim
+            </button>
           )}
         </div>
       </div>
 
-      {/* <ClaimSummaryCards claims={filteredClaims} /> */}
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* filters */}
+      <div className="flex flex-wrap gap-4">
         <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search claims..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search…"
+            className="w-full pl-10 pr-3 py-2 border rounded"
           />
         </div>
-
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="block w-48 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          onChange={e => setStatusFilter(e.target.value)}
+          className="border rounded px-2"
         >
-          <option value="all">All Status</option>
-          <option value="Your Claim Has Started">Claim Started</option>
-          <option value="Reported to Legal Team">With Legal Team</option>
-          <option value="Engineer Report Pending">Engineer Report</option>
-          <option value="Awaiting TPI">Awaiting TPI</option>
-          <option value="Claim in Progress">In Progress</option>
-          <option value="Claim Complete">Completed</option>
+          <option value="all">All Progress</option>
+          {/* Map over the full list of progress options */}
+          <option value="Your Claim Has Started">Your Claim Has Started</option>
+          <option value="Report to Legal Team - Pending">Report to Legal Team - Pending</option>
+          <option value="TPI (Third Party Insurer) - Notified and Awaiting Response">TPI (Third Party Insurer) - Notified and Awaiting Response</option>
+          <option value="Engineer Report - Pending Completion">Engineer Report - Pending Completion</option>
+          <option value="Vehicle Damage Assessment - Scheduled">Vehicle Damage Assessment - Scheduled</option>
+          <option value="Liability Accepted">Liability Accepted</option>
+          <option value="Liability Disputed">Liability Disputed</option>
+          <option value="TPI Refuses to Deal with Claim">TPI Refuses to Deal with Claim</option>
+          <option value="VD Completed Hire Pack - Awaiting Review">VD Completed Hire Pack - Awaiting Review</option>
+          <option value="Claim - Referred to MIB (Motor Insurers' Bureau)">Claim - Referred to MIB (Motor Insurers' Bureau)</option>
+          <option value="MIB Claim - Under Review/In Progress">MIB Claim - Under Review/In Progress</option>
+          <option value="Awaiting MIB Response/Decision">Awaiting MIB Response/Decision</option>
+          <option value="MIB - Completed (Outcome Received)">MIB - Completed (Outcome Received)</option>
+          <option value="Client Documentation - Pending Submission">Client Documentation - Pending Submission</option>
+          <option value="Hire Pack - Successfully Submitted">Hire Pack - Successfully Submitted</option>
+          <option value="Accident Circumstances - Under Investigation">Accident Circumstances - Under Investigation</option>
+          <option value="MIB Claim - Initial Review in Progress">MIB Claim - Initial Review in Progress</option>
+          <option value="Additional Information - Requested from Client">Additional Information - Requested from Client</option>
+          <option value="Legal Notice - Issued to Third Party">Legal Notice - Issued to Third Party</option>
+          <option value="Court Proceedings - Initiated">Court Proceedings - Initiated</option>
+          <option value="Settlement Offer - Under Review">Settlement Offer - Under Review</option>
+          <option value="Client Approval - Pending for Settlement">Client Approval - Pending for Settlement</option>
+          <option value="Negotiation with TPI - Ongoing">Negotiation with TPI - Ongoing</option>
+          <option value="Settlement Agreement - Finalized">Settlement Agreement - Finalized</option>
+          <option value="Payment Processing - Initiated">Payment Processing - Initiated</option>
+          <option value="Final Payment - Received and Confirmed">Final Payment - Received and Confirmed</option>
+          <option value="Client Payment Disbursed">Client Payment Disbursed</option>
+          <option value="Claim Completed - Record Archived">Claim Completed - Record Archived</option>
         </select>
-
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="block w-48 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          onChange={e => setTypeFilter(e.target.value)}
+          className="border rounded px-2"
         >
           <option value="all">All Types</option>
           <option value="Domestic">Domestic</option>
@@ -236,28 +380,40 @@ const Claims = () => {
           <option value="PI">PI</option>
           <option value="PCO">PCO</option>
         </select>
-
-        {/* Add Submitter Type Filter */}
         <select
           value={submitterFilter}
-          onChange={(e) => setSubmitterFilter(e.target.value)}
-          className="block w-48 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          onChange={e => setSubmitterFilter(e.target.value)}
+          className="border rounded px-2"
         >
           <option value="all">All Submitters</option>
-          <option value="company">Company Fleet</option>
+          <option value="company">Company</option>
           <option value="client">Client</option>
         </select>
       </div>
 
+      {/* table */}
       <ClaimTable
         claims={filteredClaims}
         onView={handleView}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onUpdateProgress={setUpdatingProgress}
+        onGeneratePdf={handleGeneratePdf}
+        onNotes={c => setNotesFor(c)}
       />
 
-      {/* Add Modal */}
+      {notesFor && (
+       <NotesModal
+         claimId={notesFor.id}
+         existing={notesFor.notes || []}
+         onClose={() => setNotesFor(null)}
+         onChange={() => {
+           // optional: re-fetch this claim if you need latest `.notes`
+         }}
+       />
+     )}
+
+      {/* Add */}
       <Modal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -267,10 +423,10 @@ const Claims = () => {
         <ClaimForm onClose={() => setShowAddModal(false)} />
       </Modal>
 
-      {/* Edit Modal */}
+      {/* Edit */}
       {selectedClaim && showEditModal && (
         <Modal
-          isOpen={true}
+          isOpen
           onClose={() => {
             setShowEditModal(false);
             setSelectedClaim(null);
@@ -279,6 +435,7 @@ const Claims = () => {
           size="xl"
         >
           <ClaimEditModal
+            key={selectedClaim.id}
             claim={selectedClaim}
             onClose={() => {
               setShowEditModal(false);
@@ -288,54 +445,61 @@ const Claims = () => {
         </Modal>
       )}
 
-      {/* View Modal */}
+      {/* View */}
       {selectedClaim && !showEditModal && !showDeleteModal && (
         <Modal
-          isOpen={true}
+          isOpen
           onClose={() => setSelectedClaim(null)}
           title="Claim Details"
           size="xl"
         >
           <ClaimDetailsModal
             claim={selectedClaim}
-            onClose={() => setSelectedClaim(null)}
-            onDownloadDocument={(url) => window.open(url, '_blank')}
+            onDownloadDocument={url => window.open(url, '_blank')}
           />
         </Modal>
       )}
 
-      <Modal
-        isOpen={!!updatingProgress}
-        onClose={() => setUpdatingProgress(null)}
-        title="Update Progress"
-      >
-        {updatingProgress && (
+      {/* Progress */}
+      {updatingProgress && (
+        <Modal
+          isOpen
+          onClose={() => setUpdatingProgress(null)}
+          title="Update Progress"
+        >
           <ProgressUpdateModal
             claimId={updatingProgress.id}
             currentProgress={updatingProgress.progress}
             onClose={() => setUpdatingProgress(null)}
-            onUpdate={fetchClaims}
+            onUpdate={() => {/* refetch happens automatically */}}
           />
-        )}
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Delete Modal */}
+      {/* Delete */}
       {selectedClaim && showDeleteModal && (
         <Modal
-          isOpen={true}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedClaim(null);
-          }}
+          isOpen
+          onClose={() => setShowDeleteModal(false)}
           title="Delete Claim"
         >
-          <ClaimDeleteModal
-            claim={selectedClaim}
-            onClose={() => {
-              setShowDeleteModal(false);
-              setSelectedClaim(null);
-            }}
-          />
+          <div className="space-y-4">
+            <p>Are you sure you want to delete this claim?</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 rounded-md border"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-md bg-red-600 text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

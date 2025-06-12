@@ -199,99 +199,99 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       ),
     },
     {
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {can('vehicles', 'view') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View Details"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
-          {can('vehicles', 'update') && row.original.status !== 'sold' && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(row.original);
-                }}
-                className="text-blue-600 hover:text-blue-800"
-                title="Edit"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMarkAsSold(row.original);
-                }}
-                className="text-green-600 hover:text-green-800"
-                title="Mark as Sold"
-              >
-                <DollarSign className="h-4 w-4" />
-              </button>
-            </>
-          )}
-          {can('vehicles', 'update') && row.original.status === 'sold' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onUndoSale(row.original);
-              }}
-              className="text-orange-600 hover:text-orange-800"
-              title="Undo Sale"
-            >
-              <RotateCw className="h-4 w-4" />
-            </button>
-          )}
-          {can('vehicles', 'delete') && row.original.status === 'sold' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
-              className="text-red-600 hover:text-red-800"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-          {/* Document actions */}
-          {can('vehicles', 'update') && (
+  header: 'Actions',
+  cell: ({ row }) => (
+    <div className="flex space-x-2">
+      {can('vehicles', 'view') && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onView(row.original);
+          }}
+          className="text-blue-600 hover:text-blue-800"
+          title="View Details"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      )}
+      {can('vehicles', 'update') && row.original.status !== 'sold' && (
+        <>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onGenerateDocument(row.original);
+              onEdit(row.original);
+            }}
+            className="text-blue-600 hover:text-blue-800"
+            title="Edit"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkAsSold(row.original);
             }}
             className="text-green-600 hover:text-green-800"
-            title="Generate Document"
+            title="Mark as Sold"
           >
-            <FileText className="h-4 w-4" />
+            <DollarSign className="h-4 w-4" />
           </button>
-          )}
-          
-          {row.original.documentUrl && can('vehicles', 'view') && (
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewDocument(row.original.documentUrl!);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View Document"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
+        </>
+      )}
+      {can('vehicles', 'update') && row.original.status === 'sold' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onUndoSale(row.original);
+          }}
+          className="text-orange-600 hover:text-orange-800"
+          title="Undo Sale"
+        >
+          <RotateCw className="h-4 w-4" />
+        </button>
+      )}
+      {can('vehicles', 'delete') && row.original.status === 'sold' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(row.original);
+          }}
+          className="text-red-600 hover:text-red-800"
+          title="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+      {/* Document actions */}
+      {can('vehicles', 'update') && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onGenerateDocument(row.original);
+        }}
+        className="text-green-600 hover:text-green-800"
+        title="Generate Document"
+      >
+        <FileText className="h-4 w-4" />
+      </button>
+      )}
+      
+      {row.original.documentUrl && can('vehicles', 'view') && (
+        
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewDocument(row.original.documentUrl!);
+          }}
+          className="text-blue-600 hover:text-blue-800"
+          title="View Document"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  ),
+},
   ];
 
   return (

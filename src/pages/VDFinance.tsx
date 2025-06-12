@@ -158,6 +158,7 @@ const VDFinance = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VD Finance</h1>
         <div className="flex space-x-2">
+          {user?.role === 'manager' && (
           <button
             onClick={handleGeneratePDF}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -165,6 +166,7 @@ const VDFinance = () => {
             <FileText className="h-5 w-5 mr-2" />
             Generate PDF
           </button>
+          )}
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}

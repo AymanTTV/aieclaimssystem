@@ -46,7 +46,8 @@ const Accidents = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
+// new: toggles showing only resolved
+  const [showResolvedOnly, setShowResolvedOnly] = useState(false);
   const handleAdd = () => {
     setShowAddModal(true);
   };
@@ -125,6 +126,10 @@ if (loading) {
     );
   }
 
+  const displayedAccidents = showResolvedOnly
+  ? filteredAccidents.filter(a => a.status === 'resolved')
+  : filteredAccidents;
+
   return (
     <div className="space-y-6">
       <AccidentHeader
@@ -150,24 +155,39 @@ if (loading) {
         onDateRangeChange={setDateRange}
       />
 
+<div className="flex items-center space-x-2">
+        <input
+          id="showResolved"
+          type="checkbox"
+          checked={showResolvedOnly}
+          onChange={() => setShowResolvedOnly(v => !v)}
+          className="h-4 w-4 text-primary border-gray-300 rounded"
+        />
+        <label htmlFor="showResolved" className="text-sm text-gray-700">
+          Show only completed (resolved) accidents
+        </label>
+      </div>
+
       <AccidentTable
-        accidents={filteredAccidents}
+        accidents={displayedAccidents}
         vehicles={vehicles}
         onView={handleView}
         onEdit={handleEdit}
-        onDelete={(accident) => {
-          setSelectedAccident(accident);
+        onDelete={acc => {
+          setSelectedAccident(acc);
           setShowDeleteModal(true);
         }}
-        onGenerateDocument={() => {}}
-        onViewDocument={() => {}}
+        onGenerateDocument={handleGenerateDocument}
+        onViewDocument={url => window.open(url, '_blank')}
       />
+
 
       {/* Add Modal */}
       <Modal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         title="Report Accident"
+        size="xl"
       >
         <AccidentClaimForm onClose={() => setShowAddModal(false)} />
       </Modal>
@@ -181,6 +201,7 @@ if (loading) {
             setSelectedAccident(null);
           }}
           title="Accident Details"
+          size="xl"
         >
           <AccidentClaimView accident={selectedAccident} />
         </Modal>
@@ -195,6 +216,7 @@ if (loading) {
             setSelectedAccident(null);
           }}
           title="Edit Accident"
+          size="xl"
         >
           <AccidentClaimEdit
             accident={selectedAccident}

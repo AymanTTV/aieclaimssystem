@@ -1,19 +1,20 @@
+// RentalForm.tsx
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../lib/firebase';
 
-import { Vehicle, Customer, Claim } from '../../types';
+import { Vehicle, Customer, Claim, RentalPayment, VehicleCondition, Rental } from '../../types'; // Ensure Rental is imported
 import { useAuth } from '../../context/AuthContext';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import FormField from '../ui/FormField';
 import SignaturePad from '../ui/SignaturePad';
-import { addWeeks, format, differenceInDays, isAfter } from 'date-fns';
+import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns'; // Import isValid
 import toast from 'react-hot-toast';
-import { Search, Car } from 'lucide-react';
+import { Search, Car, User } from 'lucide-react'; // Added User for profile icon suggestion
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -31,7 +32,7 @@ interface RentalFormProps {
 const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
- 
+
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showVehicleResults, setShowVehicleResults] = useState(false);
@@ -46,14 +47,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
 
 
-  
   const [formData, setFormData] = useState({
     vehicleId: '',
     customerId: '',
     startDate: new Date().toISOString().split('T')[0],
     startTime: new Date().toTimeString().slice(0, 5),
-    endDate: '',
-    endTime: '',
+    endDate: '', // Initialize as empty string
+    endTime: '', // Initialize as empty string
     type: 'daily' as const,
     reason: 'hired' as const,
     status: 'scheduled' as const,
@@ -73,13 +73,18 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     storageDays: 0,
     includeStorageVAT: false,
     recoveryCost: 0, // Keep as number
+    includeRecoveryCostVAT: false, // NEW: Add field for Recovery Cost VAT
     // ---> NEW: Add new charge fields <---
     deliveryCharge: 0, // Keep as number
     collectionCharge: 0, // Keep as number
     insurancePerDay: 0, // Keep as number
     claimRef: '',
+    includeVAT: false, // New field for overall rental VAT
+    deliveryChargeIncludeVAT: false, // New field for delivery charge VAT
+    collectionChargeIncludeVAT: false, // New field for collection charge VAT
+    insurancePerDayIncludeVAT: false, // New field for insurance per day VAT
   });
-  
+
   // Fetch claims when component mounts
   useEffect(() => {
     const fetchClaims = async () => {
@@ -120,7 +125,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       claimIdLower.includes(searchLower)
     );
   });
-  
+
   const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>({
     mileage: 0,
     fuelLevel: '100',
@@ -133,8 +138,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   // Get available vehicles based on selected dates
   const { availableVehicles, loading: loadingVehicles } = useAvailableVehicles(
     vehicles,
-    formData.startDate ? new Date(`${formData.startDate}T${formData.startTime}`) : undefined,
-    formData.endDate ? new Date(`${formData.endDate}T${formData.endTime}`) : undefined
+    (formData.startDate && formData.startTime) ? new Date(`${formData.startDate}T${formData.startTime}`) : undefined,
+    (formData.endDate && formData.endTime) ? new Date(`${formData.endDate}T${formData.endTime}`) : undefined
   );
 
   // Filter vehicles based on search and availability
@@ -167,30 +172,30 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     if (!selectedVehicle || !formData.startDate || !formData.endDate || !formData.startTime || !formData.endTime) {
         return 0;
     }
-  
+
     const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
     const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-  
+
     // Ensure dates are valid
-     if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime()) || isAfter(startDateTime, endDateTime)) {
+     if (!isValid(startDateTime) || !isValid(endDateTime) || isAfter(startDateTime, endDateTime)) {
        return 0; // Return 0 for invalid date range
      }
-  
+
     const negotiatedRate = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
-  
+
     // Calculate storage cost separately ONLY if needed (e.g., for display or specific logic)
     // Note: The main calculateRentalCost now includes this internally if passed
     let calculatedStorageCost = 0;
     if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
       const storageStart = new Date(formData.storageStartDate);
       const storageEnd = new Date(formData.storageEndDate);
-       if (!isNaN(storageStart.getTime()) && !isNaN(storageEnd.getTime()) && !isAfter(storageStart, storageEnd)) {
+       if (isValid(storageStart) && isValid(storageEnd) && !isAfter(storageStart, storageEnd)) {
           const storageDays = differenceInDays(storageEnd, storageStart) + 1;
           const dailyCost = formData.storageCostPerDay || 0;
-          calculatedStorageCost = storageDays * dailyCost * (formData.includeStorageVAT ? 1.2 : 1);
+          calculatedStorageCost = storageDays * dailyCost * (formData.includeStorageVAT ? 1.2 : 1); // Apply VAT if checked
        }
     }
-  
+
     // Use the updated utility function, passing all costs
     const totalCost = calculateRentalCost(
       startDateTime,
@@ -205,12 +210,17 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       // ---> NEW: Pass new charges <---
       formData.deliveryCharge,
       formData.collectionCharge,
-      formData.insurancePerDay
+      formData.insurancePerDay,
+      formData.includeVAT, // Pass includeVAT
+      formData.deliveryChargeIncludeVAT, // Pass deliveryChargeIncludeVAT
+      formData.collectionChargeIncludeVAT, // Pass collectionChargeIncludeVAT
+      formData.insurancePerDayIncludeVAT, // Pass insurancePerDayIncludeVAT
+      formData.includeRecoveryCostVAT // NEW: Pass includeRecoveryCostVAT
     );
-  
+
     return totalCost;
   };
-  
+
   // Calculate costs (Reverting variable names for JSX display)
   const totalCost = calculateTotalCost(); // <--- RENAME THIS BACK
   const discountAmount = (totalCost * (formData.discountPercentage || 0)) / 100; // Update calculation to use 'totalCost'
@@ -218,264 +228,416 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const remainingAmount = finalCostAfterDiscount - (formData.paidAmount || 0); // Update calculation to use 'finalCostAfterDiscount'
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent default form submission
-  
-    // --- Initial Checks ---
-    if (!user) {
-      toast.error("You must be logged in to create a rental.");
+  e.preventDefault();
+
+  // --- Initial Checks ---
+  if (!user) {
+    toast.error("You must be logged in to create a rental.");
+    return;
+  }
+  const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+  const selectedCustomer = customers.find(c => c.id === formData.customerId);
+
+  if (!selectedVehicle) {
+    toast.error("Please select a vehicle.");
+    return;
+  }
+  if (!selectedCustomer) {
+    toast.error("Please select a customer.");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // --- Date Parsing and Validation ---
+    if (!formData.startDate || !formData.startTime) {
+      toast.error("Start Date and Time are required.");
+      setLoading(false);
       return;
     }
-    // Retrieve selected vehicle and customer from state/props (ensure they exist)
-    const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-    const selectedCustomer = customers.find(c => c.id === formData.customerId);
-  
-    if (!selectedVehicle) {
-      toast.error("Please select a vehicle.");
+    if (!formData.endDate || !formData.endTime) {
+      toast.error("End Date and Time are required.");
+      setLoading(false);
       return;
     }
-    if (!selectedCustomer) {
-      toast.error("Please select a customer.");
+
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime   = new Date(`${formData.endDate}T${formData.endTime}`);
+
+    if (!isValid(startDateTime)) {
+      toast.error("Invalid Start Date or Time.");
+      setLoading(false);
       return;
     }
-  
-    setLoading(true); // Set loading state
-  
-    try {
-      // --- Date Parsing and Validation ---
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-  
-      if (isNaN(startDateTime.getTime()) || !formData.startDate) {
-          throw new Error('Invalid Start Date or Time.');
+    if (!isValid(endDateTime)) {
+      toast.error("Invalid End Date or Time.");
+      setLoading(false);
+      return;
+    }
+    if (isAfter(startDateTime, endDateTime)) {
+      throw new Error("End Date cannot be before Start Date.");
+    }
+
+    // --- Cost Calculations (including “claim” extras, VAT flags, etc.) ---
+    let calculatedStorageCost = 0, storageDays = 0;
+    let storageStartDateObj: Date | undefined, storageEndDateObj: Date | undefined;
+
+    if (
+      formData.type === "claim" &&
+      formData.storageStartDate &&
+      formData.storageEndDate
+    ) {
+      storageStartDateObj = new Date(formData.storageStartDate);
+      storageEndDateObj   = new Date(formData.storageEndDate);
+
+      if (
+        isValid(storageStartDateObj) &&
+        isValid(storageEndDateObj) &&
+        !isAfter(storageStartDateObj, storageEndDateObj)
+      ) {
+        storageDays = differenceInDays(storageEndDateObj, storageStartDateObj) + 1;
+        const dailyCost = formData.storageCostPerDay || 0;
+        calculatedStorageCost =
+          storageDays * dailyCost * (formData.includeStorageVAT ? 1.2 : 1);
+      } else {
+        console.warn(
+          "Invalid storage dates provided for cost calculation in submit. Storage cost set to 0."
+        );
+        storageStartDateObj = undefined;
+        storageEndDateObj   = undefined;
+        calculatedStorageCost = 0;
+        storageDays = 0;
       }
-       if (isNaN(endDateTime.getTime()) || !formData.endDate) {
-          throw new Error('Invalid End Date or Time.');
-      }
-      if (isAfter(startDateTime, endDateTime)) {
-         throw new Error('End Date cannot be before Start Date.');
-      }
-  
-      // --- Cost Calculations ---
-  
-      // Calculate Storage Cost (only if applicable and dates are valid)
-      let calculatedStorageCost = 0;
-      let storageDays = 0;
-      let storageStartDateObj: Date | undefined;
-      let storageEndDateObj: Date | undefined;
-  
-       if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
-          storageStartDateObj = new Date(formData.storageStartDate);
-          storageEndDateObj = new Date(formData.storageEndDate);
-  
-          if (!isNaN(storageStartDateObj.getTime()) && !isNaN(storageEndDateObj.getTime()) && !isAfter(storageStartDateObj, storageEndDateObj)) {
-              // Calculate days inclusive
-              storageDays = differenceInDays(storageEndDateObj, storageStartDateObj) + 1;
-              const dailyCost = formData.storageCostPerDay || 0;
-              calculatedStorageCost = storageDays * dailyCost * (formData.includeStorageVAT ? 1.2 : 1); // Apply VAT if checked
-          } else {
-               console.warn("Invalid storage dates provided for cost calculation in submit. Storage cost set to 0.");
-               storageStartDateObj = undefined; // Invalidate if dates were wrong
-               storageEndDateObj = undefined;
-               calculatedStorageCost = 0;
-               storageDays = 0;
-          }
-       }
-  
-      // Calculate Standard Cost (Base rate without negotiation or specific extra charges, but WITH storage/recovery for claims)
-      const standardCost = calculateRentalCost(
-        startDateTime,
-        endDateTime,
-        formData.type,
-        selectedVehicle,
-        formData.reason,
-        undefined, // NO negotiated rate for standard cost
-        formData.type === 'claim' ? calculatedStorageCost : undefined, // Include calculated storage if claim
-        formData.type === 'claim' ? (formData.recoveryCost || 0) : undefined, // Include recovery if claim
-        undefined, // NO delivery charge for standard cost
-        undefined, // NO collection charge for standard cost
-        undefined  // NO insurance per day for standard cost
-      );
-  
-      // Calculate Total Cost (Including negotiation and ALL additional charges, BEFORE discount)
-      // Ensure calculateTotalCost() is defined in the component scope and uses the updated calculateRentalCost utility
-      const totalCost = calculateTotalCost(); // Uses the component's calculateTotalCost function which calls the utility
-  
-      // Calculate Discount Amount
-      const discountAmount = (totalCost * (formData.discountPercentage || 0)) / 100;
-  
-      // Calculate Final Cost (after discount, the amount the customer actually owes before payments)
-      const finalCostToSave = totalCost - discountAmount;
-  
-      // Calculate Remaining Amount
-      const finalRemainingAmount = finalCostToSave - (formData.paidAmount || 0);
-  
-      // --- Create Initial Payment Record ---
-      const payments: RentalPayment[] = []; // Use RentalPayment type if defined
-      if (formData.paidAmount > 0) {
-        payments.push({
-          // Consider using a UUID library for more robust IDs
-          id: `payment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          date: new Date(), // Payment date is now
-          amount: formData.paidAmount,
-          method: formData.paymentMethod,
-          reference: formData.paymentReference || undefined, // Use undefined if empty string
-          notes: formData.paymentNotes || undefined, // Use undefined if empty string
-          createdAt: new Date(),
-          createdBy: user.id,
-          // Ensure all required fields from RentalPayment type are included
-        });
-      }
-  
-      // --- Prepare Rental Data for Firestore ---
-      const rentalData: Omit<Rental, 'id' | 'updatedAt' | 'checkOutCondition' | 'checkInCondition' | 'returnCondition'> & { updatedAt: Date } = { // Adjust type based on exact Rental definition
-        vehicleId: formData.vehicleId,
-        customerId: formData.customerId,
-        startDate: startDateTime, // Store as Timestamp/Date
-        endDate: endDateTime,     // Store as Timestamp/Date
-        type: formData.type,
-        reason: formData.reason,
-        status: formData.status,
-        cost: finalCostToSave, // Final amount due after discount
-        standardCost: standardCost, // Calculated standard cost
-        paidAmount: formData.paidAmount || 0,
-        remainingAmount: finalRemainingAmount, // Remaining amount after payment & discount
-        paymentStatus: finalRemainingAmount <= 0.001 ? 'paid' : // Use small tolerance for float comparison
-                      (formData.paidAmount || 0) > 0 ? 'partially_paid' : 'pending',
-        payments, // Array of payment objects
-        signature: formData.signature || undefined, // Use undefined if empty
-  
-        // Optional Fields - Use conditional spreading
-        ...(formData.claimRef && { claimRef: formData.claimRef }),
-  
-        // Storage details (only add if applicable and cost > 0, use validated dates)
-        ...(formData.type === 'claim' && calculatedStorageCost > 0 && storageStartDateObj && storageEndDateObj && {
-          storageStartDate: storageStartDateObj,
-          storageEndDate: storageEndDateObj,
-          storageCostPerDay: formData.storageCostPerDay || 0,
-          storageDays: storageDays,
-          includeStorageVAT: formData.includeStorageVAT,
-          storageCost: calculatedStorageCost // Store the calculated cost
-        }),
-  
-        // Recovery cost (only add if applicable and > 0)
-        ...(formData.type === 'claim' && formData.recoveryCost > 0 && {
-          recoveryCost: formData.recoveryCost
-        }),
-  
-        // New charges (delivery, collection, insurance - only add if > 0)
-        ...(formData.deliveryCharge > 0 && { deliveryCharge: formData.deliveryCharge }),
-        ...(formData.collectionCharge > 0 && { collectionCharge: formData.collectionCharge }),
-        ...(formData.insurancePerDay > 0 && { insurancePerDay: formData.insurancePerDay }),
-  
-        // Negotiation details if applicable
-        ...(formData.negotiatedRate ? {
-          negotiatedRate: parseFloat(formData.negotiatedRate),
-          negotiationNotes: formData.negotiationNotes || null // Use null if empty string
-        } : {
-          negotiatedRate: null, // Explicitly set to null if not provided
-          negotiationNotes: null
-        }),
-  
-        // Discount details if applicable
-        ...(formData.discountPercentage > 0 ? {
-          discountPercentage: formData.discountPercentage,
-          discountAmount: discountAmount, // Store calculated discount amount
-          discountNotes: formData.discountNotes || null // Use null if empty string
-        } : {
-          discountPercentage: null, // Explicitly set to null
-          discountAmount: null,
-          discountNotes: null
-        }),
-  
-        // System Fields
+    }
+
+    const standardCost = calculateRentalCost(
+      startDateTime,
+      endDateTime,
+      formData.type,
+      selectedVehicle,
+      formData.reason,
+      undefined,
+      formData.type === "claim" ? calculatedStorageCost : undefined,
+      formData.type === "claim" ? formData.recoveryCost || 0 : undefined,
+      formData.type === "claim" ? formData.deliveryCharge || 0 : undefined,
+      formData.type === "claim" ? formData.collectionCharge || 0 : undefined,
+      formData.type === "claim" ? formData.insurancePerDay || 0 : undefined,
+      // overall VAT = false here, since this is “standard” (no overall VAT)
+      false,
+      formData.deliveryChargeIncludeVAT,
+      formData.collectionChargeIncludeVAT,
+      formData.insurancePerDayIncludeVAT,
+      formData.includeRecoveryCostVAT
+    );
+
+    const totalCostBeforeDiscount = calculateRentalCost(
+      startDateTime,
+      endDateTime,
+      formData.type,
+      selectedVehicle,
+      formData.reason,
+      formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
+      formData.type === "claim" ? calculatedStorageCost : undefined,
+      formData.type === "claim" ? formData.recoveryCost || 0 : undefined,
+      formData.deliveryCharge || 0,
+      formData.collectionCharge || 0,
+      formData.insurancePerDay || 0,
+      formData.includeVAT,
+      formData.deliveryChargeIncludeVAT,
+      formData.collectionChargeIncludeVAT,
+      formData.insurancePerDayIncludeVAT,
+      formData.includeRecoveryCostVAT
+    );
+
+    const discountAmount =
+      (totalCostBeforeDiscount * (formData.discountPercentage || 0)) / 100;
+    const finalCostToSave = totalCostBeforeDiscount - discountAmount;
+    const finalRemainingAmount = finalCostToSave - (formData.paidAmount || 0);
+
+    // --- Build initial payments array ---
+    const payments: RentalPayment[] = [];
+    if (formData.paidAmount > 0) {
+      payments.push({
+        id: `payment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        date: new Date(),
+        amount: formData.paidAmount,
+        method: formData.paymentMethod,
+        reference: formData.paymentReference || undefined,
+        notes: formData.paymentNotes   || undefined,
         createdAt: new Date(),
         createdBy: user.id,
-        updatedAt: new Date(), // Set updatedAt on creation
-        updatedBy: user.id,   // Set updatedBy on creation
-        // ongoingCharges might need calculation/setting if used elsewhere
-        ongoingCharges: 0, // Default or calculate if needed
-        // Add defaults for other potentially mandatory fields from Rental type
-        documents: {},
-        extensionHistory: [],
-        paymentMethod: formData.paymentMethod, // Save payment method used for initial payment?
-        paymentReference: formData.paymentReference?.trim() || null,
-        // Check if other fields like checkOutCondition, returnCondition need initial empty state
-      };
-  
-      // --- Save to Firestore ---
-      const docRef = await addDoc(collection(db, 'rentals'), rentalData);
-      console.log("Rental document created successfully with ID: ", docRef.id);
-  
-      // --- Generate/Upload Documents ---
-      // Note: Pass the prepared `rentalData` along with the new ID
+      });
+    }
+
+    // --- Construct Firestore payload ---
+    const rentalData: Omit<
+      Rental,
+      | "id"
+      | "updatedAt"
+      | "checkOutCondition"
+      | "checkInCondition"
+      | "returnCondition"
+    > & { updatedAt: Date } = {
+      vehicleId: formData.vehicleId,
+      customerId: formData.customerId,
+      startDate: startDateTime,
+      endDate:   endDateTime,
+      type:      formData.type,
+      reason:    formData.reason,
+      status:    formData.status,
+      cost:      finalCostToSave,
+      standardCost: standardCost,
+      paidAmount:   formData.paidAmount || 0,
+      remainingAmount: finalRemainingAmount,
+      paymentStatus:
+        finalRemainingAmount <= 0.001
+          ? "paid"
+          : (formData.paidAmount || 0) > 0
+          ? "partially_paid"
+          : "pending",
+      payments,
+      signature: formData.signature || undefined,
+
+      ...(formData.claimRef && { claimRef: formData.claimRef }),
+
+      // “claim”-only fields, if applicable
+      ...(formData.type === "claim" &&
+        calculatedStorageCost > 0 &&
+        storageStartDateObj &&
+        storageEndDateObj && {
+          storageStartDate: storageStartDateObj,
+          storageEndDate:   storageEndDateObj,
+          storageCostPerDay: formData.storageCostPerDay || 0,
+          storageDays,
+          includeStorageVAT: formData.includeStorageVAT,
+          storageCost:        calculatedStorageCost,
+        }),
+
+      ...(formData.type === "claim" &&
+        formData.recoveryCost > 0 && {
+          recoveryCost:         formData.recoveryCost,
+          includeRecoveryCostVAT: formData.includeRecoveryCostVAT,
+        }),
+
+      ...(formData.deliveryCharge > 0 && {
+        deliveryCharge:
+          formData.deliveryCharge *
+          (formData.deliveryChargeIncludeVAT ? 1.2 : 1),
+      }),
+      ...(formData.collectionCharge > 0 && {
+        collectionCharge:
+          formData.collectionCharge *
+          (formData.collectionChargeIncludeVAT ? 1.2 : 1),
+      }),
+      ...(formData.insurancePerDay > 0 && {
+        insurancePerDay: formData.insurancePerDay,
+      }),
+
+      includeVAT:                   formData.includeVAT,
+      deliveryChargeIncludeVAT:     formData.deliveryChargeIncludeVAT,
+      collectionChargeIncludeVAT:   formData.collectionChargeIncludeVAT,
+      insurancePerDayIncludeVAT:    formData.insurancePerDayIncludeVAT,
+
+      ...(formData.negotiatedRate
+        ? {
+            negotiatedRate:    parseFloat(formData.negotiatedRate),
+            negotiationNotes:  formData.negotiationNotes || null,
+          }
+        : {
+            negotiatedRate:   null,
+            negotiationNotes: null,
+          }),
+
+      ...(formData.discountPercentage > 0
+        ? {
+            discountPercentage: formData.discountPercentage,
+            discountAmount:     discountAmount,
+            discountNotes:      formData.discountNotes || null,
+          }
+        : {
+            discountPercentage: null,
+            discountAmount:     null,
+            discountNotes:      null,
+          }),
+
+      ...(formData.type === "weekly" && {
+        numberOfWeeks: formData.numberOfWeeks || 1,
+      }),
+
+      // System fields
+      createdAt:    new Date(),
+      createdBy:    user.id,
+      updatedAt:    new Date(),
+      updatedBy:    user.id,
+      ongoingCharges: 0,
+      documents:      {},
+      extensionHistory: [],
+      paymentMethod:   formData.paymentMethod,
+      paymentReference: formData.paymentReference?.trim() || null,
+    };
+
+    // --- Save rental document to Firestore ---
+    const docRef = await addDoc(collection(db, "rentals"), rentalData);
+    console.log("Rental document created successfully with ID:", docRef.id);
+
+    // --- Upload check-out images (if any) ---
+    let conditionImageUrls: string[] = [];
+    if (images.length > 0) {
+      const uploadPromises = images.map(async (file) => {
+        const ts = Date.now();
+        const storageRef = ref(
+          storage,
+          `vehicle-conditions/${docRef.id}/${ts}_${file.name}`
+        );
+        const snap = await uploadBytes(storageRef, file);
+        return getDownloadURL(snap.ref);
+      });
+
       try {
-        console.log("Generating rental documents...");
+        conditionImageUrls = await Promise.all(uploadPromises);
+      } catch (imgErr) {
+        console.error("Failed to upload condition images:", imgErr);
+        toast.error("Rental created, but failed to upload condition images.");
+      }
+    }
+
+    if (conditionImageUrls.length > 0) {
+      const checkOutCondition = {
+        id: `cond_${Date.now()}`,
+        type: "check-out" as const,
+        date: new Date(),
+        mileage: 0,
+        fuelLevel: "100",
+        isClean: true,
+        hasDamage: false,
+        damageDescription: "",
+        images: conditionImageUrls,
+        createdAt: new Date(),
+        createdBy: user.id,
+      };
+      await updateDoc(doc(db, "rentals", docRef.id), {
+        checkOutCondition,
+      });
+    }
+
+    //
+    // --- BACKGROUND TASKS: PDF Generation/Upload + Finance Transaction ---
+    //
+
+    // 1) Close modal, clear loading, and show success toast immediately:
+    setLoading(false);
+    onClose();
+    toast.success("Rental created! Generating documents in background…");
+
+    // 2) Kick off PDF gen/upload asynchronously:
+    setTimeout(async () => {
+      try {
+        const fullRental = { id: docRef.id, ...rentalData } as Rental;
         const documents = await generateRentalDocuments(
-          { id: docRef.id, ...rentalData } as any,
+          fullRental,
           selectedVehicle,
           selectedCustomer
         );
-        console.log("Documents generated, uploading...");
         await uploadRentalDocuments(docRef.id, documents);
-        console.log("Documents uploaded successfully");
-      } catch (docError) {
-        console.error("Error generating or uploading documents:", docError);
-        toast.error("Rental created, but failed to generate documents: " + docError.message);
+        toast.success("Agreement & Invoice uploaded!");
+      } catch (err) {
+        console.error("Background PDF gen/upload failed:", err);
+        toast.error("Created rental, but failed to generate documents.");
       }
-  
-      // --- Create Finance Transaction (If payment made) ---
-      if (formData.paidAmount > 0) {
-         try {
-             await createFinanceTransaction({
-               type: 'income',
-               category: 'rental',
-               amount: formData.paidAmount,
-               description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber}) - Rental ID: ${docRef.id.substring(0, 6)}`,
-               date: new Date(), // Date of the transaction
-               referenceId: docRef.id, // Link to the rental document
-               vehicleId: selectedVehicle.id,
-               customerId: selectedCustomer.id,
-               paymentMethod: formData.paymentMethod,
-               paymentReference: formData.paymentReference || null,
-               status: 'completed',
-               // Ensure this matches the expected type for createFinanceTransaction
-             });
-              console.log("Finance transaction recorded.");
-         } catch (financeError) {
-              console.error("Error creating finance transaction:", financeError);
-              // Non-fatal error: Inform user but proceed
-              toast.error("Rental created, but failed to record finance transaction.");
-         }
-      }
-  
-      // --- Success Feedback and Cleanup ---
-      toast.success('Rental created successfully!');
-      onClose(); // Close the form/modal
-  
-    } catch (error) {
-      // --- Error Handling ---
-      console.error('Error creating rental:', error);
-      // Display specific error message if available
-      toast.error(`Failed to create rental: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      // --- Final Cleanup ---
-      setLoading(false); // Ensure loading state is turned off
+    }, 0);
+
+    // 3) If there was an initial payment, record it in the background:
+    if (formData.paidAmount > 0) {
+      setTimeout(async () => {
+        try {
+          await createFinanceTransaction({
+            type: "income",
+            category: "rental",
+            amount: formData.paidAmount,
+            description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber}) - Rental ID: ${docRef.id.substring(
+              0,
+              6
+            )}`,
+            date: new Date(),
+            referenceId: docRef.id,
+            vehicleId: selectedVehicle.id,
+            customerId: selectedCustomer.id,
+            paymentMethod: formData.paymentMethod,
+            paymentReference: formData.paymentReference || null,
+            status: "completed",
+          });
+        } catch {
+          toast.error("Rental created, but failed to record finance transaction.");
+        }
+      }, 0);
     }
-  };
+
+    // 4) Return here so nothing else runs on the main thread:
+    return;
+
+  } catch (error: any) {
+    console.error("Error creating rental:", error);
+    toast.error(`Failed to create rental: ${error.message || String(error)}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
 
   // Update end date when type or number of weeks changes
   useEffect(() => {
-    if (formData.type === 'weekly' && formData.startDate) {
+    if (formData.type === 'weekly' && formData.startDate && formData.startTime) {
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      const endDateTime = addWeeks(startDateTime, formData.numberOfWeeks);
-      
-      setFormData(prev => ({
-        ...prev,
-        endDate: endDateTime.toISOString().split('T')[0],
-        endTime: formData.startTime
-      }));
+      if (isValid(startDateTime)) { // Check if startDateTime is valid
+        const endDateTime = addWeeks(startDateTime, formData.numberOfWeeks);
+
+        setFormData(prev => ({
+          ...prev,
+          endDate: endDateTime.toISOString().split('T')[0],
+          endTime: formData.startTime
+        }));
+      } else {
+        // If start date/time is invalid, clear end date/time
+        setFormData(prev => ({
+          ...prev,
+          endDate: '',
+          endTime: '',
+        }));
+      }
+    } else if (formData.type !== 'weekly') {
+       // Clear end date/time and weeks if switching from weekly or if endDate is empty
+        setFormData(prev => ({
+           ...prev,
+           endDate: '',
+           endTime: '',
+           numberOfWeeks: 1 // Reset weekly count
+        }));
     }
   }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
+
+
+    // Recalculate storage days when dates change
+    useEffect(() => {
+        if (formData.storageStartDate && formData.storageEndDate) {
+          const startDate = new Date(formData.storageStartDate);
+          const endDate = new Date(formData.storageEndDate);
+
+          // Ensure dates are valid before calculating difference
+          if (isValid(startDate) && isValid(endDate) && !isAfter(startDate, endDate)) {
+             const days = differenceInDays(endDate, startDate) + 1; // Include end date
+             setFormData(prev => ({ ...prev, storageDays: days }));
+          } else {
+             setFormData(prev => ({ ...prev, storageDays: 0 })); // Reset if dates are invalid
+          }
+
+        } else {
+          setFormData(prev => ({ ...prev, storageDays: 0 }));
+        }
+      }, [formData.storageStartDate, formData.storageEndDate]);
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -513,6 +675,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                     setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
                     setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
                     setShowVehicleResults(false);
+                     // Update mileage in condition data when vehicle is selected
+                    setConditionData(prev => ({ ...prev, mileage: vehicle.mileage || 0 }));
                   }}
                 >
                   <div className="flex items-center">
@@ -637,7 +801,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               <span className="text-sm text-gray-700">Enter Manually</span>
             </label>
           </div>
-          
+
           {manualClaimRef ? (
             <FormField
               label="Claim Reference"
@@ -663,7 +827,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
-              
+
               {showClaimResults && (
                 <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
                   {filteredClaims.length > 0 ? (
@@ -729,13 +893,27 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           </select>
         </div>
 
-        
+        {/* Include VAT checkbox for overall rental */}
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="includeVAT"
+          checked={formData.includeVAT}
+          onChange={(e) => setFormData({ ...formData, includeVAT: e.target.checked })}
+          className="rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <label htmlFor="includeVAT" className="text-sm font-medium text-gray-700">
+          Include HIRE VAT (20%)
+        </label>
+      </div>
+
+
 
         <FormField
           type="date"
           label="Start Date"
           value={formData.startDate}
-          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, startDate: e.target.value || '' })} // Handle empty string
           required
         />
 
@@ -743,7 +921,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           type="time"
           label="Start Time"
           value={formData.startTime}
-          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, startTime: e.target.value || '' })} // Handle empty string
           required
         />
 
@@ -753,7 +931,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               type="date"
               label="End Date"
               value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value || '' })} // Handle empty string
               required
               min={formData.startDate}
             />
@@ -761,22 +939,22 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               type="time"
               label="End Time"
               value={formData.endTime}
-              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, endTime: e.target.value || '' })} // Handle empty string
               required
             />
           </>
         )}
 
-        
+
         {formData.type === 'claim' && (
           <>
-          
-        
+
+
             <FormField
               type="date"
               label="End Date"
               value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value || '' })} // Handle empty string
               required
               min={formData.startDate}
             />
@@ -784,50 +962,92 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               type="time"
               label="End Time"
               value={formData.endTime}
-              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, endTime: e.target.value || '' })} // Handle empty string
               required
             />
             <FormField
-      type="number"
-      label="Delivery Charge (£)"
-      value={formData.deliveryCharge}
-      onChange={(e) => setFormData(prev => ({
-        ...prev,
-        deliveryCharge: parseFloat(e.target.value) || 0
-      }))}
-      min="0"
-      step="0.01"
-      className="col-span-2" // Example: make it span full width if needed
-    />
+              type="number"
+              label="Delivery Charge (£)"
+              value={formData.deliveryCharge}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                deliveryCharge: parseFloat(e.target.value) || 0
+              }))}
+              min="0"
+              step="0.01"
+            />
+             <div className="flex items-center space-x-2 mt-6">
+              <input
+                type="checkbox"
+                id="deliveryChargeIncludeVAT"
+                checked={formData.deliveryChargeIncludeVAT}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  deliveryChargeIncludeVAT: e.target.checked
+                }))}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="deliveryChargeIncludeVAT" className="text-sm text-gray-700">
+                Include VAT on Delivery Charge
+              </label>
+            </div>
 
-    {/* ---> NEW: Add Collection Charge Field <--- */}
-    <FormField
-      type="number"
-      label="Collection Charge (£)"
-      value={formData.collectionCharge}
-      onChange={(e) => setFormData(prev => ({
-        ...prev,
-        collectionCharge: parseFloat(e.target.value) || 0
-      }))}
-      min="0"
-      step="0.01"
-      className="col-span-2" // Example: make it span full width if needed
-    />
+            {/* ---> NEW: Add Collection Charge Field <--- */}
+            <FormField
+              type="number"
+              label="Collection Charge (£)"
+              value={formData.collectionCharge}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                collectionCharge: parseFloat(e.target.value) || 0
+              }))}
+              min="0"
+              step="0.01"
+            />
+            <div className="flex items-center space-x-2 mt-6">
+              <input
+                type="checkbox"
+                id="collectionChargeIncludeVAT"
+                checked={formData.collectionChargeIncludeVAT}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  collectionChargeIncludeVAT: e.target.checked
+                }))}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="collectionChargeIncludeVAT" className="text-sm text-gray-700">
+                Include VAT on Collection Charge
+              </label>
+            </div>
 
-    {/* ---> NEW: Add Insurance Per Day Field <--- */}
-    <FormField
-      type="number"
-      label="Insurance Per Day (£)"
-      value={formData.insurancePerDay}
-      onChange={(e) => setFormData(prev => ({
-        ...prev,
-        insurancePerDay: parseFloat(e.target.value) || 0
-      }))}
-      min="0"
-      step="0.01"
-      className="col-span-2" // Example: make it span full width if needed
-    />
-  
+            {/* ---> NEW: Add Insurance Per Day Field <--- */}
+            <FormField
+              type="number"
+              label="Insurance Per Day (£)"
+              value={formData.insurancePerDay}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                insurancePerDay: parseFloat(e.target.value) || 0
+              }))}
+              min="0"
+              step="0.01"
+            />
+            <div className="flex items-center space-x-2 mt-6">
+              <input
+                type="checkbox"
+                id="insurancePerDayIncludeVAT"
+                checked={formData.insurancePerDayIncludeVAT}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  insurancePerDayIncludeVAT: e.target.checked
+                }))}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="insurancePerDayIncludeVAT" className="text-sm text-gray-700">
+                Include VAT on Insurance Per Day
+              </label>
+            </div>
+
             <div className="border-t pt-4 mt-4">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Storage Details</h3>
       <div className="grid grid-cols-2 gap-4">
@@ -836,14 +1056,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           label="Storage Start Date"
           value={formData.storageStartDate}
           onChange={(e) => {
-            const startDate = new Date(e.target.value);
-            const endDate = formData.storageEndDate ? new Date(formData.storageEndDate) : null;
-            
+            const newStartDate = e.target.value || '';
+            const startDateObj = newStartDate ? new Date(newStartDate) : null;
+            const endDateObj = formData.storageEndDate ? new Date(formData.storageEndDate) : null;
+
             setFormData(prev => ({
               ...prev,
-              storageStartDate: e.target.value,
-              storageDays: endDate ? 
-                Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1 : 
+              storageStartDate: newStartDate,
+              storageDays: (startDateObj && endDateObj && isValid(startDateObj) && isValid(endDateObj) && !isAfter(startDateObj, endDateObj)) ?
+                differenceInDays(endDateObj, startDateObj) + 1 :
                 0
             }));
           }}
@@ -855,14 +1076,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           label="Storage End Date"
           value={formData.storageEndDate}
           onChange={(e) => {
-            const startDate = formData.storageStartDate ? new Date(formData.storageStartDate) : null;
-            const endDate = new Date(e.target.value);
-            
+            const newEndDate = e.target.value || '';
+            const startDateObj = formData.storageStartDate ? new Date(formData.storageStartDate) : null;
+            const endDateObj = newEndDate ? new Date(newEndDate) : null;
+
             setFormData(prev => ({
               ...prev,
-              storageEndDate: e.target.value,
-              storageDays: startDate ? 
-                Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1 : 
+              storageEndDate: newEndDate,
+              storageDays: (startDateObj && endDateObj && isValid(startDateObj) && isValid(endDateObj) && !isAfter(startDateObj, endDateObj)) ?
+                differenceInDays(endDateObj, startDateObj) + 1 :
                 0
             }));
           }}
@@ -915,8 +1137,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           <div className="flex justify-between text-sm font-medium pt-2 border-t">
             <span>Total Storage Cost:</span>
             <span>£{(
-              (formData.storageDays || 0) * 
-              (formData.storageCostPerDay || 0) * 
+              (formData.storageDays || 0) *
+              (formData.storageCostPerDay || 0) *
               (formData.includeStorageVAT ? 1.2 : 1)
             ).toFixed(2)}</span>
           </div>
@@ -935,6 +1157,22 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       min="0"
       step="0.01"
     />
+     {/* NEW: Add checkbox for Recovery Cost VAT */}
+     <div className="flex items-center space-x-2 mt-6">
+        <input
+          type="checkbox"
+          id="includeRecoveryCostVAT"
+          checked={formData.includeRecoveryCostVAT}
+          onChange={(e) => setFormData(prev => ({
+            ...prev,
+            includeRecoveryCostVAT: e.target.checked
+          }))}
+          className="rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <label htmlFor="includeRecoveryCostVAT" className="text-sm text-gray-700">
+          Include VAT on Recovery Cost
+        </label>
+      </div>
           </>
         )}
 
@@ -948,12 +1186,20 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 const weeks = parseInt(e.target.value);
                 setFormData(prev => {
                   const startDateTime = new Date(`${prev.startDate}T${prev.startTime}`);
-                  const endDateTime = addWeeks(startDateTime, weeks);
-                  return {
-                    ...prev,
-                    numberOfWeeks: weeks,
-                    endDate: endDateTime.toISOString().split('T')[0],
-                    endTime: prev.startTime
+                  if (isValid(startDateTime)) { // Check validity
+                      const endDateTime = addWeeks(startDateTime, weeks);
+                      return {
+                          ...prev,
+                          numberOfWeeks: weeks,
+                          endDate: endDateTime.toISOString().split('T')[0],
+                          endTime: prev.startTime
+                      };
+                  }
+                  return { // Fallback if start date is invalid
+                      ...prev,
+                      numberOfWeeks: weeks,
+                      endDate: '',
+                      endTime: ''
                   };
                 });
               }}
@@ -965,17 +1211,23 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 type="date"
                 label="End Date (Optional Override)"
                 value={formData.endDate}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  endDate: e.target.value,
-                  // Recalculate number of weeks based on new end date
-                  numberOfWeeks: Math.ceil(
-                    differenceInDays(
-                      new Date(`${e.target.value}T${prev.endTime}`),
-                      new Date(`${prev.startDate}T${prev.startTime}`)
-                    ) / 7
-                  )
-                }))}
+                onChange={(e) => setFormData(prev => {
+                    const newEndDate = e.target.value || '';
+                    const startDateObj = prev.startDate ? new Date(`${prev.startDate}T${prev.startTime}`) : null;
+                    const endDateObj = newEndDate ? new Date(`${newEndDate}T${prev.endTime}`) : null;
+
+                    let newNumberOfWeeks = prev.numberOfWeeks;
+                    if (startDateObj && endDateObj && isValid(startDateObj) && isValid(endDateObj) && !isAfter(startDateObj, endDateObj)) {
+                        newNumberOfWeeks = Math.ceil(differenceInDays(endDateObj, startDateObj) / 7);
+                        if (newNumberOfWeeks < 1) newNumberOfWeeks = 1; // Ensure minimum 1 week
+                    }
+
+                    return {
+                        ...prev,
+                        endDate: newEndDate,
+                        numberOfWeeks: newNumberOfWeeks,
+                    };
+                })}
                 min={formData.startDate}
               />
               <FormField
@@ -984,13 +1236,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 value={formData.endTime}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
-                  endTime: e.target.value
+                  endTime: e.target.value || ''
                 }))}
               />
             </div>
           </>
         )}
       </div>
+
+      
 
       {/* Negotiation Section */}
       <div className="border-t pt-4">
@@ -1029,7 +1283,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             type="number"
             label="Discount Percentage"
             value={formData.discountPercentage}
-            onChange={(e) => setFormData({ ...formData, discountPercentage: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, discountPercentage: parseFloat(e.target.value) || 0 })} // Ensure parsing handles empty string
             min="0"
             max="100"
             step="0.1"
@@ -1066,7 +1320,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               formData.reason,
               formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
               // Pass 0/undefined here for BASE display
-              0, 0, 0, 0, 0
+              0, 0, 0, 0, 0,
+              false, false, false, false, false // Pass false for VAT flags in base cost display
             ))}
           </span>
         </div>
@@ -1074,7 +1329,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     {/* Storage Cost */}
     {formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate && formData.storageCostPerDay > 0 && (
       <div className="flex justify-between text-sm">
-        <span>Storage Cost ({formData.storageDays || 0} days):</span>
+        <span>Storage Cost ({formData.storageDays || 0} days){formData.includeStorageVAT ? ' (Inc. VAT)' : ''}:</span>
         <span className="font-medium">{formatCurrency(
           (formData.storageDays || 0) * (formData.storageCostPerDay || 0) * (formData.includeStorageVAT ? 1.2 : 1)
         )}</span>
@@ -1084,49 +1339,61 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     {/* Recovery Cost */}
     {formData.type === 'claim' && formData.recoveryCost > 0 && (
       <div className="flex justify-between text-sm">
-        <span>Recovery Cost:</span>
-        <span className="font-medium">{formatCurrency(formData.recoveryCost)}</span>
+        <span>Recovery Cost{formData.includeRecoveryCostVAT ? ' (Inc. VAT)' : ''}:</span> {/* NEW: Display VAT inclusion */}
+        <span className="font-medium">{formatCurrency(formData.recoveryCost * (formData.includeRecoveryCostVAT ? 1.2 : 1))}</span> {/* NEW: Apply VAT for display */}
       </div>
     )}
 
     {/* ---> NEW: Display Delivery Charge <--- */}
     {formData.deliveryCharge > 0 && (
       <div className="flex justify-between text-sm">
-        <span>Delivery Charge:</span>
-        <span className="font-medium">{formatCurrency(formData.deliveryCharge)}</span>
+        <span>Delivery Charge{formData.deliveryChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+        <span className="font-medium">{formatCurrency(formData.deliveryCharge * (formData.deliveryChargeIncludeVAT ? 1.2 : 1))}</span>
       </div>
     )}
 
     {/* ---> NEW: Display Collection Charge <--- */}
     {formData.collectionCharge > 0 && (
       <div className="flex justify-between text-sm">
-        <span>Collection Charge:</span>
-        <span className="font-medium">{formatCurrency(formData.collectionCharge)}</span>
+        <span>Collection Charge{formData.collectionChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+        <span className="font-medium">{formatCurrency(formData.collectionCharge * (formData.collectionChargeIncludeVAT ? 1.2 : 1))}</span>
       </div>
     )}
 
     {/* ---> NEW: Display Insurance Cost <--- */}
     {formData.insurancePerDay > 0 && formData.startDate && formData.endDate && (
-        () => {
-            const start = new Date(formData.startDate);
-            const end = new Date(formData.endDate);
-            if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && !isAfter(start, end)) {
+        (() => { // Using an IIFE to keep logic contained
+            const start = new Date(`${formData.startDate}T${formData.startTime}`);
+            const end = new Date(`${formData.endDate}T${formData.endTime}`);
+            if (isValid(start) && isValid(end) && !isAfter(start, end)) {
                 const days = differenceInDays(end, start) + 1;
-                const insuranceCost = days * formData.insurancePerDay;
+                const insuranceCost = days * formData.insurancePerDay * (formData.insurancePerDayIncludeVAT ? 1.2 : 1);
                 return (
                     <div className="flex justify-between text-sm">
-                        <span>Insurance ({days} days):</span>
+                        <span>Insurance ({days} days){formData.insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
                         <span className="font-medium">{formatCurrency(insuranceCost)}</span>
                     </div>
                 );
             }
             return null;
-        })() // Immediately invoke the function
-    }
+        })()
+      )}
 
+    {/* Subtotal before VAT */}
+     <div className="flex justify-between text-sm pt-2 border-t">
+        <span>Subtotal (before VAT):</span>
+        <span className="font-medium">{formatCurrency(totalCost / (formData.includeVAT ? 1.2 : 1))}</span>
+     </div>
+     {/* VAT Amount */}
+     {formData.includeVAT && (
+        <div className="flex justify-between text-sm text-blue-600">
+            <span>VAT (20%):</span>
+            <span className="font-medium">{formatCurrency(totalCost - (totalCost / (formData.includeVAT ? 1.2 : 1)))}</span>
+        </div>
+     )}
     {/* Subtotal before discount */}
     <div className="flex justify-between text-sm pt-2 border-t">
-        <span>Subtotal:</span>
+        <span>Subtotal (with VAT):</span>
         {/* Use the reverted variable name */}
         <span className="font-medium">{formatCurrency(totalCost)}</span>
      </div>
@@ -1173,7 +1440,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               type="number"
               label="Current Mileage"
               value={conditionData.mileage}
-              onChange={(e) => setConditionData({ ...conditionData, mileage: parseInt(e.target.value) })}
+              onChange={(e) => setConditionData({ ...conditionData, mileage: parseInt(e.target.value) || 0 })} // Handle empty string
               min={selectedVehicle.mileage}
               required
             />
@@ -1232,15 +1499,24 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             </div>
 
             <FileUpload
-              label="Vehicle Condition Images"
-              accept="image/*"
-              multiple
-              onChange={setImages}
-              showPreview
-            />
+  label="Vehicle Condition Images (max 5)"
+  accept="image/*"
+  multiple
+  onChange={files => {
+    // Enforce a maximum of 5 images
+    const arr = Array.from(files).slice(0, 5);
+    if (files.length > 5) {
+      toast.error("You can only upload up to 5 condition images.");
+    }
+    setImages(arr);
+  }}
+  showPreview
+/>
+
           </div>
         </div>
       )}
+    
 
       {/* Payment Details */}
       <div className="border-t pt-4">
@@ -1250,9 +1526,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             type="number"
             label="Amount to Pay"
             value={formData.paidAmount}
-            onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })} // Handle empty string
             min="0"
-            max={totalCost - discountAmount}
+            max={finalCostAfterDiscount} // Max amount should be the final cost after discount and including VAT
             step="0.01"
           />
 
@@ -1289,6 +1565,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           </div>
         </div>
       </div>
+
+
 
       {/* Customer Signature */}
       <div>

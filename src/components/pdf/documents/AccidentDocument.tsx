@@ -1,9 +1,10 @@
+// src/components/pdf/documents/AccidentDocument.tsx
 import React from 'react';
 import { Text, View, Image } from '@react-pdf/renderer';
 import { Accident } from '../../../types';
 import BaseDocument from '../BaseDocument';
-import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
+import { formatDate } from '../../../utils/dateHelpers';
 
 interface AccidentDocumentProps {
   data: Accident;
@@ -12,96 +13,88 @@ interface AccidentDocumentProps {
 
 const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetails }) => (
   <BaseDocument title="Accident Report" companyDetails={companyDetails}>
-    {/* Reference Information */}
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Reference Information</Text>
-      <View style={styles.infoCard}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Reference No:</Text>
-          <Text style={styles.value}>{data.refNo}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Reference Name:</Text>
-          <Text style={styles.value}>{data.referenceName}</Text>
-        </View>
-      </View>
+      <Text style={{ ...styles.sectionTitle, marginBottom: 8 }}>Reference No: {data.refNo}</Text>
     </View>
 
-    {/* Driver Details */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Driver Details</Text>
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Name:</Text>
-          <Text style={styles.value}>{data.driverName}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Address:</Text>
-          <Text style={styles.value}>{data.driverAddress}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Post Code:</Text>
-          <Text style={styles.value}>{data.driverPostCode}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Date of Birth:</Text>
-          <Text style={styles.value}>{data.driverDOB}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Phone:</Text>
-          <Text style={styles.value}>{data.driverPhone}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Mobile:</Text>
-          <Text style={styles.value}>{data.driverMobile}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>NIN:</Text>
-          <Text style={styles.value}>{data.driverNIN}</Text>
-        </View>
-      </View>
-    </View>
-
-    {/* Vehicle Details */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Vehicle Details</Text>
-      <View style={styles.infoCard}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Make:</Text>
-          <Text style={styles.value}>{data.vehicleMake}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Model:</Text>
-          <Text style={styles.value}>{data.vehicleModel}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>VRN:</Text>
-          <Text style={styles.value}>{data.vehicleVRN}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Insurance Company:</Text>
-          <Text style={styles.value}>{data.insuranceCompany}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Policy Number:</Text>
-          <Text style={styles.value}>{data.policyNumber}</Text>
-        </View>
-        {data.policyExcess && (
+    {/* ===== Vehicle & Driver Details Side-by-Side ===== */}
+    <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between' }, styles.sectionBreak]}>
+      {/* Vehicle Details Card */}
+      <View style={{ width: '48%' }}>
+        <Text style={styles.sectionTitle}>Vehicle Details</Text>
+        <View style={styles.infoCard}>
           <View style={styles.row}>
-            <Text style={styles.label}>Policy Excess:</Text>
-            <Text style={styles.value}>£{data.policyExcess}</Text>
+            <Text style={styles.label}>Make:</Text>
+            <Text style={styles.value}>{data.vehicleMake}</Text>
           </View>
-        )}
+          <View style={styles.row}>
+            <Text style={styles.label}>Model:</Text>
+            <Text style={styles.value}>{data.vehicleModel}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>VRN:</Text>
+            <Text style={styles.value}>{data.vehicleVRN}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Insurer:</Text>
+            <Text style={styles.value}>{data.insuranceCompany}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Policy #:</Text>
+            <Text style={styles.value}>{data.policyNumber}</Text>
+          </View>
+          {data.policyExcess && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Excess:</Text>
+              <Text style={styles.value}>£{data.policyExcess}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Driver Details Card */}
+      <View style={{ width: '48%' }}>
+        <Text style={styles.sectionTitle}>Driver Details</Text>
+        <View style={styles.infoCard}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Name:</Text>
+            <Text style={styles.value}>{data.driverName}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Address:</Text>
+            <Text style={styles.value}>{data.driverAddress}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Post Code:</Text>
+            <Text style={styles.value}>{data.driverPostCode}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>DOB:</Text>
+            <Text style={styles.value}>{data.driverDOB}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Phone:</Text>
+            <Text style={styles.value}>{data.driverPhone}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Mobile:</Text>
+            <Text style={styles.value}>{data.driverMobile}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>NIN:</Text>
+            <Text style={styles.value}>{data.driverNIN}</Text>
+          </View>
+        </View>
       </View>
     </View>
 
-    {/* Accident Details */}
-    <View style={styles.section}>
+    {/* ===== Accident Details (full-width, keep together) ===== */}
+    <View style={[styles.section, styles.sectionBreak]}>
       <Text style={styles.sectionTitle}>Accident Details</Text>
       <View style={styles.card}>
         <View style={styles.row}>
           <Text style={styles.label}>Date:</Text>
-          <Text style={styles.value}>{data.accidentDate}</Text>
+          <Text style={styles.value}>{formatDate(data.accidentDate)}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Time:</Text>
@@ -111,19 +104,23 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
           <Text style={styles.label}>Location:</Text>
           <Text style={styles.value}>{data.accidentLocation}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={[styles.row, { marginTop: 8 }]}>
           <Text style={styles.label}>Description:</Text>
+        </View>
+        <View style={{ paddingLeft: 50, paddingRight: 10 }}>
           <Text style={styles.value}>{data.description}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={[styles.row, { marginTop: 8 }]}>
           <Text style={styles.label}>Damage Details:</Text>
+        </View>
+        <View style={{ paddingLeft: 50, paddingRight: 10 }}>
           <Text style={styles.value}>{data.damageDetails}</Text>
         </View>
       </View>
     </View>
 
-    {/* Fault Party Details */}
-    <View style={styles.section}>
+    {/* ===== Fault Party Details (full-width, keep together) ===== */}
+    <View style={[styles.section, styles.sectionBreak]}>
       <Text style={styles.sectionTitle}>Fault Party Details</Text>
       <View style={styles.infoCard}>
         <View style={styles.row}>
@@ -160,80 +157,76 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
         </View>
         {data.faultPartyInsurance && (
           <View style={styles.row}>
-            <Text style={styles.label}>Insurance:</Text>
+            <Text style={styles.label}>Insurer:</Text>
             <Text style={styles.value}>{data.faultPartyInsurance}</Text>
           </View>
+        )}
+
+        {/* description field */}
+        {data.faultPartyDescription && (
+          <>
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <Text style={styles.label}>Description:</Text>
+            </View>
+            <View style={{ paddingLeft: 50, paddingRight: 10 }}>
+              <Text style={styles.value}>{data.faultPartyDescription}</Text>
+            </View>
+          </>
         )}
       </View>
     </View>
 
-    {/* Passengers */}
-    {data.passengers && data.passengers.length > 0 && (
-      <View style={styles.section}>
+    {/* ===== Passenger Details ===== */}
+    {data.passengers?.length > 0 && (
+      <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Passenger Details</Text>
-        {data.passengers.map((passenger, index) => (
-          <View key={index} style={styles.card}>
-            <Text style={styles.cardTitle}>Passenger {index + 1}</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Name:</Text>
-              <Text style={styles.value}>{passenger.name}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Address:</Text>
-              <Text style={styles.value}>{passenger.address}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Post Code:</Text>
-              <Text style={styles.value}>{passenger.postCode}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>{passenger.dob}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Contact:</Text>
-              <Text style={styles.value}>{passenger.contactNumber}</Text>
-            </View>
+        {data.passengers.map((p, i) => (
+          <View key={i} style={styles.card}>
+            <Text style={styles.cardTitle}>Passenger {i+1}</Text>
+            {[
+              ['Name', p.name],
+              ['Address', p.address],
+              ['Post Code', p.postCode],
+              ['DOB', p.dob],
+              ['Contact', p.contactNumber]
+            ].map(([label, val]) => (
+              <View style={styles.row} key={label}>
+                <Text style={styles.label}>{label}:</Text>
+                <Text style={styles.value}>{val}</Text>
+              </View>
+            ))}
           </View>
         ))}
       </View>
     )}
 
-    {/* Witnesses */}
-    {data.witnesses && data.witnesses.length > 0 && (
-      <View style={styles.section}>
+    {/* ===== Witness Details ===== */}
+    {data.witnesses?.length > 0 && (
+      <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Witness Details</Text>
-        {data.witnesses.map((witness, index) => (
-          <View key={index} style={styles.card}>
-            <Text style={styles.cardTitle}>Witness {index + 1}</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Name:</Text>
-              <Text style={styles.value}>{witness.name}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Address:</Text>
-              <Text style={styles.value}>{witness.address}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Post Code:</Text>
-              <Text style={styles.value}>{witness.postCode}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>{witness.dob}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Contact:</Text>
-              <Text style={styles.value}>{witness.contactNumber}</Text>
-            </View>
+        {data.witnesses.map((w, i) => (
+          <View key={i} style={styles.card}>
+            <Text style={styles.cardTitle}>Witness {i+1}</Text>
+            {[
+              ['Name', w.name],
+              ['Address', w.address],
+              ['Post Code', w.postCode],
+              ['DOB', w.dob],
+              ['Contact', w.contactNumber]
+            ].map(([label, val]) => (
+              <View style={styles.row} key={label}>
+                <Text style={styles.label}>{label}:</Text>
+                <Text style={styles.value}>{val}</Text>
+              </View>
+            ))}
           </View>
         ))}
       </View>
     )}
 
-    {/* Police Information */}
+    {/* ===== Police Information ===== */}
     {data.policeOfficerName && (
-      <View style={styles.section}>
+      <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Police Information</Text>
         <View style={styles.infoCard}>
           <View style={styles.row}>
@@ -242,19 +235,19 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
           </View>
           {data.policeBadgeNumber && (
             <View style={styles.row}>
-              <Text style={styles.label}>Badge Number:</Text>
+              <Text style={styles.label}>Badge #:</Text>
               <Text style={styles.value}>{data.policeBadgeNumber}</Text>
             </View>
           )}
           {data.policeStation && (
             <View style={styles.row}>
-              <Text style={styles.label}>Police Station:</Text>
+              <Text style={styles.label}>Station:</Text>
               <Text style={styles.value}>{data.policeStation}</Text>
             </View>
           )}
           {data.policeIncidentNumber && (
             <View style={styles.row}>
-              <Text style={styles.label}>Incident Number:</Text>
+              <Text style={styles.label}>Incident #:</Text>
               <Text style={styles.value}>{data.policeIncidentNumber}</Text>
             </View>
           )}
@@ -268,9 +261,9 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
       </View>
     )}
 
-    {/* Paramedic Information */}
+    {/* ===== Paramedic Information ===== */}
     {data.paramedicNames && (
-      <View style={styles.section}>
+      <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Paramedic Information</Text>
         <View style={styles.card}>
           <View style={styles.row}>
@@ -279,13 +272,13 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
           </View>
           {data.ambulanceReference && (
             <View style={styles.row}>
-              <Text style={styles.label}>Ambulance Reference:</Text>
+              <Text style={styles.label}>Ambulance Ref:</Text>
               <Text style={styles.value}>{data.ambulanceReference}</Text>
             </View>
           )}
           {data.ambulanceService && (
             <View style={styles.row}>
-              <Text style={styles.label}>Ambulance Service:</Text>
+              <Text style={styles.label}>Service:</Text>
               <Text style={styles.value}>{data.ambulanceService}</Text>
             </View>
           )}
@@ -293,25 +286,17 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
       </View>
     )}
 
-    {/* Images */}
-    {data.images && data.images.length > 0 && (
-      <View style={styles.section}>
+    {/* ===== Images (last) ===== */}
+    {data.images?.length > 0 && (
+      <View style={[styles.section, styles.pageBreak]}>
         <Text style={styles.sectionTitle}>Accident Images</Text>
         <View style={styles.grid}>
-          {data.images.map((url, index) => (
-            <View key={index} style={styles.gridItem}>
+          {data.images.map((url, i) => (
+            <View key={i} style={styles.gridItem}>
               <Image src={url} style={styles.vehicleImage} />
             </View>
           ))}
         </View>
-      </View>
-    )}
-
-    {/* Terms and Conditions */}
-    {companyDetails.accidentTerms && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Terms & Conditions</Text>
-        <Text style={styles.text}>{companyDetails.accidentTerms}</Text>
       </View>
     )}
   </BaseDocument>

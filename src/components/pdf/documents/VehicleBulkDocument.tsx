@@ -1,3 +1,4 @@
+// src/components/pdf/VehicleBulkDocument.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Vehicle } from '../../../types';
@@ -7,148 +8,165 @@ import { isExpiringOrExpired } from '../../../utils/vehicleUtils';
 
 interface VehicleBulkDocumentProps {
   records: Vehicle[];
-  companyDetails: any;
+  companyDetails: {
+    logoUrl: string;
+    fullName: string;
+    officialAddress: string;
+    phone: string;
+    email: string;
+  };
   title?: string;
 }
+
+const FIRST_PAGE_COUNT = 7;
+const OTHER_PAGE_COUNT = 9;
 
 const VehicleBulkDocument: React.FC<VehicleBulkDocumentProps> = ({
   records,
   companyDetails,
   title = 'Fleet Summary',
 }) => {
-  // Calculate summary statistics
-  const totalVehicles = records.length;
-  const activeVehicles = records.filter((v) => v.status === 'available').length;
-  const maintenanceVehicles = records.filter((v) => v.status === 'maintenance').length;
-  const rentedVehicles = records.filter((v) => v.status === 'rented').length;
+  const total = records.length;
+  const pages =
+    total === 0
+      ? 1
+      : 1 + Math.max(0, Math.ceil((total - FIRST_PAGE_COUNT) / OTHER_PAGE_COUNT));
 
-  const ITEMS_PER_PAGE_FIRST_PAGE = 5;
-  const ITEMS_PER_PAGE_OTHER_PAGES = 7;
-
-  let pages = 0;
-  if (totalVehicles > 0) {
-    if (totalVehicles <= ITEMS_PER_PAGE_FIRST_PAGE) {
-      pages = 1;
-    } else {
-      pages = 1 + Math.ceil((totalVehicles - ITEMS_PER_PAGE_FIRST_PAGE) / ITEMS_PER_PAGE_OTHER_PAGES);
+  const getSlice = (pageIndex: number) => {
+    if (pageIndex === 0) {
+      return records.slice(0, FIRST_PAGE_COUNT);
     }
-  }
+    const start = FIRST_PAGE_COUNT + (pageIndex - 1) * OTHER_PAGE_COUNT;
+    return records.slice(start, start + OTHER_PAGE_COUNT);
+  };
 
   return (
     <Document>
-      {Array.from({ length: pages }).map((_, pageIndex) => (
-        <Page key={pageIndex} size="A4" style={styles.page}>
-          {/* Header - on every page */}
-          <View style={styles.header}>
-            <Image src={companyDetails.logoUrl} style={styles.logo} />
-            <View style={styles.companyInfo}>
-              <Text>{companyDetails.fullName}</Text>
-              <Text>{companyDetails.officialAddress}</Text>
-              <Text>Tel: {companyDetails.phone}</Text>
-              <Text>Email: {companyDetails.email}</Text>
+      {Array.from({ length: pages }).map((_, pageIndex) => {
+        const slice = getSlice(pageIndex);
+        return (
+          <Page key={pageIndex} size="A4" style={styles.page}>
+            {/* HEADER */}
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <Image src={companyDetails.logoUrl} style={styles.logo} />
+              </View>
+              <View style={styles.headerRight}>
+                <Text style={styles.companyName}>{companyDetails.fullName}</Text>
+                <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
+                <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
+                <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Title and Summary - only on first page */}
-          {pageIndex === 0 && (
-            <View style={styles.section}>
-              <Text style={styles.title}>{title}</Text>
-
-              <View style={styles.infoCard}>
-                <Text style={styles.infoCardTitle}>Fleet Overview</Text>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.infoCardContent}>Total Vehicles: {totalVehicles}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.infoCardContent}>Available: {activeVehicles}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.infoCardContent}>In Maintenance: {maintenanceVehicles}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.infoCardContent}>Rented: {rentedVehicles}</Text>
-                  </View>
+            {/* TITLE + SUMMARY on first page */}
+            {pageIndex === 0 && (
+              <View style={[styles.section, styles.sectionBreak]}>
+                <View style={styles.titleContainer}>
+                  <Text style={styles.title}>{title}</Text>
                 </View>
-              </View>
-            </View>
-          )}
-
-          {/* Vehicle Records */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Vehicle Details</Text>
-            <View style={styles.tableContainer}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableCell, { width: '20%', fontWeight: 'bold' }]}>Registration</Text>
-                <Text style={[styles.tableCell, { width: '25%', fontWeight: 'bold' }]}>Make/Model</Text>
-                <Text style={[styles.tableCell, { width: '15%', fontWeight: 'bold' }]}>Status</Text>
-                <Text style={[styles.tableCell, { width: '20%', fontWeight: 'bold' }]}>Mileage</Text>
-                <Text style={[styles.tableCell, { width: '20%', fontWeight: 'bold' }]}>Documents</Text>
-              </View>
-
-              {/* Table Rows */}
-              {records
-                .slice(
-                  pageIndex === 0
-                    ? 0
-                    : ITEMS_PER_PAGE_FIRST_PAGE +
-                        (pageIndex - 1) * ITEMS_PER_PAGE_OTHER_PAGES,
-                  Math.min(
-                    pageIndex === 0
-                      ? ITEMS_PER_PAGE_FIRST_PAGE
-                      : ITEMS_PER_PAGE_FIRST_PAGE +
-                          pageIndex * ITEMS_PER_PAGE_OTHER_PAGES,
-                    totalVehicles
-                  )
-                )
-                .map((vehicle) => {
-                  const motExpiryDate = vehicle.motExpiry instanceof Date ? vehicle.motExpiry : vehicle.motExpiry?.toDate();
-                  return(
-                  <View key={vehicle.id} style={styles.tableRow}>
-                    <Text style={[styles.tableCell, { width: '20%' }]}>
-                      {vehicle.registrationNumber}
-                    </Text>
-                    <Text style={[styles.tableCell, { width: '25%' }]}>
-                      {vehicle.make} {vehicle.model}
-                    </Text>
-                    <Text style={[styles.tableCell, { width: '15%' }]}>
-                      {vehicle.status}
-                    </Text>
-                    <Text style={[styles.tableCell, { width: '20%' }]}>
-                      {vehicle.mileage.toLocaleString()} mi
-                    </Text>
-                    <View style={[styles.tableCell, { width: '20%' }]}>
-                      <Text style={{color: isExpiringOrExpired(motExpiryDate) ? '#DC2626' : '#1F2937', fontSize: 9}}>
-                        MOT Expiry: {formatDate(motExpiryDate)}
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Fleet Overview</Text>
+                  <View style={styles.grid}>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Total Vehicles</Text>
+                      <Text style={styles.subValue}>{total}</Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Available</Text>
+                      <Text style={styles.subValue}>
+                        {records.filter((v) => v.status === 'available').length}
                       </Text>
-                      <Text style={{color: isExpiringOrExpired(vehicle.insuranceExpiry) ? '#DC2626' : '#1F2937', fontSize: 9}}>
-                        Insurance: {formatDate(vehicle.insuranceExpiry)}
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Maintenance</Text>
+                      <Text style={styles.subValue}>
+                        {records.filter((v) => v.status === 'maintenance').length}
                       </Text>
-                      <Text style={{color: isExpiringOrExpired(vehicle.nslExpiry) ? '#DC2626' : '#1F2937', fontSize: 9}}>
-                        NSL: {formatDate(vehicle.nslExpiry)}
-                      </Text>
-                      <Text style={{color: isExpiringOrExpired(vehicle.roadTaxExpiry) ? '#DC2626' : '#1F2937', fontSize: 9}}>
-                        Road Tax: {formatDate(vehicle.roadTaxExpiry)}
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Rented</Text>
+                      <Text style={styles.subValue}>
+                        {records.filter((v) => v.status === 'rented').length}
                       </Text>
                     </View>
                   </View>
-                )
+                </View>
+              </View>
+            )}
+
+            {/* TABLE */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Vehicle Details</Text>
+              <View style={styles.tableContainer}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <Text style={styles.tableHeaderCell}>Reg</Text>
+                  <Text style={styles.tableHeaderCell}>Make / Model</Text>
+                  <Text style={styles.tableHeaderCell}>Status</Text>
+                  <Text style={styles.tableHeaderCell}>Mileage</Text>
+                  <Text style={styles.tableHeaderCell}>MOT / Ins / NSL / Tax</Text>
+                </View>
+
+                {/* Rows */}
+                {slice.map((v) => {
+                  const motDate = v.motExpiry instanceof Date ? v.motExpiry : v.motExpiry?.toDate();
+                  return (
+                    <View key={v.id} style={styles.tableRow}>
+                      <Text style={styles.tableCell}>{v.registrationNumber}</Text>
+                      <Text style={styles.tableCell}>{v.make} {v.model}</Text>
+                      <Text style={styles.tableCell}>{v.status}</Text>
+                      <Text style={styles.tableCell}>{v.mileage.toLocaleString()} mi</Text>
+                      <View style={styles.tableCell}>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            isExpiringOrExpired(motDate) && styles.expiredText,
+                          ]}
+                        >
+                          MOT: {formatDate(motDate)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            isExpiringOrExpired(v.insuranceExpiry) && styles.expiredText,
+                          ]}
+                        >
+                          Ins: {formatDate(v.insuranceExpiry)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            isExpiringOrExpired(v.nslExpiry) && styles.expiredText,
+                          ]}
+                        >
+                          NSL: {formatDate(v.nslExpiry)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            isExpiringOrExpired(v.roadTaxExpiry) && styles.expiredText,
+                          ]}
+                        >
+                          Tax: {formatDate(v.roadTaxExpiry)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
                 })}
+              </View>
             </View>
-          </View>
 
-          {/* Footer */}
-          <Text style={styles.footer}>
-            {companyDetails.fullName} | Generated on {formatDate(new Date())}
-          </Text>
-
-          {/* Page Number */}
-          <Text style={styles.pageNumber}>
-            Page {pageIndex + 1} of {pages}
-          </Text>
-        </Page>
-      ))}
+            {/* FOOTER */}
+            <Text style={styles.footer}>
+              {companyDetails.fullName} | Generated on {formatDate(new Date())}
+            </Text>
+            <Text style={styles.pageNumber}>
+              Page {pageIndex + 1} of {pages}
+            </Text>
+          </Page>
+        );
+      })}
     </Document>
   );
 };

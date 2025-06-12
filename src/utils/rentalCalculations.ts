@@ -1,4 +1,4 @@
-
+// rentalCalculations.ts
 import { addDays, differenceInDays, isAfter } from 'date-fns';
 import { Vehicle, Rental } from '../types'; // Assuming Rental is imported from '../types'
 
@@ -24,7 +24,12 @@ export const calculateRentalCost = (
   // ---> NEW: Add parameters for new charges <---
   deliveryCharge?: number,
   collectionCharge?: number,
-  insurancePerDay?: number
+  insurancePerDay?: number,
+  includeVAT?: boolean, // New parameter for overall rental VAT
+  deliveryChargeIncludeVAT?: boolean, // New parameter for delivery charge VAT
+  collectionChargeIncludeVAT?: boolean, // New parameter for collection charge VAT
+  insurancePerDayIncludeVAT?: boolean, // New parameter for insurance per day VAT
+  includeRecoveryCostVAT?: boolean // NEW: Add parameter for Recovery Cost VAT
 ): number => {
   // ---> NEW: Handle free rentals for 'staff' and 'o/d' upfront <---
   if (reason === 'staff' || reason === 'o/d') return 0;
@@ -67,14 +72,24 @@ export const calculateRentalCost = (
   // ---> NEW: Calculate total insurance cost <---
   const insuranceCost = totalDays * (insurancePerDay ?? 0); // Default to 0 if undefined
 
-  // ---> NEW: Add all additional costs (storage, recovery, delivery, collection, insurance) <---
-  const totalAdditionalCosts = (storageCost ?? 0) +
-                               (recoveryCost ?? 0) +
-                               (deliveryCharge ?? 0) +
-                               (collectionCharge ?? 0) +
-                               insuranceCost;
+  // Apply VAT to individual claim charges if the respective checkbox is ticked
+  const deliveryChargeWithVAT = (deliveryCharge ?? 0) * (deliveryChargeIncludeVAT ? 1.2 : 1);
+  const collectionChargeWithVAT = (collectionCharge ?? 0) * (collectionChargeIncludeVAT ? 1.2 : 1);
+  const insuranceCostWithVAT = insuranceCost * (insurancePerDayIncludeVAT ? 1.2 : 1);
+  const recoveryCostWithVAT = (recoveryCost ?? 0) * (includeRecoveryCostVAT ? 1.2 : 1); // NEW: Apply VAT to recovery cost
 
-  return baseCost + totalAdditionalCosts;
+  // Note: Storage VAT is assumed to be handled before passing storageCost here based on existing code structure
+
+  const totalAdditionalCostsWithVAT = (storageCost ?? 0) +
+                               recoveryCostWithVAT + // NEW: Use recoveryCostWithVAT
+                               deliveryChargeWithVAT +
+                               collectionChargeWithVAT +
+                               insuranceCostWithVAT;
+
+  const totalCostBeforeOverallVAT = baseCost + totalAdditionalCostsWithVAT;
+
+  // Apply overall rental VAT
+  return parseFloat((totalCostBeforeOverallVAT * (includeVAT ? 1.2 : 1)).toFixed(2));
 };
 
 export const calculateOverdueCost = (
@@ -84,41 +99,50 @@ export const calculateOverdueCost = (
 ): number => {
   if (!isAfter(currentDate, rental.endDate)) return 0;
 
-  const dailyRate = vehicle?.dailyRentalPrice || RENTAL_RATES.daily;
-  const weeklyRate = vehicle?.weeklyRentalPrice || RENTAL_RATES.weekly;
-  const claimRate = vehicle?.claimRentalPrice || RENTAL_RATES.claim;
+  // --- NEW GUARD: if negotiatedRate is explicitly zero, return 0 immediately ---
+  if (rental.negotiatedRate === 0) {
+    return 0;
+  }
 
-  // Calculate overdue days including partial days
+  // --- existing logic follows ---
+  const dailyRate = (rental.negotiatedRate ?? vehicle?.dailyRentalPrice) || RENTAL_RATES.daily;
+  const weeklyRate = (rental.negotiatedRate ?? vehicle?.weeklyRentalPrice) || RENTAL_RATES.weekly;
+  const claimRate = (rental.negotiatedRate ?? vehicle?.claimRentalPrice) || RENTAL_RATES.claim;
+
   const overdueDays = Math.ceil(
     (currentDate.getTime() - rental.endDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  // For claim rentals, always use claim rate
   if (rental.type === 'claim' || rental.reason === 'claim') {
-    return overdueDays * claimRate;
+    return parseFloat((overdueDays * claimRate * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
   }
 
-  // For weekly rentals
   if (rental.type === 'weekly') {
     const overdueWeeks = Math.ceil(overdueDays / 7);
-    return overdueWeeks * weeklyRate;
+    return parseFloat((overdueWeeks * weeklyRate * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
   }
 
-  // For daily rentals
   const overdueWeeks = Math.floor(overdueDays / 7);
   const remainingDays = overdueDays % 7;
+  let overdueBaseCost = (overdueWeeks * weeklyRate) + (remainingDays * dailyRate);
 
-  if (remainingDays * dailyRate > weeklyRate) {
-    return (overdueWeeks + 1) * weeklyRate;
+  if (overdueWeeks === 0 && remainingDays > 0 && remainingDays * dailyRate > weeklyRate) {
+    overdueBaseCost = weeklyRate;
+  } else if (overdueWeeks > 0 && remainingDays > 0 && remainingDays * dailyRate > weeklyRate) {
+    overdueBaseCost = (overdueWeeks + 1) * weeklyRate;
   }
 
-  return (overdueWeeks * weeklyRate) + (remainingDays * dailyRate);
+  return parseFloat((overdueBaseCost * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
 };
+
+
 
 export const calculateDiscount = (
   totalAmount: number,
   discountPercentage: number
 ): number => {
   if (discountPercentage <= 0 || discountPercentage > 100) return 0;
-  return (totalAmount * discountPercentage) / 100;
+  // Ensure the final discount amount is rounded to 2 decimal places
+  const calculated = (totalAmount * discountPercentage) / 100;
+  return parseFloat(calculated.toFixed(2));
 };

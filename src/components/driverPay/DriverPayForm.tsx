@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { DriverPay, CollectionPoint } from '../../types/driverPay';
@@ -94,27 +94,30 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
       const processedPeriods = periods.map(period => {
         const totalAmount = parseFloat(period.totalAmount);
         const commissionPercentage = parseFloat(period.commissionPercentage);
-  
         const commissionAmount = parseFloat(((totalAmount * commissionPercentage) / 100).toFixed(2));
         const netPay = parseFloat((totalAmount - commissionAmount).toFixed(2));
-  
+
         if (period.id) {
-          const existingPeriod = record?.paymentPeriods?.find(p => p.id === period.id);
-  
+          const existing = record?.paymentPeriods?.find(p => p.id === period.id);
           return {
-            ...existingPeriod,
+            ...existing,
+            id: period.id,
             startDate: new Date(period.startDate),
             endDate: new Date(period.endDate),
             totalAmount,
             commissionPercentage,
             commissionAmount,
             netPay,
-            paidAmount: existingPeriod?.paidAmount || 0,
-            remainingAmount: netPay - (existingPeriod?.paidAmount || 0),
-            status: netPay === (existingPeriod?.paidAmount || 0) ? 'paid' : 
-                   (existingPeriod?.paidAmount || 0) > 0 ? 'partially_paid' : 'unpaid',
+            paidAmount: existing?.paidAmount || 0,
+            remainingAmount: netPay - (existing?.paidAmount || 0),
+            status:
+              netPay === (existing?.paidAmount || 0)
+                ? 'paid'
+                : (existing?.paidAmount || 0) > 0
+                  ? 'partially_paid'
+                  : 'unpaid',
             notes: period.notes,
-            payments: existingPeriod?.payments || []
+            payments: existing?.payments || []
           };
         } else {
           return {
@@ -169,38 +172,34 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
         <FormField
           label="Driver No"
           value={formData.driverNo}
-          onChange={(e) => setFormData({ ...formData, driverNo: e.target.value })}
+          onChange={e => setFormData({ ...formData, driverNo: e.target.value })}
           required
         />
-
         <FormField
           type="number"
           label="TID No"
           value={formData.tidNo}
-          onChange={(e) => setFormData({ ...formData, tidNo: e.target.value })}
+          onChange={e => setFormData({ ...formData, tidNo: e.target.value })}
           required
         />
-
         <FormField
           label="Name"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={e => setFormData({ ...formData, name: e.target.value })}
           required
         />
-
         <FormField
           type="tel"
           label="Phone Number"
           value={formData.phoneNumber}
-          onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+          onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
           required
         />
-
         <div>
           <label className="block text-sm font-medium text-gray-700">Collection Point</label>
           <select
             value={formData.collection}
-            onChange={(e) => setFormData({ ...formData, collection: e.target.value as CollectionPoint })}
+            onChange={e => setFormData({ ...formData, collection: e.target.value as CollectionPoint })}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             required
           >
@@ -210,26 +209,25 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
             <option value="OTHER">OTHER</option>
           </select>
         </div>
-
         {formData.collection === 'OTHER' && (
           <FormField
             label="Custom Collection Point"
             value={formData.customCollection}
-            onChange={(e) => setFormData({ ...formData, customCollection: e.target.value })}
+            onChange={e => setFormData({ ...formData, customCollection: e.target.value })}
             required
           />
         )}
       </div>
 
       {/* Payment Periods */}
-      {periods.map((period, index) => (
-        <div key={index} className="border-t pt-4 mt-4">
+      {periods.map((period, idx) => (
+        <div key={idx} className="border-t pt-4 mt-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium">Payment Period {index + 1}</h3>
-            {index > 0 && (
+            <h3 className="text-lg font-medium">Payment Period {idx + 1}</h3>
+            {idx > 0 && (
               <button
                 type="button"
-                onClick={() => removePeriod(index)}
+                onClick={() => removePeriod(idx)}
                 className="text-red-600 hover:text-red-800"
               >
                 Remove Period
@@ -242,71 +240,67 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
               type="date"
               label="Start Date"
               value={period.startDate}
-              onChange={(e) => updatePeriod(index, 'startDate', e.target.value)}
+              onChange={e => updatePeriod(idx, 'startDate', e.target.value)}
               required
             />
-
             <FormField
               type="date"
               label="End Date"
               value={period.endDate}
-              onChange={(e) => updatePeriod(index, 'endDate', e.target.value)}
+              onChange={e => updatePeriod(idx, 'endDate', e.target.value)}
               required
               min={period.startDate}
             />
-
             <FormField
               type="number"
               label="Total Amount"
               value={period.totalAmount}
-              onChange={(e) => updatePeriod(index, 'totalAmount', e.target.value)}
+              onChange={e => updatePeriod(idx, 'totalAmount', e.target.value)}
               required
               min="0"
               step="0.01"
             />
-
             <FormField
               type="number"
-              label="Commission Percentage"
+              label="Commission %"
               value={period.commissionPercentage}
-              onChange={(e) => updatePeriod(index, 'commissionPercentage', e.target.value)}
+              onChange={e => updatePeriod(idx, 'commissionPercentage', e.target.value)}
               required
               min="0"
               max="100"
               step="1"
             />
-
             <div className="col-span-2">
               <TextArea
-                label="Period Notes"
+                label="Notes"
                 value={period.notes || ''}
-                onChange={(e) => updatePeriod(index, 'notes', e.target.value)}
-                placeholder="Add any notes for this period"
+                onChange={e => updatePeriod(idx, 'notes', e.target.value)}
+                placeholder="Any notes for this period"
               />
             </div>
-
-            {/* Period Summary */}
-            {period.totalAmount && period.commissionPercentage && (
-              <div className="col-span-2 bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Total Amount:</span>
-                  <span className="font-medium">£{parseFloat(period.totalAmount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Commission ({period.commissionPercentage}%):</span>
-                  <span className="text-yellow-600">
-                    £{((parseFloat(period.totalAmount) * parseFloat(period.commissionPercentage)) / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                  <span>Net Pay:</span>
-                  <span className="text-green-600">
-                    £{(parseFloat(period.totalAmount) - (parseFloat(period.totalAmount) * parseFloat(period.commissionPercentage)) / 100).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
+
+          {/* *** Period Summary *** */}
+          {period.totalAmount && period.commissionPercentage && (
+            <div className="col-span-2 bg-gray-50 p-4 rounded-lg space-y-2 mt-4">
+              <div className="flex justify-between text-sm">
+                <span>Total Amount:</span>
+                <span>£{parseFloat(period.totalAmount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Commission ({period.commissionPercentage}%):</span>
+                <span className="text-yellow-600">
+                  £{((parseFloat(period.totalAmount) * parseFloat(period.commissionPercentage)) / 100).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm font-medium pt-2 border-t">
+                <span>Net Pay:</span>
+                <span className="text-green-600">
+                  £{(parseFloat(period.totalAmount) - (parseFloat(period.totalAmount) * parseFloat(period.commissionPercentage)) / 100).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       ))}
 

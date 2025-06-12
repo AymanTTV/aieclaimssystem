@@ -1,124 +1,132 @@
-import React from 'react';
-import { DataTable } from '../DataTable/DataTable';
-import { ShareRecord } from '../../types/share';
-import { Eye, Edit, Trash2 } from 'lucide-react';
-import { usePermissions } from '../../hooks/usePermissions';
-import { format } from 'date-fns';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+// src/components/share/ShareTable.tsx
 
-interface ShareTableProps {
-  records: ShareRecord[];
-  onView: (r: ShareRecord) => void;
-  onEdit: (r: ShareRecord) => void;
-  onDelete: (r: ShareRecord) => void;
+import React from 'react'
+import { DataTable } from '../DataTable/DataTable'
+import { ShareEntry } from '../../types/share'
+import { Eye, Edit, Trash2, FileText } from 'lucide-react'
+import { usePermissions } from '../../hooks/usePermissions'
+import { format } from 'date-fns'
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
+
+interface Props {
+  entries: ShareEntry[]
+  onView: (e: ShareEntry) => void
+  onEdit: (e: ShareEntry) => void
+  onDelete: (e: ShareEntry) => void
+  onGenerateDocument: (e: ShareEntry) => void
 }
 
-const ShareTable: React.FC<ShareTableProps> = ({
-  records,
+const ShareTable: React.FC<Props> = ({
+  entries,
   onView,
   onEdit,
   onDelete,
+  onGenerateDocument
 }) => {
-  const { can } = usePermissions();
-  const { formatCurrency } = useFormattedDisplay();
+  const { can } = usePermissions()
+  const { formatCurrency } = useFormattedDisplay()
 
   const columns = [
     {
-      header: 'Client',
-      accessorKey: 'clientName',
+      header: 'Client & Ref',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.clientName}</div>
+          <div className="text-sm text-gray-500">
+            Ref: {row.original.claimRef}
+          </div>
+        </div>
+      )
     },
     {
-      header: 'Reason / Dates',
-      cell: ({ row }) => {
-        const r = row.original;
-        return (
-          <div className="space-y-1 text-sm">
-            <div>Reason: {r.reason}</div>
-            {r.startDate && r.endDate && (
-              <div>
-                {format(new Date(r.startDate), 'dd/MM/yyyy')} –
-                {format(new Date(r.endDate), 'dd/MM/yyyy')}
-              </div>
-            )}
-          </div>
-        );
-      },
+      header: 'Date',
+      cell: ({ row }) => format(new Date(row.original.date), 'dd/MM/yyyy')
     },
     {
-      header: 'Amounts',
-      cell: ({ row }) => {
-        const r = row.original;
-        return (
-          <div className="space-y-1 text-sm">
-            <div>VD: {formatCurrency(r.vdProfit)}</div>
-            <div>Paid: {formatCurrency(r.actualPaid)}</div>
-            <div>Vehicle: {formatCurrency(r.vehicleRunningCost)}</div>
-          </div>
-        );
-      },
+      header: 'Type',
+      accessorKey: 'type' // “income” or “expense”
     },
     {
-      header: 'Fees & Expenses',
-      cell: ({ row }) => {
-        const r = row.original;
-        const expSum = r.expenses.reduce((s, e) => s + e.amount * (e.vat ? 1.2 : 1), 0);
-        return (
-          <div className="space-y-1 text-sm">
-            <div>Legal {r.legalFeePercentage}%: {formatCurrency(r.legalFeeCost)}</div>
-            <div>Expenses: {formatCurrency(expSum)}</div>
-          </div>
-        );
-      },
-    },
-    {
-      header: 'Shares',
-      cell: ({ row }) => {
-        const r = row.original;
-        return (
-          <div className="space-y-1 text-sm">
-            <div>AIE {r.aieSkylinePercentage}%: {formatCurrency(r.aieSkylineAmount)}</div>
-            <div>Abd {r.abdulAzizPercentage}%: {formatCurrency(r.abdulAzizAmount)}</div>
-            <div>JAY {r.jayPercentage}%: {formatCurrency(r.jayAmount)}</div>
-          </div>
-        );
-      },
+      header: 'Amount',
+      cell: ({ row }) => (
+        <span className="font-medium">
+          {formatCurrency(
+            row.original.type === 'income'
+              ? (row.original as any).amount
+              : (row.original as any).totalCost
+          )}
+        </span>
+      )
     },
     {
       header: 'Progress',
-      accessorKey: 'progress',
-      cell: ({ getValue }) => String(getValue()).replace('-', ' ').toUpperCase(),
+      accessorKey: 'progress'
     },
     {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
           {can('share', 'view') && (
-            <button onClick={() => onView(row.original)} title="View">
-              <Eye className="h-4 w-4 text-blue-600 hover:text-blue-800" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onView(row.original)
+              }}
+              title="View"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
           {can('share', 'update') && (
-            <button onClick={() => onEdit(row.original)} title="Edit">
-              <Edit className="h-4 w-4 text-green-600 hover:text-green-800" />
-            </button>
+            <>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit(row.original)
+                }}
+                title="Edit"
+                className="text-blue-600 hover:text-blue-800"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            </>
           )}
           {can('share', 'delete') && (
-            <button onClick={() => onDelete(row.original)} title="Delete">
-              <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(row.original)
+              }}
+              title="Delete"
+              className="text-red-600 hover:text-red-800"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           )}
+          <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onGenerateDocument(row.original)
+                }}
+                title="Generate PDF"
+                className="text-green-600 hover:text-green-800"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
         </div>
-      ),
-    },
-  ];
+      )
+    }
+  ]
 
   return (
     <DataTable
-      data={records}
+      data={entries}
       columns={columns}
-      onRowClick={r => can('share', 'view') && onView(r)}
+      onRowClick={(e) => can('share', 'view') && onView(e)}
     />
-  );
-};
+  )
+}
 
-export default ShareTable;
+export default ShareTable

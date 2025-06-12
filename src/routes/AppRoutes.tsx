@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
+import SkylineIncomeExpense from '../pages/SkylineIncomeExpense';
+// import ProductsPage from '../pages/ProductsPage';
 
 import { lazyLoad } from './lazyLoad';
 
@@ -19,7 +21,10 @@ const Maintenance = lazyLoad('Maintenance');
 const Rentals = lazyLoad('Rentals');
 const Accidents = lazyLoad('Accidents');
 const Claims = lazyLoad('Claims');
+
 const PersonalInjury = lazyLoad('PersonalInjury');
+
+
 const Finance = lazyLoad('Finance');
 const Invoices = lazyLoad('Invoices');
 const PettyCash = lazyLoad('PettyCash');
@@ -30,6 +35,11 @@ const VDFinance = lazyLoad('VDFinance');
 const VDInvoice = lazyLoad('VDInvoice');
 const BulkEmail = lazyLoad('BulkEmail');
 const Chat = lazyLoad('Chat');
+
+// lazy‐load your new page
+const ProductsPage = lazy(() => import('../pages/ProductsPage'));
+
+const IncomeExpense = React.lazy(() => import('../pages/IncomeExpense'));
 
 const AppRoutes = () => {
   return (
@@ -61,6 +71,17 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
+       <Route
+  path="/products"
+  element={
+    <ProtectedRoute requiredPermission={{ module:'products', action:'view' }}>
+      <Layout>
+        <ProductsPage />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+
       <Route path="/skyline-caps/driver-pay" element={
         <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
           <Layout>
@@ -68,6 +89,22 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
+
+<Route path="/income-expense" element={
+  <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+    <Layout>
+      <IncomeExpense />
+    </Layout>
+  </ProtectedRoute>
+} />
+
+<Route path="/skyline-caps/income-expense" element={
+  <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
+    <Layout>
+      <SkylineIncomeExpense />
+    </Layout>
+  </ProtectedRoute>
+} />
 
       <Route path="/finance/vat-records" element={
         <ProtectedRoute requiredPermission={{ module: 'vatRecord', action: 'view' }}>

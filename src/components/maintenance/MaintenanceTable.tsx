@@ -1,3 +1,4 @@
+// src/components/maintenance/MaintenanceTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
@@ -28,6 +29,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
+
   const columns = [
     {
       header: 'Vehicle',
@@ -46,9 +48,9 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       cell: ({ row }) => (
         <div>
           <span className="capitalize">{row.original.type.replace('-', ' ')}</span>
-          {row.original.type === 'mot' || row.original.type === 'tfl' ? (
+          {(row.original.type === 'mot' || row.original.type === 'tfl') && (
             <span className="ml-1 text-sm text-gray-500">Test</span>
-          ) : null}
+          )}
         </div>
       ),
     },
@@ -78,9 +80,21 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: 'Cost',
       cell: ({ row }) => {
         const log = row.original;
+
+        // We assume MaintenanceLog now has a `totalDiscount` property
+        const discount = log.totalDiscount || 0;
+
         return (
           <div>
             <div className="font-medium">{formatCurrency(log.cost)}</div>
+
+            {/* show total discount (if any) */}
+            {discount > 0 && (
+              <div className="text-sm text-red-600">
+                Discount: –{formatCurrency(discount)}
+              </div>
+            )}
+
             <div className="text-xs space-y-0.5">
               <div className="text-green-600">
                 Paid: {formatCurrency(log.paidAmount || 0)}
@@ -101,7 +115,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         <div className="flex space-x-2">
           {can('maintenance', 'view') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onView(row.original);
               }}
@@ -113,7 +127,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
           {can('maintenance', 'update') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onEdit(row.original);
               }}
@@ -125,7 +139,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
           {can('maintenance', 'delete') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onDelete(row.original);
               }}
@@ -137,7 +151,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
           {can('maintenance', 'update') && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onGenerateDocument(row.original);
               }}
@@ -149,7 +163,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
           {row.original.documentUrl && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onViewDocument(row.original.documentUrl!);
               }}
@@ -168,7 +182,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     <DataTable
       data={logs}
       columns={columns}
-      onRowClick={(log) => can('maintenance', 'view') && onView(log)}
+      onRowClick={log => can('maintenance', 'view') && onView(log)}
     />
   );
 };

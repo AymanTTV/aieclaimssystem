@@ -16,11 +16,13 @@ import {
   SatisfactionNotice
 } from '../components/pdf/claims';
 
+import { ParkingPermitLetter } from '../components/pdf/ParkingPermitLetter';
+
 export const generateRentalDocuments = async (
   rental: Rental,
   vehicle: Vehicle,
   customer: Customer
-): Promise<{ agreement: Blob; invoice: Blob; claimDocuments?: Record<string, Blob> }> => {
+): Promise<{ agreement: Blob; invoice: Blob; permit: Blob; claimDocuments?: Record<string, Blob> }> => {
   try {
     // Validate required data
     if (!rental || !vehicle || !customer) {
@@ -56,6 +58,18 @@ export const generateRentalDocuments = async (
       customer,
       companyDetails
     })).toBlob();
+
+
+    // parking permit
+ const permitBlob = await pdf(createElement(ParkingPermitLetter, {
+     rental: validatedRental,
+     vehicle,
+     customer,
+     companyDetails
+   })).toBlob();
+
+   
+    
 
     // Generate invoice PDF
     const invoiceBlob = await pdf(createElement(RentalInvoice, {
@@ -199,10 +213,10 @@ export const generateRentalDocuments = async (
         throw new Error(`Failed to generate claim documents: ${error.message}`);
       }
 
-      return { agreement: agreementBlob, invoice: invoiceBlob, claimDocuments };
+      return { agreement: agreementBlob, invoice: invoiceBlob, permit: permitBlob, claimDocuments };
     }
 
-    return { agreement: agreementBlob, invoice: invoiceBlob };
+    return { agreement: agreementBlob, invoice: invoiceBlob, permit: permitBlob };
   } catch (error) {
     console.error('Error generating rental documents:', error);
     toast.error('Failed to generate rental documents. Please check company settings.');

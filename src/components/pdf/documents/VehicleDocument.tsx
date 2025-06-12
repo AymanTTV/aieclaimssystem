@@ -6,66 +6,41 @@ import { format } from 'date-fns';
 // Importing the combined styles (ensure this path is correct)
 import { styles } from '../styles';
 
-// Helper function to format dates
-const formatDateString = (date: Date | string | undefined | null): string => {
-  if (!date) return 'N/A';
-  try {
-    // Ensure valid Date object before formatting
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    if (!dateObj || isNaN(dateObj.getTime())) { // Check for null/invalid date object
-        // Optional: Log the invalid date value
-        // console.warn("Invalid date encountered in formatDateString:", date);
-        return 'Invalid date';
-    }
-    return format(dateObj, 'dd/MM/yyyy');
-  } catch (error) {
-    console.error("Error formatting date:", date, error); // Add logging
-    return 'Invalid date';
-  }
-};
-
-// Helper function to check if a date is expired
-const isExpired = (date: Date | string | undefined | null): boolean => {
-  if (!date) return false;
-  try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-     if (!dateObj || isNaN(dateObj.getTime())) { // Check for null/invalid date object
-       // Optional: Log the invalid date value
-       // console.warn("Invalid date encountered in isExpired:", date);
-        return false; // Treat invalid dates as not expired for safety
-    }
-    // Uses the runtime date for comparison
-    const now = new Date();
-    return now > dateObj;
-  } catch (error) {
-    console.error("Error checking expiry:", date, error); // Add logging
-    return false;
-  }
-};
-
 interface VehicleDocumentProps {
   data: Vehicle;
-  companyDetails: any; // Define a more specific type if possible
+  companyDetails: any;
 }
 
-const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails }) => {
-  const vehicle = data;
-
-  // Calculate MOT expiry (6 months after test date) - Handle potential invalid motTestDate
-  let motExpiry: Date | null = null;
-  if (vehicle.motTestDate) {
-    try {
-      const testDate = new Date(vehicle.motTestDate);
-      if (!isNaN(testDate.getTime())) {
-        motExpiry = new Date(testDate);
-        motExpiry.setMonth(motExpiry.getMonth() + 6);
-      } else {
-         console.warn("Invalid MOT Test Date received:", vehicle.motTestDate);
-      }
-    } catch (e) {
-      console.error("Error calculating MOT expiry:", vehicle.motTestDate, e);
-    }
+// Helper to normalize various date inputs into a JS Date or null
+const asDate = (input?: any): Date | null => {
+  if (!input) return null;
+  if (typeof input.toDate === 'function') {
+    try { return input.toDate(); } catch { return null; }
   }
+  const d = new Date(input);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// Format a Date or null to string
+const formatDateString = (d: Date | null): string =>
+  d ? format(d, 'dd/MM/yyyy') : 'N/A';
+
+// Check expiry against current date
+const isExpired = (d: Date | null): boolean => {
+  if (!d) return false;
+  return new Date() > d;
+};
+
+const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data: vehicle, companyDetails }) => {
+
+  // Compute raw test date and expiry
+  const rawTestDate = asDate(vehicle.motTestDate);
+  let motExpiry: Date | null = null;
+  if (rawTestDate) {
+    motExpiry = new Date(rawTestDate);
+    motExpiry.setMonth(motExpiry.getMonth() + 6);
+  }
+
 
   return (
     <Document>
@@ -166,10 +141,11 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails 
           </View>
         </View>
 
-        {/* Document Expiry Dates Table */}
+        {/* Document Expiry Dates Section */}
         <View style={[styles.section, styles.sectionBreak]}>
           <Text style={styles.sectionTitle}>Document Expiry Dates</Text>
           <View style={styles.table}>
+            {/* Table Header */}
             <View style={styles.tableHeader}>
               <Text style={[styles.tableCell, styles.tableHeaderCell]}>MOT Test Date</Text>
               <Text style={[styles.tableCell, styles.tableHeaderCell]}>MOT Expiry</Text>
@@ -177,21 +153,22 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails 
               <Text style={[styles.tableCell, styles.tableHeaderCell]}>Road Tax Expiry</Text>
               <Text style={[styles.tableCell, styles.tableHeaderCell]}>Insurance Expiry</Text>
             </View>
+            {/* Table Row */}
             <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, isExpired(vehicle.motTestDate) && styles.expiredText]}>
-                {formatDateString(vehicle.motTestDate)}
+              <Text style={[styles.tableCell, isExpired(rawTestDate) && styles.expiredText]}>
+                {formatDateString(rawTestDate)}
               </Text>
               <Text style={[styles.tableCell, motExpiry && isExpired(motExpiry) && styles.expiredText]}>
                 {formatDateString(motExpiry)}
               </Text>
-              <Text style={[styles.tableCell, isExpired(vehicle.nslExpiry) && styles.expiredText]}>
-                {formatDateString(vehicle.nslExpiry)}
+              <Text style={[styles.tableCell, isExpired(asDate(vehicle.nslExpiry)) && styles.expiredText]}>
+                {formatDateString(asDate(vehicle.nslExpiry))}
               </Text>
-              <Text style={[styles.tableCell, isExpired(vehicle.roadTaxExpiry) && styles.expiredText]}>
-                {formatDateString(vehicle.roadTaxExpiry)}
+              <Text style={[styles.tableCell, isExpired(asDate(vehicle.roadTaxExpiry)) && styles.expiredText]}>
+                {formatDateString(asDate(vehicle.roadTaxExpiry))}
               </Text>
-              <Text style={[styles.tableCell, isExpired(vehicle.insuranceExpiry) && styles.expiredText]}>
-                {formatDateString(vehicle.insuranceExpiry)}
+              <Text style={[styles.tableCell, isExpired(asDate(vehicle.insuranceExpiry)) && styles.expiredText]}>
+                {formatDateString(asDate(vehicle.insuranceExpiry))}
               </Text>
             </View>
           </View>
@@ -208,18 +185,16 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails 
               <Text style={[styles.tableCell, styles.tableHeaderCell]}>Next Maintenance</Text>
             </View>
             <View style={styles.tableRow}>
-              <Text style={styles.tableCell}>{formatDateString(vehicle.lastMaintenance)}</Text>
-              <Text style={[styles.tableCell, isExpired(vehicle.nextMaintenance) && styles.expiredText]}>
-                {formatDateString(vehicle.nextMaintenance)}
+              <Text style={styles.tableCell}>{formatDateString(asDate(vehicle.lastMaintenance))}</Text>
+              <Text style={[styles.tableCell, isExpired(asDate(vehicle.nextMaintenance)) && styles.expiredText]}>
+                {formatDateString(asDate(vehicle.nextMaintenance))}
               </Text>
             </View>
-             {/* Optional empty rows for spacing */}
-             {/* <View style={styles.tableRow}><Text style={styles.tableCell}> </Text><Text style={styles.tableCell}> </Text></View> */}
           </View>
         </View>
 
         {/* Owner Information Card */}
-        <View style={[styles.section, styles.sectionBreak, { alignItems: 'flex-end' }]}>
+        {/* <View style={[styles.section, styles.sectionBreak, { alignItems: 'flex-end' }]}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Owner Information</Text>
             <Text style={styles.cardContent}>{vehicle.owner?.name || 'AIE Skyline'}</Text>
@@ -227,7 +202,7 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails 
               <Text style={styles.cardContent}>{vehicle.owner.address}</Text>
             )}
           </View>
-        </View>
+        </View> */}
 
         {/* Document Images Grid */}
         {/* Check if vehicle.documents exists and has any image arrays with content */}
@@ -270,7 +245,7 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data, companyDetails 
               <View style={styles.tableRow}>
                 <View style={styles.tableColHalf}>
                   <Text style={styles.subLabel}>Sale Date</Text>
-                  <Text style={styles.subValue}>{formatDateString(vehicle.soldDate)}</Text>
+                  <Text style={styles.subValue}>{formatDateString(asDate(vehicle.soldDate))}</Text>
                 </View>
                 <View style={styles.tableColHalf}>
                   <Text style={styles.subLabel}>Sale Price</Text>

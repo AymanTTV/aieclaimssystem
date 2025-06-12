@@ -46,11 +46,12 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
         className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
       >
         <option value="all">All Status</option>
-        <option value="active">Hired</option>
         <option value="scheduled">Scheduled</option>
+        <option value="active">Hired</option>
+        
         <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
-        <option value="claim">Claims</option>
+        
+        
       </select>
 
       <select

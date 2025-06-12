@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
@@ -25,12 +25,11 @@ import RentalSummaryCards from '../components/rentals/RentalSummaryCards';
 
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
-import { useVehiclesContext } from '../utils/VehicleProvider';
 import { RefreshCw, FileText } from 'lucide-react';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
 
-import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
+import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails } from '../utils/documentGenerator';
 import { RentalDocument, RentalBulkDocument } from '../components/pdf/documents';
 import { saveAs } from 'file-saver';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
@@ -43,6 +42,7 @@ const Rentals = () => {
   const { user } = useAuth();
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
+
   const {
     searchQuery,
     setSearchQuery,
@@ -63,7 +63,7 @@ const Rentals = () => {
   const [completingRental, setCompletingRental] = useState<Rental | null>(null);
   const [showAvailableVehicles, setShowAvailableVehicles] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     try {
       exportRentals(rentals);
       toast.success('Rentals exported successfully');
@@ -71,25 +71,70 @@ const Rentals = () => {
       console.error('Error exporting rentals:', error);
       toast.error('Failed to export rentals');
     }
-  };
+  }, [rentals]);
 
-  const handleDownloadAgreement = (rental: Rental) => {
+  const handleDownloadAgreement = useCallback(async (rental: Rental) => {
     if (rental.documents?.agreement) {
       window.open(rental.documents.agreement, '_blank');
     } else {
-      toast.error('No hire agreement available');
+      toast.loading('Generating agreement...');
+      try {
+        const companyDetailsData = await getCompanyDetails();
+        if (!companyDetailsData) {
+          throw new Error('Company details not found');
+        }
+        // Assuming RentalDocument can generate agreement based on rental data
+        await generateAndUploadDocument(
+          RentalDocument,
+          rental,
+          'rentals', // storage path
+          rental.id,
+          'rentals', // firestore collection
+          companyDetailsData // Pass company details
+        );
+        toast.dismiss();
+        toast.success('Agreement generated and uploaded!');
+        // Note: For real-time updates, you'd want your useRentals hook
+        // to re-fetch or listen for changes to the specific rental document.
+        // For now, this just updates the backend and shows a success toast.
+      } catch (error) {
+        console.error('Error generating agreement:', error);
+        toast.dismiss();
+        toast.error('Failed to generate agreement');
+      }
     }
-  };
+  }, []);
 
-  const handleDownloadInvoice = (rental: Rental) => {
+  const handleDownloadInvoice = useCallback(async (rental: Rental) => {
     if (rental.documents?.invoice) {
       window.open(rental.documents.invoice, '_blank');
     } else {
-      toast.error('No invoice available');
+      toast.loading('Generating invoice...');
+      try {
+        const companyDetailsData = await getCompanyDetails();
+        if (!companyDetailsData) {
+          throw new Error('Company details not found');
+        }
+        // Assuming RentalDocument can generate invoice based on rental data
+        await generateAndUploadDocument(
+          RentalDocument,
+          rental,
+          'rentals', // storage path
+          rental.id,
+          'rentals', // firestore collection
+          companyDetailsData // Pass company details
+        );
+        toast.dismiss();
+        toast.success('Invoice generated and uploaded!');
+      } catch (error) {
+        console.error('Error generating invoice:', error);
+        toast.dismiss();
+        toast.error('Failed to generate invoice');
+      }
     }
-  };
+  }, []);
 
-  const handleDeletePayment = async (rental: Rental, paymentId: string) => {
+  const handleDeletePayment = useCallback(async (rental: Rental, paymentId: string) => {
     try {
       await deleteRentalPayment(rental, paymentId);
       toast.success('Payment deleted successfully');
@@ -97,27 +142,43 @@ const Rentals = () => {
       console.error('Error deleting payment:', error);
       toast.error('Failed to delete payment');
     }
-  };
+  }, []);
 
-  const handleGenerateBulkDocument = async () => {
+  const handleDownloadPermit = useCallback((rental: Rental) => {
+    if (rental.documents?.permit) {
+      window.open(rental.documents.permit, '_blank');
+    } else {
+      toast.error('No parking permit available');
+    }
+  }, []);
+
+  const handleGenerateBulkDocument = useCallback(async () => {
     try {
+      toast.loading('Generating bulk rental summary...');
+      const companyDetailsData = await getCompanyDetails();
+      if (!companyDetailsData) {
+        throw new Error('Company details not found');
+      }
       const pdfBlob = await generateBulkDocuments(
         RentalBulkDocument,
         filteredRentals,
-        companyDetails,
+        companyDetailsData, // Pass company details
         vehicles,
         customers
       );
 
       saveAs(pdfBlob, 'rental_summary.pdf');
+      toast.dismiss();
       toast.success('Bulk document generated successfully');
     } catch (error) {
       console.error('Error generating bulk document:', error);
+      toast.dismiss();
       toast.error('Failed to generate bulk document');
     }
-  };
+  }, [filteredRentals, vehicles, customers]);
 
-  if (loading) {
+
+  if (loading || vehiclesLoading || customersLoading) {
     return (
       <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -126,12 +187,15 @@ const Rentals = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4"> {/* Added some padding */}
+      {user?.role === 'manager' && (
       <RentalSummaryCards rentals={filteredRentals} />
+      )}
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
         <div className="flex space-x-2">
+          {user?.role === 'manager' && (
           <button
             onClick={handleGenerateBulkDocument}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -139,6 +203,7 @@ const Rentals = () => {
             <FileText className="h-5 w-5 mr-2" />
             Generate PDF
           </button>
+          )}
 
           {user?.role === 'manager' && (
             <button
@@ -235,7 +300,7 @@ const Rentals = () => {
         isOpen={!!selectedRental}
         onClose={() => setSelectedRental(null)}
         title="Rental Details"
-        size="lg"
+        size="xl"
       >
         {selectedRental && (
           <RentalDetails
@@ -244,6 +309,7 @@ const Rentals = () => {
             customer={customers.find(c => c.id === selectedRental.customerId) || null}
             onDownloadAgreement={() => handleDownloadAgreement(selectedRental)}
             onDownloadInvoice={() => handleDownloadInvoice(selectedRental)}
+            onDownloadPermit={() => handleDownloadPermit(selectedRental)}
           />
         )}
       </Modal>
@@ -252,6 +318,7 @@ const Rentals = () => {
         isOpen={!!editingRental}
         onClose={() => setEditingRental(null)}
         title="Edit Rental"
+        size="xl"
       >
         {editingRental && (
           <RentalEditModal
