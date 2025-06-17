@@ -10,6 +10,8 @@ import React, {
 } from 'react';
 import { Product } from '../types/product';
 import { Category } from '../types/category';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
 import productService from '../services/product.service';
 import categoryService from '../services/category.service';
 import { X, Edit2, Trash2, Eye, Box } from 'lucide-react';
@@ -101,6 +103,8 @@ const ProductsPage: React.FC = () => {
   // Handlers
   const handleSearch = (e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value);
   const handleFilter = (e: ChangeEvent<HTMLSelectElement>) => setFilterCat(e.target.value);
+  const { can } = usePermissions();
+  const { user } = useAuth();
 
   const openProductForm = (prod?: Product) => {
     startTransition(() => {
@@ -280,15 +284,21 @@ const ProductsPage: React.FC = () => {
                 header: 'Actions',
                 cell: ({ row }) => (
                   <div className="flex space-x-2">
+                    {can('products', 'update') && (
                     <button onClick={() => openProductForm(row.original)}>
                       <Edit2 className="h-4 w-4" />
                     </button>
+                    )}
+                    {can('products', 'delete') && (
                     <button onClick={() => confirmDeleteProduct(row.original)}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </button>
+                    )}
+                    {can('products', 'view') && (
                     <button onClick={() => openDetail(row.original)}>
                       <Eye className="h-4 w-4" />
                     </button>
+                    )}
                   </div>
                 ),
               },

@@ -727,21 +727,20 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       setTimeout(async () => {
         try {
           await createFinanceTransaction({
-            type: "income",
-            category: "rental",
-            amount: newPayment,
-            description: `Additional rental payment for ${submitVehicle.make} ${submitVehicle.model} (${submitVehicle.registrationNumber}) - Rental ID: ${rental.id.substring(
-              0,
-              6
-            )}`,
-            date: new Date(),
-            referenceId: rental.id,
-            vehicleId: submitVehicle.id,
-            customerId: submitCustomer.id,
-            paymentMethod: formData.paymentMethod,
-            paymentReference: formData.paymentReference || null,
-            status: "completed",
-          });
+          type: 'income',
+          category: 'Rental', // Capitalize R
+          amount: formData.amountToAdd,
+          description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'}) - Rental ID: ${rental.id}`, // More descriptive
+          referenceId: rental.id,
+          paymentMethod: formData.paymentMethod,
+          paymentReference: formData.paymentReference,
+          status: 'completed',
+          date: new Date(),
+          vehicleId: rental.vehicleId,
+          vehicleName: `${selectedVehicle?.make} ${selectedVehicle?.model}`,
+          customerId: rental.customerId, // Pass customerId
+          customerName: selectedCustomer?.name, // Pass customerName
+        });
         } catch {
           toast.error(
             "Rental updated, but failed to record finance transaction for new payment."

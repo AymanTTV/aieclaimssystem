@@ -1,19 +1,21 @@
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
-import { MaintenanceLog, Vehicle } from '../../../types';
+import { MaintenanceLog, Vehicle, Customer } from '../../../types';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
 
 interface MaintenanceBulkDocumentProps {
   records: MaintenanceLog[];
-  vehicles: Record<string, Vehicle>; // NEW
+  vehicles: Record<string, Vehicle>;
+  customers: Record<string, Customer>;
   companyDetails: any;
   title?: string;
 }
 
 const MaintenanceBulkDocument: React.FC<MaintenanceBulkDocumentProps> = ({
   records,
-  vehicles, // NEW
+  vehicles = {}, // FIX: Add default empty object
+  customers = {}, // FIX: Add default empty object
   companyDetails,
   title = 'Maintenance Summary',
 }) => {
@@ -53,42 +55,42 @@ const MaintenanceBulkDocument: React.FC<MaintenanceBulkDocumentProps> = ({
 
           {/* Title & Summary (First Page Only) */}
           {pageIndex === 0 && (
-  <>
-    <Text style={styles.title}>{title}</Text>
+            <>
+              <Text style={styles.title}>{title}</Text>
 
-    {/* Maintenance Overview Box */}
-    <View style={[styles.sectionBreak, { marginBottom: 20 }]} wrap={false}>
-      <View style={styles.infoCard}>
-        <Text style={styles.infoCardTitle}>Maintenance Overview</Text>
+              {/* Maintenance Overview Box */}
+              <View style={[styles.sectionBreak, { marginBottom: 20 }]} wrap={false}>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Maintenance Overview</Text>
 
-        <View style={styles.row}>
-          <Text style={[styles.label, { width: '50%' }]}>Total Records:</Text>
-          <Text style={styles.value}>{totalRecords}</Text>
-        </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.label, { width: '50%' }]}>Total Records:</Text>
+                    <Text style={styles.value}>{totalRecords}</Text>
+                  </View>
 
-        <View style={styles.row}>
-          <Text style={[styles.label, { width: '50%' }]}>Completed:</Text>
-          <Text style={styles.value}>{completedRecords}</Text>
-        </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.label, { width: '50%' }]}>Completed:</Text>
+                    <Text style={styles.value}>{completedRecords}</Text>
+                  </View>
 
-        <View style={styles.row}>
-          <Text style={[styles.label, { width: '50%' }]}>In Progress:</Text>
-          <Text style={styles.value}>{inProgressRecords}</Text>
-        </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.label, { width: '50%' }]}>In Progress:</Text>
+                    <Text style={styles.value}>{inProgressRecords}</Text>
+                  </View>
 
-        <View style={styles.row}>
-          <Text style={[styles.label, { width: '50%' }]}>Scheduled:</Text>
-          <Text style={styles.value}>{scheduledRecords}</Text>
-        </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.label, { width: '50%' }]}>Scheduled:</Text>
+                    <Text style={styles.value}>{scheduledRecords}</Text>
+                  </View>
 
-        <View style={styles.row}>
-          <Text style={[styles.label, { width: '50%' }]}>Total Cost:</Text>
-          <Text style={styles.value}>£{totalCost.toFixed(2)}</Text>
-        </View>
-      </View>
-    </View>
-  </>
-)}
+                  <View style={styles.row}>
+                    <Text style={[styles.label, { width: '50%' }]}>Total Cost:</Text>
+                    <Text style={styles.value}>£{totalCost.toFixed(2)}</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
 
 
           {/* Maintenance Records Table */}
@@ -98,53 +100,54 @@ const MaintenanceBulkDocument: React.FC<MaintenanceBulkDocumentProps> = ({
               {/* Table Header */}
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Date</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Vehicle</Text>
+                <Text style={[styles.tableCell, { width: '20%' }]}>Vehicle</Text>
+                <Text style={[styles.tableCell, { width: '20%' }]}>Customer</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Type</Text>
-                <Text style={[styles.tableCell, { width: '25%' }]}>Service Provider</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Status</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>Cost</Text>
               </View>
 
               {/* Table Rows */}
               {records
-  .slice(
-    pageIndex === 0
-      ? 0
-      : ITEMS_PER_PAGE_FIRST_PAGE +
-          (pageIndex - 1) * ITEMS_PER_PAGE_OTHER_PAGES,
-    Math.min(
-      pageIndex === 0
-        ? ITEMS_PER_PAGE_FIRST_PAGE
-        : ITEMS_PER_PAGE_FIRST_PAGE +
-            pageIndex * ITEMS_PER_PAGE_OTHER_PAGES,
-      totalRecords
-    )
-  )
-  .map((record) => {
-    const vehicle = vehicles && record.vehicleId && vehicles[record.vehicleId];
-    return (
-      <View key={record.id} style={styles.tableRow}>
-        <Text style={[styles.tableCell, { width: '15%' }]}>
-          {formatDate(record.date)}
-        </Text>
-        <Text style={[styles.tableCell, { width: '15%' }]}>
-          {vehicle?.registrationNumber || 'N/A'}
-        </Text>
-        <Text style={[styles.tableCell, { width: '15%' }]}>
-          {record.type}
-        </Text>
-        <Text style={[styles.tableCell, { width: '25%' }]}>
-          {record.serviceProvider}
-        </Text>
-        <Text style={[styles.tableCell, { width: '15%' }]}>
-          {record.status}
-        </Text>
-        <Text style={[styles.tableCell, { width: '15%' }]}>
-          £{record.cost.toFixed(2)}
-        </Text>
-      </View>
-    );
-  })}
+                .slice(
+                  pageIndex === 0
+                    ? 0
+                    : ITEMS_PER_PAGE_FIRST_PAGE +
+                    (pageIndex - 1) * ITEMS_PER_PAGE_OTHER_PAGES,
+                  Math.min(
+                    pageIndex === 0
+                      ? ITEMS_PER_PAGE_FIRST_PAGE
+                      : ITEMS_PER_PAGE_FIRST_PAGE +
+                      pageIndex * ITEMS_PER_PAGE_OTHER_PAGES,
+                    totalRecords
+                  )
+                )
+                .map((record) => {
+                  const vehicle = record.vehicleId ? vehicles[record.vehicleId] : null;
+                  const customer = record.customerId ? customers[record.customerId] : null;
+                  return (
+                    <View key={record.id} style={styles.tableRow}>
+                      <Text style={[styles.tableCell, { width: '15%' }]}>
+                        {formatDate(record.date)}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '20%' }]}>
+                        {vehicle?.registrationNumber || 'N/A'}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '20%' }]}>
+                        {customer?.name || 'N/A'}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '15%' }]}>
+                        {record.type}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '15%' }]}>
+                        {record.status}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '15%' }]}>
+                        £{record.cost.toFixed(2)}
+                      </Text>
+                    </View>
+                  );
+                })}
 
             </View>
           </View>

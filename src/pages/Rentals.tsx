@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+// src/pages/Rentals.tsx
+import React, { useState, useCallback, useMemo } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
-import { useRentalFilters } from '../hooks/useRentalFilters';
+import { useRentalFilters } from '../hooks/useRentalFilters'; // Assuming this hook handles initial filtering
 import RentalFilters from '../components/rentals/RentalFilters';
 import RentalTable from '../components/rentals/RentalTable';
 import RentalForm from '../components/rentals/RentalForm';
@@ -14,7 +15,7 @@ import RentalCompleteModal from '../components/rentals/RentalCompleteModal';
 import AvailableVehiclesModal from '../components/rentals/AvailableVehiclesModal';
 import ReturnConditionForm from '../components/rentals/ReturnConditionForm.tsx'
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Car, RotateCw } from 'lucide-react';
+import { Plus, Download, Car, RotateCw, Search } from 'lucide-react';
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
@@ -22,13 +23,11 @@ import toast from 'react-hot-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import RentalSummaryCards from '../components/rentals/RentalSummaryCards';
-
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import { RefreshCw, FileText } from 'lucide-react';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
-
 import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails } from '../utils/documentGenerator';
 import { RentalDocument, RentalBulkDocument } from '../components/pdf/documents';
 import { saveAs } from 'file-saver';
@@ -43,6 +42,9 @@ const Rentals = () => {
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
 
+  // State for the new "All Records" checkbox
+  const [showAllRecords, setShowAllRecords] = useState(false);
+
   const {
     searchQuery,
     setSearchQuery,
@@ -52,8 +54,81 @@ const Rentals = () => {
     setTypeFilter,
     vehicleFilter,
     setVehicleFilter,
-    filteredRentals
+    reasonFilter,
+    setReasonFilter,
+    startDateFilter,
+    setStartDateFilter,
+    endDateFilter,
+    setEndDateFilter,
   } = useRentalFilters(rentals, vehicles, customers);
+
+
+  // Custom filtering logic combining all filters and the new "All Records" checkbox
+  const filteredRentals = useMemo(() => {
+    let currentRentals = rentals; // Use a new variable to avoid modifying 'rentals' directly
+
+    // If "All Records" is NOT checked, apply status, type, vehicle, and reason filters
+    if (!showAllRecords) {
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        currentRentals = currentRentals.filter(rental => rental.status === statusFilter);
+      } else {
+        currentRentals = currentRentals.filter(rental =>
+          rental.status !== 'completed' ||
+          (rental.status === 'completed' && rental.paymentStatus !== 'paid')
+        );
+      }
+
+      // Apply type filter
+      if (typeFilter !== 'all') {
+        currentRentals = currentRentals.filter(rental => rental.type === typeFilter);
+      }
+
+      // Apply vehicle filter
+      if (vehicleFilter) {
+        currentRentals = currentRentals.filter(rental => rental.vehicleId === vehicleFilter);
+      }
+
+      // Apply reason filter
+      if (reasonFilter !== 'all') {
+        currentRentals = currentRentals.filter(rental => rental.reason === reasonFilter);
+      } else {
+        currentRentals = currentRentals.filter(rental => rental.reason !== 'o/d' && rental.reason !== 'staff');
+      }
+    }
+
+    // Date filters and search query ALWAYS apply, regardless of "All Records"
+    if (startDateFilter) {
+      const filterStart = new Date(startDateFilter);
+      currentRentals = currentRentals.filter(rental => new Date(rental.startDate) >= filterStart);
+    }
+    if (endDateFilter) {
+      const filterEnd = new Date(endDateFilter);
+      currentRentals = currentRentals.filter(rental => new Date(rental.endDate) <= filterEnd);
+    }
+
+    if (searchQuery) {
+      const lowerCaseSearchQuery = searchQuery.toLowerCase();
+      currentRentals = currentRentals.filter(rental => {
+        const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+        const customer = customers.find(c => c.id === rental.customerId);
+
+        const matchesVehicle = vehicle ?
+          `${vehicle.make} ${vehicle.model} ${vehicle.registrationNumber}`.toLowerCase().includes(lowerCaseSearchQuery) : false;
+        const matchesCustomer = customer ?
+          `${customer.name} ${customer.mobile} ${customer.email}`.toLowerCase().includes(lowerCaseSearchQuery) : false;
+        const matchesRentalId = rental.id.toLowerCase().includes(lowerCaseSearchQuery);
+        const matchesRentalReason = rental.reason.toLowerCase().includes(lowerCaseSearchQuery);
+        const matchesRentalType = rental.type.toLowerCase().includes(lowerCaseSearchQuery);
+        const matchesRentalStatus = rental.status.toLowerCase().includes(lowerCaseSearchQuery);
+
+        return matchesVehicle || matchesCustomer || matchesRentalId || matchesRentalReason || matchesRentalType || matchesRentalStatus;
+      });
+    }
+
+    return currentRentals;
+  }, [rentals, searchQuery, statusFilter, typeFilter, vehicleFilter, reasonFilter, startDateFilter, endDateFilter, vehicles, customers, showAllRecords]);
+
 
   const [showForm, setShowForm] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
@@ -83,20 +158,16 @@ const Rentals = () => {
         if (!companyDetailsData) {
           throw new Error('Company details not found');
         }
-        // Assuming RentalDocument can generate agreement based on rental data
         await generateAndUploadDocument(
           RentalDocument,
           rental,
-          'rentals', // storage path
+          'rentals',
           rental.id,
-          'rentals', // firestore collection
-          companyDetailsData // Pass company details
+          'rentals',
+          companyDetailsData
         );
         toast.dismiss();
         toast.success('Agreement generated and uploaded!');
-        // Note: For real-time updates, you'd want your useRentals hook
-        // to re-fetch or listen for changes to the specific rental document.
-        // For now, this just updates the backend and shows a success toast.
       } catch (error) {
         console.error('Error generating agreement:', error);
         toast.dismiss();
@@ -115,14 +186,13 @@ const Rentals = () => {
         if (!companyDetailsData) {
           throw new Error('Company details not found');
         }
-        // Assuming RentalDocument can generate invoice based on rental data
         await generateAndUploadDocument(
           RentalDocument,
           rental,
-          'rentals', // storage path
+          'rentals',
           rental.id,
-          'rentals', // firestore collection
-          companyDetailsData // Pass company details
+          'rentals',
+          companyDetailsData
         );
         toast.dismiss();
         toast.success('Invoice generated and uploaded!');
@@ -146,7 +216,7 @@ const Rentals = () => {
 
   const handleDownloadPermit = useCallback((rental: Rental) => {
     if (rental.documents?.permit) {
-      window.open(rental.documents.permit, '_blank');
+      window.open(rental.documents?.permit, '_blank');
     } else {
       toast.error('No parking permit available');
     }
@@ -162,7 +232,7 @@ const Rentals = () => {
       const pdfBlob = await generateBulkDocuments(
         RentalBulkDocument,
         filteredRentals,
-        companyDetailsData, // Pass company details
+        companyDetailsData,
         vehicles,
         customers
       );
@@ -187,7 +257,7 @@ const Rentals = () => {
   }
 
   return (
-    <div className="space-y-6 p-4"> {/* Added some padding */}
+    <div className="space-y-6 p-4">
       {user?.role === 'manager' && (
       <RentalSummaryCards rentals={filteredRentals} />
       )}
@@ -243,17 +313,65 @@ const Rentals = () => {
         </div>
       </div>
 
-      <RentalFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
-        vehicleFilter={vehicleFilter}
-        onVehicleFilterChange={setVehicleFilter}
-        vehicles={vehicles}
-      />
+      <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-center">
+        {/* Search bar */}
+        <div className="relative flex-1 min-w-[200px]">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search rentals..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          />
+        </div>
+
+        {/* All Records Checkbox */}
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="allRecords"
+            checked={showAllRecords}
+            onChange={(e) => {
+              setShowAllRecords(e.target.checked);
+              // Optionally reset other filters when "All Records" is checked, but NOT search or date filters
+              if (e.target.checked) {
+                setStatusFilter('all');
+                setTypeFilter('all');
+                setVehicleFilter('');
+                setReasonFilter('all');
+                // startDateFilter and endDateFilter are intentionally NOT reset here
+              }
+            }}
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+          />
+          <label htmlFor="allRecords" className="ml-2 text-sm font-medium text-gray-700">
+            All Records
+          </label>
+        </div>
+        
+        {/* Existing filters */}
+        <RentalFilters
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+          vehicleFilter={vehicleFilter}
+          onVehicleFilterChange={setVehicleFilter}
+          reasonFilter={reasonFilter}
+          onReasonFilterChange={setReasonFilter}
+          startDateFilter={startDateFilter}
+          onStartDateChange={setStartDateFilter}
+          endDateFilter={endDateFilter}
+          onEndDateChange={setEndDateFilter}
+          vehicles={vehicles}
+          // The isDisabled prop now only disables status, type, vehicle, and reason filters
+          // It will NOT disable date filters, which are handled directly within RentalFilters component.
+          isDisabled={showAllRecords}
+        />
+      </div>
 
       <RentalTable
         rentals={filteredRentals}

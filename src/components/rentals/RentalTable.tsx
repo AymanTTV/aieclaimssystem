@@ -15,7 +15,7 @@ import {
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { isAfter, differenceInDays, isWithinInterval, isBefore, addDays } from 'date-fns';
+import { isAfter, differenceInDays, isWithinInterval, isBefore, addDays, differenceInHours } from 'date-fns';
 import { calculateOverdueCost, RENTAL_RATES } from '../../utils/rentalCalculations';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
@@ -105,12 +105,16 @@ const RentalTable: React.FC<RentalTableProps> = ({
       header: 'Period',
       cell: ({ row }) => {
         const r = row.original;
+        const start = new Date(r.startDate);
+        const end = new Date(r.endDate);
+        const days = isAfter(end, start) ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) : 1;
+
         return (
           <div>
             <div className="text-sm">{formatDate(r.startDate, true)}</div>
             <div className="text-sm text-gray-500">{formatDate(r.endDate, true)}</div>
             <div className="text-xs text-gray-500">
-              {differenceInDays(r.endDate, r.startDate) + 1} days
+              {days} day{days === 1 ? '' : 's'}
             </div>
           </div>
         );
@@ -125,139 +129,115 @@ const RentalTable: React.FC<RentalTableProps> = ({
         </div>
       ),
     },
-
     {
-      header: 'Cost Details',
+      header: 'Cost Summary',
       cell: ({ row }) => {
         const r = row.original;
-        const v = vehicles.find(v => v.id === r.vehicleId); // Find the vehicle
-        if (!v) { // Check if vehicle is found
-          return <div className="text-red-500">Vehicle Not Found</div>;
+        const v = vehicles.find(v => v.id === r.vehicleId);
+        if (!v) {
+          return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
         }
 
         const now = new Date();
-        const days = differenceInDays(r.endDate, r.startDate) + 1;
+        const start = new Date(r.startDate);
+        const end = new Date(r.endDate);
 
-        // 1) Determine per-unit rate (base rate without negotiation)
-        let baseRate = r.type === 'daily'
-            ? v.dailyRentalPrice
-            : r.type === 'weekly'
-              ? v.weeklyRentalPrice
-              : v.claimRentalPrice;
-        if (baseRate == null) baseRate = RENTAL_RATES[r.type] || 0;
+        // 1. Rate
+        const baseRateFromVehicle = r.type === 'daily' ? v.dailyRentalPrice : (r.type === 'weekly' ? v.weeklyRentalPrice : v.claimRentalPrice);
+        const defaultRate = RENTAL_RATES[r.type] || 0;
+        const effectiveRate = r.negotiatedRate ?? baseRateFromVehicle ?? defaultRate;
+        const isNegotiated = r.negotiatedRate != null;
 
-        // Determine effective rate (with negotiation if applicable)
-        const effectiveRate = r.negotiatedRate != null ? r.negotiatedRate : baseRate;
+        // 2. Period Calculation
+        const totalHours = differenceInHours(end, start);
+        const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
+        const baseUnits = r.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
+        const baseUnitString = r.type === 'weekly' ? 'week' : 'day';
+        
+        // 3. Ongoing Calculation
+        const ongoingCost = r.status === 'active' && isAfter(now, r.endDate) ? calculateOverdueCost(r, now, v) : 0;
+        let ongoingUnits = 0;
+        if (ongoingCost > 0) {
+            const overdueDays = Math.ceil((now.getTime() - r.endDate.getTime()) / (1000 * 60 * 60 * 24));
+            ongoingUnits = r.type === 'weekly' ? Math.ceil(overdueDays / 7) : overdueDays;
+        }
+        
+        // r.cost is the Total Amount Due after all charges and after discount.
+        // So, to get the Subtotal before discount, we add the discount back.
+        const costBeforeDiscountApplied = (r.cost || 0) + (r.discountAmount || 0) + ongoingCost;
 
-
-        // 2) Compute base units (days or weeks)
-        const baseUnits = r.type === 'weekly'
-          ? (r.numberOfWeeks || Math.ceil(days / 7))
-          : days;
-
-        // Calculate base cost using effective rate
-        const baseCostCalculated = effectiveRate * baseUnits;
-
-
-        // 3) Ongoing (overdue) charges
-        const showOverdue = r.status === 'active' && isAfter(now, r.endDate);
-        const ongoing = showOverdue
-            ? calculateOverdueCost(r, now, v) // calculateOverdueCost now handles VAT
-            : 0;
-
-        // Note: Calculating overdue units might be complex with mixed rates/VAT, showing total ongoing is simpler
-        // const overdueUnits = ongoing && effectiveRate > 0 ? Math.round(ongoing / effectiveRate) : 0; // This might be inaccurate with VAT included
-
-
-        // 4) Claim-specific extras sum (these values already include their specific VAT if applicable as stored)
-        const storageWithVAT = (r.storageCost || 0);
-        const recoveryWithVAT = (r.recoveryCost || 0) * (r.includeRecoveryCostVAT ? 1.2 : 1); // NEW: Apply VAT for display
-        const deliveryWithVAT = (r.deliveryCharge || 0);
-        const collectionWithVAT = (r.collectionCharge || 0);
-         // Insurance per day is stored, need to calculate total insurance cost for the period applying stored VAT setting
-        const insuranceWithVAT = (days * (r.insurancePerDay || 0)) * (r.insurancePerDayIncludeVAT ? 1.2 : 1);
-
-
-        const extrasWithVAT = (r.type === 'claim') ? (storageWithVAT + recoveryWithVAT + deliveryWithVAT + collectionWithVAT + insuranceWithVAT) : 0;
-
-        // Total before overall rental VAT and discount
-        const totalBeforeOverallVAT = baseCostCalculated + extrasWithVAT + ongoing;
-
-
-        // Apply overall rental VAT
-        const totalWithOverallVAT = totalBeforeOverallVAT * (r.includeVAT ? 1.2 : 1);
-
-
-        // 5) Discount, paid & remaining
-        const discount = r.discountAmount || 0;
-        const totalDue = totalWithOverallVAT - discount; // Total after all VAT and discount
+        const totalDiscount = r.discountAmount || 0; // The explicit discount amount
+        const totalAmountDue = (r.cost || 0) + ongoingCost; // Final cost shown on invoice after discount + any ongoing charges
         const paid = r.paidAmount || 0;
-        const remaining = totalDue - paid;
+        const remaining = totalAmountDue - paid;
+        
+        // VAT calculation based on the total amount BEFORE any explicit discount.
+        const vatAmount = r.includeVAT ? (costBeforeDiscountApplied) * (20/120) : 0;
 
         return (
-          <div className="space-y-1 text-sm">
-            {/* Rate in green */}
-            <div className="text-green-600">
-              <strong>Rate:</strong> {formatCurrency(effectiveRate)}{r.negotiatedRate != null && ' (Negotiated)'}
+          <div className="space-y-1 text-base"> {/* Changed text-sm to text-base */}
+            {/* Rate */}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Rate:</span>
+              <span className="font-medium">{formatCurrency(effectiveRate)}/{baseUnitString}{isNegotiated && ' (N)'}</span>
             </div>
 
-             {/* Base Rental Cost based on Period and Rate */}
-             <div className="text-gray-800">
-               <strong>Base Cost:</strong> {baseUnits} {r.type === 'weekly' ? 'week' : 'day'}{baseUnits > 1 ? 's' : ''} × {formatCurrency(effectiveRate)} = {formatCurrency(baseCostCalculated)}
-             </div>
+            {/* Base Period */}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Period:</span>
+              <span className="font-medium">{baseUnits} {baseUnitString}{baseUnits > 1 ? 's' : ''}</span>
+            </div>
 
-
-            {/* Ongoing in red */}
-            {ongoing > 0 && (
-              <div className="text-red-600">
-                <strong>Ongoing Charges:</strong> +{formatCurrency(ongoing)}
+            {/* Ongoing Period */}
+            {ongoingUnits > 0 && (
+              <div className="flex justify-between text-red-600">
+                <span className="text-red-500">Ongoing:</span>
+                <span className="font-medium">{ongoingUnits} {baseUnitString}{ongoingUnits > 1 ? 's' : ''}</span>
               </div>
             )}
+            
+            <div className="border-t my-1"></div>
 
-             {/* Claim extras in dark gray */}
-            {r.type === 'claim' && (storageWithVAT > 0 || recoveryWithVAT > 0 || deliveryWithVAT > 0 || collectionWithVAT > 0 || insuranceWithVAT > 0) && (
-              <div className="text-gray-800">
-                <strong>Claim Extra Charges:</strong> {formatCurrency(storageWithVAT + recoveryWithVAT + deliveryWithVAT + collectionWithVAT + insuranceWithVAT)}
-              </div>
-            )}
+            {/* Subtotal (Base Cost + Ongoing + Discount amount re-added for full subtotal) */}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Subtotal:</span>
+              <span className="font-medium">{formatCurrency(costBeforeDiscountApplied)}</span>
+            </div>
 
-
-            {/* Subtotal before overall VAT */}
-             <div>
-               <strong>Subtotal (before VAT):</strong> {formatCurrency(totalBeforeOverallVAT)}
-             </div>
-             {/* Overall VAT */}
-             {r.includeVAT && (
-                <div className="text-blue-600">
-                    <strong>VAT (20%):</strong> {formatCurrency(totalWithOverallVAT - totalBeforeOverallVAT)}
+            {/* Discount */}
+            {totalDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                    <span className="text-green-500">Discount:</span>
+                    <span className="font-medium">-{formatCurrency(totalDiscount)}</span>
                 </div>
-             )}
-            {/* Total normal */}
-            <div>
-              <strong>Total (with VAT):</strong> {formatCurrency(totalWithOverallVAT)}
-            </div>
-
-
-            {/* Discount in blue */}
-            {discount > 0 && (
-              <div className="text-blue-600">
-                <strong>Discount:</strong> -{formatCurrency(discount)}
-              </div>
             )}
 
-             {/* Total Due After Discount */}
-             <div className="font-semibold">
-                 <strong>Total After Discount:</strong> {formatCurrency(totalDue)}
-             </div>
+            {/* Total Amount Due (after discount, before payments) */}
+            <div className="flex justify-between">
+              <span className="font-semibold">Total:</span>
+              <span className="font-bold">{formatCurrency(totalAmountDue)}</span>
+            </div>
 
+            {/* VAT (displayed as included if applicable) */}
+            {r.includeVAT && vatAmount > 0 && (
+                 <div className="flex justify-between text-blue-600">
+                    <span className="text-blue-500">VAT (Inc.):</span>
+                    <span className="font-medium">{formatCurrency(vatAmount)}</span>
+                 </div>
+            )}
 
-            {/* Paid in green, Due in red */}
-            <div>
-              <strong className="text-green-600">Paid:</strong>{' '}
-              <span className="text-green-600">{formatCurrency(paid)}</span>{' '}
-              |{' '}
-              <strong className="text-red-600">Due:</strong>{' '}
-              <span className="text-red-600">{formatCurrency(remaining)}</span>
+            <div className="border-t my-1"></div>
+
+            {/* Paid */}
+            <div className="flex justify-between text-green-700">
+                <span className="font-semibold">Paid:</span>
+                <span className="font-bold">{formatCurrency(paid)}</span>
+            </div>
+
+            {/* Due */}
+            <div className="flex justify-between text-red-700">
+                <span className="font-semibold">Due:</span>
+                <span className="font-bold">{formatCurrency(remaining)}</span>
             </div>
           </div>
         );

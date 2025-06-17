@@ -552,21 +552,20 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       setTimeout(async () => {
         try {
           await createFinanceTransaction({
-            type: "income",
-            category: "rental",
-            amount: formData.paidAmount,
-            description: `Rental payment for ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber}) - Rental ID: ${docRef.id.substring(
-              0,
-              6
-            )}`,
-            date: new Date(),
-            referenceId: docRef.id,
-            vehicleId: selectedVehicle.id,
-            customerId: selectedCustomer.id,
-            paymentMethod: formData.paymentMethod,
-            paymentReference: formData.paymentReference || null,
-            status: "completed",
-          });
+          type: 'income',
+          category: 'Rental', // Capitalize R
+          amount: formData.paidAmount,
+          description: `A ${formData.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'}) - Rental ID: ${docRef.id}`, // More descriptive
+          referenceId: docRef.id,
+          paymentMethod: formData.paymentMethod,
+          paymentReference: formData.paymentReference,
+          status: 'completed',
+          date: new Date(),
+          vehicleId: formData.vehicleId,
+          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+          customerId: formData.customerId, // Pass customerId
+          customerName: selectedCustomer?.name, // Pass customerName
+        });
         } catch {
           toast.error("Rental created, but failed to record finance transaction.");
         }

@@ -12,7 +12,7 @@ import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteM
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { Plus, Download, FileText, Edit2, Trash2 } from 'lucide-react';
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
-import { MaintenanceLog, Vehicle } from '../types';
+import { MaintenanceLog, Vehicle, Customer } from '../types'; // IMPORT Customer type
 import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails } from '../utils/documentGenerator';
 import { MaintenanceDocument, MaintenanceBulkDocument } from '../components/pdf/documents';
 import { saveAs } from 'file-saver';
@@ -21,21 +21,31 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import maintenanceCategoryService from '../services/maintenanceCategory.service';
+import { useCustomers } from '../hooks/useCustomers'; // IMPORT useCustomers hook
 
 const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
+  const { customers, loading: customersLoading } = useCustomers(); // FETCH customers
   const { can } = usePermissions();
   const { user } = useAuth();
   const { companyDetails } = useCompanyDetails();
 
-  // Build a map for quick lookups
+  // Build a map for quick vehicle lookups
   const vehiclesMap = React.useMemo(() => {
     return vehicles.reduce((acc, vehicle) => {
       acc[vehicle.id] = vehicle;
       return acc;
     }, {} as Record<string, Vehicle>);
   }, [vehicles]);
+
+  // BUILD a map for quick customer lookups
+  const customersMap = React.useMemo(() => {
+    return customers.reduce((acc, customer) => {
+      acc[customer.id] = customer;
+      return acc;
+    }, {} as Record<string, Customer>);
+  }, [customers]);
 
   const {
     searchQuery,
@@ -201,7 +211,8 @@ const Maintenance: React.FC = () => {
           MaintenanceBulkDocument,
           filteredLogs,
           companyDetailsData,
-          vehiclesMap
+          vehiclesMap,
+          customersMap // PASS customersMap here
         );
 
         saveAs(pdfBlob, 'maintenance_records.pdf');
@@ -213,10 +224,11 @@ const Maintenance: React.FC = () => {
         toast.error('Failed to generate PDF');
       }
     },
-    [filteredLogs, vehiclesMap]
+    [filteredLogs, vehiclesMap, customersMap] // ADD customersMap to dependency array
   );
 
-  if (vehiclesLoading || logsLoading) {
+  // UPDATE loading check to include customers
+  if (vehiclesLoading || logsLoading || customersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

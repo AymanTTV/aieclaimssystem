@@ -25,15 +25,13 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
   onStatusFilterChange,
   collectionFilter,
   onCollectionFilterChange,
-  // Renamed prop
   periodDateRange,
   onPeriodDateRangeChange,
-  // New props
-  periodOverlapDateRange, // Updated prop name
-  onPeriodOverlapDateRangeChange, // Updated prop name
+  periodOverlapDateRange,
+  onPeriodOverlapDateRangeChange,
 }) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-6"> {/* Increased vertical space between sections */}
       {/* Search Bar */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -48,17 +46,17 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
         />
       </div>
 
-      {/* Filter Controls */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Filter Controls Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
         {/* Status Filter */}
         <div>
-            <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700">Status</label>
             <select
               id="statusFilter"
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              className="form-select mt-1 block w-full" /* Added form-select and mt-1 */
             >
               <option value="all">All Status</option>
               <option value="unpaid">Unpaid</option>
@@ -69,12 +67,12 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
 
         {/* Collection Filter */}
         <div>
-            <label htmlFor="collectionFilter" className="block text-sm font-medium text-gray-700 mb-1">Collection</label>
+            <label htmlFor="collectionFilter" className="block text-sm font-medium text-gray-700">Collection</label>
             <select
               id="collectionFilter"
               value={collectionFilter}
               onChange={(e) => onCollectionFilterChange(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              className="form-select mt-1 block w-full" /* Added form-select and mt-1 */
             >
               <option value="all">All Collections</option>
               <option value="OFFICE">OFFICE</option>
@@ -84,44 +82,44 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             </select>
         </div>
 
-         {/* Period Overlap Date Range Filters (New Filter Logic) */}
-         {/* Renamed labels */}
-         <div className="col-span-full sm:col-span-2 grid grid-cols-2 gap-4">
-            <div className="flex flex-col">
-                <label htmlFor="periodOverlapStartDate" className="block text-sm font-medium text-gray-700 mb-1">Period Overlap Start</label>
+         {/* Period Overlap Date Range Filters */}
+         {/* Using a nested grid for the two date inputs to ensure they span two columns on small/medium screens */}
+         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* Adjusted col-span for larger screens */}
+            <div>
+                <label htmlFor="periodOverlapStartDate" className="block text-sm font-medium text-gray-700">Period Overlap Start</label>
                 <input
                   type="date"
                   id="periodOverlapStartDate"
                   value={periodOverlapDateRange.start?.toISOString().split('T')[0] || ''}
-                  onChange={(e) => onPeriodOverlapDateRangeChange({ // Updated handler name
+                  onChange={(e) => onPeriodOverlapDateRangeChange({
                     ...periodOverlapDateRange,
                     start: e.target.value ? new Date(e.target.value) : null
                   })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  className="form-input mt-1 block w-full" /* Added form-input and mt-1 */
                 />
             </div>
-            <div className="flex flex-col">
-                <label htmlFor="periodOverlapEndDate" className="block text-sm font-medium text-gray-700 mb-1">Period Overlap End</label>
+            <div>
+                <label htmlFor="periodOverlapEndDate" className="block text-sm font-medium text-gray-700">Period Overlap End</label>
                 <input
                   type="date"
                   id="periodOverlapEndDate"
                   value={periodOverlapDateRange.end?.toISOString().split('T')[0] || ''}
-                  onChange={(e) => onPeriodOverlapDateRangeChange({ // Updated handler name
+                  onChange={(e) => onPeriodOverlapDateRangeChange({
                     ...periodOverlapDateRange,
                     end: e.target.value ? new Date(e.target.value) : null
                   })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  className="form-input mt-1 block w-full" /* Added form-input and mt-1 */
                   min={periodOverlapDateRange.start ? periodOverlapDateRange.start.toISOString().split('T')[0] : undefined}
                 />
             </div>
          </div>
 
 
-        {/* Exact Period Date Range Filters (Existing Filter Logic) */}
-         {/* Labels remain the same */}
-        <div className="col-span-full sm:col-span-2 grid grid-cols-2 gap-4">
-          <div className="flex flex-col">
-            <label htmlFor="periodStartDate" className="block text-sm font-medium text-gray-700 mb-1">Exact Period Start</label> {/* Adjusted label for clarity */}
+        {/* Exact Period Date Range Filters */}
+        {/* Using a nested grid for the two date inputs */}
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* Adjusted col-span for larger screens */}
+          <div>
+            <label htmlFor="periodStartDate" className="block text-sm font-medium text-gray-700">Exact Period Start</label>
             <input
               type="date"
               id="periodStartDate"
@@ -130,11 +128,11 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 ...periodDateRange,
                 start: e.target.value ? new Date(e.target.value) : null
               })}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              className="form-input mt-1 block w-full" /* Added form-input and mt-1 */
             />
           </div>
-          <div className="flex flex-col">
-            <label htmlFor="periodEndDate" className="block text-sm font-medium text-gray-700 mb-1">Exact Period End</label> {/* Adjusted label for clarity */}
+          <div>
+            <label htmlFor="periodEndDate" className="block text-sm font-medium text-gray-700">Exact Period End</label>
             <input
               type="date"
               id="periodEndDate"
@@ -143,7 +141,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 ...periodDateRange,
                 end: e.target.value ? new Date(e.target.value) : null
               })}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              className="form-input mt-1 block w-full" /* Added form-input and mt-1 */
               min={periodDateRange.start ? periodDateRange.start.toISOString().split('T')[0] : undefined}
             />
           </div>

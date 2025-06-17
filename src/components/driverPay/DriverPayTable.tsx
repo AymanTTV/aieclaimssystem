@@ -3,12 +3,13 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable'; // Ensure path is correct
 import { DriverPay, PaymentPeriod } from '../../types/driverPay'; // Ensure path is correct
-import { Eye, Edit, DollarSign, Trash2, FileText } from 'lucide-react';
+import { Eye, Edit, DollarSign, Trash2, FileText, CalendarPlus } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge'; // Ensure path is correct
 import { usePermissions } from '../../hooks/usePermissions'; // Ensure path is correct
 import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers'; // Ensure path is correct
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Ensure path is correct
+
 
 interface DriverPayTableProps {
   records: DriverPay[];
@@ -17,8 +18,8 @@ interface DriverPayTableProps {
   onDelete: (record: DriverPay) => void;
   onRecordPayment: (record: DriverPay) => void;
   onGenerateDocument: (record: DriverPay) => void;
-  // Add onViewDocument prop if it exists in your actual implementation
-  onViewDocument?: (url: string) => void; // Made optional if not always used/present
+  onViewDocument?: (url: string) => void;
+  onAddPeriod: (record: DriverPay) => void; // <-- Add this new prop
 }
 
 const DriverPayTable: React.FC<DriverPayTableProps> = ({
@@ -28,7 +29,8 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   onDelete,
   onRecordPayment,
   onGenerateDocument,
-  onViewDocument // Destructure the prop
+  onViewDocument, // Destructure the prop
+  onAddPeriod
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay(); // Use the hook
@@ -214,6 +216,19 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                 <FileText className="h-4 w-4" />
               </button>
            )}
+
+           {can('driverPay', 'create') && ( // Assuming 'create' permission for adding periods
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddPeriod(row.original); // Call the new handler
+          }}
+          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100" // New styling
+          title="Add Payment Period"
+        >
+          <CalendarPlus className="h-4 w-4" />
+        </button>
+      )}
            {/* View Document Action - Conditionally shown */}
            {/* Ensure onViewDocument prop is passed and handled */}
            {onViewDocument && row.original.documentUrl && (

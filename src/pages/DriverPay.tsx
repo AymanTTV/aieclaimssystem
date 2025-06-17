@@ -1,13 +1,14 @@
 // src/pages/DriverPay.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase'; // Assuming storage is used elsewhere or for future use
 import { usePermissions } from '../hooks/usePermissions';
 import { useDriverPay } from '../hooks/useDriverPay';
 import { useDriverPayFilters } from '../hooks/useDriverPayFilters';
-import { Download, Plus, Search, FileText } from 'lucide-react'; // Ensure Search is used if needed by filters
+import { Download, Plus, Search, FileText, Calendar } from 'lucide-react'; // Ensure Search is used if needed by filters
 import { useAuth } from '../context/AuthContext';
+import AddPaymentPeriodModal from '../components/driverPay/AddPaymentPeriodModal';
 import { format } from 'date-fns';
 import { DriverPay } from '../types/driverPay';
 import DriverPayForm from '../components/driverPay/DriverPayForm';
@@ -67,6 +68,7 @@ const DriverPayPage = () => {
   const [editingRecord, setEditingRecord] = useState<DriverPay | null>(null);
   const [recordingPayment, setRecordingPayment] = useState<DriverPay | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<DriverPay | null>(null);
+  const [addingPeriodToRecord, setAddingPeriodToRecord] = useState<DriverPay | null>(null);
 
   // --- Sort the filtered records by driver number descending ---
   const sortedFilteredRecords = [...filteredRecords].sort((a, b) => {
@@ -111,6 +113,15 @@ const DriverPayPage = () => {
     setDeletingRecord(record);
   };
 
+  const handlePeriodAdded = (updatedRecord: DriverPay) => {
+  // This function will be called when a period is successfully added
+  // The `useDriverPay` hook is typically real-time, so it should automatically re-render
+  // your table/summary with the updated data. If not, you might need to manually
+  // update the `records` state or refetch.
+  setAddingPeriodToRecord(null); // Close the modal
+  toast.success('Driver pay record updated with new period!');
+};
+
   // Actual deletion logic, called from confirmation modal
   const confirmDelete = async () => {
     if (!deletingRecord) return;
@@ -124,6 +135,10 @@ const DriverPayPage = () => {
         setDeletingRecord(null); // Close confirmation modal even on error
     }
   };
+
+  const handleAddPeriod = useCallback((record: DriverPay) => {
+  setAddingPeriodToRecord(record);
+}, []);
 
 
   const handleGenerateDocument = async (record: DriverPay) => {
@@ -286,6 +301,7 @@ const DriverPayPage = () => {
         onRecordPayment={(record) => setRecordingPayment(record)}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={handleViewDocument}
+        onAddPeriod={handleAddPeriod}
       />
        {/* Optional: Message when no records match filters */}
        {sortedFilteredRecords.length === 0 && !loading && (
@@ -341,6 +357,21 @@ const DriverPayPage = () => {
           />
         )}
       </Modal>
+
+      {/* NEW: Add Payment Period Modal */}
+<Modal
+  isOpen={!!addingPeriodToRecord}
+  onClose={() => setAddingPeriodToRecord(null)}
+  title={`Add Payment Period to ${addingPeriodToRecord?.name || 'Record'}`}
+>
+  {addingPeriodToRecord && (
+    <AddPaymentPeriodModal
+      driverPayRecord={addingPeriodToRecord}
+      onClose={() => setAddingPeriodToRecord(null)}
+      onPeriodAdded={handlePeriodAdded}
+    />
+  )}
+</Modal>
 
       {/* Delete Confirmation Modal (Original structure for content) */}
       <Modal

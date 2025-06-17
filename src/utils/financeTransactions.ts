@@ -24,6 +24,8 @@ interface FinanceTransactionParams {
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
+  customerId?: string; // NEW: Add customerId
+  customerName?: string; // NEW: Add customerName
 }
 
 export const createMaintenanceTransaction = async (
@@ -45,93 +47,120 @@ export const createMaintenanceTransaction = async (
   const snapshot = await getDocs(q);
 
   if (!snapshot.empty) {
-    // Update existing transaction
-    const existingTransaction = snapshot.docs[0];
-    await updateDoc(doc(db, 'transactions', existingTransaction.id), {
-      amount: amount,
-      paymentMethod,
-      paymentReference,
-      paymentStatus: 'paid',
-      updatedAt: new Date()
-    });
-    
-    toast.success('Maintenance transaction updated');
-    return { success: true, id: existingTransaction.id };
-  } else {
-    // Create new transaction
-    return createFinanceTransaction({
-      type: 'expense',
-      category: 'maintenance',
-      amount,
-      description: `Maintenance payment for ${maintenanceLog.description}`,
-      referenceId: maintenanceLog.id,
-      vehicleId: vehicle.id,
-      vehicleName: `${vehicle.make} ${vehicle.model}`,
-      vehicleOwner: vehicle.owner || { name: 'AIE Skyline', isDefault: true },
-      paymentMethod,
-      paymentReference,
-      paymentStatus: 'paid',
-      date: new Date()
-    });
+    console.warn('Transaction for this maintenance log already exists.');
+    toast.error('Transaction for this maintenance log already exists.');
+    return;
+  }
+
+  const transaction: Transaction = {
+    type: 'expense',
+    category: 'Maintenance',
+    amount,
+    description: `Maintenance for ${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`,
+    referenceId: maintenanceLog.id,
+    vehicleId: vehicle.id,
+    vehicleName: `${vehicle.make} ${vehicle.model}`,
+    paymentMethod,
+    paymentStatus: 'paid',
+    date: new Date(),
+    createdAt: new Date(),
+    createdBy: 'system', // Or current user's ID
+  };
+
+  if (paymentReference) {
+    transaction.paymentReference = paymentReference;
+  }
+
+  try {
+    await addDoc(collection(db, 'transactions'), transaction);
+    toast.success('Maintenance transaction created successfully!');
+  } catch (error) {
+    console.error('Error creating maintenance transaction:', error);
+    toast.error('Failed to create maintenance transaction');
   }
 };
 
-export const createFinanceTransaction = async ({
-  type,
-  category,
-  amount,
-  description,
-  referenceId,
-  vehicleId,
-  vehicleName,
-  vehicleOwner,
-  status = 'completed',
-  paymentMethod,
-  paymentReference,
-  paymentStatus = 'paid',
-  date = new Date(),
-  accountFrom,
-  accountTo
-}: FinanceTransactionParams) => {
+
+export const createFinanceTransaction = async (params: FinanceTransactionParams) => {
+  const {
+    type,
+    category,
+    amount,
+    description,
+    referenceId,
+    vehicleId,
+    vehicleName,
+    vehicleOwner,
+    status,
+    paymentMethod,
+    paymentReference,
+    paymentStatus,
+    date,
+    accountFrom,
+    accountTo,
+    customerId, // NEW
+    customerName, // NEW
+  } = params;
+
   try {
-    // Validate required fields
-    if (!type || !category || !amount || !description || !referenceId) {
-      console.error('Missing required fields:', { type, category, amount, description, referenceId });
-      throw new Error('Missing required fields for finance transaction');
-    }
-
-    console.log('Creating finance transaction:', {
-      type,
-      category,
-      amount,
-      description,
-      referenceId
-    });
-
-    // Update account balances if specified
-    if (accountFrom) {
-      const accountFromRef = doc(db, 'accounts', accountFrom);
-      const accountFromDoc = await getDoc(accountFromRef);
-      
-      if (accountFromDoc.exists()) {
-        const accountFromData = accountFromDoc.data();
-        await updateDoc(accountFromRef, {
-          balance: type === 'expense' ? accountFromData.balance - amount : accountFromData.balance + amount,
-          updatedAt: new Date()
-        });
+    // If it's a transfer, update account balances
+    if (type === 'transfer') {
+      if (!accountFrom || !accountTo) {
+        toast.error('Transfer requires both from and to accounts');
+        return { success: false };
       }
-    }
 
-    if (accountTo) {
+      const accountFromRef = doc(db, 'accounts', accountFrom);
       const accountToRef = doc(db, 'accounts', accountTo);
-      const accountToDoc = await getDoc(accountToRef);
-      
-      if (accountToDoc.exists()) {
+
+      const [accountFromDoc, accountToDoc] = await Promise.all([
+        getDoc(accountFromRef),
+        getDoc(accountToRef)
+      ]);
+
+      if (accountFromDoc.exists() && accountToDoc.exists()) {
+        const accountFromData = accountFromDoc.data();
         const accountToData = accountToDoc.data();
-        await updateDoc(accountToRef, {
-          balance: type === 'income' ? accountToData.balance + amount : accountToData.balance - amount,
+
+        await updateDoc(accountFromRef, {
+          balance: accountFromData.balance - amount,
           updatedAt: new Date()
         });
+
+        await updateDoc(accountToRef, {
+          balance: accountToData.balance + amount,
+          updatedAt: new Date()
+        });
+      } else {
+        toast.error('One or both accounts not found for transfer');
+        return { success: false };
+      }
+    } else {
+      // For income/expense, update single account if specified
+      if (accountFrom) {
+        const accountFromRef = doc(db, 'accounts', accountFrom);
+        const accountFromDoc = await getDoc(accountFromRef);
+
+        if (accountFromDoc.exists()) {
+          const accountFromData = accountFromDoc.data();
+          await updateDoc(accountFromRef, {
+            balance: type === 'income' ? accountFromData.balance + amount : accountFromData.balance - amount,
+            updatedAt: new Date()
+          });
+        }
+      }
+
+      if (accountTo) {
+        const accountToRef = doc(db, 'accounts', accountTo);
+        const accountToDoc = await getDoc(accountToRef);
+        
+        if (accountToDoc.exists()) {
+          const accountToData = accountToDoc.data();
+          await updateDoc(accountToRef, {
+            balance: type === 'income' ? accountToData.balance + amount : accountToData.balance - amount,
+            updatedAt: new Date()
+          });
+        }
       }
     }
 
@@ -148,6 +177,8 @@ export const createFinanceTransaction = async ({
       ...(paymentReference && { paymentReference }),
       ...(accountFrom && { accountFrom }),
       ...(accountTo && { accountTo }),
+      ...(customerId && { customerId }), // NEW: Include customerId
+      ...(customerName && { customerName }), // NEW: Include customerName
       status,
       paymentStatus,
       date,
@@ -162,6 +193,6 @@ export const createFinanceTransaction = async ({
   } catch (error) {
     console.error('Error creating finance transaction:', error);
     toast.error('Failed to create transaction');
-    throw error;
+    return { success: false };
   }
 };

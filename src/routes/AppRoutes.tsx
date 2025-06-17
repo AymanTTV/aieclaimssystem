@@ -1,52 +1,58 @@
-import React, { lazy } from 'react';
+// src/routes/AppRoutes.tsx
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
-import SkylineIncomeExpense from '../pages/SkylineIncomeExpense';
-// import ProductsPage from '../pages/ProductsPage';
-
 import { lazyLoad } from './lazyLoad';
 
-// Lazy load components
-const AiePettyCash = lazyLoad('AiePettyCash');
-const Share = lazyLoad('Share');
-const VATRecord = lazyLoad('VATRecord');
-const DriverPay = lazyLoad('DriverPay');
+// --- Lazy load ALL page components using the HOC for consistency ---
+
+// Public pages
 const Login = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
+
+// Main protected pages
 const Dashboard = lazyLoad('Dashboard');
 const Profile = lazyLoad('Profile');
+const ProductsPage = lazyLoad('ProductsPage'); // FIX: Now uses lazyLoad
 const Vehicles = lazyLoad('Vehicles');
 const Maintenance = lazyLoad('Maintenance');
 const Rentals = lazyLoad('Rentals');
 const Accidents = lazyLoad('Accidents');
-const Claims = lazyLoad('Claims');
-
-const PersonalInjury = lazyLoad('PersonalInjury');
-
-
-const Finance = lazyLoad('Finance');
-const Invoices = lazyLoad('Invoices');
-const PettyCash = lazyLoad('PettyCash');
 const Users = lazyLoad('Users');
 const Customers = lazyLoad('Customers');
 const CompanyManagers = lazyLoad('CompanyManagers');
+const Chat = lazyLoad('Chat');
+const BulkEmail = lazyLoad('BulkEmail');
+const Share = lazyLoad('Share');
+
+// Claims pages
+const Claims = lazyLoad('Claims');
 const VDFinance = lazyLoad('VDFinance');
 const VDInvoice = lazyLoad('VDInvoice');
-const BulkEmail = lazyLoad('BulkEmail');
-const Chat = lazyLoad('Chat');
+const PersonalInjury = lazyLoad('PersonalInjury');
 
-// lazy‐load your new page
-const ProductsPage = lazy(() => import('../pages/ProductsPage'));
+// Finance pages
+const Finance = lazyLoad('Finance');
+const Invoices = lazyLoad('Invoices');
+const PettyCash = lazyLoad('PettyCash');
+const VATRecord = lazyLoad('VATRecord');
+const IncomeExpense = lazyLoad('IncomeExpense'); // FIX: Now uses lazyLoad
 
-const IncomeExpense = React.lazy(() => import('../pages/IncomeExpense'));
+// Skyline Cabs pages
+const DriverPay = lazyLoad('DriverPay');
+const AiePettyCash = lazyLoad('AiePettyCash');
+const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense'); // FIX: Now uses lazyLoad
+
 
 const AppRoutes = () => {
   return (
     <Routes>
+      {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/admin-setup" element={<AdminSetup />} />
-      
+
+      {/* Protected Routes */}
       <Route path="/" element={
         <ProtectedRoute>
           <Layout>
@@ -71,16 +77,16 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-       <Route
-  path="/products"
-  element={
-    <ProtectedRoute requiredPermission={{ module:'products', action:'view' }}>
-      <Layout>
-        <ProductsPage />
-      </Layout>
-    </ProtectedRoute>
-  }
-/>
+      <Route
+        path="/products"
+        element={
+          <ProtectedRoute requiredPermission={{ module:'products', action:'view' }}>
+            <Layout>
+              <ProductsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="/skyline-caps/driver-pay" element={
         <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
@@ -90,21 +96,23 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-<Route path="/income-expense" element={
-  <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
-    <Layout>
-      <IncomeExpense />
-    </Layout>
-  </ProtectedRoute>
-} />
+      {/* This is the general Finance Income & Expense */}
+      <Route path="/income-expense" element={
+        <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+          <Layout>
+            <IncomeExpense />
+          </Layout>
+        </ProtectedRoute>
+      } />
 
-<Route path="/skyline-caps/income-expense" element={
-  <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
-    <Layout>
-      <SkylineIncomeExpense />
-    </Layout>
-  </ProtectedRoute>
-} />
+      {/* This is the Skyline-specific Income & Expense */}
+      <Route path="/skyline-caps/income-expense" element={
+        <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
+          <Layout>
+            <SkylineIncomeExpense />
+          </Layout>
+        </ProtectedRoute>
+      } />
 
       <Route path="/finance/vat-records" element={
         <ProtectedRoute requiredPermission={{ module: 'vatRecord', action: 'view' }}>
@@ -121,7 +129,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/profile" element={
         <ProtectedRoute>
           <Layout>
@@ -129,7 +137,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/vehicles" element={
         <ProtectedRoute requiredPermission={{ module: 'vehicles', action: 'view' }}>
           <Layout>
@@ -137,7 +145,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/maintenance" element={
         <ProtectedRoute requiredPermission={{ module: 'maintenance', action: 'view' }}>
           <Layout>
@@ -145,7 +153,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/rentals" element={
         <ProtectedRoute requiredPermission={{ module: 'rentals', action: 'view' }}>
           <Layout>
@@ -153,7 +161,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/accidents" element={
         <ProtectedRoute requiredPermission={{ module: 'accidents', action: 'view' }}>
           <Layout>
@@ -162,15 +170,14 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-<Route path="/share" element={
+      <Route path="/share" element={
         <ProtectedRoute requiredPermission={{ module: 'share', action: 'view' }}>
           <Layout>
             <Share />
           </Layout>
         </ProtectedRoute>
       } />
-      {/* <Route path="/share" element={<Share />} />
-       */}
+
       <Route path="/claims" element={
         <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
           <Layout>
@@ -194,7 +201,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/finance" element={
         <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
           <Layout>
@@ -211,6 +218,7 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
+      {/* This is the general Finance Petty Cash */}
       <Route path="/finance/petty-cash" element={
         <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
           <Layout>
@@ -218,7 +226,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/users" element={
         <ProtectedRoute requiredPermission={{ module: 'users', action: 'view' }}>
           <Layout>
@@ -226,7 +234,7 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/customers" element={
         <ProtectedRoute requiredPermission={{ module: 'customers', action: 'view' }}>
           <Layout>
@@ -242,7 +250,8 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      
+
+      {/* Catch-all route to redirect to dashboard */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

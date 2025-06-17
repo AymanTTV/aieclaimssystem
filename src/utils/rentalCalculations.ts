@@ -1,5 +1,5 @@
 // rentalCalculations.ts
-import { addDays, differenceInDays, isAfter } from 'date-fns';
+import { addDays, differenceInDays, isAfter, differenceInHours } from 'date-fns';
 import { Vehicle, Rental } from '../types'; // Assuming Rental is imported from '../types'
 
 // Default rental rates (whole numbers)
@@ -47,8 +47,12 @@ export const calculateRentalCost = (
 
   let baseCost = 0; // Initialize baseCost
 
-  // Calculate total days (including end date) - ensure dates are valid
-  const totalDays = differenceInDays(endDate, startDate) + 1;
+  // --- MODIFIED: Switched to a more precise hour-based calculation ---
+  // This correctly calculates the number of 24-hour periods to charge for.
+  const totalHours = differenceInHours(endDate, startDate);
+  // A rental for 0 or negative hours (e.g. 11:00 to 11:00) is charged as 1 day minimum.
+  const totalDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
+
 
   // Calculate base cost based on rental type/reason
   if (type === 'claim' || reason === 'claim') { // Consolidated claim logic

@@ -1,13 +1,16 @@
+// RentalPaymentModal.tsx
 import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Rental, Vehicle } from '../../types';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext'; // Using the user's provided path
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+
 
 interface RentalPaymentModalProps {
   rental: Rental;
@@ -21,6 +24,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   onClose
 }) => {
   const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     amountToPay: '0',
@@ -31,25 +35,28 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
   // Calculate current costs
   const now = new Date();
-  const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate) 
+  const ongoingCharges = rental.status === 'active' && isAfter(now, rental.endDate)
     ? calculateOverdueCost(rental, now, vehicle)
     : 0;
 
-  // Calculate all cost components
-  const baseCost = rental.cost;
-  const standardCost = rental.standardCost || baseCost;
-  const negotiatedDiscount = rental.standardCost ? rental.standardCost - rental.cost : 0;
-  const discountAmount = rental.discountAmount || 0;
-  const totalCost = baseCost + ongoingCharges;
-  const remainingAmount = totalCost - rental.paidAmount - discountAmount;
+  // rental.cost is the final amount due after all calculations including VAT and discount.
+  const appliedDiscount = rental.discountAmount || 0;
+
+  // Total amount due for this rental (rental.cost) + any new ongoing charges
+  const totalAmountDue = (rental.cost || 0) + ongoingCharges;
+  const paid = rental.paidAmount || 0;
+  const remainingAmount = totalAmountDue - paid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    
+    if (!user) {
+      toast.error('User not authenticated.');
+      return;
+    }
+
     const paymentAmount = parseFloat(formData.amountToPay);
     if (isNaN(paymentAmount) || paymentAmount <= 0 || paymentAmount > remainingAmount) {
-      toast.error('Invalid payment amount');
+      toast.error(`Invalid payment amount. Amount must be between £0.01 and ${formatCurrency(remainingAmount)}`);
       return;
     }
 
@@ -70,8 +77,9 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
       // Calculate new totals
       const newPaidAmount = rental.paidAmount + paymentAmount;
-      const newRemainingAmount = totalCost - newPaidAmount - discountAmount;
-      const newPaymentStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
+      const newRemainingAmount = totalAmountDue - newPaidAmount;
+      const newPaymentStatus = newRemainingAmount <= 0.001 ? 'paid' : 'partially_paid'; // Use a small epsilon for float comparison
+
 
       // Update rental record
       await updateDoc(doc(db, 'rentals', rental.id), {
@@ -82,18 +90,21 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         updatedAt: new Date()
       });
 
-      // Create finance transaction
+      // Create finance transaction with updated category and description
       await createFinanceTransaction({
         type: 'income',
-        category: 'rental',
+        category: 'Rental', // Capitalize 'R' as requested
         amount: paymentAmount,
-        description: `Rental payment for ${rental.type} rental`,
+        // Improved description with rental type and customer information (N/A if not available)
+        description: `A ${rental.type} Rental payment from customer (N/A) - Rental ID: ${rental.id}`,
         referenceId: rental.id,
         vehicleId: rental.vehicleId,
-        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+        customerId: rental.customerId, // Ensure customerId is passed
+        // customerName is not directly available in this modal, hence 'N/A' in description.
+        // If customer name is needed, it would need to be fetched or passed as a prop.
         paymentMethod: formData.method,
         paymentReference: formData.reference || undefined,
-        paymentStatus: newPaymentStatus
+        status: newPaymentStatus // Use the new payment status
       });
 
       toast.success('Payment recorded successfully');
@@ -110,60 +121,38 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Cost Summary */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-        {/* Base Cost */}
-        <div className="flex justify-between text-sm">
-          <span>Base Cost:</span>
-          <span className="font-medium">£{baseCost.toFixed(2)}</span>
+        {/* Total Amount Due before payments (includes base cost, ongoing, and discount already applied in rental.cost) */}
+        <div className="flex justify-between text-sm font-medium">
+          <span>Total Amount Due:</span>
+          <span>{formatCurrency(totalAmountDue)}</span>
         </div>
 
-        {/* Standard Cost (if different) */}
-        {standardCost !== baseCost && (
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Standard Rate:</span>
-            <span>£{standardCost.toFixed(2)}</span>
-          </div>
-        )}
-
-        {/* Negotiated Discount */}
-        {negotiatedDiscount > 0 && (
-          <div className="flex justify-between text-sm text-blue-600">
-            <span>Negotiated Discount:</span>
-            <span>-£{negotiatedDiscount.toFixed(2)}</span>
-          </div>
-        )}
-        
         {/* Ongoing Charges */}
         {ongoingCharges > 0 && (
           <div className="flex justify-between text-sm text-red-600">
             <span>Ongoing Charges:</span>
-            <span>+£{ongoingCharges.toFixed(2)}</span>
+            <span>+{formatCurrency(ongoingCharges)}</span>
           </div>
         )}
 
         {/* Applied Discount */}
-        {discountAmount > 0 && (
+        {appliedDiscount > 0 && (
           <div className="flex justify-between text-sm text-green-600">
-            <span>Discount ({rental.discountPercentage}%):</span>
-            <span>-£{discountAmount.toFixed(2)}</span>
+            <span>Discount ({rental.discountPercentage ? `${rental.discountPercentage}%` : 'Applied'}):</span>
+            <span>-{formatCurrency(appliedDiscount)}</span>
           </div>
         )}
-
-        {/* Total Cost */}
-        <div className="flex justify-between text-sm font-medium pt-2 border-t">
-          <span>Total Cost:</span>
-          <span>£{totalCost.toFixed(2)}</span>
-        </div>
 
         {/* Amount Paid */}
         <div className="flex justify-between text-sm text-green-600">
           <span>Amount Paid:</span>
-          <span>£{rental.paidAmount.toFixed(2)}</span>
+          <span>{formatCurrency(paid)}</span>
         </div>
 
         {/* Remaining Amount */}
         <div className="flex justify-between text-sm text-amber-600 pt-2 border-t">
           <span>Remaining Amount:</span>
-          <span>£{remainingAmount.toFixed(2)}</span>
+          <span>{formatCurrency(remainingAmount)}</span>
         </div>
       </div>
 
