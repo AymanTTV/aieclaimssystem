@@ -21,6 +21,7 @@ const PettyCash = () => {
   const { transactions, loading } = usePettyCash();
   const { can } = usePermissions();
   const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
 
   const {
     searchQuery,
@@ -31,18 +32,16 @@ const PettyCash = () => {
     setStatusFilter,
     amountRange,
     setAmountRange,
-    filteredTransactions
+    filteredTransactions,
   } = usePettyCashFilters(transactions);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PettyCashTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<PettyCashTransaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
-  // Calculate summary totals
+
   const totalIn = filteredTransactions.reduce((sum, t) => sum + Number(t.amountIn || 0), 0);
   const totalOut = filteredTransactions.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
-
   const netIncome = totalIn - totalOut;
   const profitMargin = totalIn > 0 ? (netIncome / totalIn) * 100 : 0;
 
@@ -59,14 +58,7 @@ const PettyCash = () => {
 
   const handleGenerateDocument = async (transaction: PettyCashTransaction) => {
     try {
-      await generateAndUploadDocument(
-        PettyCashDocument,
-        transaction,
-        'pettyCash',
-        transaction.id,
-        'pettyCash'
-      );
-      
+      await generateAndUploadDocument(PettyCashDocument, transaction, 'pettyCash', transaction.id, 'pettyCash');
       toast.success('Document generated successfully');
     } catch (error) {
       console.error('Error generating document:', error);
@@ -88,33 +80,36 @@ const PettyCash = () => {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      {can('pettyCash', 'cards') && (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total In</h3>
-          <p className="mt-2 text-3xl font-semibold text-green-600">{formatCurrency(totalIn)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total Out</h3>
-          <p className="mt-2 text-3xl font-semibold text-red-600">{formatCurrency(totalOut)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Balance</h3>
-          <p className="mt-2 text-3xl font-semibold text-blue-600">{formatCurrency(netIncome)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Profit Margin</h3>
-          <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
-        </div>
-      </div>
-      )}
 
-      {/* Header with Search and Filters */}
+      {can('pettyCash', 'cards') && (
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      <h3 className="text-sm font-medium text-gray-500">Total In</h3>
+      <p className="mt-2 text-3xl font-semibold text-green-600">{formatCurrency(totalIn)}</p>
+    </div>
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      <h3 className="text-sm font-medium text-gray-500">Total Out</h3>
+      <p className="mt-2 text-3xl font-semibold text-red-600">{formatCurrency(totalOut)}</p>
+    </div>
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      <h3 className="text-sm font-medium text-gray-500">Balance</h3>
+      <p className="mt-2 text-3xl font-semibold text-blue-600">{formatCurrency(netIncome)}</p>
+    </div>
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      <h3 className="text-sm font-medium text-gray-500">Profit Margin</h3>
+      <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
+    </div>
+  </div>
+)}
+
       <PettyCashHeader
-        onSearch={setSearchQuery}
-        onAdd={() => setShowForm(true)}
-      />
+  title="Petty Cash"
+  onSearch={setSearchQuery}
+  onAdd={() => setShowForm(true)}
+  transactions={filteredTransactions}
+/>
+
+
 
       <PettyCashFilters
         dateRange={dateRange}
@@ -125,7 +120,6 @@ const PettyCash = () => {
         onAmountRangeChange={setAmountRange}
       />
 
-      {/* Transactions Table */}
       <PettyCashTable
         transactions={filteredTransactions}
         onView={setSelectedTransaction}
@@ -135,51 +129,25 @@ const PettyCash = () => {
         onViewDocument={handleViewDocument}
       />
 
-      {/* Modals */}
       {can('pettyCash', 'create') && (
-      <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title="New Petty Cash Transaction"
-        size="xl"
-      >
-        <PettyCashForm onClose={() => setShowForm(false)} />
-      </Modal>
+        <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="New Transaction" size="xl">
+          <PettyCashForm onClose={() => setShowForm(false)} />
+        </Modal>
       )}
 
-      <Modal
-        isOpen={!!selectedTransaction}
-        onClose={() => setSelectedTransaction(null)}
-        title="Transaction Details"
-      >
-        {selectedTransaction && (
-          <PettyCashDetails transaction={selectedTransaction} />
-        )}
+      <Modal isOpen={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} title="Transaction Details">
+        {selectedTransaction && <PettyCashDetails transaction={selectedTransaction} />}
       </Modal>
 
-      <Modal
-        isOpen={!!editingTransaction}
-        onClose={() => setEditingTransaction(null)}
-        title="Edit Transaction"
-        size="xl"
-      >
+      <Modal isOpen={!!editingTransaction} onClose={() => setEditingTransaction(null)} title="Edit Transaction" size="xl">
         {editingTransaction && (
-          <PettyCashForm
-            transaction={editingTransaction}
-            onClose={() => setEditingTransaction(null)}
-          />
+          <PettyCashForm transaction={editingTransaction} onClose={() => setEditingTransaction(null)} />
         )}
       </Modal>
 
-      <Modal
-        isOpen={!!deletingTransaction}
-        onClose={() => setDeletingTransaction(null)}
-        title="Delete Transaction"
-      >
+      <Modal isOpen={!!deletingTransaction} onClose={() => setDeletingTransaction(null)} title="Delete Transaction">
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete this transaction? This action cannot be undone.
-          </p>
+          <p className="text-sm text-gray-500">Are you sure you want to delete this transaction?</p>
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => setDeletingTransaction(null)}

@@ -24,63 +24,89 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
   onAmountRangeChange,
 }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Date Range Filter */}
-      <div className="flex space-x-2">
-        <input
-          type="date"
-          value={dateRange.start?.toISOString().split('T')[0] || ''}
-          onChange={(e) => onDateRangeChange({
-            ...dateRange,
-            start: e.target.value ? new Date(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        />
-        <input
-          type="date"
-          value={dateRange.end?.toISOString().split('T')[0] || ''}
-          onChange={(e) => onDateRangeChange({
-            ...dateRange,
-            end: e.target.value ? new Date(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        />
-      </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Date From */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">From</label>
+          <input
+            type="date"
+            value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
+            onChange={(e) =>
+              onDateRangeChange({
+                ...dateRange,
+                start: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
+            className="form-input mt-1"
+          />
+        </div>
 
-      {/* Status Filter */}
-      <select
-        value={statusFilter}
-        onChange={(e) => onStatusFilterChange(e.target.value)}
-        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-      >
-        <option value="all">All Status</option>
-        <option value="pending">Pending</option>
-        <option value="paid">Paid</option>
-        <option value="unpaid">Unpaid</option>
-      </select>
+        {/* Date To */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">To</label>
+          <input
+            type="date"
+            value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
+            onChange={(e) =>
+              onDateRangeChange({
+                ...dateRange,
+                end: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
+            min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
+            className="form-input mt-1"
+          />
+        </div>
 
-      {/* Amount Range Filter */}
-      <div className="flex space-x-2">
-        <input
-          type="number"
-          placeholder="Min Amount"
-          value={amountRange.min || ''}
-          onChange={(e) => onAmountRangeChange({
-            ...amountRange,
-            min: e.target.value ? parseFloat(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        />
-        <input
-          type="number"
-          placeholder="Max Amount"
-          value={amountRange.max || ''}
-          onChange={(e) => onAmountRangeChange({
-            ...amountRange,
-            max: e.target.value ? parseFloat(e.target.value) : null
-          })}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        />
+        {/* Status Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className="form-select mt-1"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+
+        {/* Min Amount */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Min Amount</label>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={amountRange.min ?? ''}
+            onChange={(e) =>
+              onAmountRangeChange({
+                ...amountRange,
+                min: e.target.value ? parseFloat(e.target.value) : null,
+              })
+            }
+            className="form-input mt-1"
+          />
+        </div>
+
+        {/* Max Amount */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Max Amount</label>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={amountRange.max ?? ''}
+            onChange={(e) =>
+              onAmountRangeChange({
+                ...amountRange,
+                max: e.target.value ? parseFloat(e.target.value) : null,
+              })
+            }
+            className="form-input mt-1"
+          />
+        </div>
       </div>
     </div>
   );

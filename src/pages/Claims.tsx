@@ -333,42 +333,89 @@ const Claims: React.FC = () => {
             className="w-full pl-10 pr-3 py-2 border rounded"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2"
-        >
-          <option value="all">All Progress</option>
-          {/* Map over the full list of progress options */}
-          <option value="Your Claim Has Started">Your Claim Has Started</option>
-          <option value="Report to Legal Team - Pending">Report to Legal Team - Pending</option>
-          <option value="TPI (Third Party Insurer) - Notified and Awaiting Response">TPI (Third Party Insurer) - Notified and Awaiting Response</option>
-          <option value="Engineer Report - Pending Completion">Engineer Report - Pending Completion</option>
-          <option value="Vehicle Damage Assessment - Scheduled">Vehicle Damage Assessment - Scheduled</option>
-          <option value="Liability Accepted">Liability Accepted</option>
-          <option value="Liability Disputed">Liability Disputed</option>
-          <option value="TPI Refuses to Deal with Claim">TPI Refuses to Deal with Claim</option>
-          <option value="VD Completed Hire Pack - Awaiting Review">VD Completed Hire Pack - Awaiting Review</option>
-          <option value="Claim - Referred to MIB (Motor Insurers' Bureau)">Claim - Referred to MIB (Motor Insurers' Bureau)</option>
-          <option value="MIB Claim - Under Review/In Progress">MIB Claim - Under Review/In Progress</option>
-          <option value="Awaiting MIB Response/Decision">Awaiting MIB Response/Decision</option>
-          <option value="MIB - Completed (Outcome Received)">MIB - Completed (Outcome Received)</option>
-          <option value="Client Documentation - Pending Submission">Client Documentation - Pending Submission</option>
-          <option value="Hire Pack - Successfully Submitted">Hire Pack - Successfully Submitted</option>
-          <option value="Accident Circumstances - Under Investigation">Accident Circumstances - Under Investigation</option>
-          <option value="MIB Claim - Initial Review in Progress">MIB Claim - Initial Review in Progress</option>
-          <option value="Additional Information - Requested from Client">Additional Information - Requested from Client</option>
-          <option value="Legal Notice - Issued to Third Party">Legal Notice - Issued to Third Party</option>
-          <option value="Court Proceedings - Initiated">Court Proceedings - Initiated</option>
-          <option value="Settlement Offer - Under Review">Settlement Offer - Under Review</option>
-          <option value="Client Approval - Pending for Settlement">Client Approval - Pending for Settlement</option>
-          <option value="Negotiation with TPI - Ongoing">Negotiation with TPI - Ongoing</option>
-          <option value="Settlement Agreement - Finalized">Settlement Agreement - Finalized</option>
-          <option value="Payment Processing - Initiated">Payment Processing - Initiated</option>
-          <option value="Final Payment - Received and Confirmed">Final Payment - Received and Confirmed</option>
-          <option value="Client Payment Disbursed">Client Payment Disbursed</option>
-          <option value="Claim Completed - Record Archived">Claim Completed - Record Archived</option>
-        </select>
+       <select
+  value={statusFilter}
+  onChange={e => setStatusFilter(e.target.value)}
+  className="border rounded px-2"
+>
+  <option value="all">All Progress</option>
+  <option value="Your Claim Has Started">Your Claim Has Started</option>
+  <option value="Client Contacted for Initial Statement">Client Contacted for Initial Statement</option>
+  <option value="Accident Details Verified">Accident Details Verified</option>
+  <option value="Report to Legal Team - Pending">Report to Legal Team - Pending</option>
+  <option value="Legal Team Reviewing Claim">Legal Team Reviewing Claim</option>
+  <option value="Client Documentation - Pending Submission">Client Documentation - Pending Submission</option>
+  <option value="Additional Information - Requested from Client">Additional Information - Requested from Client</option>
+  <option value="Client Failed to Respond">Client Failed to Respond</option>
+  <option value="TPI (Third Party Insurer) - Notified and Awaiting Response">TPI (Third Party Insurer) - Notified and Awaiting Response</option>
+  <option value="TPI Acknowledged Notification">TPI Acknowledged Notification</option>
+  <option value="TPI Refuses to Deal with Claim">TPI Refuses to Deal with Claim</option>
+  <option value="TPI Accepted Liability">TPI Accepted Liability</option>
+  <option value="TPI Rejected Liability">TPI Rejected Liability</option>
+  <option value="TPI Liability - 50/50 Split Under Review">TPI Liability - 50/50 Split Under Review</option>
+  <option value="TPI Liability - 50/50 Split Agreed">TPI Liability - 50/50 Split Agreed</option>
+  <option value="TPI Liability - Partial Split Under Review">TPI Liability - Partial Split Under Review</option>
+  <option value="TPI Liability - Partial Split (Other Ratio Agreed)">TPI Liability - Partial Split (Other Ratio Agreed)</option>
+  <option value="Liability Disputed - Awaiting Evidence from Client">Liability Disputed - Awaiting Evidence from Client</option>
+  <option value="Liability Disputed - TPI Provided Counter Evidence">Liability Disputed - TPI Provided Counter Evidence</option>
+  <option value="Liability Disputed - Under Legal Review">Liability Disputed - Under Legal Review</option>
+  <option value="Liability Disputed - Witness Statement Requested">Liability Disputed - Witness Statement Requested</option>
+  <option value="Liability Disputed - Expert Report Required">Liability Disputed - Expert Report Required</option>
+  <option value="Liability Disputed - Negotiation Ongoing">Liability Disputed - Negotiation Ongoing</option>
+  <option value="Liability Disputed - No Agreement Reached">Liability Disputed - No Agreement Reached</option>
+  <option value="Liability Disputed - Referred to Court">Liability Disputed - Referred to Court</option>
+  <option value="Engineer Assigned">Engineer Assigned</option>
+  <option value="Engineer Report - Pending Completion">Engineer Report - Pending Completion</option>
+  <option value="Engineer Report - Completed">Engineer Report - Completed</option>
+  <option value="Vehicle Damage Assessment - TPI Scheduled">Vehicle Damage Assessment - TPI Scheduled</option>
+  <option value="Vehicle Inspection - Completed">Vehicle Inspection - Completed</option>
+  <option value="Repair Authorisation - Awaiting Approval">Repair Authorisation - Awaiting Approval</option>
+  <option value="Repair in Progress">Repair in Progress</option>
+  <option value="Vehicle Repair - Completed">Vehicle Repair - Completed</option>
+  <option value="Total Loss - Awaiting Valuation">Total Loss - Awaiting Valuation</option>
+  <option value="Total Loss Offer - Made">Total Loss Offer - Made</option>
+  <option value="Total Loss Offer - Accepted">Total Loss Offer - Accepted</option>
+  <option value="Total Loss Offer - Disputed">Total Loss Offer - Disputed</option>
+  <option value="Salvage Collected">Salvage Collected</option>
+  <option value="Salvage Payment Received">Salvage Payment Received</option>
+  <option value="Hire Vehicle - Arranged">Hire Vehicle - Arranged</option>
+  <option value="Hire Period - Ongoing">Hire Period - Ongoing</option>
+  <option value="Hire Vehicle - Off-Hired">Hire Vehicle - Off-Hired</option>
+  <option value="Hire Invoice - Generated">Hire Invoice - Generated</option>
+  <option value="Hire Pack - Successfully Submitted">Hire Pack - Successfully Submitted</option>
+  <option value="VD Completed Hire Pack - Awaiting Review">VD Completed Hire Pack - Awaiting Review</option>
+  <option value="TPI made VD offer - Ongoing">TPI made VD offer - Ongoing</option>
+  <option value="VD Negotiation with TPI - Ongoing">VD Negotiation with TPI - Ongoing</option>
+  <option value="VD payment Received - Prejudice basis">VD payment Received - Prejudice basis</option>
+  <option value="VD payment Received - with VAT">VD payment Received - with VAT</option>
+  <option value="VD payment Received - Without VAT">VD payment Received - Without VAT</option>
+  <option value="PI Medical Report - Requested">PI Medical Report - Requested</option>
+  <option value="PI Medical Report - Received">PI Medical Report - Received</option>
+  <option value="PI Negotiation with TPI - Ongoing">PI Negotiation with TPI - Ongoing</option>
+  <option value="Settlement Offer - Under Review">Settlement Offer - Under Review</option>
+  <option value="Client Approval - Pending for Settlement">Client Approval - Pending for Settlement</option>
+  <option value="Client Rejected Offer">Client Rejected Offer</option>
+  <option value="Settlement Agreement - Finalized">Settlement Agreement - Finalized</option>
+  <option value="Legal Notice - Issued to Third Party">Legal Notice - Issued to Third Party</option>
+  <option value="Court Proceedings - Initiated">Court Proceedings - Initiated</option>
+  <option value="Court Hearing - Awaiting Date">Court Hearing - Awaiting Date</option>
+  <option value="Court Hearing - Completed">Court Hearing - Completed</option>
+  <option value="Judgement in Favour">Judgement in Favour</option>
+  <option value="Judgement Against">Judgement Against</option>
+  <option value="Claim - Referred to MIB (Motor Insurers' Bureau)">Claim - Referred to MIB (Motor Insurers' Bureau)</option>
+  <option value="MIB Claim - Initial Review in Progress">MIB Claim - Initial Review in Progress</option>
+  <option value="MIB Claim - Under Review/In Progress">MIB Claim - Under Review/In Progress</option>
+  <option value="Awaiting MIB Response/Decision">Awaiting MIB Response/Decision</option>
+  <option value="MIB - Completed (Outcome Received)">MIB - Completed (Outcome Received)</option>
+  <option value="Payment Processing - Initiated">Payment Processing - Initiated</option>
+  <option value="Final Payment - Received and Confirmed">Final Payment - Received and Confirmed</option>
+  <option value="Client Payment Disbursed">Client Payment Disbursed</option>
+  <option value="Claim Withdrawn by Client">Claim Withdrawn by Client</option>
+  <option value="Claim Rejected - Insufficient Evidence">Claim Rejected - Insufficient Evidence</option>
+  <option value="Claim Suspended - Pending Client Action">Claim Suspended - Pending Client Action</option>
+  <option value="Claim Completed - Record Archived">Claim Completed - Record Archived</option>
+</select>
+
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
@@ -407,6 +454,7 @@ const Claims: React.FC = () => {
          claimId={notesFor.id}
          existing={notesFor.notes || []}
          onClose={() => setNotesFor(null)}
+         size="xl"
          onChange={() => {
            // optional: re-fetch this claim if you need latest `.notes`
          }}
@@ -465,6 +513,7 @@ const Claims: React.FC = () => {
         <Modal
           isOpen
           onClose={() => setUpdatingProgress(null)}
+          size="xl"
           title="Update Progress"
         >
           <ProgressUpdateModal

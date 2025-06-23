@@ -118,25 +118,29 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         </span>
       ),
     },
-    {
-      header: 'Amount',
+   {
+      header: 'Cost Breakdown',
       cell: ({ row }) => {
         const inv = row.original;
+        // compute total discount from lineItems
+        const totalDiscount = inv.lineItems.reduce((sum, li) => {
+          const gross = li.quantity * li.unitPrice;
+          return sum + (li.discount / 100) * gross;
+        }, 0);
+        const net = inv.subTotal;
+        const vat = inv.vatAmount;
+        const total = net + vat - totalDiscount;
+        const paid = inv.paidAmount;
+        const owing = inv.remainingAmount;
+
         return (
-          <div>
-            <div className="font-medium">{formatCurrency(inv.total)}</div>
-            {inv.paidAmount > 0 && (
-              <div className="text-xs">
-                <span className="text-green-600">
-                  Paid: {formatCurrency(inv.paidAmount)}
-                </span>
-                {inv.remainingAmount > 0 && (
-                  <span className="text-amber-600 ml-1">
-                    Due: {formatCurrency(inv.remainingAmount)}
-                  </span>
-                )}
-              </div>
-            )}
+          <div className="text-sm space-y-1">
+            <div>Net: {formatCurrency(net)}</div>
+            <div>VAT: {formatCurrency(vat)}</div>
+            {/* <div className="text-red-600">Discount: –{formatCurrency(totalDiscount)}</div> */}
+            <div>Total: {formatCurrency(total)}</div>
+            <div>Paid: {formatCurrency(paid)}</div>
+            <div>Owing: {formatCurrency(owing)}</div>
           </div>
         );
       },

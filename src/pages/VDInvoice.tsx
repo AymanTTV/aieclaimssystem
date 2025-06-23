@@ -8,9 +8,10 @@ import { Plus, Search } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+
 import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { VDInvoiceDocument } from '../components/pdf/documents';
-
+import { usePermissions } from '../hooks/usePermissions';
 // Import components
 import VDInvoiceTable from '../components/vdInvoice/VDInvoiceTable';
 import VDInvoiceForm from '../components/vdInvoice/VDInvoiceForm';
@@ -27,6 +28,8 @@ const VDInvoicePage = () => {
   const [editingInvoice, setEditingInvoice] = useState<VDInvoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<VDInvoice | null>(null);
   const { user } = useAuth();
+  const { can } = usePermissions();
+
 
   React.useEffect(() => {
     const q = query(collection(db, 'vdInvoices'), orderBy('date', 'desc'));
@@ -144,8 +147,8 @@ const VDInvoicePage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VD Invoices</h1>
         <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-          <button
+          {can('vdInvoice', 'create') && (
+          <button 
             onClick={() => setShowForm(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
           >
@@ -153,6 +156,7 @@ const VDInvoicePage = () => {
             Create Invoice
           </button>
           )}
+         
         </div>
       </div>
 

@@ -17,7 +17,8 @@ interface TransactionTableProps {
   onDelete: (transaction: Transaction) => void;
   onGenerateDocument: (transaction: Transaction) => void;
   onViewDocument: (url: string) => void;
-  onAssignAccount: (transaction: Transaction) => void;
+  onAssign: (txn: Transaction) => void;
+  groups: { id: string; name: string }[];
   selectedCustomerId?: string;
   onCustomerChange?: (customerId: string) => void;
 }
@@ -32,7 +33,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   onDelete,
   onGenerateDocument,
   onViewDocument,
-  onAssignAccount,
+  onAssign,
+  groups,
   selectedCustomerId,
   onCustomerChange
 }) => {
@@ -127,6 +129,29 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         
         return <div className="text-gray-400">N/A</div>;
       },
+    },
+    {
+      header: 'Group',
+      accessorKey: 'groupId',
+      cell: ({ row }) => {
+        const txn = row.original as Transaction;
+        const grp = groups.find(g => g.id === txn.groupId);
+        return (
+          <div className="flex items-center space-x-2">
+            <span>{grp?.name || '-'}</span>
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onAssign(txn);
+              }}
+              className="p-1 hover:bg-gray-100 rounded"
+              title="Assign to group"
+            >
+              <Share2 size={16} />
+            </button>
+          </div>
+        );
+      }
     },
     {
       header: 'Actions',

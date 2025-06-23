@@ -12,7 +12,7 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
-
+  const [groupFilter, setGroupFilter] = useState<string>('all');
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
     
@@ -37,6 +37,10 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     return transactions.filter(transaction => {
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
+
+      if (groupFilter !== 'all' && transaction.groupId !== groupFilter) {
+        return false;
+      }
 
       const matchesSearch =
         transaction.category.toLowerCase().includes(searchLower) ||
@@ -96,6 +100,7 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     accountFilter,
     startDate,
     endDate,
+    groupFilter,
     vehicles
   ]);
 
@@ -190,6 +195,8 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
     setSelectedOwner,
     accountFilter,
     setAccountFilter,
+    groupFilter,
+    setGroupFilter,
     owners,
     filteredTransactions,
     accountSummary,

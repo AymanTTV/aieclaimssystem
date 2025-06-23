@@ -4,14 +4,13 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { uploadFile } from '../../utils/uploadFile';
 import { uploadAllFiles } from '../../utils/uploadAllFiles';
-import { generateClaimDocuments } from '../../utils/claimDocuments';
 import toast from 'react-hot-toast';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 import RegisterKeeperDetails from './ClaimForm/sections/RegisterKeeperDetails';
 
-// Import all sections
+// Import all other sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
 import DriverDetails from './ClaimForm/sections/DriverDetails';
 import VehicleDetails from './ClaimForm/sections/VehicleDetails';
@@ -39,7 +38,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  
+
   const methods = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
     mode: 'onChange',
@@ -64,7 +63,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         phone: '',
         email: '',
         dateOfBirth: '',
-        signature: '',
+        signature: ''
       },
       clientVehicle: {
         registration: '',
@@ -98,105 +97,64 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       },
       fileHandlers: {
         aieHandler: '',
-        legalHandler: null,  // Change default to null
+        legalHandler: null
       },
       claimType: 'Domestic',
       caseProgress: 'Awaiting',
       progress: 'Your Claim Has Started',
       gpInformation: { visited: false },
       hospitalInformation: { visited: false },
-      recovery: {
-        date: '',
-        locationPickup: '',
-        locationDropoff: '',
-        cost: 0,
-        enabled: false
-      }
+      hireDetails: { enabled: false },
+      storage: { enabled: false },
+      recovery: { enabled: false }
     }
   });
 
-  /**
- * Converts a camelCase string into a human-readable string.
- * @param {string} fieldName - The camelCase string to format.
- * @returns {string} - The formatted, human-readable string.
- */
-function formatFieldName(fieldName: string) {
-  // Insert spaces before uppercase letters
-  const spacedFieldName = fieldName.replace(/([a-z])([A-Z])/g, "$1 $2");
-  // Capitalize the first letter of each word
-  const humanReadableFieldName = spacedFieldName.replace(
-    /\b\w/g,
-    (char) => char.toUpperCase()
-  );
-  return humanReadableFieldName;
-}
-
-  const claimReason = methods.watch('claimReason');
-  const showHireDetails = claimReason.includes('H');
-  const showStorageDetails = claimReason.includes('S');
-  const showVehicleDetails = claimReason.includes('VD');
-  const showGPInformation = claimReason.includes('PI');
-  const showHospitalInformation = claimReason.includes('PI');
-  const showRK = methods.watch('registerKeeper.enabled');
+  const watch = methods.watch;
+  const showHireDetails = watch('claimReason').includes('H');
+  const showStorageDetails = watch('claimReason').includes('S');
+  const showVehicleDetails = watch('claimReason').includes('VD');
+  const showGPInformation = watch('claimReason').includes('PI');
+  const showHospitalInformation = watch('claimReason').includes('PI');
+  const showRK = watch('registerKeeper.enabled');
 
   const onSubmit = async (data: ClaimFormData) => {
     if (!user) {
       toast.error('You must be logged in to submit a claim');
       return;
     }
-
-    if (data.recovery?.cost === '') {
-      data.recovery.cost = undefined;
-    }
-
     setLoading(true);
     setSubmitError(null);
 
     try {
-      // Upload vehicle documents
-      const vehicleDocumentUrls: Record<string, string> = {};
-      for (const [key, file] of Object.entries(data.clientVehicle.documents)) {
+      // Upload documents & build URLs...
+      const vehicleDocUrls: Record<string,string> = {};
+      for (const [key,file] of Object.entries(data.clientVehicle!.documents || {})) {
         if (file instanceof File) {
           try {
-            const url = await uploadFile(file, `claims/vehicle-documents`);
-            vehicleDocumentUrls[key] = url;
-          } catch (error) {
-            console.error(`Failed to upload document ${key}:`, error);
-          }
-        } else if (typeof file === 'string') {
-          vehicleDocumentUrls[key] = file;
+            const url = await uploadFile(file, 'claims/vehicle-documents');
+            vehicleDocUrls[key] = url;
+          } catch {}
+        } else {
+          vehicleDocUrls[key] = file as string;
         }
       }
-
-      // Upload evidence files
-      const evidenceUrls = {
-        images: await uploadAllFiles(data.evidence.images.filter((f): f is File => f instanceof File), 'claims/images'),
-        videos: await uploadAllFiles(data.evidence.videos.filter((f): f is File => f instanceof File), 'claims/videos'),
-        clientVehiclePhotos: await uploadAllFiles(data.evidence.clientVehiclePhotos.filter((f): f is File => f instanceof File), 'claims/vehicle-photos'),
-        engineerReport: await uploadAllFiles(data.evidence.engineerReport.filter((f): f is File => f instanceof File), 'claims/engineer-reports'),
-        bankStatement: await uploadAllFiles(data.evidence.bankStatement.filter((f): f is File => f instanceof File), 'claims/bank-statements'),
-        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter((f): f is File => f instanceof File), 'claims/admin-documents')
+      const evidence = {
+        images: await uploadAllFiles(data.evidence.images.filter(f=>f instanceof File) as File[], 'claims/images'),
+        videos: await uploadAllFiles(data.evidence.videos.filter(f=>f instanceof File) as File[], 'claims/videos'),
+        clientVehiclePhotos: await uploadAllFiles(data.evidence.clientVehiclePhotos.filter(f=>f instanceof File) as File[], 'claims/vehicle-photos'),
+        engineerReport: await uploadAllFiles(data.evidence.engineerReport.filter(f=>f instanceof File) as File[], 'claims/engineer-reports'),
+        bankStatement: await uploadAllFiles(data.evidence.bankStatement.filter(f=>f instanceof File) as File[], 'claims/bank-statements'),
+        adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter(f=>f instanceof File) as File[], 'claims/admin-documents')
       };
 
-      // Prepare claim data
-      const claimData = {
+      const claimPayload: any = {
         ...data,
         clientVehicle: {
-          ...data.clientVehicle,
-          documents: vehicleDocumentUrls
+          ...data.clientVehicle!,
+          documents: vehicleDocUrls
         },
-        evidence: {
-          images: evidenceUrls.images,
-          videos: evidenceUrls.videos,
-          clientVehiclePhotos: evidenceUrls.clientVehiclePhotos,
-          engineerReport: evidenceUrls.engineerReport,
-          bankStatement: evidenceUrls.bankStatement,
-          adminDocuments: evidenceUrls.adminDocuments
-        },
-        fileHandlers: {
-          aieHandler: data.fileHandlers.aieHandler,
-          legalHandler: data.fileHandlers.legalHandler,
-        },
+        evidence,
         clientInfo: {
           ...data.clientInfo,
           dateOfBirth: new Date(data.clientInfo.dateOfBirth)
@@ -205,65 +163,9 @@ function formatFieldName(fieldName: string) {
           ...data.incidentDetails,
           date: new Date(data.incidentDetails.date)
         },
-        // Only include hireDetails if H is selected
-        hireDetails: showHireDetails && data.hireDetails?.enabled ? {
-          startDate: data.hireDetails.startDate ? new Date(data.hireDetails.startDate) : null,
-          endDate: data.hireDetails.endDate ? new Date(data.hireDetails.endDate) : null,
-          startTime: data.hireDetails.startTime || '',
-          endTime: data.hireDetails.endTime || '',
-          daysOfHire: data.hireDetails.daysOfHire || 0,
-          claimRate: data.hireDetails.claimRate || 340,
-          deliveryCharge: data.hireDetails.deliveryCharge || 0,
-          collectionCharge: data.hireDetails.collectionCharge || 0,
-          insurancePerDay: data.hireDetails.insurancePerDay || 0,
-          totalCost: data.hireDetails.totalCost || 0,
-          vehicle: data.hireDetails.vehicle || null,
-          enabled: true
-        } : null,
-        // Only include storage if S is selected
-        storage: showStorageDetails && data.storage?.enabled ? {
-          startDate: data.storage.startDate ? new Date(data.storage.startDate) : null,
-          endDate: data.storage.endDate ? new Date(data.storage.endDate) : null,
-          costPerDay: data.storage.costPerDay || 0,
-          totalCost: data.storage.totalCost || 0,
-          enabled: true
-        } : null,
-        recovery: data.recovery?.enabled ? {
-    date: data.recovery.date ? new Date(data.recovery.date) : null,
-    locationPickup: data.recovery.locationPickup || '',
-    locationDropoff: data.recovery.locationDropoff || '',
-    cost: data.recovery.cost || 0,
-    enabled: true
-  } : null,
-
-        
-        passengers: data.passengers.filter(passenger => 
-        passenger.name || 
-        passenger.address || 
-        passenger.postCode || 
-        passenger.dob || 
-        passenger.contactNumber
-      ),
-
-        policeOfficerName: data.policeOfficerName || null,
-  policeBadgeNumber: data.policeBadgeNumber || null,
-  policeStation: data.policeStation || null, 
-  policeIncidentNumber: data.policeIncidentNumber || null,
-  policeContactInfo: data.policeContactInfo || null,
-
-        paramedicNames: data.paramedicNames || null,
-  ambulanceReference: data.ambulanceReference || null,
-  ambulanceService: data.ambulanceService || null,
-        
-        // Only include GP information if PI is selected
-        gpInformation: showGPInformation ? {
-          ...data.gpInformation,
-          visited: true
-        } : { visited: false },
-        hospitalInformation: showHospitalInformation ? {
-          ...data.hospitalInformation,
-          visited: true
-        } : { visited: false },
+        hireDetails: showHireDetails && data.hireDetails?.enabled ? { ...data.hireDetails, enabled: true } : null,
+        storage: showStorageDetails && data.storage?.enabled ? { ...data.storage, enabled:true } : null,
+        recovery: data.recovery?.enabled ? { ...data.recovery, enabled:true } : null,
         createdBy: user.id,
         submittedAt: new Date(),
         updatedAt: new Date(),
@@ -276,36 +178,23 @@ function formatFieldName(fieldName: string) {
         }]
       };
 
-      // after you build your claimData object:
-      claimData.registerKeeper = data.registerKeeper.enabled
-      ? {
-          enabled: true,                            // ← include this!
-          name: data.registerKeeper.name,
-          address: data.registerKeeper.address,
-          phone: data.registerKeeper.phone,
-          email: data.registerKeeper.email,
-          dateOfBirth: data.registerKeeper.dateOfBirth
-            ? new Date(data.registerKeeper.dateOfBirth)
-            : null,
-          signature: data.registerKeeper.signature,
-        }
-      : null;
+      // Include registerKeeper only when enabled
+      if (data.registerKeeper.enabled) {
+        claimPayload.registerKeeper = {
+          ...data.registerKeeper,
+          dateOfBirth: data.registerKeeper.dateOfBirth ? new Date(data.registerKeeper.dateOfBirth) : null
+        };
+      } else {
+        claimPayload.registerKeeper = null;
+      }
 
-      // Add to Firestore
-      const docRef = await addDoc(collection(db, 'claims'), claimData);
-
-      // // Generate and upload documents
-      // await generateClaimDocuments(docRef.id, {
-      //   id: docRef.id,
-      //   ...claimData
-      // });
-
+      await addDoc(collection(db, 'claims'), claimPayload);
       toast.success('Claim submitted successfully');
       onClose();
-    } catch (error: any) {
-      console.error('Error submitting claim:', error);
-      setSubmitError(error.message || 'Failed to submit claim. Please check all required fields and try again.');
-      toast.error(error.message || 'Failed to submit claim');
+    } catch (err: any) {
+      console.error(err);
+      setSubmitError(err.message);
+      toast.error(err.message || 'Failed to submit claim');
     } finally {
       setLoading(false);
     }
@@ -315,172 +204,89 @@ function formatFieldName(fieldName: string) {
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-6">
         {submitError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <p className="font-medium">Error submitting claim:</p>
-            <p className="text-sm">{submitError}</p>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <p>{submitError}</p>
           </div>
         )}
 
         <div className="space-y-6">
           <div className="bg-white rounded-lg p-6 flex space-x-4">
-            <div className="flex-1">
-              <ClaimProgress />
-            </div>
-            <div className="w-64">
-              <ClientRefField />
-            </div>
+            <ClaimProgress />
+            <div className="w-64"><ClientRefField /></div>
           </div>
 
-          <div className="bg-white rounded-lg p-6">
-            <SubmitterDetails />
-          </div>
+          <div className="bg-white rounded-lg p-6"><SubmitterDetails /></div>
+          <div className="bg-white rounded-lg p-6"><DriverDetails /></div>
 
-          <div className="bg-white rounded-lg p-6">
-            <DriverDetails />
-          </div>
-
-          {showRK && (
+          
             <div className="bg-white rounded-lg p-6">
               <RegisterKeeperDetails />
             </div>
-          )}
+          
 
-          <div className="bg-white rounded-lg p-6">
-            <AccidentDetails />
-          </div>
+          <div className="bg-white rounded-lg p-6"><AccidentDetails /></div>
 
           {showVehicleDetails && (
-            <div className="bg-white rounded-lg p-6">
-              <VehicleDetails />
-            </div>
+            <div className="bg-white rounded-lg p-6"><VehicleDetails /></div>
           )}
 
-          <div className="bg-white rounded-lg p-6">
-            <FaultPartyDetails />
-          </div>
+          <div className="bg-white rounded-lg p-6"><FaultPartyDetails /></div>
 
           {showGPInformation && (
-            <div className="bg-white rounded-lg p-6">
-              <GPInformation />
-            </div>
+            <div className="bg-white rounded-lg p-6"><GPInformation /></div>
           )}
-
           {showHospitalInformation && (
-            <div className="bg-white rounded-lg p-6">
-              <Hospitalinformation />
-            </div>
+            <div className="bg-white rounded-lg p-6"><Hospitalinformation /></div>
           )}
 
-          <div className="bg-white rounded-lg p-6">
-            <EvidenceUpload />
-          </div>
-
-          {/* {showHireDetails && (
-            <div className="bg-white rounded-lg p-6">
-              <HireDetails />
-            </div>
-          )} */}
-
-          {/* {showStorageDetails && (
-            <div className="bg-white rounded-lg p-6">
-              <StorageDetails />
-            </div>
-          )} */}
-
-          {/* <div className="bg-white rounded-lg p-6">
-            <RecoveryDetails />
-          </div> */}
+          <div className="bg-white rounded-lg p-6"><EvidenceUpload /></div>
+          <div className="bg-white rounded-lg p-6">{/* Hire & Storage not shown here by default */}</div>
 
           <div className="bg-white rounded-lg p-6">
-  <PassengerDetails
-    count={methods.watch('passengers')?.length || 0}
-    onCountChange={(count) => {
-      // Create new array with empty passenger objects
-      const newPassengers = Array(count).fill(null).map((_, index) => {
-        // Preserve existing passenger data if available
-        const currentPassengers = methods.getValues('passengers') || [];
-        return currentPassengers[index] || {
-          name: '',
-          address: '',
-          postCode: '',
-          dob: '',
-          contactNumber: ''
-        };
-      });
-      // Update the form with the new array
-      methods.setValue('passengers', newPassengers);
-    }}
-  />
-</div>
-
-          <div className="bg-white rounded-lg p-6">
-           
-<WitnessDetails
-  count={methods.watch('witnesses')?.length || 0}
-  onCountChange={(count) => {
-    // Create new array with existing data preserved
-    const currentWitnesses = methods.getValues('witnesses') || [];
-    const newWitnesses = Array(count).fill(null).map((_, index) => {
-      return currentWitnesses[index] || {
-        name: '',
-        address: '',
-        postCode: '',
-        dob: '',
-        contactNumber: ''
-      };
-    });
-    methods.setValue('witnesses', newWitnesses);
-  }}
-/>
-
+            <PassengerDetails
+              count={methods.watch('passengers')?.length || 0}
+              onCountChange={(count) => {
+                const curr = methods.getValues('passengers') || [];
+                const arr = Array(count).fill(null).map((_,i)=>curr[i]||{ name:'',address:'',postCode:'',dob:'',contactNumber:'' });
+                methods.setValue('passengers', arr);
+              }}
+            />
           </div>
 
           <div className="bg-white rounded-lg p-6">
-            <PoliceDetails />
+            <WitnessDetails
+              count={methods.watch('witnesses')?.length || 0}
+              onCountChange={(count) => {
+                const curr = methods.getValues('witnesses') || [];
+                const arr = Array(count).fill(null).map((_,i)=>curr[i]||{ name:'',address:'',postCode:'',dob:'',contactNumber:'' });
+                methods.setValue('witnesses', arr);
+              }}
+            />
           </div>
 
-          <div className="bg-white rounded-lg p-6">
-            <ParamedicDetails />
-          </div>
-
-          <div className="bg-white rounded-lg p-6">
-            <FileHandlers />
-          </div>
+          <div className="bg-white rounded-lg p-6"><PoliceDetails /></div>
+          <div className="bg-white rounded-lg p-6"><ParamedicDetails /></div>
+          <div className="bg-white rounded-lg p-6"><FileHandlers /></div>
         </div>
 
         <div className="flex justify-end space-x-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Cancel
-          </button>
+            className="px-4 py-2 bg-white border rounded-md"
+          >Cancel</button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-primary text-white rounded-md"
           >
             {loading ? 'Submitting...' : 'Submit Claim'}
           </button>
         </div>
 
-        {/* Form Validation Errors Summary */}
-        {/* Form Validation Errors Summary */}
-{Object.keys(methods.formState.errors).length > 0 && (
-  <div className="mt-4 p-4 bg-red-50 rounded-md">
-    <h4 className="text-red-800 font-medium">Please review the highlighted sections:</h4>
-    <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-      {Object.entries(methods.formState.errors).map(([key, error]) => (
-        <li key={key}>
-          {formatFieldName(key)} - {error?.message || 'Invalid input'}
-        </li>
-      ))}
-    </ul>
-  </div>
-)}
-
-
+        {Object.keys(methods.formState.errors).length > 0 && (
+          <p className="text-red-600">*</p>
+        )}
       </form>
     </FormProvider>
   );

@@ -167,13 +167,15 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
             + Add Income
           </button>
         )}
+        {can('finance', 'create') && (
         <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); }} className="px-4 py-2 border rounded">
           + Add Expense
         </button>
+        )}
         {/* <button onClick={() => setShowShareHistory(true)} className="px-4 py-2 border rounded">Shares</button> */}
-        {can('finance', 'create') && (
-        <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded">Shares</button>)}
-        {can('finance', 'create') && (
+        
+        <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded">Shares</button>
+        {user?.role === 'manager' && (
         <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded">Share Profit</button>
         )}
         {user?.role === 'manager' && (

@@ -1,56 +1,66 @@
 // src/hooks/useVATRecordFilters.ts
-
 import { useState, useMemo } from 'react';
 import { VATRecord } from '../types/vatRecord';
 import { isWithinInterval } from 'date-fns';
 
 export const useVATRecordFilters = (records: VATRecord[]) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateRange, setDateRange] = useState<{
-    start: Date | null;
-    end: Date | null;
-  }>({ start: null, end: null });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'awaiting' | 'processing' | 'paid'>('all');
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
+  const [amountRange, setAmountRange] = useState<{ min: number | null; max: number | null }>({
+    min: null,
+    max: null,
+  });
 
   const filteredRecords = useMemo(() => {
-    return records.filter(record => {
-      // Search filter
-      const searchLower = searchQuery.toLowerCase();
+    return records.filter(rec => {
+      // Search
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        record.receiptNo.toLowerCase().includes(searchLower) ||
-        record.supplier.toLowerCase().includes(searchLower) ||
-        record.customerName.toLowerCase().includes(searchLower) ||
-        record.regNo.toLowerCase().includes(searchLower) || // Add this line to search by REG No
-        record.gross.toFixed(2).includes(searchLower) || // Add this line to search by gross amount
-        record.net.toFixed(2).includes(searchLower) || // Add this line to search by net amount
-        record.vat.toFixed(2).includes(searchLower); // Add this line to search by vat amount
+        rec.receiptNo.toLowerCase().includes(q) ||
+        rec.supplier.toLowerCase().includes(q) ||
+        rec.customerName.toLowerCase().includes(q);
 
-      // Status filter
-      const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
+      if (!matchesSearch) return false;
 
-      // Date range filter
-      let matchesDateRange = true;
+      // Status
+      if (statusFilter !== 'all' && rec.status !== statusFilter) return false;
+
+      // Date
       if (dateRange.start && dateRange.end) {
-        matchesDateRange = isWithinInterval(record.date, {
-          start: dateRange.start,
-          end: dateRange.end
-        });
+        if (
+          !isWithinInterval(rec.date, {
+            start: dateRange.start,
+            end: dateRange.end,
+          })
+        ) {
+          return false;
+        }
       }
 
-      return matchesSearch && matchesStatus && matchesDateRange;
-    });
-  }, [records, searchQuery, statusFilter, dateRange]);
+      // Gross amount
+      const gross = rec.gross ?? 0;
+      if (amountRange.min != null && gross < amountRange.min) return false;
+      if (amountRange.max != null && gross > amountRange.max) return false;
 
-  // Calculate summary totals
+      return true;
+    });
+  }, [records, searchQuery, statusFilter, dateRange, amountRange]);
+
+  // Summary (optional)
   const summary = useMemo(() => {
     return filteredRecords.reduce(
-      (acc, record) => ({
-        gross: acc.gross + record.gross,
-        vat: acc.vat + record.vat,
-        net: acc.net + record.net,
-        vatReceived: acc.vatReceived + (record.vatReceived || 0)
-      }),
-      { gross: 0, vat: 0, net: 0, vatReceived: 0 }
+      (acc, r) => {
+        acc.net += r.net;
+        acc.vat += r.vat;
+        acc.gross += r.gross;
+        acc.vatReceived += r.vatReceived ?? 0;
+        return acc;
+      },
+      { net: 0, vat: 0, gross: 0, vatReceived: 0 }
     );
   }, [filteredRecords]);
 
@@ -61,7 +71,9 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
     setStatusFilter,
     dateRange,
     setDateRange,
+    amountRange,
+    setAmountRange,
     filteredRecords,
-    summary
+    summary,
   };
 };

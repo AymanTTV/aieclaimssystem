@@ -57,18 +57,18 @@ export const generateAndUploadDocument = async (
 export const generateBulkDocuments = async (
   Component: React.ComponentType<any>,
   records: any[],
-  companyDetails: any
+  companyDetails: any,
+  extraProps: Record<string, any> = {}
 ): Promise<Blob> => {
   try {
-    // Create document with all records
     const pdfBlob = await pdf(
       createElement(Component, {
         records,
         companyDetails,
-        title: 'Records Summary'
+        title: 'Records Summary',
+        ...extraProps,       // ← spread in vehicles & customers
       })
     ).toBlob();
-
     return pdfBlob;
   } catch (error) {
     console.error('Error generating bulk documents:', error);
@@ -76,6 +76,7 @@ export const generateBulkDocuments = async (
     throw error;
   }
 };
+
 
 // Helper function to get company details
 export const getCompanyDetails = async () => {

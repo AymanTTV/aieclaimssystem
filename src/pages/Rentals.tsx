@@ -233,8 +233,8 @@ const Rentals = () => {
         RentalBulkDocument,
         filteredRentals,
         companyDetailsData,
-        vehicles,
-        customers
+        { vehicles, customers }
+        
       );
 
       saveAs(pdfBlob, 'rental_summary.pdf');
@@ -258,9 +258,9 @@ const Rentals = () => {
 
   return (
     <div className="space-y-6 p-4">
-      {user?.role === 'manager' && (
+      
       <RentalSummaryCards rentals={filteredRentals} />
-      )}
+      
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>

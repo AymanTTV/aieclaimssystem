@@ -14,6 +14,7 @@ import ExpenseForm from '../components/IncomeExpense/ExpenseForm';
 import ProfitShareForm from '../components/IncomeExpense/ProfitShareForm';
 import IncomeExpenseDetails from '../components/IncomeExpense/IncomeExpenseDetails';
 import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
 import IncomeExpenseDocument from '../components/pdf/documents/IncomeExpenseDocument'; 
 import ProfitSharesDocument from '../components/pdf/documents/ProfitSharesDocument'; 
@@ -145,6 +146,7 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
     setRecordBeingEdited(null);
     setShareToEdit(null); // ✅ clear on close
   };
+  const { user } = useAuth();
   
   if (loading) {
     return (
@@ -164,13 +166,15 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
             + Add Income
           </button>
         )}
+        {can('finance', 'create') && (
         <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); }} className="px-4 py-2 border rounded">
           + Add Expense
         </button>
+        )}
         {/* <button onClick={() => setShowShareHistory(true)} className="px-4 py-2 border rounded">Shares</button> */}
         <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded">Shares</button>
-        <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded">Share Profit</button>
-        <button onClick={handleExportBulkPDF} className="px-4 py-2 border rounded">Export PDF</button>
+       {user?.role === 'manager' && ( <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded">Share Profit</button>)}
+       {user?.role === 'manager' && ( <button onClick={handleExportBulkPDF} className="px-4 py-2 border rounded">Export PDF</button>)}
       </div>
 
       <IncomeExpenseFilters

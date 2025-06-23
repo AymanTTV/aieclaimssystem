@@ -4,6 +4,8 @@ import { VDInvoice } from '../../types/vdInvoice';
 import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
+import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface VDInvoiceTableProps {
   invoices: VDInvoice[];
@@ -22,6 +24,8 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
   onGenerateDocument,
   onViewDocument
 }) => {
+  const { can } = usePermissions();
+  const { user } = useAuth();
   const columns = [
     {
       header: 'Invoice Number',
@@ -71,6 +75,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
+          {can('vdInvoice', 'view') && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -81,6 +86,8 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           >
             <Eye className="h-4 w-4" />
           </button>
+          )}
+          {can('vdInvoice', 'update') && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -91,6 +98,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           >
             <Edit className="h-4 w-4" />
           </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -101,6 +109,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           >
             <FileText className="h-4 w-4" />
           </button>
+          {can('vdInvoice', 'delete') && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -111,6 +120,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           >
             <Trash2 className="h-4 w-4" />
           </button>
+      )}
           {row.original.documentUrl && (
             <button
               onClick={(e) => {

@@ -1,4 +1,3 @@
-// src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
 import { Rental, Vehicle, Customer, RentalReason } from '../types';
 
@@ -19,10 +18,11 @@ export const useRentalFilters = (
     return rentals.filter(rental => {
       const searchLower = searchQuery.toLowerCase();
 
-      // Get related vehicle and customer
+      // Lookup related vehicle & customer
       const vehicle = vehicles.find(v => v.id === rental.vehicleId);
       const customer = customers.find(c => c.id === rental.customerId);
 
+      // Text search across fields
       const matchesSearch =
         vehicle?.registrationNumber?.toLowerCase().includes(searchLower) ||
         vehicle?.make?.toLowerCase().includes(searchLower) ||
@@ -34,71 +34,77 @@ export const useRentalFilters = (
         rental.reason?.toLowerCase().includes(searchLower) ||
         false;
 
-      // --- MODIFIED LOGIC ---
-      // This logic now hides 'completed' rentals from the 'all' view.
+      // Status filter
       let matchesStatus: boolean;
       if (statusFilter === 'all') {
-        // If 'All Status' is selected, only show rentals that are NOT completed.
+        // hide "completed" in the 'all' view
         matchesStatus = rental.status !== 'completed';
       } else {
-        // If a specific status is selected (e.g., 'completed', 'active'), match it directly.
         matchesStatus = rental.status === statusFilter;
       }
 
-      // Type filter
+      // Type & vehicle & reason filters
       const matchesType = typeFilter === 'all' || rental.type === typeFilter;
-
-      // Vehicle filter
       const matchesVehicle = !vehicleFilter || rental.vehicleId === vehicleFilter;
-
-      // Reason filter logic - CORRECTED
       let matchesReason = true;
       if (reasonFilter !== 'all') {
-        // If a specific reason is selected, match it directly
         matchesReason = rental.reason === reasonFilter;
       }
-      // If reasonFilter === 'all', matchesReason remains true, showing all rentals regardless of reason.
 
-      // Date filter logic - REFINED FOR INTERSECTION AND TIMEZONE CONSISTENCY
-      const rentalStartMs = rental.startDate ? rental.startDate.getTime() : null;
-      const rentalEndMs = rental.endDate ? rental.endDate.getTime() : null;
+      // --- OVERLAP DATE LOGIC ---
+      const rentalStartMs = rental.startDate?.getTime() ?? null;
+      const rentalEndMs   = rental.endDate?.getTime()   ?? null;
 
       let filterStartMs: number | null = null;
-      let filterEndMs: number | null = null;
-
-      if (startDateFilter) {
-        filterStartMs = Date.parse(startDateFilter + 'T00:00:00Z');
-      }
-      if (endDateFilter) {
-        filterEndMs = Date.parse(endDateFilter + 'T23:59:59.999Z');
-      }
+      let filterEndMs:   number | null = null;
+      if (startDateFilter) filterStartMs = Date.parse(startDateFilter + 'T00:00:00Z');
+      if (endDateFilter)   filterEndMs   = Date.parse(endDateFilter   + 'T23:59:59.999Z');
 
       let matchesDateRange = true;
-
       if (filterStartMs !== null || filterEndMs !== null) {
-        if (rentalStartMs === null && rentalEndMs === null) {
-          matchesDateRange = false;
-        } else {
-          const effectiveFilterStartMs = filterStartMs !== null ? filterStartMs : new Date('1900-01-01T00:00:00Z').getTime();
-          const effectiveFilterEndMs = filterEndMs !== null ? filterEndMs : new Date('2100-12-31T23:59:59.999Z').getTime();
+        const effectiveFilterStartMs =
+          filterStartMs ?? new Date('1900-01-01T00:00:00Z').getTime();
+        const effectiveFilterEndMs   =
+          filterEndMs   ?? new Date('2100-12-31T23:59:59.999Z').getTime();
 
-          if (rentalStartMs !== null && rentalEndMs !== null) {
-            matchesDateRange =
-              rentalStartMs <= effectiveFilterEndMs &&
-              rentalEndMs >= effectiveFilterStartMs;
-          }
-          else if (rentalEndMs !== null) {
-            matchesDateRange = rentalEndMs >= effectiveFilterStartMs && rentalEndMs <= effectiveFilterEndMs;
-          }
-          else if (rentalStartMs !== null) {
-            matchesDateRange = rentalStartMs >= effectiveFilterStartMs && rentalStartMs <= effectiveFilterEndMs;
-          }
+        if (rentalStartMs !== null && rentalEndMs !== null) {
+          matchesDateRange =
+            rentalStartMs <= effectiveFilterEndMs &&
+            rentalEndMs >= effectiveFilterStartMs;
+        } else if (rentalStartMs !== null) {
+          matchesDateRange =
+            rentalStartMs <= effectiveFilterEndMs &&
+            rentalStartMs >= effectiveFilterStartMs;
+        } else if (rentalEndMs !== null) {
+          matchesDateRange =
+            rentalEndMs <= effectiveFilterEndMs &&
+            rentalEndMs >= effectiveFilterStartMs;
+        } else {
+          matchesDateRange = false;
         }
       }
 
-      return matchesSearch && matchesStatus && matchesType && matchesVehicle && matchesReason && matchesDateRange;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesVehicle &&
+        matchesReason &&
+        matchesDateRange
+      );
     });
-  }, [rentals, vehicles, customers, searchQuery, statusFilter, typeFilter, vehicleFilter, reasonFilter, startDateFilter, endDateFilter]);
+  }, [
+    rentals,
+    vehicles,
+    customers,
+    searchQuery,
+    statusFilter,
+    typeFilter,
+    vehicleFilter,
+    reasonFilter,
+    startDateFilter,
+    endDateFilter,
+  ]);
 
   return {
     searchQuery,
@@ -115,6 +121,6 @@ export const useRentalFilters = (
     setStartDateFilter,
     endDateFilter,
     setEndDateFilter,
-    filteredRentals
+    filteredRentals,
   };
 };

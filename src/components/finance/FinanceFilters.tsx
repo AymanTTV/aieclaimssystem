@@ -1,10 +1,10 @@
 // src/components/finance/FinanceFilters.tsx
-
 import React from 'react';
-import { Customer, Account } from '../../types';
+import { Customer } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface FinanceFiltersProps {
+  // existing props
   searchQuery: string;
   onSearchChange: (query: string) => void;
   statusFilter: string;
@@ -13,104 +13,97 @@ interface FinanceFiltersProps {
   onStatusFilterChange: (status: string) => void;
   categoryFilter: string;
   onCategoryFilterChange: (category: string) => void;
-  dateRange: {
-    start: Date | null;
-    end: Date | null;
-  };
+  dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
-  accountFilter: string;
-  onAccountFilterChange: (account: string) => void;
-  accountFromFilter: string;
-  onAccountFromFilterChange: (account: string) => void;
-  accountToFilter: string;
-  onAccountToFilterChange: (account: string) => void;
-  accounts: Account[];
   owner: string;
   onOwnerChange: (owner: string) => void;
   owners: string[];
   customers?: Customer[];
   selectedCustomerId?: string;
   onCustomerChange?: (customerId: string) => void;
-  accountSummary?: { income: number; expense: number; balance: number } | null;
 
-  /** ── NEW: Finance-specific categories, as plain string names ── **/
+  // new props
   categories: string[];
+  groupFilter: string;
+  onGroupFilterChange: (groupId: string) => void;
+  groupOptions: { id: string; name: string }[];
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
-  searchQuery,
-  onSearchChange,
-  statusFilter,
+  dateRange,
+  onDateRangeChange,
   type,
   onTypeChange,
+  statusFilter,
   onStatusFilterChange,
   categoryFilter,
   onCategoryFilterChange,
-  dateRange,
-  onDateRangeChange,
-  accountFilter,
-  onAccountFilterChange,
-  accountFromFilter,
-  onAccountFromFilterChange,
-  accountToFilter,
-  onAccountToFilterChange,
-  accounts,
   owner,
   onOwnerChange,
   owners,
   customers = [],
   selectedCustomerId,
   onCustomerChange,
-  accountSummary,
-
-  /** ── Receive finance page categories here ── **/
-  categories,
+  groupFilter,
+  onGroupFilterChange,
+  groupOptions,
+  categories
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Date “From” */}
+        {/* Row 1, Col 1: From */}
         <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
-            onChange={(e) =>
+            value={
+              dateRange.start
+                ? dateRange.start.toISOString().split('T')[0]
+                : ''
+            }
+            onChange={e =>
               onDateRangeChange({
                 ...dateRange,
-                start: e.target.value ? new Date(e.target.value) : null,
+                start: e.target.value ? new Date(e.target.value) : null
               })
             }
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Date “To” */}
+        {/* Row 1, Col 2: To */}
         <div>
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
-            onChange={(e) =>
+            value={
+              dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''
+            }
+            onChange={e =>
               onDateRangeChange({
                 ...dateRange,
-                end: e.target.value ? new Date(e.target.value) : null,
+                end: e.target.value ? new Date(e.target.value) : null
               })
             }
-            min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="form-input mt-1"
+            min={
+              dateRange.start
+                ? dateRange.start.toISOString().split('T')[0]
+                : undefined
+            }
+            className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Type Filter */}
+        {/* Row 1, Col 3: Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
             value={type}
-            onChange={(e) => onTypeChange(e.target.value as typeof type)}
-            className="form-select mt-1"
+            onChange={e => onTypeChange(e.target.value as typeof type)}
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Types</option>
             <option value="income">Income</option>
@@ -118,13 +111,15 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Payment Status */}
+        {/* Row 1, Col 4: Payment Status */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Payment Status
+          </label>
           <select
             value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1"
+            onChange={e => onStatusFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -133,16 +128,18 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* ── Category Filter (dynamically from props) ── */}
+        {/* Row 2, Col 1: Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Category
+          </label>
           <select
             value={categoryFilter}
-            onChange={(e) => onCategoryFilterChange(e.target.value)}
-            className="form-select mt-1"
+            onChange={e => onCategoryFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Categories</option>
-            {categories.map((catName) => (
+            {categories.map(catName => (
               <option key={catName} value={catName}>
                 {catName}
               </option>
@@ -150,41 +147,35 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Account Filter (optional / can be ignored) */}
+        {/* Row 2, Col 2: Group */}
         <div>
-          {/* <label className="block text-sm font-medium text-gray-700">Account</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Group
+          </label>
           <select
-            value={accountFilter}
-            onChange={(e) => onAccountFilterChange(e.target.value)}
-            className="form-select mt-1"
+            value={groupFilter}
+            onChange={e => onGroupFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
           >
-            <option value="all">All Accounts</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
+            <option value="all">All Groups</option>
+            {groupOptions.map(g => (
+              <option key={g.id} value={g.id}>
+                {g.name}
               </option>
             ))}
-          </select> */}
-
-          {/* {accountSummary && (
-            <div className="mt-2 text-xs">
-              <div className="text-green-600">In: {formatCurrency(accountSummary.income)}</div>
-              <div className="text-red-600">Out: {formatCurrency(accountSummary.expense)}</div>
-              <div className="font-medium">Balance: {formatCurrency(accountSummary.balance)}</div>
-            </div>
-          )} */}
+          </select>
         </div>
 
-        {/* Owner Filter */}
+        {/* Row 2, Col 3: Owner */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Owner</label>
           <select
             value={owner}
-            onChange={(e) => onOwnerChange(e.target.value)}
-            className="form-select mt-1"
+            onChange={e => onOwnerChange(e.target.value)}
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Owners</option>
-            {owners.map((ownerName) => (
+            {owners.map(ownerName => (
               <option key={ownerName} value={ownerName}>
                 {ownerName}
               </option>
@@ -192,17 +183,19 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Customer Filter (optional) */}
+        {/* Row 2, Col 4: Customer */}
         {onCustomerChange && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">Customer</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Customer
+            </label>
             <select
               value={selectedCustomerId}
-              onChange={(e) => onCustomerChange(e.target.value)}
-              className="form-select mt-1"
+              onChange={e => onCustomerChange(e.target.value)}
+              className="form-select mt-1 w-full"
             >
               <option value="">All Customers</option>
-              {customers.map((customer) => (
+              {customers.map(customer => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
                 </option>

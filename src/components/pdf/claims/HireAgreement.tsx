@@ -1,4 +1,3 @@
-// src/components/pdf/claims/HireAgreement.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { format } from 'date-fns';
@@ -92,138 +91,103 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
           <Text style={styles.title}>HIRE AGREEMENT</Text>
         </View>
 
-        {/* Cards + Table kept on first page */}
-        <View wrap={false}>
-          {/* Two‐Column Info Box */}
-          <View
-            style={[
-              styles.sectionBreak,
-              { flexDirection: 'row', justifyContent: 'space-between' },
-            ]}
-            wrap={false}
-          >
-            {/* LEFT COLUMN: Hirer Info */}
-            <View style={[styles.card, { width: '48%' }]}>
-              <Text
-                style={[
-                  styles.cardTitle,
-                  {
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#E5E7EB',
-                    paddingBottom: 4,
-                  },
-                ]}
-              >
-                Hirer Details
-              </Text>
-              {[
-                ['Full Name', claim.clientInfo.name],
-                ['Address', claim.clientInfo.address],
-                [
-                  'D.O.B',
-                  format(new Date(claim.clientInfo.dateOfBirth), 'dd/MM/yyyy'),
-                ],
-                ['License No', claim.clientInfo.driverLicenseNumber || 'N/A'],
-                [
-                  'License Expiry',
-                  claim.clientInfo.licenseExpiry
-                    ? format(
-                        new Date(claim.clientInfo.licenseExpiry),
-                        'dd/MM/yyyy'
-                      )
-                    : 'N/A',
-                ],
-              ].map(([labelText, valueText], i) => (
-                <View key={i} style={styles.flexRow}>
-                  <Text style={styles.label}>{labelText}:</Text>
-                  <Text style={styles.value}>{valueText}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* RIGHT COLUMN: Vehicle & Hire Details */}
-            <View style={[styles.card, { width: '48%' }]}>
-              <Text
-                style={[
-                  styles.cardTitle,
-                  {
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#E5E7EB',
-                    paddingBottom: 4,
-                  },
-                ]}
-              >
-                Vehicle &amp; Hire Details
-              </Text>
-              {[
-                [
-                  'Registration',
-                  claim.hireDetails?.vehicle?.registration || 'N/A',
-                ],
-                [
-                  'Start Date',
-                  d.startDate
-                    ? format(new Date(d.startDate), 'dd/MM/yyyy')
-                    : 'N/A',
-                ],
-                [
-                  'End Date',
-                  d.endDate
-                    ? format(new Date(d.endDate), 'dd/MM/yyyy')
-                    : 'N/A',
-                ],
-                ['Days of Hire', String(days)],
-                ['Rate (per day)', `£${rate.toFixed(2)}`],
-                ['Extras (Total)', `£${extrasTotal.toFixed(2)}`],
-                ['Grand Total', `£${totalCost.toFixed(2)}`],
-              ].map(([labelText, valueText], i) => (
-                <View key={i} style={styles.flexRow}>
-                  <Text style={styles.label}>{labelText}:</Text>
-                  <Text style={styles.value}>{valueText}</Text>
-                </View>
-              ))}
-            </View>
+        {/* Two-Column Info Box */}
+        <View
+          style={[
+            styles.sectionBreak,
+            { flexDirection: 'row', justifyContent: 'space-between' },
+          ]}
+          wrap={false}
+        >
+          {/* Hirer Details */}
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.cardTitle}>Hirer Details</Text>
+            {[
+              ['Full Name', claim.clientInfo.name],
+              ['Address', claim.clientInfo.address],
+              [
+                'D.O.B',
+                format(new Date(claim.clientInfo.dateOfBirth), 'dd/MM/yyyy'),
+              ],
+              ['License No', claim.clientInfo.driverLicenseNumber || 'N/A'],
+              [
+                'License Expiry',
+                claim.clientInfo.licenseExpiry
+                  ? format(new Date(claim.clientInfo.licenseExpiry), 'dd/MM/yyyy')
+                  : 'N/A',
+              ],
+            ].map(([labelText, valueText], i) => (
+              <View key={i} style={styles.flexRow}>
+                <Text style={styles.label}>{labelText}:</Text>
+                <Text style={styles.value}>{valueText}</Text>
+              </View>
+            ))}
           </View>
 
-          {/* Rates & Charges Table */}
-          <View style={styles.sectionBreak} wrap={false}>
-            <Text style={styles.sectionTitle}>Hire and Charges Breakdown</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={styles.tableHeaderCell}>Description</Text>
-                <Text style={styles.tableHeaderCell}>Details</Text>
-                <Text style={styles.tableHeaderCell}>Rate (£)</Text>
-                <Text style={styles.tableHeaderCell}>Days / Units</Text>
-                <Text style={styles.tableHeaderCell}>Total (£)</Text>
+          {/* Vehicle & Hire Details */}
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.cardTitle}>Vehicle &amp; Hire Details</Text>
+            {[
+              ['Registration', claim.hireDetails?.vehicle?.registration || 'N/A'],
+              [
+                'Start Date',
+                d.startDate
+                  ? format(new Date(d.startDate), 'dd/MM/yyyy')
+                  : 'N/A',
+              ],
+              [
+                'End Date',
+                d.endDate
+                  ? format(new Date(d.endDate), 'dd/MM/yyyy')
+                  : 'N/A',
+              ],
+              ['Days of Hire', String(days)],
+              ['Rate (per day)', `£${rate.toFixed(2)}`],
+              ['Extras (Total)', `£${extrasTotal.toFixed(2)}`],
+              ['Grand Total', `£${totalCost.toFixed(2)}`],
+            ].map(([labelText, valueText], i) => (
+              <View key={i} style={styles.flexRow}>
+                <Text style={styles.label}>{labelText}:</Text>
+                <Text style={styles.value}>{valueText}</Text>
               </View>
-              {rows.map((r, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <Text style={styles.tableCell}>{r.desc}</Text>
-                  <Text style={styles.tableCell}>{r.details}</Text>
-                  <Text style={styles.tableCell}>{r.rate}</Text>
-                  <Text style={styles.tableCell}>{r.units}</Text>
-                  <Text style={styles.tableCell}>{r.total}</Text>
-                </View>
-              ))}
+            ))}
+          </View>
+        </View>
 
-              {/* Grand Total row */}
-              <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
-                  Total Amount
-                </Text>
-                <Text style={styles.tableCell} />
-                <Text style={styles.tableCell} />
-                <Text style={styles.tableCell} />
-                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
-                  £{totalCost.toFixed(2)}
-                </Text>
+        {/* Rates & Charges Table */}
+        <View style={styles.sectionBreak}>
+          <Text style={styles.sectionTitle}>Hire and Charges Breakdown</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderCell}>Description</Text>
+              <Text style={styles.tableHeaderCell}>Details</Text>
+              <Text style={styles.tableHeaderCell}>Rate (£)</Text>
+              <Text style={styles.tableHeaderCell}>Days / Units</Text>
+              <Text style={styles.tableHeaderCell}>Total (£)</Text>
+            </View>
+            {rows.map((r, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={styles.tableCell}>{r.desc}</Text>
+                <Text style={styles.tableCell}>{r.details}</Text>
+                <Text style={styles.tableCell}>{r.rate}</Text>
+                <Text style={styles.tableCell}>{r.units}</Text>
+                <Text style={styles.tableCell}>{r.total}</Text>
               </View>
+            ))}
+
+            {/* Grand Total */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>Total Amount</Text>
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text style={styles.tableCell} />
+              <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>£{totalCost.toFixed(2)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Terms Section */}
-        <View style={styles.card}>
+        {/* Terms & Conditions */}
+        <View style={[styles.sectionBreak, styles.card]} wrap={false}>
           <Text style={styles.cardContent}>
             {companyDetails.hireAgreementText ||
               `The hire rate of £${rate.toFixed(
@@ -232,21 +196,12 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
           </Text>
         </View>
 
-        {/* Signatures – positioned at bottom */}
-        <View
-          style={[
-            styles.signatureSection,
-            { position: 'absolute', bottom: 60, left: 40, right: 40 },
-          ]}
-          wrap={false}
-        >
+        {/* Signatures */}
+        <View style={styles.signatureSection} wrap={false}>
           <View style={styles.signatureBox}>
             <Text style={styles.sectionTitle}>Lessor</Text>
             {companyDetails.signature && (
-              <Image
-                src={companyDetails.signature}
-                style={styles.signature}
-              />
+              <Image src={companyDetails.signature} style={styles.signature} />
             )}
             <Text style={styles.label}>Date:</Text>
             <Text style={styles.value}>{format(new Date(), 'dd/MM/yyyy')}</Text>
@@ -255,10 +210,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
           <View style={styles.signatureBox}>
             <Text style={styles.sectionTitle}>Hirer</Text>
             {claim.clientInfo.signature && (
-              <Image
-                src={claim.clientInfo.signature}
-                style={styles.signature}
-              />
+              <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
             <Text style={styles.label}>{claim.clientInfo.name}</Text>
             <Text style={styles.value}>{format(new Date(), 'dd/MM/yyyy')}</Text>
@@ -267,8 +219,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
 
         {/* Footer */}
         <Text style={styles.footer} fixed>
-          {companyDetails.fullName} | Registered in England and Wales | Company No:{' '}
-          {companyDetails.registrationNumber}
+          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
         </Text>
       </Page>
     </Document>

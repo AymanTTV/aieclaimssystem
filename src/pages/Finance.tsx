@@ -16,6 +16,8 @@ import TransactionDeleteModal from '../components/finance/TransactionDeleteModal
 import AccountManageModal from '../components/finance/AccountManageModal';
 import TransferMoneyModal from '../components/finance/TransferMoneyModal';
 import Modal from '../components/ui/Modal';
+import ManageGroupsModal from '../components/finance/ManageGroupsModal';
+import AssignGroupModal from '../components/finance/AssignGroupModal';
 import { generateFinancePDF } from '../utils/financePDF';
 import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { FinanceDocument } from '../components/pdf/documents';
@@ -26,6 +28,7 @@ import { db } from '../lib/firebase';
 import * as XLSX from 'xlsx';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 
 /** ────── Category Service Import ────── **/
 import financeCategoryService from '../services/financeCategory.service';
@@ -39,6 +42,18 @@ const Finance: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const { can } = usePermissions();
   const { user } = useAuth();
+
+  const [groups, setGroups] = useState<FinanceGroup[]>([]);
+  const loadGroups = useCallback(async () => {
+    const all = await financeGroupService.getAll();
+    setGroups(all);
+  }, []);
+  useEffect(() => { loadGroups(); }, [loadGroups]);
+  const [manageOpen, setManageOpen] = useState(false);
+
+  // ─── Assign ──────────────────────────
+  const [assignTxn, setAssignTxn] = useState<Transaction|null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
@@ -148,6 +163,8 @@ const Finance: React.FC = () => {
     type,
     setType,
     category,
+    groupFilter,
+    setGroupFilter,
     setCategory,
     paymentStatus,
     setPaymentStatus,
@@ -359,9 +376,7 @@ const Finance: React.FC = () => {
         onPeriodChange={() => {}}
         type={type}
         onTypeChange={setType}
-        onManageAccounts={() => setShowAccountModal(true)}
-        onTransferMoney={() => setShowTransferModal(true)}
-        onManageCategories={() => setShowCatModal(true)}
+        onManageGroups={() => setManageOpen(true)}
       />
 
       {/* ── FILTERS ── */}
@@ -388,6 +403,9 @@ const Finance: React.FC = () => {
         accountSummary={accountSummary}
         /** ── Pass finance-specific category names ── **/
         categories={financeCategories.map((c) => c.name)}
+        groupFilter={groupFilter}
+        onGroupFilterChange={setGroupFilter}
+        groupOptions={groups.map(g => ({ id: g.id, name: g.name }))}
       />
 
       {/* ── TABLE ── */}
@@ -412,12 +430,14 @@ const Finance: React.FC = () => {
         }}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={(url) => window.open(url, '_blank')}
+        onAssign={txn => { setAssignTxn(txn); setAssignOpen(true); }}
+        groups={groups.map(g => ({ id: g.id, name: g.name }))}
         onAssignAccount={(txn) => {
           setSelectedTransaction(txn);
           setShowAccountModal(true);
         }}
       />
-
+      
       {/* ── ADD / EDIT TRANSACTION MODALS ── */}
       <Modal
         isOpen={showAddIncome || showAddExpense}
@@ -488,6 +508,23 @@ const Finance: React.FC = () => {
           />
         )}
       </Modal>
+      <ManageGroupsModal
+        open={manageOpen}
+        onClose={() => { setManageOpen(false); loadGroups(); }}
+      />
+
+      {assignTxn && (
+        <AssignGroupModal
+          open={assignOpen}
+          txn={assignTxn}
+          groups={groups}
+          onClose={() => setAssignOpen(false)}
+          onAssigned={() => {
+            setAssignOpen(false);
+            loadTransactions();
+          }}
+        />
+      )}
 
       <Modal
         isOpen={showDeleteModal}

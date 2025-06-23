@@ -228,19 +228,28 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
 
         {/* Invoice Info (Horizontal Card) */}
         <View style={localStyles.infoCard}>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Invoice Number</Text>
-            <Text style={localStyles.infoValue}>AIE-{rental.id.slice(-8).toUpperCase()}</Text>
-          </View>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Date</Text>
-            <Text style={localStyles.infoValue}>{fmtDateTime(rental.createdAt || new Date())}</Text>
-          </View>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Due Date</Text>
-            <Text style={localStyles.infoValue}>{fmtDateTime(rental.endDate)}</Text>
-          </View>
-        </View>
+  <View style={localStyles.infoItem}>
+    <Text style={localStyles.infoLabel}>Invoice Number</Text>
+    <Text style={localStyles.infoValue}>AIE-{rental.id.slice(-8).toUpperCase()}</Text>
+  </View>
+  <View style={localStyles.infoItem}>
+    <Text style={localStyles.infoLabel}>Invoice Date</Text>
+    <Text style={localStyles.infoValue}>{fmtDateTime(rental.createdAt || new Date())}</Text>
+  </View>
+  <View style={localStyles.infoItem}>
+    <Text style={localStyles.infoLabel}>Due Date</Text>
+    <Text style={localStyles.infoValue}>{fmtDateTime(rental.endDate)}</Text>
+  </View>
+  <View style={localStyles.infoItem}>
+    <Text style={localStyles.infoLabel}>Rental Start</Text>
+    <Text style={localStyles.infoValue}>{fmtDateTime(rental.startDate)}</Text>
+  </View>
+  <View style={localStyles.infoItem}>
+    <Text style={localStyles.infoLabel}>Rental End</Text>
+    <Text style={localStyles.infoValue}>{fmtDateTime(rental.endDate)}</Text>
+  </View>
+</View>
+
 
         {/* Bill To & Vehicle */}
         <View style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'space-between' }]} wrap={false}>

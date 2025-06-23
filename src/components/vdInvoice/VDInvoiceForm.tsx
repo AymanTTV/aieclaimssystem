@@ -1,4 +1,5 @@
-// src/components/invoice/VDInvoiceForm.tsx
+// src/components/vdInvoice/VDInvoiceForm.tsx
+
 import React, { useState, useEffect } from 'react';
 import { VDInvoice, VDInvoicePart } from '../../types/vdInvoice';
 import FormField from '../ui/FormField';
@@ -7,7 +8,7 @@ import ServiceCenterDropdown from '../maintenance/ServiceCenterDropdown';
 import { Customer, Vehicle } from '../../types';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import productService from '../../services/product.service'; // For fetching products
+import productService from '../../services/product.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface VDInvoiceFormProps {
@@ -41,6 +42,7 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
   const [formData, setFormData] = useState({
     date: invoice?.date ? format(invoice.date, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
     invoiceNumber: invoice?.invoiceNumber || `INV-${Date.now().toString().slice(-8).toUpperCase()}`,
+
     // Customer fields
     customerName: invoice?.customerName || '',
     customerAddress: invoice?.customerAddress || '',
@@ -48,26 +50,31 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
     customerEmail: invoice?.customerEmail || '',
     customerPhone: invoice?.customerPhone || '',
     customerId: invoice?.customerId || '',
+
     // Vehicle fields
     registration: invoice?.registration || '',
     make: invoice?.make || '',
     model: invoice?.model || '',
     color: invoice?.color || '',
     vehicleId: invoice?.vehicleId || '',
-    // Service center & labor
+
+    // Service Center & Labor
     serviceCenter: invoice?.serviceCenter || '',
     laborHours: invoice?.laborHours || 0,
     laborRate: invoice?.laborRate || 75,
-    // Parts array, now with discount
+
+    // Parts (now preserving includeVAT)
     parts: invoice?.parts?.length
       ? invoice.parts.map(part => ({
           ...part,
-          includeVAT: invoice.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false,
+          includeVAT: part.includeVAT ?? false,
           discount: (part as any).discount ?? 0
         }))
       : [{ name: '', quantity: 1, price: 0, includeVAT: false, discount: 0 }] as (VDInvoicePart & { includeVAT: boolean; discount: number })[],
-    // Paint/materials
+
+    // Paint/Materials
     paintMaterials: invoice?.paintMaterials || 0,
+
     // Payment
     paymentMethod: invoice?.paymentMethod || 'CASH' as const,
     paidAmount: invoice?.paidAmount || 0,
@@ -75,37 +82,20 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
     paymentStatus: invoice?.paymentStatus || 'pending' as const,
   });
 
-  // Part suggestions fetched from productService
   const [partSuggestions, setPartSuggestions] = useState<PartSuggestion[]>([]);
   const [showPartSuggestions, setShowPartSuggestions] = useState<boolean[]>([]);
 
   useEffect(() => {
-    const fetchProductSuggestions = async () => {
-      try {
-        const products = await productService.getAll();
-        const suggestions: PartSuggestion[] = products.map(p => ({
-          name: p.name,
-          lastPrice: p.price
-        }));
-        setPartSuggestions(suggestions);
-      } catch (error) {
-        console.error('Error fetching product suggestions:', error);
-      }
-    };
-    fetchProductSuggestions();
+    productService.getAll().then(products => {
+      setPartSuggestions(products.map(p => ({ name: p.name, lastPrice: p.price })));
+    }).catch(console.error);
   }, []);
 
-  // Re‐initialize “show suggestions” whenever parts count changes
   useEffect(() => {
     setShowPartSuggestions(new Array(formData.parts.length).fill(false));
   }, [formData.parts.length]);
 
-  const handleServiceCenterSelect = (center: {
-    name: string;
-    address: string;
-    postcode: string;
-    hourlyRate: number;
-  }) => {
+  const handleServiceCenterSelect = (center: { name: string; address: string; postcode: string; hourlyRate: number }) => {
     setFormData(prev => ({
       ...prev,
       serviceCenter: center.name,
@@ -143,123 +133,79 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
     }
   };
 
-  /**
-   * calculateTotals():
-   *   1. For each part, apply discount first:
-   *         lineTotal = price * quantity
-   *         discountAmt = (discount% of lineTotal)
-   *         netAfterDiscount = lineTotal – discountAmt
-   *         vatOnThat = 20% × netAfterDiscount if includeVAT
-   *   2. Sum up all netAfterDiscount to get netParts.
-   *   3. Sum up all partVAT to get partsVAT.
-   *   4. netLabor = laborHours × laborRate
-   *      laborVAT = 20% × netLabor if flagged.
-   *   5. netPaint = paintMaterials
-   *      paintVAT = 20% × netPaint if flagged.
-   *   6. subtotal = netParts + netLabor + netPaint
-   *   7. vatAmount = partsVAT + laborVAT + paintVAT
-   *   8. total = subtotal + vatAmount
-   */
   const calculateTotals = () => {
-    let netParts = 0;
-    let partsVAT = 0;
-
+    let netParts = 0, partsVAT = 0;
     formData.parts.forEach(part => {
-      const lineTotal = part.price * part.quantity;
-      const discountAmt = (part.discount / 100) * lineTotal;
-      const afterDiscount = lineTotal - discountAmt;
-      netParts += afterDiscount;
-      if (part.includeVAT) {
-        partsVAT += afterDiscount * 0.2;
-      }
+      const line = part.price * part.quantity;
+      const discounted = line - (part.discount/100)*line;
+      netParts += discounted;
+      if (part.includeVAT) partsVAT += discounted * 0.2;
     });
-
     const netLabor = formData.laborHours * formData.laborRate;
     const laborVAT = includeVATOnLabor ? netLabor * 0.2 : 0;
-
     const netPaint = formData.paintMaterials;
     const paintVAT = includeVATOnPaintMaterials ? netPaint * 0.2 : 0;
-
     const subtotal = netParts + netLabor + netPaint;
     const vatAmount = partsVAT + laborVAT + paintVAT;
     const total = subtotal + vatAmount;
-
-    return {
-      partsTotal: netParts,
-      laborCost: netLabor,
-      vatAmount,
-      subtotal,
-      total
-    };
+    return { partsTotal: netParts, laborCost: netLabor, vatAmount, subtotal, total };
   };
 
-  // Recompute totals on every render
   const { partsTotal, laborCost, vatAmount, subtotal, total } = calculateTotals();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const totals = calculateTotals();
-      const remainingAmount = totals.total - formData.paidAmount;
-      const paymentStatus = formData.paidAmount === 0
-        ? 'pending'
-        : formData.paidAmount >= totals.total
-        ? 'paid'
-        : 'partially_paid';
+      const remaining = totals.total - formData.paidAmount;
+      const status = formData.paidAmount === 0
+        ? 'pending' : formData.paidAmount >= totals.total
+        ? 'paid' : 'partially_paid';
 
       const payload: Partial<VDInvoice> = {
         date: new Date(formData.date),
-        invoiceNumber: formData.invoiceNumber,
-
-        // Customer
-        customerName: formData.customerName,
-        customerAddress: formData.customerAddress,
-        customerPostcode: formData.customerPostcode,
-        customerEmail: formData.customerEmail,
-        customerPhone: formData.customerPhone,
-        // Use null instead of undefined to avoid Firestore errors
+        invoiceNumber: formData.invoiceNumber || '',
+        customerName: formData.customerName || '',
+        customerAddress: formData.customerAddress || '',
+        customerPostcode: formData.customerPostcode || '',
+        customerEmail: formData.customerEmail || '',
+        customerPhone: formData.customerPhone || '',
         customerId: formData.customerId || null,
-
-        // Vehicle
-        registration: formData.registration,
-        make: formData.make,
-        model: formData.model,
-        color: formData.color,
+        registration: formData.registration || '',
+        make: formData.make || '',
+        model: formData.model || '',
+        color: formData.color || '',
         vehicleId: formData.vehicleId || null,
-
-        // Service Center + Labor
-        serviceCenter: formData.serviceCenter,
+        serviceCenter: formData.serviceCenter || '',
         laborHours: formData.laborHours,
         laborRate: formData.laborRate,
         laborVAT: includeVATOnLabor,
-
-        // Parts (strip out includeVAT before sending, but keep discount)
-        parts: formData.parts.map(({ includeVAT, ...rest }) => rest as VDInvoicePart),
-
-        // Paint + its VAT flag
+        // preserve VAT flags on parts
+        parts: formData.parts.map(part => ({
+          name: part.name,
+          quantity: part.quantity,
+          price: part.price,
+          includeVAT: part.includeVAT,
+          discount: part.discount
+        })),
         paintMaterials: formData.paintMaterials,
         paintMaterialsVAT: includeVATOnPaintMaterials,
-
-        // Computed fields
         partsTotal,
         laborCost,
         vatAmount,
         subtotal,
         total,
-
-        // Payment
         paidAmount: formData.paidAmount,
-        remainingAmount,
-        paymentStatus,
+        remainingAmount: remaining,
+        paymentStatus: status,
         paymentMethod: formData.paymentMethod,
       };
 
       await onSubmit(payload);
       onClose();
-    } catch (error) {
-      console.error('Error submitting invoice:', error);
+    } catch (err) {
+      console.error('Error submitting invoice:', err);
       toast.error('Failed to submit invoice');
     } finally {
       setLoading(false);

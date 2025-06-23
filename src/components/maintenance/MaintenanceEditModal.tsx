@@ -246,38 +246,36 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
 
       // Handle finance transaction
       if (additionalPayment > 0) {
-        if (existingTransaction) {
-          // Update existing transaction
-          await updateDoc(doc(db, 'transactions', existingTransaction.id), {
-            amount: existingTransaction.amount + additionalPayment,
-            description: `Updated maintenance payment for ${formData.description}`,
-            paymentMethod,
-            paymentReference,
-            paymentStatus,
-            updatedAt: new Date()
-          });
-
-          toast.success('Maintenance and transaction updated successfully');
-        } else {
-          // Create new transaction
-          await createFinanceTransaction({
-            type: 'expense',
-            category: 'maintenance',
-            amount: additionalPayment,
-            description: `Maintenance payment for ${formData.description}`,
-            referenceId: log.id,
-            vehicleId: log.vehicleId,
-            vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-            paymentMethod,
-            paymentReference,
-            paymentStatus
-          });
-
-          toast.success('Maintenance updated and transaction created successfully');
-        }
+      if (existingTransaction) {
+        await updateDoc(doc(db, 'transactions', existingTransaction.id), {
+          amount: existingTransaction.amount + additionalPayment,
+          category: formData.type,
+          description: formData.description,
+          paymentMethod,
+          paymentReference,
+          paymentStatus,
+          updatedAt: new Date()
+        })
+        toast.success('Maintenance and transaction updated successfully')
       } else {
-        toast.success('Maintenance updated successfully');
+        await createFinanceTransaction({
+          type: 'expense',
+          category: formData.type,
+          amount: additionalPayment,
+          description: formData.description,
+          referenceId: log.id,
+          vehicleId: log.vehicleId,
+          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+          paymentMethod,
+          paymentReference,
+          paymentStatus
+        })
+        toast.success('Maintenance updated and transaction created successfully')
       }
+    } else {
+      toast.success('Maintenance updated successfully')
+    }
+
 
       onClose();
     } catch (error) {

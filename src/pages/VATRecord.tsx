@@ -39,6 +39,8 @@ const VATRecordPage = () => {
     setStatusFilter,
     dateRange,
     setDateRange,
+    amountRange,         // ← new
+    setAmountRange,   
     filteredRecords,
     summary
   } = useVATRecordFilters(records);
@@ -225,6 +227,8 @@ const VATRecordPage = () => {
         onStatusFilterChange={setStatusFilter}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        amountRange={amountRange}               // ← new
+        onAmountRangeChange={setAmountRange}    // ← new
       />
 
       {/* Records Table */}

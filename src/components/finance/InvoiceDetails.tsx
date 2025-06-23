@@ -37,6 +37,18 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
   const { formatCurrency } = useFormattedDisplay();
 
+  // total discount from line items
+  const totalDiscount = invoice.lineItems.reduce((sum, li) => {
+    const gross = li.quantity * li.unitPrice;
+    return sum + (li.discount / 100) * gross;
+  }, 0);
+
+  const net = invoice.subTotal;
+  const vat = invoice.vatAmount;
+  const total = net + vat - totalDiscount;
+  const paid = invoice.paidAmount;
+  const owing = invoice.remainingAmount;
+  
   // Helper: compute each line’s net, vat, and total
   const lineTotals = (item: Invoice['lineItems'][0]) => {
     const gross = item.quantity * item.unitPrice;
@@ -124,29 +136,31 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       )}
 
-      {/* ── Cost Summary ── */}
+      {/* Cost Breakdown */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
-          <span>Total Amount:</span>
-          <span className="font-medium">{formatCurrency(invoice.total)}</span>
+          <span>Net:</span>
+          <span>{formatCurrency(net)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Amount Paid:</span>
-          <span className="text-green-600">{formatCurrency(invoice.paidAmount)}</span>
+          <span>VAT:</span>
+          <span>{formatCurrency(vat)}</span>
         </div>
-        {invoice.remainingAmount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Remaining Amount:</span>
-            <span className="text-amber-600">
-              {formatCurrency(invoice.remainingAmount)}
-            </span>
-          </div>
-        )}
-        <div className="flex justify-between text-sm pt-2 border-t">
-          <span>Payment Status:</span>
-          <span className="font-medium capitalize">
-            {invoice.paymentStatus.replace('_', ' ')}
-          </span>
+        <div className="flex justify-between text-sm">
+          <span>Discount:</span>
+          <span className="text-red-600">–{formatCurrency(totalDiscount)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Total:</span>
+          <span>{formatCurrency(total)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Paid:</span>
+          <span className="text-green-600">{formatCurrency(paid)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Owing:</span>
+          <span className="text-amber-600">{formatCurrency(owing)}</span>
         </div>
       </div>
 

@@ -14,9 +14,10 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import productService from '../services/product.service';
 import categoryService from '../services/category.service';
-import { X, Edit2, Trash2, Eye, Box } from 'lucide-react';
+import { X, Edit2, Trash2, Eye, Box, Download } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
+import { handleProductExport } from '../utils/productHelpers';
 
 // Inline spinner so no external UI import is needed
 const Spinner: React.FC = () => (
@@ -105,6 +106,7 @@ const ProductsPage: React.FC = () => {
   const handleFilter = (e: ChangeEvent<HTMLSelectElement>) => setFilterCat(e.target.value);
   const { can } = usePermissions();
   const { user } = useAuth();
+  
 
   const openProductForm = (prod?: Product) => {
     startTransition(() => {
@@ -215,18 +217,30 @@ const ProductsPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Products</h1>
         <div className="flex space-x-2">
+          {user?.role === 'manager' && (
           <button
             onClick={() => openCatForm()}
             className="px-4 py-2 border rounded hover:bg-gray-50"
           >
             Manage Categories
           </button>
+          )}
           <button
             onClick={() => openProductForm()}
             className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-600"
           >
             + Add Product
           </button>
+          {user?.role === 'manager' && (
+  <button
+          onClick={() => handleProductExport(products, categories)}
+          className="inline-flex items-center px-4 py-2 rounded-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+        >
+          <Download className="h-5 w-5 mr-2" />
+          Export
+        </button>
+)}
+
         </div>
       </div>
 

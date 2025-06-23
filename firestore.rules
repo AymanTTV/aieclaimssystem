@@ -45,5 +45,16 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isManager();
     }
+    
+    // ─────────────── To-Do Lists ───────────────
+    // Each user has their own subcollection at /todos/{userId}/items/{todoId}
+    match /todos/{userId}/items/{itemId} {
+      // Owners can read or write their own items
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Managers may also read any user's items (but not write)
+      allow read: if isAuthenticated() && isManager();
+    }
+    // ────────────────────────────────────────────
   }
 }

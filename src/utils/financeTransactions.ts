@@ -28,6 +28,8 @@ interface FinanceTransactionParams {
   customerName?: string; // NEW: Add customerName
 }
 
+// src/utils/financeTransactions.ts
+
 export const createMaintenanceTransaction = async (
   maintenanceLog: MaintenanceLog,
   vehicle: Vehicle,
@@ -41,11 +43,14 @@ export const createMaintenanceTransaction = async (
     return;
   }
 
-  // Check if a transaction already exists for this maintenance log
+  // Prevent duplicate
   const transactionsRef = collection(db, 'transactions');
-  const q = query(transactionsRef, where('referenceId', '==', maintenanceLog.id), where('category', '==', 'maintenance'));
+  const q = query(
+    transactionsRef,
+    where('referenceId', '==', maintenanceLog.id),
+    where('category', '==', maintenanceLog.type)        // ← use actual type
+  );
   const snapshot = await getDocs(q);
-
   if (!snapshot.empty) {
     console.warn('Transaction for this maintenance log already exists.');
     toast.error('Transaction for this maintenance log already exists.');
@@ -54,9 +59,9 @@ export const createMaintenanceTransaction = async (
 
   const transaction: Transaction = {
     type: 'expense',
-    category: 'Maintenance',
+    category: maintenanceLog.type,                       // ← dynamic category
     amount,
-    description: `Maintenance for ${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`,
+    description: maintenanceLog.description,              // ← use the log’s description
     referenceId: maintenanceLog.id,
     vehicleId: vehicle.id,
     vehicleName: `${vehicle.make} ${vehicle.model}`,
@@ -64,12 +69,10 @@ export const createMaintenanceTransaction = async (
     paymentStatus: 'paid',
     date: new Date(),
     createdAt: new Date(),
-    createdBy: 'system', // Or current user's ID
+    createdBy: 'system',
   };
 
-  if (paymentReference) {
-    transaction.paymentReference = paymentReference;
-  }
+  if (paymentReference) transaction.paymentReference = paymentReference;
 
   try {
     await addDoc(collection(db, 'transactions'), transaction);
@@ -79,6 +82,7 @@ export const createMaintenanceTransaction = async (
     toast.error('Failed to create maintenance transaction');
   }
 };
+
 
 
 export const createFinanceTransaction = async (params: FinanceTransactionParams) => {

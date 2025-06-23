@@ -4,7 +4,11 @@ import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { DEFAULT_PERMISSIONS, type RolePermissions, type PermissionAction } from '../../types/roles';
+import {
+  DEFAULT_PERMISSIONS,
+  type RolePermissions,
+  type PermissionAction,
+} from '../../types/roles';
 import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +21,7 @@ interface UserRoleModalProps {
 const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   const { user: currentUser } = useAuth();
   const isManager = currentUser?.role === 'manager';
+
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<User['role']>(user.role);
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(
@@ -34,7 +39,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
       await updateDoc(doc(db, 'users', user.id), {
         role,
         permissions: customPermissions,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
       toast.success('User permissions updated successfully');
       onClose();
@@ -56,24 +61,30 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         return 'Company & Managers';
       case 'pettyCash':
         return 'Petty Cash';
+      case 'vdInvoice':
+        return 'VD Invoice';
       default:
         return module.charAt(0).toUpperCase() + module.slice(1);
     }
-  };  
+  };
 
-  const handleToggle = (module: keyof RolePermissions, action: PermissionAction) => {
+  const handleToggle = (
+    module: keyof RolePermissions,
+    action: PermissionAction
+  ) => {
     if (!isManager) return;
-    setCustomPermissions(prev => ({
+    setCustomPermissions((prev) => ({
       ...prev,
       [module]: {
         ...prev[module],
-        [action]: !prev[module][action]
-      }
+        [action]: !prev[module][action],
+      },
     }));
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Role Selector */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Role</label>
         <select
@@ -83,7 +94,9 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
             setRole(newRole);
             setCustomPermissions(DEFAULT_PERMISSIONS[newRole]);
           }}
-          className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm ${!isManager ? 'bg-gray-100' : ''}`}
+          className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm
+            focus:border-primary focus:ring-primary sm:text-sm
+            ${!isManager ? 'bg-gray-100' : ''}`}
           disabled={!isManager}
         >
           <option value="manager">Manager</option>
@@ -93,8 +106,12 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         </select>
       </div>
 
+      {/* Custom Permissions Grid */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Custom Permissions</h3>
+        <h3 className="text-lg font-medium text-gray-900">
+          Custom Permissions
+        </h3>
+
         {Object.entries(customPermissions).map(([module, permissions]) => (
           <div key={module} className="border rounded-lg p-4">
             <h4 className="text-sm font-medium text-gray-900 capitalize mb-2">
@@ -102,19 +119,35 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {Object.entries(permissions).map(([action, enabled]) => {
-                const label = action === 'cards'
-                  ? 'View summary cards'
-                  : action.charAt(0).toUpperCase() + action.slice(1);
+                const label =
+                  action === 'cards'
+                    ? 'View summary cards'
+                    : action === 'recordPayment'
+                    ? 'Record Payment'
+                    : action.charAt(0).toUpperCase() + action.slice(1);
+
                 return (
                   <label key={action} className="flex items-center">
                     <input
                       type="checkbox"
                       checked={enabled}
-                      onChange={() => handleToggle(module as keyof RolePermissions, action as PermissionAction)}
-                      className={`rounded border-gray-300 text-primary focus:ring-primary ${!isManager ? 'cursor-not-allowed opacity-60' : ''}`}
+                      onChange={() =>
+                        handleToggle(
+                          module as keyof RolePermissions,
+                          action as PermissionAction
+                        )
+                      }
+                      className={`rounded border-gray-300 text-primary focus:ring-primary
+                        ${!isManager ? 'cursor-not-allowed opacity-60' : ''}`}
                       disabled={!isManager}
                     />
-                    <span className={`ml-2 text-sm text-gray-700 capitalize ${!isManager ? 'opacity-60' : ''}`}>{label}</span>
+                    <span
+                      className={`ml-2 text-sm text-gray-700 capitalize ${
+                        !isManager ? 'opacity-60' : ''
+                      }`}
+                    >
+                      {label}
+                    </span>
                   </label>
                 );
               })}
@@ -123,20 +156,23 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         ))}
       </div>
 
+      {/* Action Buttons */}
       <div className="flex justify-end space-x-3">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white
+            border border-gray-300 rounded-md hover:bg-gray-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading || !isManager}
-          className={`px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md ${
-            isManager ? 'hover:bg-primary-600' : 'opacity-60 cursor-not-allowed'
-          }`}
+          className={`px-4 py-2 text-sm font-medium text-white bg-primary
+            border border-transparent rounded-md ${
+              isManager ? 'hover:bg-primary-600' : 'opacity-60 cursor-not-allowed'
+            }`}
         >
           {loading ? 'Updating...' : 'Update Permissions'}
         </button>

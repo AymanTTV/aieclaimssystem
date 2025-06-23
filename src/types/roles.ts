@@ -6,6 +6,7 @@ export interface Permission {
   view: boolean;
   create: boolean;
   update: boolean;
+  recordPayment: boolean;
   delete: boolean;
   cards: boolean;
 }
@@ -24,6 +25,7 @@ export interface RolePermissions {
   share: Permission;
   driverPay: Permission;
   vdFinance: Permission;
+  vdInvoice: Permission; 
   users: Permission;
   vatRecord: Permission;
   customers: Permission;
@@ -44,7 +46,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
     pettyCash:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
     share:         { view: true,  create: true,  update: true,  delete: true,  cards: true },
-    driverPay:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    vdInvoice:  { view: true,  create: true,  update: true,  delete: true,  cards: true },
+
+    driverPay:     { view: true, create: true, update: true, delete: true, recordPayment: true, cards: true },
     vdFinance:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
     users:         { view: true,  create: true,  update: true,  delete: true,  cards: true },
     vatRecord:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
@@ -64,7 +68,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
     pettyCash:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     share:         { view: true,  create: true,  update: true,  delete: false, cards: true },
-    driverPay:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    driverPay:     { view: true, create: true, update: true, delete: false, recordPayment: true, cards: true },
+    vdInvoice:  { view: true,  create: true,  update: true,  delete: false, cards: true },
     vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     users:         { view: false, create: false, update: false, delete: false, cards: false },
     vatRecord:     { view: true,  create: true,  update: true,  delete: false, cards: true },
@@ -84,7 +89,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
     pettyCash:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     share:         { view: true,  create: true,  update: true,  delete: false, cards: true },
-    driverPay:     { view: true,  create: true,  update: true,  delete: false, cards: true },
+    vdInvoice:  { view: true,  create: true,  update: true,  delete: false, cards: true },
+
+    driverPay:     { view: true, create: true, update: true, delete: false, recordPayment: true, cards: true },
     vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     users:         { view: false, create: false, update: false, delete: false, cards: false },
     vatRecord:     { view: true,  create: true,  update: true,  delete: false, cards: true },
@@ -104,10 +111,11 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     invoices:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
     pettyCash:     { view: false, create: false, update: false, delete: false, cards: false },
     share:         { view: false, create: false, update: false, delete: false, cards: false },
-    driverPay:     { view: false, create: false, update: false, delete: false, cards: false },
+    driverPay:     { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false },
     vdFinance:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     users:         { view: false, create: false, update: false, delete: false, cards: false },
     vatRecord:     { view: false, create: false, update: false, delete: false, cards: false },
+    vdInvoice:  { view: true,  create: true,  update: true,  delete: false, cards: true },
     customers:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     company:       { view: true,  create: false, update: false, delete: false, cards: true },
     products:      { view: true,  create: false, update: false, delete: false, cards: true },

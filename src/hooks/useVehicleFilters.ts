@@ -29,7 +29,8 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
         vehicle.make.toLowerCase().includes(searchLower) ||
         vehicle.model.toLowerCase().includes(searchLower) ||
         vehicle.vin.toLowerCase().includes(searchLower) ||
-        vehicle.owner?.name.toLowerCase().includes(searchLower);
+        // Safely access owner.name using optional chaining
+        (vehicle.owner?.name || '').toLowerCase().includes(searchLower); // MODIFIED LINE
 
       // Status filter
       let matchesStatus = true;

@@ -20,6 +20,7 @@ export interface Transaction {
   referenceId?: string;
   vehicleId?: string;
   vehicleName?: string;
+  groupId?: string;
   vehicleOwner?: {
     name: string;
     isDefault: boolean;

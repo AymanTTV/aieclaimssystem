@@ -191,7 +191,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
               </button>
           )}
            {/* Record Payment Action - Conditionally shown */}
-          {can('driverPay', 'update') && (row.original.paymentPeriods || []).some(period => (period.remainingAmount || 0) > 0) && (
+          {can('driverPay', 'recordPayment') && (row.original.paymentPeriods || []).some(period => (period.remainingAmount || 0) > 0) && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();

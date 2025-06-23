@@ -116,14 +116,13 @@ export const claimFormSchema = z
       dateOfBirth: z.string().refine(isValidDateString, {
         message: 'Invalid date format'
       }),
-      occupation: z.string().optional(),           // ← NEW
-      injuryDetails: z.string().optional(),        // ← NEW
+      occupation: z.string().optional(),
+      injuryDetails: z.string().optional(),
       nationalInsuranceNumber: z.string().min(1, 'NI number is required'),
       address: z.string().min(1, 'Address is required'),
       signature: z.string().optional()
     }),
 
-    // <-- now optional, we only enforce its fields in superRefine
     clientVehicle: z
       .object({
         registration:  z.string().optional(),
@@ -133,20 +132,19 @@ export const claimFormSchema = z
       })
       .optional(),
 
-    // <-- now optional, we only enforce its fields in superRefine
     registerKeeper: z
-    .object({
-      enabled:     z.boolean().default(false),
-      name:        z.string().optional(),
-      address:     z.string().optional(),
-      phone:       z.string().optional(),
-      email: z
-      .union([ z.string().email('Invalid email address'), z.literal('') ])
-      .optional(),  
-      dateOfBirth: z.string().optional(),
-      signature:   z.string().optional(),
-    })
-    .default({ enabled: false }),
+      .object({
+        enabled:     z.boolean().default(false),
+        name:        z.string().optional(),
+        address:     z.string().optional(),
+        phone:       z.string().optional(),
+        email: z
+          .union([ z.string().email('Invalid email address'), z.literal('') ])
+          .optional(),
+        dateOfBirth: z.string().optional(),
+        signature:   z.string().optional(),
+      })
+      .default({ enabled: false }),
 
     incidentDetails: z.object({
       date:           z.string().refine(isValidDateString, { message: 'Please enter a valid date' }),
@@ -206,16 +204,15 @@ export const claimFormSchema = z
     recovery:            recoverySchema,
 
     fileHandlers: z.object({
-  aieHandler: z.string().min(1, 'AIE handler is required'),
-  legalHandler: z.object({
-    id: z.string().min(1, 'Legal handler ID is required'),
-    name: z.string().min(1, 'Legal handler name is required'),
-    email: z.string().email('Invalid legal handler email'),
-    phone: z.string().min(1, 'Legal handler phone is required'),
-    address: z.string().min(1, 'Legal handler address is required')
-  })
-}),
-
+      aieHandler: z.string().min(1, 'AIE handler is required'),
+      legalHandler: z.object({
+        id: z.string().min(1, 'Legal handler ID is required'),
+        name: z.string().min(1, 'Legal handler name is required'),
+        email: z.string().email('Invalid legal handler email'),
+        phone: z.string().min(1, 'Legal handler phone is required'),
+        address: z.string().min(1, 'Legal handler address is required')
+      })
+    }),
 
     policeOfficerName:   z.string().optional().nullable(),
     policeBadgeNumber:   z.string().optional().nullable(),
@@ -254,256 +251,78 @@ export const claimFormSchema = z
       .default([])
   })
   .superRefine((data, ctx) => {
-    // --- Register Keeper: only validate its fields if enabled === true ---
+    // Register Keeper
     if (data.registerKeeper.enabled) {
       if (!data.registerKeeper.name) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper name is required when register keeper is enabled',
-          path:    ['registerKeeper', 'name'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper name is required', path: ['registerKeeper','name'] });
       }
       if (!data.registerKeeper.address) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper address is required when register keeper is enabled',
-          path:    ['registerKeeper', 'address'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper address is required', path: ['registerKeeper','address'] });
       }
       if (!data.registerKeeper.phone) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper phone is required when register keeper is enabled',
-          path:    ['registerKeeper', 'phone'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper phone is required', path: ['registerKeeper','phone'] });
       }
       if (!data.registerKeeper.email) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper email is required when register keeper is enabled',
-          path:    ['registerKeeper', 'email'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper email is required', path: ['registerKeeper','email'] });
       }
       if (!data.registerKeeper.dateOfBirth) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper date of birth is required when register keeper is enabled',
-          path:    ['registerKeeper', 'dateOfBirth'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper date of birth is required', path: ['registerKeeper','dateOfBirth'] });
       }
       if (!data.registerKeeper.signature) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Keeper signature is required when register keeper is enabled',
-          path:    ['registerKeeper', 'signature'],
-        });
-      }
-    }
-  
-    // --- Hire Details if enabled ---
-    if (data.hireDetails?.enabled) {
-      if (!data.hireDetails.startDate) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Hire start date is required',
-          path:    ['hireDetails', 'startDate'],
-        });
-      }
-      if (!data.hireDetails.endDate) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Hire end date is required',
-          path:    ['hireDetails', 'endDate'],
-        });
-      }
-      // …add other hire fields as needed
-    }
-  
-    // --- Storage Details if enabled ---
-    if (data.storage?.enabled) {
-      if (!data.storage.startDate) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Storage start date is required',
-          path:    ['storage', 'startDate'],
-        });
-      }
-      if (!data.storage.endDate) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Storage end date is required',
-          path:    ['storage', 'endDate'],
-        });
-      }
-    }
-  
-    // --- Recovery Details if enabled ---
-    if (data.recovery?.enabled) {
-      if (!data.recovery.date) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Recovery date is required',
-          path:    ['recovery', 'date'],
-        });
-      }
-      if (!data.recovery.locationPickup) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Recovery pickup location is required',
-          path:    ['recovery', 'locationPickup'],
-        });
-      }
-      if (!data.recovery.locationDropoff) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Recovery drop-off location is required',
-          path:    ['recovery', 'locationDropoff'],
-        });
-      }
-      if (data.recovery.cost == null) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Recovery cost is required',
-          path:    ['recovery', 'cost'],
-        });
-      }
-    }
-  
-    // --- Vehicle Details when VD is selected ---
-    if (data.claimReason.includes('VD')) {
-      if (!data.clientVehicle.registration) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Vehicle registration is required when VD is selected',
-          path:    ['clientVehicle', 'registration'],
-        });
-      }
-      if (!data.clientVehicle.motExpiry) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'MOT expiry is required when VD is selected',
-          path:    ['clientVehicle', 'motExpiry'],
-        });
-      }
-      if (!data.clientVehicle.roadTaxExpiry) {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Road tax expiry is required when VD is selected',
-          path:    ['clientVehicle', 'roadTaxExpiry'],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper signature is required', path: ['registerKeeper','signature'] });
       }
     }
 
-    if (data.claimReason.includes('PI')) {
-      if (!data.clientInfo.occupation) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Occupation is required when PI is selected',
-          path: ['clientInfo', 'occupation']
-        });
-      }
-      if (!data.clientInfo.injuryDetails) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Injury details are required when PI is selected',
-          path: ['clientInfo', 'injuryDetails']
-        });
-      }
+    // Hire
+    if (data.hireDetails?.enabled) {
+      if (!data.hireDetails.startDate) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hire start date is required', path:['hireDetails','startDate'] });
+      if (!data.hireDetails.endDate)   ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hire end date is required',   path:['hireDetails','endDate'] });
     }
-  
-    // --- GP & Hospital when PI is selected ---
+
+    // Storage
+    if (data.storage?.enabled) {
+      if (!data.storage.startDate) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Storage start date is required', path:['storage','startDate'] });
+      if (!data.storage.endDate)   ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Storage end date is required',   path:['storage','endDate'] });
+    }
+
+    // Recovery
+    if (data.recovery?.enabled) {
+      if (!data.recovery.date)            ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Recovery date is required',            path:['recovery','date'] });
+      if (!data.recovery.locationPickup)  ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Pickup location is required',        path:['recovery','locationPickup'] });
+      if (!data.recovery.locationDropoff) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Drop-off location is required',      path:['recovery','locationDropoff'] });
+      if (data.recovery.cost == null)     ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Recovery cost is required',           path:['recovery','cost'] });
+    }
+
+    // VD
+    if (data.claimReason.includes('VD')) {
+      if (!data.clientVehicle?.registration) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Registration is required for VD',    path:['clientVehicle','registration'] });
+      if (!data.clientVehicle?.motExpiry)   ctx.addIssue({ code: z.ZodIssueCode.custom, message:'MOT expiry is required for VD',     path:['clientVehicle','motExpiry'] });
+      if (!data.clientVehicle?.roadTaxExpiry) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Road tax expiry is required for VD', path:['clientVehicle','roadTaxExpiry'] });
+    }
+
+    // PI
     if (data.claimReason.includes('PI')) {
+      if (!data.clientInfo.occupation)  ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Occupation is required for PI',  path:['clientInfo','occupation'] });
+      if (!data.clientInfo.injuryDetails) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Injury details are required for PI', path:['clientInfo','injuryDetails'] });
+
       // GP
       if (data.gpInformation.visited) {
-        if (!data.gpInformation.gpName) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'GP name is required when GP visit is indicated',
-            path:    ['gpInformation', 'gpName'],
-          });
-        }
-        if (!data.gpInformation.gpAddress) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'GP address is required when GP visit is indicated',
-            path:    ['gpInformation', 'gpAddress'],
-          });
-        }
-        if (!data.gpInformation.gpDoctorName) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'GP doctor name is required when GP visit is indicated',
-            path:    ['gpInformation', 'gpDoctorName'],
-          });
-        }
-        if (!data.gpInformation.gpDate) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'GP visit date is required',
-            path:    ['gpInformation', 'gpDate'],
-          });
-        }
-        if (!data.gpInformation.gpContactNumber) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'GP contact number is required',
-            path:    ['gpInformation', 'gpContactNumber'],
-          });
-        }
-      } else if (typeof data.gpInformation.visited !== 'boolean') {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Please indicate if GP was visited',
-          path:    ['gpInformation', 'visited'],
-        });
+        if (!data.gpInformation.gpName)        ctx.addIssue({ code: z.ZodIssueCode.custom, message:'GP name is required',              path:['gpInformation','gpName'] });
+        if (!data.gpInformation.gpAddress)     ctx.addIssue({ code: z.ZodIssueCode.custom, message:'GP address is required',           path:['gpInformation','gpAddress'] });
+        if (!data.gpInformation.gpDoctorName)  ctx.addIssue({ code: z.ZodIssueCode.custom, message:'GP doctor name is required',      path:['gpInformation','gpDoctorName'] });
+        if (!data.gpInformation.gpDate)        ctx.addIssue({ code: z.ZodIssueCode.custom, message:'GP visit date is required',       path:['gpInformation','gpDate'] });
+        if (!data.gpInformation.gpContactNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'GP contact number is required', path:['gpInformation','gpContactNumber'] });
       }
-  
+
       // Hospital
       if (data.hospitalInformation.visited) {
-        if (!data.hospitalInformation.hospitalName) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'Hospital name is required when hospital visit is indicated',
-            path:    ['hospitalInformation', 'hospitalName'],
-          });
-        }
-        if (!data.hospitalInformation.hospitalAddress) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'Hospital address is required when hospital visit is indicated',
-            path:    ['hospitalInformation', 'hospitalAddress'],
-          });
-        }
-        if (!data.hospitalInformation.hospitalDoctorName) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'Hospital doctor name is required when hospital visit is indicated',
-            path:    ['hospitalInformation', 'hospitalDoctorName'],
-          });
-        }
-        if (!data.hospitalInformation.hospitalDate) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'Hospital visit date is required',
-            path:    ['hospitalInformation', 'hospitalDate'],
-          });
-        }
-        if (!data.hospitalInformation.hospitalContactNumber) {
-          ctx.addIssue({
-            code:    z.ZodIssueCode.custom,
-            message: 'Hospital contact number is required',
-            path:    ['hospitalInformation', 'hospitalContactNumber'],
-          });
-        }
-      } else if (typeof data.hospitalInformation.visited !== 'boolean') {
-        ctx.addIssue({
-          code:    z.ZodIssueCode.custom,
-          message: 'Please indicate if hospital was visited',
-          path:    ['hospitalInformation', 'visited'],
-        });
+        if (!data.hospitalInformation.hospitalName)        ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hospital name is required',         path:['hospitalInformation','hospitalName'] });
+        if (!data.hospitalInformation.hospitalAddress)     ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hospital address is required',      path:['hospitalInformation','hospitalAddress'] });
+        if (!data.hospitalInformation.hospitalDoctorName)  ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hospital doctor name is required',  path:['hospitalInformation','hospitalDoctorName'] });
+        if (!data.hospitalInformation.hospitalDate)        ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hospital visit date is required',   path:['hospitalInformation','hospitalDate'] });
+        if (!data.hospitalInformation.hospitalContactNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message:'Hospital contact number is required', path:['hospitalInformation','hospitalContactNumber'] });
       }
     }
   });
-  
 
 export type ClaimFormData = z.infer<typeof claimFormSchema>;

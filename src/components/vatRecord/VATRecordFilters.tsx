@@ -1,15 +1,16 @@
 // src/components/vatRecord/VATRecordFilters.tsx
-
-import React from 'react';
-import { Search } from 'lucide-react';
+import React from 'react'
+import { Search } from 'lucide-react'
 
 interface VATRecordFiltersProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (status: string) => void;
-  dateRange: { start: Date | null; end: Date | null };
-  onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
+  searchQuery: string
+  onSearchChange: (query: string) => void
+  statusFilter: string
+  onStatusFilterChange: (status: string) => void
+  dateRange: { start: Date | null; end: Date | null }
+  onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void
+  amountRange: { min: number | null; max: number | null }
+  onAmountRangeChange: (range: { min: number | null; max: number | null }) => void
 }
 
 const VATRecordFilters: React.FC<VATRecordFiltersProps> = ({
@@ -19,6 +20,8 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = ({
   onStatusFilterChange,
   dateRange,
   onDateRangeChange,
+  amountRange,
+  onAmountRangeChange,
 }) => {
   return (
     <div className="space-y-4">
@@ -30,50 +33,99 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = ({
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search by receipt no, supplier, or customer..."
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          onChange={e => onSearchChange(e.target.value)}
+          placeholder="Search by receipt no, supplier, or customer…"
+          className="form-input mt-1 block w-full pl-10 pr-3"
         />
       </div>
 
-      {/* Filter Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Status Filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => onStatusFilterChange(e.target.value)}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        >
-          <option value="all">All Status</option>
-          <option value="awaiting">Awaiting</option>
-          <option value="processing">Processing</option>
-          <option value="paid">Paid</option>
-        </select>
+      {/* Filters grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={e => onStatusFilterChange(e.target.value)}
+            className="form-select mt-1 block w-full"
+          >
+            <option value="all">All Status</option>
+            <option value="awaiting">Awaiting</option>
+            <option value="processing">Processing</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
 
-        {/* Date Range Filter */}
-        <div className="flex space-x-2">
+        {/* Date From */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={dateRange.start?.toISOString().split('T')[0] || ''}
-            onChange={(e) => onDateRangeChange({
-              ...dateRange,
-              start: e.target.value ? new Date(e.target.value) : null
-            })}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            value={dateRange.start?.toISOString().slice(0, 10) || ''}
+            onChange={e =>
+              onDateRangeChange({
+                ...dateRange,
+                start: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
+            className="form-input mt-1 block w-full"
           />
+        </div>
+
+        {/* Date To */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={dateRange.end?.toISOString().split('T')[0] || ''}
-            onChange={(e) => onDateRangeChange({
-              ...dateRange,
-              end: e.target.value ? new Date(e.target.value) : null
-            })}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            value={dateRange.end?.toISOString().slice(0, 10) || ''}
+            onChange={e =>
+              onDateRangeChange({
+                ...dateRange,
+                end: e.target.value ? new Date(e.target.value) : null,
+              })
+            }
+            min={dateRange.start?.toISOString().slice(0, 10)}
+            className="form-input mt-1 block w-full"
+          />
+        </div>
+
+        {/* Min Gross */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Min Gross</label>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={amountRange.min ?? ''}
+            onChange={e =>
+              onAmountRangeChange({
+                ...amountRange,
+                min: e.target.value ? parseFloat(e.target.value) : null,
+              })
+            }
+            className="form-input mt-1 block w-full"
+          />
+        </div>
+
+        {/* Max Gross */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Max Gross</label>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={amountRange.max ?? ''}
+            onChange={e =>
+              onAmountRangeChange({
+                ...amountRange,
+                max: e.target.value ? parseFloat(e.target.value) : null,
+              })
+            }
+            min={amountRange.min ?? undefined}
+            className="form-input mt-1 block w-full"
           />
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default VATRecordFilters;
+export default VATRecordFilters

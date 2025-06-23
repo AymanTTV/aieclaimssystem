@@ -25,6 +25,7 @@ export interface VDFinanceRecord {
   salvage: number; // New field
   clientReferralFee: number; // New field
   clientRepairAmount: number; // New field
+  originalProfit?: number;
   vatDetails: {
     partsVAT: { partName: string; includeVAT: boolean }[];
     laborVAT: boolean;
