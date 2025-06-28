@@ -5,18 +5,19 @@ import { Claim } from '../../../types';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
-import { doc, getDoc } from 'firebase/firestore';
+// import { doc, getDoc } from 'firebase/firestore'; // Not used in this component, removing comment
 
 interface ClaimDocumentProps {
   data: Claim;
 }
 
 const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
-  // fixed header details
+  // Fixed header details - breaking address into separate lines
   const headerDetails = {
     logoUrl: aieClaimsLogo,
     fullName: 'AIE Claims LTD',
-    officialAddress: 'United House, 39-41 North Road, London, N7 9DP',
+    addressLine1: 'United House, 39-41 North Road,', // Broken down
+    addressLine2: 'London, N7 9DP', // Broken down
     phone: '+442080505337',
     email: 'claims@aieclaims.co.uk',
   };
@@ -30,11 +31,15 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
     <Document>
       <Page size="A4" style={styles.page}>
         {/* ========== HEADER ========== */}
-        <View style={styles.header}>
-          <Image src={headerDetails.logoUrl} style={styles.logo} />
-          <View style={styles.companyInfo}>
+        <View style={styles.header} fixed>
+          <View style={styles.headerLeft}>
+            <Image src={headerDetails.logoUrl} style={styles.logo} />
+          </View>
+          <View style={styles.headerRight}>
             <Text style={styles.companyName}>{headerDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{headerDetails.officialAddress}</Text>
+            {/* Displaying address on separate lines */}
+            <Text style={styles.companyDetail}>{headerDetails.addressLine1}</Text>
+            <Text style={styles.companyDetail}>{headerDetails.addressLine2}</Text>
             <Text style={styles.companyDetail}>Tel: {headerDetails.phone}</Text>
             <Text style={styles.companyDetail}>Email: {headerDetails.email}</Text>
           </View>
@@ -130,160 +135,162 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
         )}
 
         {/* ========== THIRD PARTY & REGISTER KEEPER ========== */}
-<View
-  style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}
-  wrap={false}
->
-  {/* Third Party */}
-  <View style={[styles.card, { width: '48%' }]}>
-    <Text style={styles.cardTitle}>Third Party Information</Text>
-    <Text style={styles.cardContent}>Name: {data.thirdParty.name}</Text>
-    <Text style={styles.cardContent}>Phone: {data.thirdParty.phone}</Text>
-    <Text style={styles.cardContent}>Email: {data.thirdParty.email}</Text>
-    <Text style={styles.cardContent}>Address: {data.thirdParty.address}</Text>
-    <Text style={styles.cardContent}>Registration: {data.thirdParty.registration}</Text>
-  </View>
+        <View
+          style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}
+          wrap={false}
+        >
+          {/* Third Party */}
+          <View style={[styles.card, { width: '48%' }]}>
+            <Text style={styles.cardTitle}>Third Party Information</Text>
+            <Text style={styles.cardContent}>Name: {data.thirdParty.name}</Text>
+            <Text style={styles.cardContent}>Phone: {data.thirdParty.phone}</Text>
+            <Text style={styles.cardContent}>Email: {data.thirdParty.email}</Text>
+            <Text style={styles.cardContent}>Address: {data.thirdParty.address}</Text>
+            <Text style={styles.cardContent}>Registration: {data.thirdParty.registration}</Text>
+          </View>
 
-  {/* Register Keeper (only if enabled) */}
-  {data.registerKeeper?.enabled && (
-    <View style={[styles.card, { width: '48%' }]}>
-      <Text style={styles.cardTitle}>Register Keeper</Text>
-      <Text style={styles.cardContent}>Name: {data.registerKeeper.name}</Text>
-      <Text style={styles.cardContent}>Phone: {data.registerKeeper.phone}</Text>
-      <Text style={styles.cardContent}>Email: {data.registerKeeper.email}</Text>
-      <Text style={styles.cardContent}>
-        DOB / Established:{' '}
-        {data.registerKeeper.dateOfBirth && formatDate(data.registerKeeper.dateOfBirth)}
-      </Text>
-      {data.registerKeeper.signature && (
-        <Image
-          src={data.registerKeeper.signature}
-          style={{ width: '100%', height: 60, marginTop: 8 }}
-        />
-      )}
-    </View>
-  )}
-</View>
+          {/* Register Keeper (only if enabled) */}
+          {data.registerKeeper?.enabled && (
+            <View style={[styles.card, { width: '48%' }]}>
+              <Text style={styles.cardTitle}>Register Keeper</Text>
+              <Text style={styles.cardContent}>Name: {data.registerKeeper.name}</Text>
+              <Text style={styles.cardContent}>Phone: {data.registerKeeper.phone}</Text>
+              <Text style={styles.cardContent}>Email: {data.registerKeeper.email}</Text>
+              <Text style={styles.cardContent}>
+                DOB / Established:{' '}
+                {data.registerKeeper.dateOfBirth && formatDate(data.registerKeeper.dateOfBirth)}
+              </Text>
+              {data.registerKeeper.signature && (
+                <Image
+                  src={data.registerKeeper.signature}
+                  style={{ width: '100%', height: 60, marginTop: 8 }}
+                />
+              )}
+            </View>
+          )}
+        </View>
 
 
         {/* GP and Hospital Info Side by Side */}
-    {(data.gpInformation?.visited || data.hospitalInformation?.visited) && (
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }} wrap={false}>
-        {data.gpInformation?.visited && (
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.cardTitle}>GP Information</Text>
-            <Text style={styles.cardContent}>Name: {data.gpInformation.gpName}</Text>
-            <Text style={styles.cardContent}>Doctor: {data.gpInformation.gpDoctorName}</Text>
-            <Text style={styles.cardContent}>Address: {data.gpInformation.gpAddress}</Text>
-            <Text style={styles.cardContent}>Contact: {data.gpInformation.gpContactNumber}</Text>
-            <Text style={styles.cardContent}>Date: {data.gpInformation.gpDate && formatDate(data.gpInformation.gpDate)}</Text>
-            <Text style={styles.cardContent}>Notes: {data.gpInformation.gpNotes}</Text>
+        {(data.gpInformation?.visited || data.hospitalInformation?.visited) && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }} wrap={false}>
+            {data.gpInformation?.visited && (
+              <View style={[styles.card, { width: '48%' }]}>
+                <Text style={styles.cardTitle}>GP Information</Text>
+                <Text style={styles.cardContent}>Name: {data.gpInformation.gpName}</Text>
+                <Text style={styles.cardContent}>Doctor: {data.gpInformation.gpDoctorName}</Text>
+                <Text style={styles.cardContent}>Address: {data.gpInformation.gpAddress}</Text>
+                <Text style={styles.cardContent}>Contact: {data.gpInformation.gpContactNumber}</Text>
+                <Text style={styles.cardContent}>Date: {data.gpInformation.gpDate && formatDate(data.gpInformation.gpDate)}</Text>
+                <Text style={styles.cardContent}>Notes: {data.gpInformation.gpNotes}</Text>
+              </View>
+            )}
+
+            {data.hospitalInformation?.visited && (
+              <View style={[styles.card, { width: '48%' }]}>
+                <Text style={styles.cardTitle}>Hospital Information</Text>
+                <Text style={styles.cardContent}>Name: {data.hospitalInformation.hospitalName}</Text>
+                <Text style={styles.cardContent}>Doctor: {data.hospitalInformation.hospitalDoctorName}</Text>
+                <Text style={styles.cardContent}>Address: {data.hospitalInformation.hospitalAddress}</Text>
+                <Text style={styles.cardContent}>Contact: {data.hospitalInformation.hospitalContactNumber}</Text>
+                <Text style={styles.cardContent}>Date: {data.hospitalInformation.hospitalDate && formatDate(data.hospitalInformation.hospitalDate)}</Text>
+                <Text style={styles.cardContent}>Notes: {data.hospitalInformation.hospitalNotes}</Text>
+              </View>
+            )}
           </View>
         )}
 
-        {data.hospitalInformation?.visited && (
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.cardTitle}>Hospital Information</Text>
-            <Text style={styles.cardContent}>Name: {data.hospitalInformation.hospitalName}</Text>
-            <Text style={styles.cardContent}>Doctor: {data.hospitalInformation.hospitalDoctorName}</Text>
-            <Text style={styles.cardContent}>Address: {data.hospitalInformation.hospitalAddress}</Text>
-            <Text style={styles.cardContent}>Contact: {data.hospitalInformation.hospitalContactNumber}</Text>
-            <Text style={styles.cardContent}>Date: {data.hospitalInformation.hospitalDate && formatDate(data.hospitalInformation.hospitalDate)}</Text>
-            <Text style={styles.cardContent}>Notes: {data.hospitalInformation.hospitalNotes}</Text>
+        {/* Passengers Table */}
+        {data.passengers && data.passengers.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Passenger Details</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.tableHeaderCell}>Name</Text>
+                <Text style={styles.tableHeaderCell}>DOB</Text>
+                <Text style={styles.tableHeaderCell}>Contact</Text>
+              </View>
+              {data.passengers.map((p, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <Text style={styles.tableCell}>{p.name}</Text>
+                  <Text style={styles.tableCell}>{p.dob}</Text>
+                  <Text style={styles.tableCell}>{p.contactNumber}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
-      </View>
-    )}
 
-    {/* Passengers Table */}
-    {data.passengers && data.passengers.length > 0 && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Passenger Details</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={styles.tableHeaderCell}>Name</Text>
-            <Text style={styles.tableHeaderCell}>DOB</Text>
-            <Text style={styles.tableHeaderCell}>Contact</Text>
+        {/* Witnesses Table */}
+        {data.witnesses && data.witnesses.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Witness Details</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.tableHeaderCell}>Name</Text>
+                <Text style={styles.tableHeaderCell}>DOB</Text>
+                <Text style={styles.tableHeaderCell}>Contact</Text>
+              </View>
+              {data.witnesses.map((w, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <Text style={styles.tableCell}>{w.name}</Text>
+                  <Text style={styles.tableCell}>{w.dob}</Text>
+                  <Text style={styles.tableCell}>{w.contactNumber}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-          {data.passengers.map((p, i) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.tableCell}>{p.name}</Text>
-              <Text style={styles.tableCell}>{p.dob}</Text>
-              <Text style={styles.tableCell}>{p.contactNumber}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    )}
+        )}
 
-    {/* Witnesses Table */}
-    {data.witnesses && data.witnesses.length > 0 && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Witness Details</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={styles.tableHeaderCell}>Name</Text>
-            <Text style={styles.tableHeaderCell}>DOB</Text>
-            <Text style={styles.tableHeaderCell}>Contact</Text>
+        {/* Police & Paramedic */}
+        {(data.policeOfficerName || data.paramedicNames) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Emergency Response</Text>
+            <View style={styles.card}>
+              {data.policeOfficerName && (
+                <>
+                  <Text style={styles.cardContent}>Police Officer: {data.policeOfficerName}</Text>
+                  <Text style={styles.cardContent}>Badge #: {data.policeBadgeNumber}</Text>
+                  <Text style={styles.cardContent}>Station: {data.policeStation}</Text>
+                  <Text style={styles.cardContent}>Incident #: {data.policeIncidentNumber}</Text>
+                  <Text style={styles.cardContent}>Contact: {data.policeContactInfo}</Text>
+                </>
+              )}
+              {data.paramedicNames && (
+                <>
+                  <Text style={styles.cardContent}>Paramedics: {data.paramedicNames}</Text>
+                  <Text style={styles.cardContent}>Ambulance Ref: {data.ambulanceReference}</Text>
+                  <Text style={styles.cardContent}>Service: {data.ambulanceService}</Text>
+                </>
+              )}
+            </View>
           </View>
-          {data.witnesses.map((w, i) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.tableCell}>{w.name}</Text>
-              <Text style={styles.tableCell}>{w.dob}</Text>
-              <Text style={styles.tableCell}>{w.contactNumber}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    )}
+        )}
 
-    {/* Police & Paramedic */}
-    {(data.policeOfficerName || data.paramedicNames) && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Emergency Response</Text>
-        <View style={styles.card}>
-          {data.policeOfficerName && (
-            <>
-              <Text style={styles.cardContent}>Police Officer: {data.policeOfficerName}</Text>
-              <Text style={styles.cardContent}>Badge #: {data.policeBadgeNumber}</Text>
-              <Text style={styles.cardContent}>Station: {data.policeStation}</Text>
-              <Text style={styles.cardContent}>Incident #: {data.policeIncidentNumber}</Text>
-              <Text style={styles.cardContent}>Contact: {data.policeContactInfo}</Text>
-            </>
-          )}
-          {data.paramedicNames && (
-            <>
-              <Text style={styles.cardContent}>Paramedics: {data.paramedicNames}</Text>
-              <Text style={styles.cardContent}>Ambulance Ref: {data.ambulanceReference}</Text>
-              <Text style={styles.cardContent}>Service: {data.ambulanceService}</Text>
-            </>
-          )}
-        </View>
-      </View>
-    )}
-
-    {/* Evidence Images Only */}
-    {/* {data.evidence.images.length > 0 && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Evidence Images</Text>
-        <View style={styles.grid}>
-          {data.evidence.images.map((url, idx) => (
-            <View key={idx} style={styles.gridItem}>
-              <Image src={url} style={styles.vehicleImage} />
+        {/* Evidence Images Only */}
+        {/* {data.evidence.images.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Evidence Images</Text>
+            <View style={styles.grid}>
+              {data.evidence.images.map((url, idx) => (
+                <View key={idx} style={styles.gridItem}>
+                  <Image src={url} style={styles.vehicleImage} />
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-      </View>
-    )} */}
+          </View>
+        )} */}
 
         {/* ========== FOOTER ========== */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639
+            AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP
           </Text>
-          <Text style={styles.footerText}>
-            Registered office address: United House, 39-41 North Road, London, N7 9DP
-          </Text>
+          {/* Page number positioned on the right */}
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
         </View>
       </Page>
     </Document>

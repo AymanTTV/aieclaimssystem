@@ -23,14 +23,15 @@ export const useVehicleFilters = (vehicles: Vehicle[]) => {
       }
 
       // Search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
-        vehicle.registrationNumber.toLowerCase().includes(searchLower) ||
-        vehicle.make.toLowerCase().includes(searchLower) ||
-        vehicle.model.toLowerCase().includes(searchLower) ||
-        vehicle.vin.toLowerCase().includes(searchLower) ||
-        // Safely access owner.name using optional chaining
-        (vehicle.owner?.name || '').toLowerCase().includes(searchLower); // MODIFIED LINE
+      // Search filter
+const searchLower = searchQuery.toLowerCase();
+const matchesSearch =
+  vehicle.registrationNumber.toLowerCase().includes(searchLower) ||
+  vehicle.make.toLowerCase().includes(searchLower) ||
+  vehicle.model.toLowerCase().includes(searchLower) ||
+  vehicle.vin.toLowerCase().includes(searchLower) ||
+  // Safely access owner.name using optional chaining and provide a default empty string if owner or owner.name is undefined
+  ((vehicle.owner?.name ?? '')).toLowerCase().includes(searchLower); // MODIFIED LINE - changed || to ?? for nullish coalescing
 
       // Status filter
       let matchesStatus = true;

@@ -21,7 +21,7 @@ import {
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { Search, Mail } from 'lucide-react';
-import { fetchServiceCenters, ServiceCenter } from '../utils/serviceCenters';
+import { useServiceCenters } from '../hooks/useServiceCenters'; // Corrected import: Use the new hook
 import { fetchLegalHandlers } from '../utils/legalHandlers';
 import { collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -59,6 +59,8 @@ const BulkEmail = () => {
   const { customers } = useCustomers();
   const { vehicles } = useVehicles();
   const { rentals } = useRentals();
+  // Use the new useServiceCenters hook for real-time data
+  const { serviceCenters, loading: loadingServiceCenters } = useServiceCenters();
 
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [emailType, setEmailType] = useState<EmailType>('custom');
@@ -67,28 +69,23 @@ const BulkEmail = () => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<RelatedRecord | null>(null);
-  const [serviceCenters, setServiceCenters] = useState<ServiceCenter[]>([]);
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [showBankDetails, setShowBankDetails] = useState(false); // State for bank details checkbox
 
-  // ── Load service centers if we’re sending maintenance emails ──
-  useEffect(() => {
-    const loadServiceCenters = async () => {
-      const centers = await fetchServiceCenters();
-      setServiceCenters(centers);
-    };
-    if (emailType === 'maintenance') {
-      loadServiceCenters();
-    }
-  }, [emailType]);
 
   // ── Load legal handlers if we’re sending claim emails ──
   useEffect(() => {
     const loadLegalHandlers = async () => {
-      const handlers = await fetchLegalHandlers();
-      setLegalHandlers(handlers);
+      try {
+        const handlers = await fetchLegalHandlers();
+        setLegalHandlers(handlers);
+      } catch (error) {
+        console.error('Error fetching legal handlers:', error);
+        toast.error('Failed to load legal handlers');
+      }
     };
     if (emailType === 'claim') {
       loadLegalHandlers();
@@ -213,7 +210,7 @@ const BulkEmail = () => {
     const q = searchQuery.toLowerCase();
 
     if (emailType === 'maintenance') {
-      let filtered = serviceCenters;
+      let filtered = serviceCenters; // Use serviceCenters from the hook
       if (searchQuery) {
         filtered = filtered.filter(
           (center) =>
@@ -239,7 +236,7 @@ const BulkEmail = () => {
       if (searchQuery) {
         filtered = filtered.filter(
           (customer) =>
-            customer.name.toLowerCase().includes(q) ||
+            customer.fullName.toLowerCase().includes(q) || // Assuming customers have fullName for searching
             customer.mobile.includes(q) ||
             customer.email.toLowerCase().includes(q)
         );
@@ -259,7 +256,7 @@ const BulkEmail = () => {
     emailType,
     searchQuery,
     customers,
-    serviceCenters,
+    serviceCenters, // Dependency for the hook's data
     rentals,
     invoices,
     legalHandlers
@@ -271,6 +268,7 @@ const BulkEmail = () => {
     setSelectedRecipients([]);
     setSubject('');
     setMessage('');
+    setShowBankDetails(false); // Reset bank details on type change
   };
 
   // ─────────────── Select/Deselect a Recipient ───────────────
@@ -359,12 +357,9 @@ const BulkEmail = () => {
           }));
 
       case 'claim':
-        console.log('--- Debugging Claims Filtering ---');
-        console.log('Recipient ID for filtering claims:', recipientId);
         return claims
           .filter((c) => {
             const handlerId = c.fileHandlers?.legalHandler?.id;
-            console.log('  Claim ID:', c.id, '→ LegalHandler ID:', handlerId);
             return handlerId === recipientId;
           })
           .map((c) => ({
@@ -386,65 +381,77 @@ const BulkEmail = () => {
   const handleRecordSelect = (record: RelatedRecord) => {
     setSelectedRecord(record);
 
+    // Reset subject and message to default for the selected type, then generate
+    setSubject('');
+    setMessage('');
+
+    // Logic to set subject and message based on the selected record type
     switch (record.type) {
       case 'rental': {
-        const rental = rentals.find((r) => r.id === record.id)!;
-        const vehicle = vehicles.find((v) => v.id === rental.vehicleId)!;
-        const customer = customers.find((c) => c.id === rental.customerId)!;
-        const content = generateRentalEmailContent(customer, rental, vehicle);
-        setSubject(content.subject);
-        setMessage(content.message);
+        const rental = rentals.find((r) => r.id === record.id);
+        const vehicle = rental ? vehicles.find((v) => v.id === rental.vehicleId) : undefined;
+        const customer = rental ? customers.find((c) => c.id === rental.customerId) : undefined;
+        if (customer && rental && vehicle) {
+          const content = generateRentalEmailContent(customer, rental, vehicle);
+          setSubject(content.subject);
+          setMessage(content.message);
+        }
         break;
       }
 
       case 'maintenance': {
-        const log = maintenanceLogs.find((l) => l.id === record.id)!;
-        const vehicle = vehicles.find((v) => v.id === log.vehicleId)!;
-        const serviceCenter = serviceCenters.find(
+        const log = maintenanceLogs.find((l) => l.id === record.id);
+        const vehicle = log ? vehicles.find((v) => v.id === log.vehicleId) : undefined;
+        const serviceCenter = log ? serviceCenters.find(
           (c) => c.name === log.serviceProvider
-        )!;
-        const content = generateMaintenanceEmailContent(
-          serviceCenter,
-          log,
-          vehicle
-        );
-        setSubject(content.subject);
-        setMessage(content.message);
+        ) : undefined;
+        if (serviceCenter && log && vehicle) {
+          const content = generateMaintenanceEmailContent(
+            serviceCenter,
+            log,
+            vehicle
+          );
+          setSubject(content.subject);
+          setMessage(content.message);
+        }
         break;
       }
 
       case 'invoice': {
-        const inv = invoices.find((i) => i.id === record.id)!;
-        const customer = customers.find((c) => c.id === inv.customerId)!;
-        const content = generateInvoiceEmailContent(customer, inv);
-        setSubject(content.subject);
-        setMessage(content.message);
+        const inv = invoices.find((i) => i.id === record.id);
+        const customer = inv ? customers.find((c) => c.id === inv.customerId) : undefined;
+        if (customer && inv) {
+          const content = generateInvoiceEmailContent(customer, inv);
+          setSubject(content.subject);
+          setMessage(content.message);
+        }
         break;
       }
 
       case 'claim': {
-        const c = claims.find((c2) => c2.id === record.id)!;
+        const c = claims.find((c2) => c2.id === record.id);
+        if (!c) break;
         // Find “legal handler” object for this claim
         const handlerForThisClaim = legalHandlers.find(
           (h) => h.id === c.fileHandlers?.legalHandler?.id
-        )!;
+        );
 
         // Figure out which “client” to show (driver if isClaimant=true, else submitter)
         let client: Customer | null = null;
         if (c.driver?.isClaimant) {
           client = {
-            id: '',
-            name: c.driver.fullName || '',
+            id: '', // Dummy ID
+            fullName: c.driver.fullName || '',
             mobile: c.driver.contactNumber || '',
             email: c.driver.email || ''
-          } as Customer;
+          } as Customer; // Cast to Customer to match interface
         } else if (c.submitter) {
           client = {
-            id: '',
-            name: c.submitter.fullName || '',
-            mobile: '',
+            id: '', // Dummy ID
+            fullName: c.submitter.fullName || '',
+            mobile: '', // Assuming submitter doesn't have a mobile in this context
             email: c.submitter.email || ''
-          } as Customer;
+          } as Customer; // Cast to Customer to match interface
         }
 
         const content = generateClaimEmailContent(c, client, handlerForThisClaim);
@@ -477,42 +484,45 @@ const BulkEmail = () => {
           let toEmail: string;
 
           if (emailType === 'maintenance') {
-            const center = serviceCenters.find((c) => c.id === recipientId)!;
+            const center = serviceCenters.find((c) => c.id === recipientId);
+            if (!center) throw new Error('Service center not found');
             toName = center.name;
-            toEmail = center.email!;
+            toEmail = center.email;
           } else if (emailType === 'claim') {
-            const handler = legalHandlers.find((h) => h.id === recipientId)!;
+            const handler = legalHandlers.find((h) => h.id === recipientId);
+            if (!handler) throw new Error('Legal handler not found');
             toName = handler.name;
-            toEmail = handler.email!;
+            toEmail = handler.email;
           } else {
-            const cust = customers.find((c) => c.id === recipientId)!;
-            toName = cust.name;
+            const cust = customers.find((c) => c.id === recipientId);
+            if (!cust) throw new Error('Customer not found');
+            toName = cust.fullName; // Use fullName for customers
             toEmail = cust.email;
           }
 
-          // Decide “showBankDetails” and “reference” by looking at selectedRecord
-          let showBankDetails = false;
+          // Decide “showBankDetails” and “reference” based on selectedRecord and emailType
+          let currentShowBankDetails = showBankDetails; // Start with the checkbox state
           let reference = '';
 
-          if (selectedRecord) {
+          if (selectedRecord && selectedRecord.id === recipientId) { // Apply record-specific details only if this record is selected for THIS recipient
             switch (selectedRecord.type) {
               case 'rental': {
-                const r = rentals.find((r2) => r2.id === selectedRecord.id)!;
-                const v = vehicles.find((v2) => v2.id === r.vehicleId)!;
-                showBankDetails = (r.remainingAmount || 0) > 0;
-                reference = v.registrationNumber;
+                const r = rentals.find((r2) => r2.id === selectedRecord.id);
+                const v = r ? vehicles.find((v2) => v2.id === r.vehicleId) : undefined;
+                if (r) currentShowBankDetails = (r.remainingAmount || 0) > 0;
+                if (v) reference = v.registrationNumber;
                 break;
               }
               case 'invoice': {
-                const inv = invoices.find((i) => i.id === selectedRecord.id)!;
-                showBankDetails = inv.remainingAmount! > 0;
-                reference = `INV-${inv.id.slice(-8).toUpperCase()}`;
+                const inv = invoices.find((i) => i.id === selectedRecord.id);
+                if (inv) currentShowBankDetails = (inv.remainingAmount || 0) > 0;
+                if (inv) reference = `INV-${inv.id.slice(-8).toUpperCase()}`;
                 break;
               }
               case 'claim': {
-                const c = claims.find((c2) => c2.id === selectedRecord.id)!;
-                showBankDetails = false;
-                reference = `CLAIM-${c.claimId || c.id.slice(-8).toUpperCase()}`;
+                const c = claims.find((c2) => c2.id === selectedRecord.id);
+                currentShowBankDetails = false; // Claims usually don't involve bank details for payment
+                if (c) reference = `CLAIM-${c.claimId || c.id.slice(-8).toUpperCase()}`;
                 break;
               }
             }
@@ -523,7 +533,7 @@ const BulkEmail = () => {
             to_email: toEmail,
             subject,
             message,
-            show_bank_details: showBankDetails,
+            show_bank_details: currentShowBankDetails,
             reference,
             reply_to: 'admin@aieskyline.co.uk'
           };
@@ -546,6 +556,7 @@ const BulkEmail = () => {
         setSubject('');
         setMessage('');
         setSelectedRecord(null);
+        setShowBankDetails(false);
       }
       if (failCount > 0) {
         toast.error(
@@ -621,16 +632,14 @@ const BulkEmail = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {filteredRecipients.map((recipient) => {
-            // “recipient” may be ServiceCenter, LegalHandler, or Customer depending on emailType
-            const common = recipient as ServiceCenter | LegalHandler | Customer;
-            const name = common.name;
-            const email = common.email || '';
+          {filteredRecipients.map((recipient: any) => { // Use 'any' here for flexibility with different types
+            const name = recipient.fullName || recipient.name; // Prioritize fullName for customers
+            const email = recipient.email || '';
             const phone =
-              'phone' in common
-                ? common.phone
-                : 'mobile' in common
-                ? common.mobile
+              'phone' in recipient
+                ? recipient.phone
+                : 'mobile' in recipient
+                ? recipient.mobile
                 : undefined;
 
             return (
@@ -744,6 +753,20 @@ const BulkEmail = () => {
               placeholder="Enter email message"
             />
           </div>
+          {emailType === 'invoice' && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="showBankDetails"
+                checked={showBankDetails}
+                onChange={(e) => setShowBankDetails(e.target.checked)}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              />
+              <label htmlFor="showBankDetails" className="ml-2 block text-sm font-medium text-gray-700">
+                Include Bank Details
+              </label>
+            </div>
+          )}
         </div>
       </div>
 

@@ -45,6 +45,7 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
         <div>
           <div className="font-medium">{row.original.supplier}</div>
           <div className="text-sm text-gray-500">REG: {row.original.regNo}</div>
+          {row.original.vatNo && <div className="text-sm text-gray-500">VAT No: {row.original.vatNo}</div>} {/* Display VAT No */}
         </div>
       ),
     },

@@ -169,12 +169,14 @@ export default function Share() {
         >
           <FileText className="h-5 w-5 mr-2" /> Record Expense
         </button>
+        {user?.role === 'manager' && (
         <button
           onClick={() => setShowSplit(true)}
           className="inline-flex items-center px-4 py-2 border rounded"
         >
           <FileText className="h-5 w-5 mr-2" /> Split
         </button>
+        )}
         {user?.role === 'manager' && (
         <button
           onClick={handleGenerateBulkPDF}

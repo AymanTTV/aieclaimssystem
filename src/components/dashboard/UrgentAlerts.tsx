@@ -4,7 +4,7 @@ import React from 'react';
 import { Vehicle, MaintenanceLog } from '../../types';
 import { AlertTriangle, Calendar, Car, Wrench } from 'lucide-react';
 import Card from '../Card';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isValid } from 'date-fns'; // Import isValid
 
 interface UrgentAlertsProps {
   vehicles: Vehicle[];
@@ -15,15 +15,25 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
   const today = new Date();
   const thirtyDays = addDays(today, 30);
 
+  // Helper function to check if a date is valid and less than a reference date
+  const isDateExpired = (date: Date | null | undefined, referenceDate: Date) => {
+    return date && isValid(date) && date < referenceDate;
+  };
+
+  // Helper function to check if a date is valid and within a future range
+  const isDateExpiringSoon = (date: Date | null | undefined, startDate: Date, endDate: Date) => {
+    return date && isValid(date) && date <= endDate && date > startDate;
+  };
+
   // Get vehicles with expired documents
   const expiredVehicles = vehicles.filter(vehicle => {
     if (vehicle.status === 'sold') return false; // Exclude sold vehicles
     
     return (
-      vehicle.motExpiry < today ||
-      vehicle.insuranceExpiry < today ||
-      vehicle.roadTaxExpiry < today ||
-      vehicle.nslExpiry < today
+      isDateExpired(vehicle.motExpiry, today) ||
+      isDateExpired(vehicle.insuranceExpiry, today) ||
+      isDateExpired(vehicle.roadTaxExpiry, today) ||
+      isDateExpired(vehicle.nslExpiry, today)
     );
   });
 
@@ -35,10 +45,10 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
     if (expiredVehicles.includes(vehicle)) return false;
     
     return (
-      (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry > today) ||
-      (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry > today) ||
-      (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry > today) ||
-      (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry > today)
+      isDateExpiringSoon(vehicle.motExpiry, today, thirtyDays) ||
+      isDateExpiringSoon(vehicle.insuranceExpiry, today, thirtyDays) ||
+      isDateExpiringSoon(vehicle.roadTaxExpiry, today, thirtyDays) ||
+      isDateExpiringSoon(vehicle.nslExpiry, today, thirtyDays)
     );
   });
 
@@ -60,16 +70,17 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
                     <p className="text-sm text-gray-600">{vehicle.registrationNumber}</p>
                   </div>
                   <div className="text-right text-sm">
-                    {vehicle.motExpiry < today && (
+                    {/* Add isValid check before formatting */}
+                    {vehicle.motExpiry && isValid(vehicle.motExpiry) && vehicle.motExpiry < today && (
                       <p className="text-red-700">MOT Expired: {format(vehicle.motExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.insuranceExpiry < today && (
+                    {vehicle.insuranceExpiry && isValid(vehicle.insuranceExpiry) && vehicle.insuranceExpiry < today && (
                       <p className="text-red-700">Insurance Expired: {format(vehicle.insuranceExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.nslExpiry < today && (
+                    {vehicle.nslExpiry && isValid(vehicle.nslExpiry) && vehicle.nslExpiry < today && (
                       <p className="text-red-700">NSL Expired: {format(vehicle.nslExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.roadTaxExpiry < today && (
+                    {vehicle.roadTaxExpiry && isValid(vehicle.roadTaxExpiry) && vehicle.roadTaxExpiry < today && (
                       <p className="text-red-700">Road Tax Expired: {format(vehicle.roadTaxExpiry, 'dd/MM/yyyy')}</p>
                     )}
                   </div>
@@ -94,16 +105,17 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs }
                     <p className="text-sm text-gray-600">{vehicle.registrationNumber}</p>
                   </div>
                   <div className="text-right text-sm">
-                    {vehicle.motExpiry <= thirtyDays && vehicle.motExpiry > today && (
+                    {/* Add isValid check before formatting */}
+                    {vehicle.motExpiry && isValid(vehicle.motExpiry) && vehicle.motExpiry <= thirtyDays && vehicle.motExpiry > today && (
                       <p className="text-amber-600">MOT: {format(vehicle.motExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry > today && (
+                    {vehicle.insuranceExpiry && isValid(vehicle.insuranceExpiry) && vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry > today && (
                       <p className="text-amber-600">Insurance: {format(vehicle.insuranceExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry > today && (
+                    {vehicle.nslExpiry && isValid(vehicle.nslExpiry) && vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry > today && (
                       <p className="text-amber-600">NSL: {format(vehicle.nslExpiry, 'dd/MM/yyyy')}</p>
                     )}
-                    {vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry > today && (
+                    {vehicle.roadTaxExpiry && isValid(vehicle.roadTaxExpiry) && vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry > today && (
                       <p className="text-amber-600">Road Tax: {format(vehicle.roadTaxExpiry, 'dd/MM/yyyy')}</p>
                     )}
                   </div>

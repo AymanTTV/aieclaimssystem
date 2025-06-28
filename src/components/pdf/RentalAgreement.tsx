@@ -72,17 +72,16 @@ const RentalAgreement: React.FC<{
       <Page size="A4" style={styles.page}>
         {/* HEADER */}
         <View style={styles.header}>
-          <Image src={logo} style={styles.logo} />
-          <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>
-              {companyDetails.fullName || 'AIE SKYLINE'}
-            </Text>
-            <Text style={styles.companyDetail}>
-              {companyDetails.officialAddress || ''}
-            </Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone || ''}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email || ''}</Text>
-            <Text style={styles.companyDetail}>VAT No: {companyDetails.vatNumber || ''}</Text>
+          <View style={styles.headerLeft}>
+            {companyDetails?.logoUrl && (
+              <Image src={companyDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
           </View>
         </View>
 
@@ -299,16 +298,15 @@ const RentalAgreement: React.FC<{
         )}
 
         {/* TERMS AND CONDITIONS */}
-        <View style={[styles.section, styles.sectionBreak, { marginBottom: 100 }]}>
-          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          <Text style={styles.text}>
-            {companyDetails.termsAndConditions ||
-              'Standard terms and conditions apply.'}
-          </Text>
-        </View>
+       <View style={[styles.section, styles.sectionBreak, { marginBottom: 20 }]}> {/* Or even 0 */}
+  <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
+  <Text style={styles.text}>
+    {companyDetails.termsAndConditions ||
+      'Standard terms and conditions apply.'}
+  </Text>
+</View>
 
-        {/* SIGNATURES – absolutely positioned above footer */}
-        <View style={[localStyles.signatureSectionPositioning]}>
+        <View style={[localStyles.signatureSectionPositioning]} wrap={false}>
           {/* Hirer’s Signature Box */}
           <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
             {rental.signature && (
@@ -330,11 +328,15 @@ const RentalAgreement: React.FC<{
           </View>
         </View>
 
-        {/* FOOTER */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName || 'AIE SKYLINE'} | Registered in England and Wales | Company No:{' '}
-          {companyDetails.registrationNumber || 'N/A'}
-        </Text>
+        {/* NEW STANDARDIZED FOOTER - NOT fixed here, so it flows with content */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
       </Page>
     </Document>
   );

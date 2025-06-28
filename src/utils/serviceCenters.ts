@@ -13,25 +13,9 @@ export interface ServiceCenter {
   specialties: string[];
 }
 
-let cachedServiceCenters: ServiceCenter[] = [];
+// Removed: let cachedServiceCenters: ServiceCenter[] = [];
 
-export const fetchServiceCenters = async (): Promise<ServiceCenter[]> => {
-  try {
-    const q = query(collection(db, 'serviceCenters'));
-    const snapshot = await getDocs(q);
-    const centers = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as ServiceCenter));
-    
-    cachedServiceCenters = centers;
-    return centers;
-  } catch (error) {
-    console.error('Error fetching service centers:', error);
-    toast.error('Failed to load service centers');
-    return [];
-  }
-};
+// Removed: export const fetchServiceCenters ... (logic will be handled by useServiceCenters hook)
 
 export const addServiceCenter = async (center: Omit<ServiceCenter, 'id'>): Promise<ServiceCenter> => {
   try {
@@ -45,7 +29,7 @@ export const addServiceCenter = async (center: Omit<ServiceCenter, 'id'>): Promi
       ...center
     };
     
-    cachedServiceCenters = [...cachedServiceCenters, newCenter];
+    // Removed: cachedServiceCenters = [...cachedServiceCenters, newCenter];
     toast.success('Service center added successfully');
     return newCenter;
   } catch (error) {
@@ -63,10 +47,9 @@ export const updateServiceCenter = async (id: string, updates: Partial<ServiceCe
       updatedAt: new Date()
     });
 
-    // Update cache
-    cachedServiceCenters = cachedServiceCenters.map(center => 
-      center.id === id ? { ...center, ...updates } : center
-    );
+    // Removed: cachedServiceCenters = cachedServiceCenters.map(center => 
+    //   center.id === id ? { ...center, ...updates } : center
+    // );
     
     toast.success('Service center updated successfully');
   } catch (error) {
@@ -80,7 +63,7 @@ export const deleteServiceCenter = async (centerId: string): Promise<void> => {
   try {
     await deleteDoc(doc(db, 'serviceCenters', centerId));
     
-    cachedServiceCenters = cachedServiceCenters.filter(center => center.id !== centerId);
+    // Removed: cachedServiceCenters = cachedServiceCenters.filter(center => center.id !== centerId);
     toast.success('Service center deleted successfully');
   } catch (error) {
     console.error('Error deleting service center:', error);
@@ -89,16 +72,7 @@ export const deleteServiceCenter = async (centerId: string): Promise<void> => {
   }
 };
 
-export const searchServiceCenters = (query: string): ServiceCenter[] => {
-  const searchTerm = query.toLowerCase();
-  return cachedServiceCenters.filter(center => 
-    center.name.toLowerCase().includes(searchTerm) ||
-    center.address.toLowerCase().includes(searchTerm) ||
-    center.postcode.toLowerCase().includes(searchTerm) ||
-    center.email.toLowerCase().includes(searchTerm) ||
-    center.specialties.some(specialty => specialty.toLowerCase().includes(searchTerm))
-  );
-};
+// Removed: export const searchServiceCenters ... (logic will be handled in ServiceCenterDropdown)
 
 export const SERVICE_CENTERS: ServiceCenter[] = [
   {

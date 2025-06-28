@@ -3,7 +3,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useCustomers } from '../hooks/useCustomers';
-import { useRentalFilters } from '../hooks/useRentalFilters'; // Assuming this hook handles initial filtering
+import { useRentalFilters } from '../hooks/useRentalFilters';
 import RentalFilters from '../components/rentals/RentalFilters';
 import RentalTable from '../components/rentals/RentalTable';
 import RentalForm from '../components/rentals/RentalForm';
@@ -38,7 +38,7 @@ const Rentals = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { customers, loading: customersLoading } = useCustomers();
   const { can } = usePermissions();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Get the current user from AuthContext
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
 
@@ -126,8 +126,25 @@ const Rentals = () => {
       });
     }
 
+    // NEW: Apply rental type permissions filter
+    if (user && user.permissions) {
+      const rentalPermissions = user.permissions.rentals;
+      currentRentals = currentRentals.filter(rental => {
+        switch (rental.type) {
+          case 'daily':
+            return rentalPermissions.daily;
+          case 'weekly':
+            return rentalPermissions.weekly;
+          case 'claim':
+            return rentalPermissions.claim;
+          default:
+            return true; // If a rental type is not explicitly covered, show it
+        }
+      });
+    }
+
     return currentRentals;
-  }, [rentals, searchQuery, statusFilter, typeFilter, vehicleFilter, reasonFilter, startDateFilter, endDateFilter, vehicles, customers, showAllRecords]);
+  }, [rentals, searchQuery, statusFilter, typeFilter, vehicleFilter, reasonFilter, startDateFilter, endDateFilter, vehicles, customers, showAllRecords, user]);
 
 
   const [showForm, setShowForm] = useState(false);

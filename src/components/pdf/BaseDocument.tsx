@@ -10,50 +10,61 @@ interface BaseDocumentProps {
   showFooter?: boolean;
 }
 
-const BaseDocument: React.FC<BaseDocumentProps> = ({ 
-  title, 
-  children, 
+const BaseDocument: React.FC<BaseDocumentProps> = ({
+  title,
+  children,
   companyDetails,
-  showFooter = true
-}) => {
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Header with logo and company details */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {companyDetails.logoUrl && (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            )}
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName || 'AIE Skyline Limited'}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress || ''}</Text>
-            <Text style={styles.companyDetail}>Phone: {companyDetails.phone || ''}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email || ''}</Text>
-          </View>
+  showFooter = true,
+}) => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      {/* Header */}
+      <View style={styles.header} fixed>
+        <View style={styles.headerLeft}>
+          {companyDetails?.logoUrl && (
+            <Image src={companyDetails.logoUrl} style={styles.logo} />
+          )}
         </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{title}</Text>
+        <View style={styles.headerRight}>
+          <Text style={styles.companyName}>
+            {companyDetails?.fullName || 'AIE Skyline Limited'}
+          </Text>
+          <Text style={styles.companyDetail}>
+            {companyDetails?.officialAddress || 'N/A'}
+          </Text>
+          <Text style={styles.companyDetail}>
+            Tel: {companyDetails?.phone || 'N/A'}
+          </Text>
+          <Text style={styles.companyDetail}>
+            Email: {companyDetails?.email || 'N/A'}
+          </Text>
         </View>
+      </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-          {children}
+      {/* Title */}
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>{title}</Text>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>{children}</View>
+
+      {/* Footer */}
+      {showFooter && (
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            style={styles.footerText}
+            render={({ pageNumber, totalPages }) =>
+              `Page ${pageNumber} of ${totalPages}`
+            }
+          />
         </View>
-
-        {/* Footer */}
-        {showFooter && (
-          <View style={styles.footer} fixed>
-            <Text style={styles.footerText}>Aie Skyline Limited | Registered in England and Wales | Company No: 12592207</Text>
-            <Text style={styles.footerText}>Generated on {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
-          </View>
-        )}
-      </Page>
-    </Document>
-  );
-};
+      )}
+    </Page>
+  </Document>
+);
 
 export default BaseDocument;

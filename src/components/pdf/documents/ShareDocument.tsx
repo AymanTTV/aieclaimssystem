@@ -4,12 +4,18 @@ import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { ShareEntry, ExpenseEntry } from '../../../types/share';
-import { styles } from '../styles';
+import { styles } from '../styles'; // Assuming 'styles.ts' contains the shared styles
 import { formatDate } from '../../../utils/dateHelpers';
 
 interface ShareDocumentProps {
   data: ShareEntry;
-  companyDetails: any;
+  companyDetails: {
+    logoUrl: string;
+    fullName: string;
+    officialAddress: string; // This will be split
+    phone: string;
+    email: string;
+  };
 }
 
 const ShareDocument: React.FC<ShareDocumentProps> = ({ data, companyDetails }) => {
@@ -31,17 +37,32 @@ const ShareDocument: React.FC<ShareDocumentProps> = ({ data, companyDetails }) =
 
   const fmt = (n: number) => `£${n.toFixed(2)}`;
 
+  // Derive header details from companyDetails, splitting the address
+  const headerDetails = {
+    logoUrl: companyDetails?.logoUrl || '',
+    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP.',
+    phone: companyDetails?.phone || 'N/A',
+    email: companyDetails?.email || 'N/A',
+  };
+
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
-        {/* HEADER */}
+        {/* HEADER - Updated to match the consistent design */}
         <View style={styles.header} fixed>
-          <Image src={companyDetails.logoUrl} style={styles.logo} />
+          <View style={styles.headerLeft}>
+            {headerDetails.logoUrl && (
+              <Image src={headerDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+            <Text style={styles.companyName}>{headerDetails.fullName}</Text>
+            <Text style={styles.companyDetail}>{headerDetails.addressLine1}</Text>
+            <Text style={styles.companyDetail}>{headerDetails.addressLine2}</Text>
+            <Text style={styles.companyDetail}>Tel: {headerDetails.phone}</Text>
+            <Text style={styles.companyDetail}>Email: {headerDetails.email}</Text>
           </View>
         </View>
 
@@ -125,14 +146,15 @@ const ShareDocument: React.FC<ShareDocumentProps> = ({ data, companyDetails }) =
           </View>
         )}
 
-        {/* FOOTER */}
+        {/* FOOTER - Updated to match the consistent design */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE Skyline Limited | Registered in England and Wales | Company No: 12592207
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
           </Text>
-          <Text style={styles.footerText}>
-            Generated on {format(new Date(), 'dd/MM/yyyy HH:mm')}
-          </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
         </View>
       </Page>
     </Document>

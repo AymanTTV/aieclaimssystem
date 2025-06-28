@@ -1,7 +1,7 @@
 // src/components/pdf/VDInvoiceDocument.tsx
 import React from 'react';
 import { Page, Document, View, Text, Image } from '@react-pdf/renderer';
-import { styles } from '../styles';
+import { styles } from '../styles'; // Assuming 'styles.ts' contains the shared styles
 import { VDInvoice } from '../../../types/vdInvoice';
 import { format } from 'date-fns';
 
@@ -16,30 +16,43 @@ interface VDInvoiceDocumentProps {
     postcode: string;
     registrationNumber: string;
     vatNumber: string;
+    fullName?: string; // Added fullName as it's used in header
   };
 }
 
 const VDInvoiceDocument: React.FC<VDInvoiceDocumentProps> = ({ data, companyDetails }) => {
   const owing = data.total - data.paidAmount;
 
+  // Derive header details from companyDetails, splitting the address
+  const headerDetails = {
+    logoUrl: companyDetails?.logoUrl || '',
+    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
+    // Assuming officialAddress is "United House, 39-41 North Road, London, N7 9DP"
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP.',
+    phone: companyDetails?.phone || 'N/A',
+    email: companyDetails?.email || 'N/A',
+  };
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
 
-        {/* Header */}
-                <View style={styles.header}>
-                  <View style={styles.headerLeft}>
-                    {companyDetails?.logoUrl && (
-                      <Image src={companyDetails.logoUrl} style={styles.logo} />
-                    )}
-                  </View>
-                  <View style={styles.headerRight}>
-                    <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
-                    <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-                    <Text style={styles.companyDetail}>Phone: {companyDetails?.phone || 'N/A'}</Text>
-                    <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
-                  </View>
-                </View>
+        {/* Header - Updated to match the consistent design */}
+        <View style={styles.header} fixed>
+          <View style={styles.headerLeft}>
+            {headerDetails.logoUrl && (
+              <Image src={headerDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{headerDetails.fullName}</Text>
+            <Text style={styles.companyDetail}>{headerDetails.addressLine1}</Text>
+            <Text style={styles.companyDetail}>{headerDetails.addressLine2}</Text>
+            <Text style={styles.companyDetail}>Tel: {headerDetails.phone}</Text>
+            <Text style={styles.companyDetail}>Email: {headerDetails.email}</Text>
+          </View>
+        </View>
 
         {/* Date & Invoice */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -169,11 +182,15 @@ const VDInvoiceDocument: React.FC<VDInvoiceDocumentProps> = ({ data, companyDeta
           </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text>
-            Registered in England & Wales | Co. No {companyDetails.registrationNumber} | VAT No {companyDetails.vatNumber}
+        {/* Footer - Updated to match the consistent design */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
           </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
         </View>
       </Page>
     </Document>

@@ -119,12 +119,31 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {Object.entries(permissions).map(([action, enabled]) => {
-                const label =
-                  action === 'cards'
-                    ? 'View summary cards'
-                    : action === 'recordPayment'
-                    ? 'Record Payment'
-                    : action.charAt(0).toUpperCase() + action.slice(1);
+                let label = '';
+                switch (action) {
+                  case 'cards':
+                    label = 'View summary cards';
+                    break;
+                  case 'recordPayment':
+                    label = 'Record Payment';
+                    break;
+                  case 'daily':
+                    label = 'View Daily Rentals';
+                    break;
+                  case 'weekly':
+                    label = 'View Weekly Rentals';
+                    break;
+                  case 'claim':
+                    label = 'View Claim Rentals';
+                    break;
+                  default:
+                    label = action.charAt(0).toUpperCase() + action.slice(1);
+                }
+
+                // Exclude rental type permissions from modules other than 'rentals'
+                if (module !== 'rentals' && (action === 'daily' || action === 'weekly' || action === 'claim')) {
+                    return null;
+                }
 
                 return (
                   <label key={action} className="flex items-center">

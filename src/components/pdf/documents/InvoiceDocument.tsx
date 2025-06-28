@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { Invoice, Vehicle } from '../../../types/finance';
-import { styles } from '../styles';
+import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict
 import { format } from 'date-fns';
 
 interface InvoiceDocumentProps {
@@ -17,6 +17,34 @@ interface InvoiceDocumentProps {
   vehicle?: Vehicle;
   companyDetails: any;
 }
+
+// LOCAL STYLES for the horizontal info card (matching RentalInvoice style)
+const localStyles = StyleSheet.create({
+  infoCard: {
+    borderWidth: 1,
+    borderColor: '#3B82F6',   // same blue‐500 as in RentalInvoice
+    borderRadius: 6,
+    padding: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  infoItem: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
+  },
+  infoLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1E40AF',         // blue‐800
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 10,
+    color: '#1F2937',         // gray‐800
+  },
+});
 
 const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   data,
@@ -56,24 +84,35 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   // Final total already stored on invoice ( subTotal + vatAmount )
   const finalTotal = data.total;
 
+  // Derive header details from companyDetails, splitting the address
+  const headerDetails = {
+    logoUrl: companyDetails?.logoUrl || '',
+    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP.',
+    phone: companyDetails?.phone || 'N/A',
+    email: companyDetails?.email || 'N/A',
+  };
+
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={globalStyles.page}>
 
-        {/* ── HEADER (logo + company info) ── */}
-        <View style={styles.header}>
-          {companyDetails.logoUrl && (
-            <Image src={companyDetails.logoUrl} style={styles.logo} />
-          )}
-          <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>
-              {companyDetails.officialAddress}
-            </Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+        {/* ── HEADER (logo + company info) ── Updated to consistent design */}
+        <View style={globalStyles.header} fixed>
+          <View style={globalStyles.headerLeft}>
+            {headerDetails.logoUrl && (
+              <Image src={headerDetails.logoUrl} style={globalStyles.logo} />
+            )}
+          </View>
+          <View style={globalStyles.headerRight}>
+            <Text style={globalStyles.companyName}>{headerDetails.fullName}</Text>
+            <Text style={globalStyles.companyDetail}>{headerDetails.addressLine1}</Text>
+            <Text style={globalStyles.companyDetail}>{headerDetails.addressLine2}</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {headerDetails.phone}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {headerDetails.email}</Text>
             {companyDetails.vatNumber && (
-              <Text style={styles.companyDetail}>
+              <Text style={globalStyles.companyDetail}>
                 VAT No: {companyDetails.vatNumber}
               </Text>
             )}
@@ -81,15 +120,15 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         </View>
 
         {/* ── TITLE ── */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>INVOICE</Text>
+        <View style={globalStyles.titleContainer}>
+          <Text style={globalStyles.title}>INVOICE</Text>
         </View>
 
         {/* ── Customer Name & Category Row ── */}
         <View
           style={[
             { flexDirection: 'row', justifyContent: 'space-between' },
-            styles.section,
+            globalStyles.section,
           ]}
         >
           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#111827' }}>
@@ -125,36 +164,36 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         </View>
 
         {/* ── Items Table (full width, with a small top margin) ── */}
-        <View style={[styles.section, { marginTop: 5 }]}>
-          <Text style={styles.sectionTitle}>Items</Text>
-          <View style={[styles.table, { marginTop: 5 }]}>
+        <View style={[globalStyles.section, { marginTop: 5 }]}>
+          <Text style={globalStyles.sectionTitle}>Items</Text>
+          <View style={[globalStyles.table, { marginTop: 5 }]}>
             {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { flex: 3 }]}>
+            <View style={globalStyles.tableHeader}>
+              <Text style={[globalStyles.tableHeaderCell, { flex: 3 }]}>
                 Description
               </Text>
               <Text
-                style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
+                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
               >
                 Qty
               </Text>
               <Text
-                style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
+                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
               >
                 Unit Price
               </Text>
               <Text
-                style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
+                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
               >
                 VAT
               </Text>
               <Text
-                style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
+                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
               >
                 Discount
               </Text>
               <Text
-                style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
+                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
               >
                 Total
               </Text>
@@ -168,35 +207,35 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
               const vatAmt = item.includeVAT ? netAfterDisc * 0.2 : 0;
               const lineTotal = netAfterDisc + vatAmt;
               const rowStyle =
-                idx % 2 === 0 ? styles.tableRow : styles.tableRowAlternate;
+                idx % 2 === 0 ? globalStyles.tableRow : globalStyles.tableRowAlternate;
 
               return (
                 <View key={item.id} style={rowStyle}>
-                  <Text style={[styles.tableCell, { flex: 3 }]}>
+                  <Text style={[globalStyles.tableCell, { flex: 3 }]}>
                     {item.description}
                   </Text>
                   <Text
-                    style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}
+                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
                   >
                     {item.quantity}
                   </Text>
                   <Text
-                    style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}
+                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
                   >
                     £{item.unitPrice.toFixed(2)}
                   </Text>
                   <Text
-                    style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}
+                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
                   >
                     {item.includeVAT ? '£' + vatAmt.toFixed(2) : '-'}
                   </Text>
                   <Text
-                    style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}
+                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
                   >
                     {item.discount ? item.discount.toFixed(1) + '%' : '-'}
                   </Text>
                   <Text
-                    style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}
+                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
                   >
                     £{lineTotal.toFixed(2)}
                   </Text>
@@ -215,60 +254,60 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           wrap={false}
         >
           {/* ── Bank Details Card on the LEFT ── */}
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.cardTitle}>Bank Details</Text>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Bank:</Text>
-              <Text style={styles.value}>
+          <View style={[globalStyles.card, { width: '48%' }]}>
+            <Text style={globalStyles.cardTitle}>Bank Details</Text>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.label}>Bank:</Text>
+              <Text style={globalStyles.value}>
                 {companyDetails.bankName || 'N/A'}
               </Text>
             </View>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Sort Code:</Text>
-              <Text style={styles.value}>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.label}>Sort Code:</Text>
+              <Text style={globalStyles.value}>
                 {companyDetails.sortCode || 'N/A'}
               </Text>
             </View>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Account No:</Text>
-              <Text style={styles.value}>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.label}>Account No:</Text>
+              <Text style={globalStyles.value}>
                 {companyDetails.accountNumber || 'N/A'}
               </Text>
             </View>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Reference:</Text>
-              <Text style={styles.value}>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.label}>Reference:</Text>
+              <Text style={globalStyles.value}>
                 AIE-INV-{data.id.slice(-8).toUpperCase()}
               </Text>
             </View>
           </View>
 
           {/* ── Payment Details Card on the RIGHT ── */}
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.cardTitle}>Payment Details</Text>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.summaryTextDefault}>NET (Gross):</Text>
-              <Text style={styles.summaryValueDefault}>
+          <View style={[globalStyles.card, { width: '48%' }]}>
+            <Text style={globalStyles.cardTitle}>Payment Details</Text>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.summaryTextDefault}>NET (Gross):</Text>
+              <Text style={globalStyles.summaryValueDefault}>
                 £{grossTotal.toFixed(2)}
               </Text>
             </View>
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.summaryTextDefault}>VAT Total:</Text>
-              <Text style={styles.summaryValueDefault}>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.summaryTextDefault}>VAT Total:</Text>
+              <Text style={globalStyles.summaryValueDefault}>
                 £{totalVat.toFixed(2)}
               </Text>
             </View>
             {totalDiscount > 0 && (
-              <View style={styles.spaceBetweenRow}>
-                <Text style={styles.summaryTextDefault}>Discount Total:</Text>
-                <Text style={styles.summaryValueDefault}>
+              <View style={globalStyles.spaceBetweenRow}>
+                <Text style={globalStyles.summaryTextDefault}>Discount Total:</Text>
+                <Text style={globalStyles.summaryValueDefault}>
                   £{totalDiscount.toFixed(2)}
                 </Text>
               </View>
             )}
             <View
               style={[
-                styles.spaceBetweenRow,
+                globalStyles.spaceBetweenRow,
                 {
                   borderTopWidth: 1,
                   borderTopColor: '#E5E7EB',
@@ -277,50 +316,27 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                 },
               ]}
             >
-              <Text style={styles.summaryTextGreen}>Total:</Text>
-              <Text style={styles.summaryValueGreen}>
+              <Text style={globalStyles.summaryTextGreen}>Total:</Text>
+              <Text style={globalStyles.summaryValueGreen}>
                 £{finalTotal.toFixed(2)}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* ── FOOTER ── */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName} | Registered in England and Wales | Company No: {' '}
-          {companyDetails.registrationNumber}
-        </Text>
+        {/* ── FOOTER ── Updated to consistent design */}
+        <View style={globalStyles.footer} fixed>
+          <Text style={globalStyles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            style={globalStyles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
       </Page>
     </Document>
   );
 };
 
 export default InvoiceDocument;
-
-// LOCAL STYLES for the horizontal info card (matching RentalInvoice style)
-const localStyles = StyleSheet.create({
-  infoCard: {
-    borderWidth: 1,
-    borderColor: '#3B82F6',   // same blue‐500 as in RentalInvoice
-    borderRadius: 6,
-    padding: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
-  },
-  infoItem: {
-    flex: 1,
-    alignItems: 'flex-start',
-    paddingHorizontal: 4,
-  },
-  infoLabel: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#1E40AF',         // blue‐800
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 10,
-    color: '#1F2937',         // gray‐800
-  },
-});

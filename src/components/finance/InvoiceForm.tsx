@@ -150,7 +150,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
 
       const remaining = amt - pay;
       const status =
-        pay === 0 ? 'pending' : pay >= amt ? 'paid' : 'partially_paid';
+        pay === 0 ? 'unpaid' : pay >= amt ? 'paid' : 'partially_paid';
 
       const payments: Invoice['payments'] = [];
       if (pay > 0) {
@@ -209,18 +209,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
       await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: url });
 
       if (pay > 0) {
-        await createFinanceTransaction({
-          type: 'income',
-          category: formData.category,
-          amount: pay,
-          description: `Payment for invoice ${docRef.id}`,
-          referenceId: docRef.id,
-          vehicleId: formData.vehicleId || undefined,
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          paymentStatus: status
-        });
-      }
+  await createFinanceTransaction({
+    type: 'income',
+    category: formData.category,
+    amount: pay,
+    description: `Payment for invoice ${docRef.id}`,
+    referenceId: docRef.id,
+    vehicleId: formData.vehicleId || undefined,
+    paymentMethod: formData.paymentMethod,
+    paymentReference: formData.paymentReference,
+    paymentStatus: status,
+    status // ✅ add this line
+  });
+}
 
       toast.success('Invoice created successfully');
       onClose();

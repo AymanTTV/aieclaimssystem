@@ -17,10 +17,10 @@ interface FinanceTransactionParams {
     name: string;
     isDefault: boolean;
   };
-  status?: 'pending' | 'completed';
+  status?: 'paid' | 'partially_paid' | 'unpaid'; 
   paymentMethod?: string;
   paymentReference?: string;
-  paymentStatus?: 'paid' | 'unpaid' | 'partially_paid';
+  paymentStatus?: 'paid' | 'partially_paid' | 'unpaid';
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
@@ -169,25 +169,26 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     }
 
     const transaction = {
-      type,
-      category,
-      amount,
-      description,
-      referenceId,
-      ...(vehicleId && { vehicleId }),
-      ...(vehicleName && { vehicleName }),
-      ...(vehicleOwner && { vehicleOwner }),
-      ...(paymentMethod && { paymentMethod }),
-      ...(paymentReference && { paymentReference }),
-      ...(accountFrom && { accountFrom }),
-      ...(accountTo && { accountTo }),
-      ...(customerId && { customerId }), // NEW: Include customerId
-      ...(customerName && { customerName }), // NEW: Include customerName
-      status,
-      paymentStatus,
-      date,
-      createdAt: new Date(),
-    };
+  type,
+  category,
+  amount,
+  description,
+  referenceId,
+  ...(vehicleId && { vehicleId }),
+  ...(vehicleName && { vehicleName }),
+  ...(vehicleOwner && { vehicleOwner }),
+  ...(paymentMethod && { paymentMethod }),
+  ...(paymentReference && { paymentReference }),
+  ...(accountFrom && { accountFrom }),
+  ...(accountTo && { accountTo }),
+  ...(customerId && { customerId }),
+  ...(customerName && { customerName }),
+  ...(date && { date }), // ✅ only include if defined
+  status: status || paymentStatus || 'unpaid',
+  paymentStatus,
+  createdAt: new Date(),
+};
+
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);
     console.log('Transaction created with ID:', docRef.id);

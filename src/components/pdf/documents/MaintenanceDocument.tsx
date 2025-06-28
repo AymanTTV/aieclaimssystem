@@ -1,8 +1,8 @@
 // MaintenanceDocument.tsx
 import React from 'react';
-import { Text, View } from '@react-pdf/renderer';
+import { Text, View, Page, Document, Image } from '@react-pdf/renderer'; // Added Page, Document, Image
 import { MaintenanceLog, Vehicle } from '../../../types';
-import BaseDocument from '../BaseDocument';
+// import BaseDocument from '../BaseDocument'; // Remove BaseDocument import
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 
@@ -21,6 +21,11 @@ interface MaintenanceDocumentProps {
     sortCode?: string;
     accountNumber?: string;
     maintenanceTerms?: string;
+    logoUrl?: string; // Added logoUrl for header
+    fullName?: string; // Added fullName for header
+    officialAddress?: string; // Added officialAddress for header
+    phone?: string; // Added phone for header
+    email?: string; // Added email for header
   };
 }
 
@@ -82,7 +87,29 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
   const documentTotals = calculateDocumentTotals();
 
   return (
-    <BaseDocument title={`${data.type.replace('-', ' ')} Invoice`} companyDetails={companyDetails}>
+    // Removed BaseDocument and directly using Document and Page
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header - Replicated from Vehicle Documents */}
+        <View style={styles.header} fixed>
+          <View style={styles.headerLeft}>
+            {companyDetails?.logoUrl && (
+              <Image src={companyDetails.logoUrl} style={styles.logo} />
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+          </View>
+        </View>
+
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{`${data.type.replace('-', ' ')} Invoice`}</Text>
+        </View>
+
       {/* Vehicle & Maintenance Info Side by Side */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
         <View style={[styles.card, { width: '48%' }]}>
@@ -227,7 +254,19 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
           <Text style={styles.termsText}>{companyDetails.maintenanceTerms}</Text>
         </View>
       )}
-    </BaseDocument>
+
+        {/* Footer - Replicated from Vehicle Documents */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
+      </Page>
+    </Document>
   );
 };
 

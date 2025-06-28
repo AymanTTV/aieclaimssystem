@@ -37,6 +37,7 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
           <Field label="Accountant" value={record.accountant} />
           <Field label="Supplier" value={record.supplier} />
           <Field label="REG No" value={record.regNo} />
+          {record.vatNo && <Field label="VAT No" value={record.vatNo} />} {/* Display VAT No */}
         </div>
       </Section>
 

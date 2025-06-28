@@ -4,8 +4,8 @@ import { StyleSheet } from '@react-pdf/renderer';
 export const styles = StyleSheet.create({
   // --- Page & Layout Styles ---
   page: {
-    paddingTop: 35,
-    paddingBottom: 65,
+    paddingTop: 50,
+    paddingBottom: 90, // Keep this increased padding to ensure content doesn't collide with the fixed footer
     paddingHorizontal: 40,
     fontSize: 10,
     fontFamily: 'Helvetica',
@@ -15,10 +15,10 @@ export const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 5, // Optimized: Reduced from 10 to 5
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingBottom: 15,
+    paddingBottom: 10,
   },
   headerLeft: {
     flex: 1,
@@ -50,7 +50,7 @@ export const styles = StyleSheet.create({
   titleContainer: {
     borderBottomWidth: 2,
     borderBottomColor: '#438BDC',
-    marginBottom: 20,
+    marginBottom: 15, // Optimized: Reduced from 20 to 15
     paddingBottom: 5,
   },
   title: {
@@ -63,12 +63,12 @@ export const styles = StyleSheet.create({
     marginBottom: 15,
   },
   sectionBreak: {
-    paddingBottom: 15,
+    paddingBottom: 10, // Optimized: Reduced from 15 to 10
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
-    marginBottom: 20,
+    marginBottom: 10, // Keep this as 10, as further reduction is in localStyles.lastSectionOnPage
   },
   sectionTitle: {
     fontSize: 14,
@@ -172,7 +172,7 @@ export const styles = StyleSheet.create({
   card: {
     backgroundColor: '#F9FAFB',
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 5, // Optimized: Reduced from 10 to 5
     borderRadius: 6,
     borderLeftWidth: 3,
     borderLeftColor: '#438BDC',
@@ -254,33 +254,30 @@ export const styles = StyleSheet.create({
   // --- Footer Styles ---
   footer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 20,
     left: 40,
     right: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
     fontSize: 8,
-    textAlign: 'center',
     color: '#6B7280',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    paddingTop: 8,
+    paddingTop: 5,
   },
   footerText: {
-    marginBottom: 3,
     fontSize: 8,
+    flexGrow: 1,
   },
   pageNumber: {
-    position: 'absolute',
     fontSize: 8,
-    bottom: 10,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
     color: '#6B7280',
   },
 
   // --- General Text Style ---
   text: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#374151',
     lineHeight: 1.5,
     marginBottom: 6,
@@ -288,10 +285,10 @@ export const styles = StyleSheet.create({
 
   // --- Terms & Conditions (smaller to fit one page) ---
   termsText: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#374151',
     lineHeight: 1.3,
-    marginBottom: 4,
+    marginBottom: 7,
   },
 
   // --- Summary Row Text Colors (no background) ---
@@ -391,7 +388,8 @@ export const styles = StyleSheet.create({
     color: '#4B5563',
   },
   signatureSection: {
-    marginTop: 20,
+    marginTop: 10,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     breakInside: 'avoid',
@@ -399,6 +397,7 @@ export const styles = StyleSheet.create({
   signatureBox: {
     width: '45%',
     padding: 10,
+    marginBottom: 10,
     backgroundColor: '#F9FAFB',
     borderRadius: 6,
     shadowColor: '#000',
@@ -408,7 +407,7 @@ export const styles = StyleSheet.create({
   },
   signature: {
     width: '100%',
-    height: 50,
+    height: 40, // Changed from 50 to 40
     marginVertical: 10,
     objectFit: 'contain',
   },
@@ -416,6 +415,7 @@ export const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     marginTop: 5,
+    marginBottom: 10,
     paddingTop: 5,
     textAlign: 'center',
     color: '#4B5563',

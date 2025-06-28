@@ -40,6 +40,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     regNo: record?.regNo || '',
     customerName: record?.customerName || '',
     customerId: record?.customerId || '',
+    vatNo: record?.vatNo || '',
     status: record?.status || 'awaiting',
     notes: record?.notes || '',
     date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -141,16 +142,23 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           onChange={(e) => setFormData({ ...formData, accountant: e.target.value })}
           required
         />
-        <FormField
-          label="Supplier"
-          value={formData.supplier}
-          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-          required
+         <FormField
+          label="VAT No"
+          value={formData.vatNo}
+          onChange={(e) => setFormData({ ...formData, vatNo: e.target.value })}
         />
+        
         <FormField
           label="REG No"
           value={formData.regNo}
           onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
+          required
+        />
+        
+        <FormField
+          label="Supplier"
+          value={formData.supplier}
+          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
           required
         />
       </div>

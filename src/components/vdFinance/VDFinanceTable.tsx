@@ -33,11 +33,11 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const { user } = useAuth();
 
-  // Profit column only for managers
+  // Profit column always visible
   const profitColumn = {
     header: 'Profit',
-    cell: ({ row }) => {
-      const rec = row.original;
+    cell: ({ row }: any) => {
+      const rec: VDFinanceRecord = row.original;
       if (rec.profit > 0) {
         return <span className="font-medium text-green-600">{formatCurrency(rec.profit)}</span>;
       }
@@ -51,7 +51,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   const columns = [
     {
       header: 'Name & Reference',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
           <div className="font-medium">{row.original.name}</div>
           <div className="text-sm text-gray-500">Ref: {row.original.reference}</div>
@@ -61,9 +61,9 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     { header: 'Registration', accessorKey: 'registration' },
     {
       header: 'Amount Details',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const rec = row.original;
-        const discount = rec.totalDiscount || 0;
+        const discount = rec.totalDiscount ?? 0;
         return (
           <div className="space-y-1 text-sm">
             <div>Total: {formatCurrency(rec.totalAmount)}</div>
@@ -78,7 +78,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     },
     {
       header: 'Fees & Repairs',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="space-y-1 text-sm">
           <div>Solicitor: {formatCurrency(row.original.solicitorFee)}</div>
           <div>Client Repair: {formatCurrency(row.original.clientRepair)}</div>
@@ -86,16 +86,18 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
         </div>
       ),
     },
-    // Only include Profit column for managers
-    ...(user?.role === 'manager' ? [profitColumn] : []),
+
+    // Profit column is now unconditional
+    profitColumn,
+
     {
       header: 'Date',
-      cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy HH:mm'),
+      cell: ({ row }: any) => format(row.original.date, 'dd/MM/yyyy HH:mm'),
     },
     {
       header: 'Actions',
-      cell: ({ row }) => {
-        const rec = row.original;
+      cell: ({ row }: any) => {
+        const rec: VDFinanceRecord = row.original;
         return (
           <div className="flex space-x-2">
             {can('claims', 'view') && (
@@ -135,7 +137,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               </button>
             )}
 
-            {/* Profit toggle buttons only for managers */}
+            {/* Profit toggle buttons remain manager-only */}
             {user?.role === 'manager' && rec.profit > 0 && (
               <button
                 onClick={e => { e.stopPropagation(); onClearProfit(rec); }}

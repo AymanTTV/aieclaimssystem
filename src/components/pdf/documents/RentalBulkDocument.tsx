@@ -1,14 +1,20 @@
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../../types';
-import { styles } from '../styles';
+import { styles } from '../styles'; // Ensure this path is correct
 import { formatDate } from '../../../utils/dateHelpers';
 
 interface RentalBulkDocumentProps {
   records: Rental[];
   vehicles: Vehicle[];
   customers: Customer[];
-  companyDetails: any;
+  companyDetails: {
+    logoUrl?: string; // Added logoUrl
+    fullName: string;
+    officialAddress: string;
+    phone: string;
+    email: string;
+  };
   title?: string;
 }
 
@@ -49,33 +55,22 @@ const RentalBulkDocument: React.FC<RentalBulkDocumentProps> = ({
     <Document>
       {Array.from({ length: totalPages }).map((_, pageIndex) => (
         <Page key={pageIndex} size="A4" style={styles.page}>
-          {/* Header only on first page */}
-          {pageIndex === 0 && (
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Image
-                  src={companyDetails.logoUrl}
-                  style={styles.logo}
-                />
-              </View>
-              <View style={styles.headerRight}>
-                <Text style={styles.companyName}>
-                  {companyDetails.fullName}
-                </Text>
-                <Text style={styles.companyDetail}>
-                  {companyDetails.officialAddress}
-                </Text>
-                <Text style={styles.companyDetail}>
-                  Tel: {companyDetails.phone}
-                </Text>
-                <Text style={styles.companyDetail}>
-                  Email: {companyDetails.email}
-                </Text>
-              </View>
+          {/* Header - Standardized header */}
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {companyDetails?.logoUrl && (
+                <Image src={companyDetails.logoUrl} style={styles.logo} />
+              )}
             </View>
-          )}
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+            </View>
+          </View>
 
-          {/* Title only on first page */}
+          {/* Title - Conditionally rendered only on the first page */}
           {pageIndex === 0 && (
             <View style={styles.titleContainer}>
               <Text style={styles.title}>{title}</Text>
@@ -135,15 +130,16 @@ const RentalBulkDocument: React.FC<RentalBulkDocumentProps> = ({
             </View>
           </View>
 
-          {/* Footer only on last page */}
-          {pageIndex === totalPages - 1 && (
-            <Text style={styles.footer}>
-              {companyDetails.fullName} | Generated on {formatDate(new Date())}
+          {/* Footer - Standardized footer */}
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>
+              AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
             </Text>
-          )}
-          <Text style={styles.pageNumber}>
-            Page {pageIndex + 1} of {totalPages}
-          </Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
         </Page>
       ))}
     </Document>

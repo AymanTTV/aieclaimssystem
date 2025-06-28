@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ServiceCenter, fetchServiceCenters, searchServiceCenters, deleteServiceCenter, updateServiceCenter } from '../../utils/serviceCenters';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { ServiceCenter, deleteServiceCenter, updateServiceCenter } from '../../utils/serviceCenters';
 import { useOnClickOutside } from '../../hooks/useOnClickOutside';
 import Modal from '../ui/Modal';
 import ServiceCenterForm from './ServiceCenterForm';
 import { Trash2, Plus, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useServiceCenters } from '../../hooks/useServiceCenters'; // Import the new hook
 
 interface ServiceCenterDropdownProps {
   value: string;
@@ -18,173 +19,189 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
   onInputChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<ServiceCenter[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [selectedCenter, setSelectedCenter] = useState<ServiceCenter | null>(null);
-  const [loading, setLoading] = useState(true);
   const [deletingCenter, setDeletingCenter] = useState<ServiceCenter | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [inputValue, setInputValue] = useState(value); // Local state for input value
+
+  // Use the new hook to get real-time service centers
+  const { serviceCenters, loading: loadingCenters, error: serviceCentersError } = useServiceCenters();
 
   useOnClickOutside(dropdownRef, () => setIsOpen(false));
 
-  const loadServiceCenters = async () => {
-    try {
-      const centers = await fetchServiceCenters();
-      setSearchResults(centers);
-    } catch (error) {
-      console.error('Error loading service centers:', error);
-      toast.error('Failed to load service centers');
-    } finally {
-      setLoading(false);
+  // Filter service centers based on input value
+  // Filter service centers based on input value
+  const filteredServiceCenters = useMemo(() => {
+    if (!inputValue) {
+      return serviceCenters;
     }
-  };
+    const lowerCaseInput = inputValue.toLowerCase();
+    return serviceCenters.filter(center => {
+      // default each potentially-missing field
+      const name       = center.name        || '';
+      const address    = center.address     || '';
+      const postcode   = center.postcode    || '';
+      const email      = center.email       || '';
+      const phone      = center.phone       || '';
+      const specialties = Array.isArray(center.specialties)
+        ? center.specialties
+        : [];
 
+      return (
+        name.toLowerCase().includes(lowerCaseInput) ||
+        address.toLowerCase().includes(lowerCaseInput) ||
+        postcode.toLowerCase().includes(lowerCaseInput) ||
+        email.toLowerCase().includes(lowerCaseInput) ||
+        phone.toLowerCase().includes(lowerCaseInput) ||
+        specialties.some(s => (s || '').toLowerCase().includes(lowerCaseInput))
+      );
+    });
+  }, [serviceCenters, inputValue]);
+
+  // Update internal input value when prop changes
   useEffect(() => {
-    loadServiceCenters();
-  }, []);
+    setInputValue(value);
+  }, [value]);
 
-  const handleSearch = (query: string) => {
-    onInputChange(query);
-    setSearchResults(searchServiceCenters(query));
-    setIsOpen(true);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue); // Update local input state
+    onInputChange(newValue); // Propagate to parent
+    setIsOpen(true); // Open dropdown when typing
   };
 
-  const handleSelect = (center: ServiceCenter) => {
+  const handleSelectCenter = (center: ServiceCenter) => {
     onChange(center);
+    setInputValue(center.name); // Set input to selected center's name
     setIsOpen(false);
   };
 
-  const handleEdit = async (center: ServiceCenter, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedCenter(center);
-    setShowEditForm(true);
+  const handleCreateSuccess = (newCenter: ServiceCenter) => {
+    setShowCreateForm(false);
+    toast.success('Service center added successfully');
+    // The useServiceCenters hook will automatically update the list
   };
 
-  const handleDelete = async (center: ServiceCenter, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleEditSuccess = (updatedCenter: ServiceCenter) => {
+    setShowEditForm(false);
+    toast.success('Service center updated successfully');
+    // The useServiceCenters hook will automatically update the list
+  };
+
+  const handleDeleteClick = (center: ServiceCenter) => {
     setDeletingCenter(center);
   };
 
   const confirmDelete = async () => {
-    if (!deletingCenter?.id) return;
-    
-    try {
-      await deleteServiceCenter(deletingCenter.id);
-      await loadServiceCenters();
-      toast.success('Service center deleted successfully');
-    } catch (error) {
-      console.error('Error deleting service center:', error);
-      toast.error('Failed to delete service center');
-    } finally {
-      setDeletingCenter(null);
+    if (deletingCenter?.id) {
+      try {
+        await deleteServiceCenter(deletingCenter.id);
+        setDeletingCenter(null);
+        // The useServiceCenters hook will automatically update the list
+        // If the deleted center was currently selected, clear the selection
+        if (selectedCenter?.id === deletingCenter.id) {
+          onChange({} as ServiceCenter); // Clear selected center in parent
+          setInputValue(''); // Clear input
+        }
+      } catch (error) {
+        console.error('Error deleting service center:', error);
+        toast.error('Failed to delete service center');
+      }
     }
   };
 
-  const handleCreateSuccess = async (newCenter: ServiceCenter) => {
-    await loadServiceCenters();
-    setShowCreateForm(false);
-    handleSelect(newCenter);
+  const openEditForm = (center: ServiceCenter) => {
+    setSelectedCenter(center);
+    setShowEditForm(true);
+    setIsOpen(false); // Close dropdown when opening modal
   };
-
-  const handleEditSuccess = async (updatedCenter: ServiceCenter) => {
-    if (!selectedCenter?.id) return;
-    
-    try {
-      await updateServiceCenter(selectedCenter.id, updatedCenter);
-      await loadServiceCenters();
-      setShowEditForm(false);
-      handleSelect({ ...updatedCenter, id: selectedCenter.id });
-      toast.success('Service center updated successfully');
-    } catch (error) {
-      console.error('Error updating service center:', error);
-      toast.error('Failed to update service center');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-10 bg-gray-200 rounded"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-2">
-      <div ref={dropdownRef} className="relative">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => handleSearch(e.target.value)}
-          onFocus={() => setIsOpen(true)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          placeholder="Search service centers..."
-        />
-        
-        {isOpen && (
-          <div className="absolute z-10 w-full mt-1 bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-            {searchResults.map((center) => (
-              <div
-                key={center.id}
-                className="group px-4 py-2 hover:bg-gray-100 cursor-pointer"
-              >
-                <div className="flex justify-between items-start">
-                  <div onClick={() => handleSelect(center)}>
-                    <div className="font-medium">{center.name}</div>
-                    <div className="text-sm text-gray-500">{center.address}</div>
-                    <div className="text-sm text-gray-500">
-                      £{center.hourlyRate}/hour | {center.email}
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
+    <div className="relative" ref={dropdownRef}>
+      <input
+        type="text"
+        className="form-input w-full"
+        placeholder="Search or select service center..."
+        value={inputValue}
+        onChange={handleInputChange}
+        onFocus={() => setIsOpen(true)}
+      />
+
+      {isOpen && (
+        <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+          {loadingCenters ? (
+            <div className="p-2 text-sm text-gray-500">Loading service centers...</div>
+          ) : serviceCentersError ? (
+            <div className="p-2 text-sm text-red-500">Error: {serviceCentersError}</div>
+          ) : filteredServiceCenters.length === 0 && inputValue ? (
+            <div className="p-2 text-sm text-gray-500">No matching service centers found.</div>
+          ) : (
+            <>
+              <div className="p-2 border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(true);
+                    setIsOpen(false); // Close dropdown when opening modal
+                  }}
+                  className="w-full text-left flex items-center p-2 text-sm text-primary-600 hover:bg-primary-50 rounded-md"
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add New Service Center
+                </button>
+              </div>
+              {filteredServiceCenters.map((center) => (
+                <div
+                  key={center.id}
+                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSelectCenter(center)}
+                >
+                  <span className="text-sm">{center.name}</span>
+                  <div className="flex items-center space-x-2">
                     <button
-                      onClick={(e) => handleEdit(center, e)}
-                      className="text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Edit Service Center"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent dropdown from closing
+                        openEditForm(center);
+                      }}
+                      className="text-blue-500 hover:text-blue-700"
+                      title="Edit"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => handleDelete(center, e)}
-                      className="text-red-600 hover:text-red-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete Service Center"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent dropdown from closing
+                        handleDeleteClick(center);
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
-            <div className="p-2 border-t">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(true)}
-                className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-gray-50 rounded-md flex items-center"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Service Center
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
-      {/* Create Form Modal */}
+      {/* Create Service Center Modal */}
       <Modal
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
         title="Add New Service Center"
       >
-        <div>
-          <ServiceCenterForm
-            onClose={() => setShowCreateForm(false)}
-            onSuccess={handleCreateSuccess}
-          />
-        </div>
+        <ServiceCenterForm
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={handleCreateSuccess}
+        />
       </Modal>
 
-      {/* Edit Form Modal */}
+      {/* Edit Service Center Modal */}
       <Modal
         isOpen={showEditForm}
         onClose={() => {

@@ -3,15 +3,15 @@
 import React from 'react'
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import { Claim } from '../../../types'
-import { CompanyDetails } from '../../../types/company'
+// import { CompanyDetails } from '../../../types/company' // Not directly used, can be removed
 import { styles } from '../styles'
-import { format } from 'date-fns'
+import { format } from 'date-fns' // Used for formatDate, keeping
 import { formatDate } from '../../../utils/dateHelpers'
 import aieClaimsLogo from '../../../assets/aieclaim.png';
 
 interface ClaimBulkDocumentProps {
   records: Claim[]
-  companyDetails: any;
+  companyDetails: any; // Keeping any as per original
   title?: string
 }
 
@@ -20,14 +20,15 @@ const ITEMS_PER_PAGE   = 10
 
 const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
   records,
-  companyDetails,
+  companyDetails, // Not directly used in header/footer, but keeping for compatibility
   title = 'Claims Summary',
 }) => {
 
   const headerDetails = {
     logoUrl: aieClaimsLogo,
     fullName: 'AIE Claims LTD',
-    officialAddress: 'United House, 39-41 North Road, London, N7 9DP.',
+    addressLine1: 'United House, 39-41 North Road,', // Broken down
+    addressLine2: 'London, N7 9DP.', // Broken down, added period for consistency
     phone: '+442080505337',
     email: 'claims@aieclaims.co.uk',
   };
@@ -51,12 +52,16 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
         return (
           <Page key={pageIndex} size="A4" style={styles.page}>
             {/* HEADER */}
-             <View style={styles.header}>
-              <Image src={headerDetails.logoUrl} style={styles.logo} />
-              <View style={styles.companyInfo}>
+             <View style={styles.header} fixed>
+              <View style={styles.headerLeft}>
+                <Image src={headerDetails.logoUrl} style={styles.logo} />
+              </View>
+              <View style={styles.headerRight}>
                 <Text style={styles.companyName}>{headerDetails.fullName}</Text>
-                <Text style={styles.companyDetail}>{headerDetails.officialAddress}</Text>
-                <Text style={styles.companyDetail}>Phone: {headerDetails.phone}</Text>
+                {/* Displaying address on separate lines */}
+                <Text style={styles.companyDetail}>{headerDetails.addressLine1}</Text>
+                <Text style={styles.companyDetail}>{headerDetails.addressLine2}</Text>
+                <Text style={styles.companyDetail}>Tel: {headerDetails.phone}</Text>
                 <Text style={styles.companyDetail}>Email: {headerDetails.email}</Text>
               </View>
             </View>
@@ -111,17 +116,14 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
             {/* FOOTER */}
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>
-                AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639
+                AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP
               </Text>
-              <Text style={styles.footerText}>
-                Registered office address: United House, 39-41 North Road, London, N7 9DP
-              </Text>
+              {/* Page number positioned on the right */}
+              <Text
+                style={styles.pageNumber}
+                render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              />
             </View>
-
-            {/* PAGE NUMBER */}
-            <Text style={styles.pageNumber}>
-              Page {pageIndex + 1} of {pageCount}
-            </Text>
           </Page>
         )
       })}

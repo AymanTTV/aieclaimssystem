@@ -37,7 +37,7 @@ const AccidentBulkDocument: React.FC<AccidentBulkDocumentProps> = ({
   const totalClaims   = records.reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const renderTableHeader = () => (
-    <View style={styles.tableHeader}>
+    <View style={styles.tableHeader} fixed> {/* Added fixed to tableHeader */}
       <Text style={[styles.tableCell, { width: '15%' }]}>Date</Text>
       <Text style={[styles.tableCell, { width: '20%' }]}>Driver</Text>
       <Text style={[styles.tableCell, { width: '25%' }]}>Location</Text>
@@ -61,66 +61,74 @@ const AccidentBulkDocument: React.FC<AccidentBulkDocumentProps> = ({
 
         return (
           <Page key={pageIndex} size="A4" style={styles.page}>
-            {/* header */}
-            <View style={styles.header}>
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-              <View style={styles.companyInfo}>
-                <Text>{companyDetails.fullName}</Text>
-                <Text>{companyDetails.officialAddress}</Text>
-                <Text>Tel: {companyDetails.phone}</Text>
-                <Text>Email: {companyDetails.email}</Text>
+            {/* HEADER (fixed to repeat on every page) - Copied from VehicleBulkDocument.tsx */}
+            <View style={styles.header} fixed>
+              <View style={styles.headerLeft}>
+                {companyDetails?.logoUrl && (
+                  <Image src={companyDetails.logoUrl} style={styles.logo} />
+                )}
+              </View>
+              <View style={styles.headerRight}>
+                <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+                <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+                <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+                <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
               </View>
             </View>
 
-            {/* title */}
-            <Text style={styles.title}>{title}</Text>
-
-            {/* overview on first page */}
+            {/* TITLE + SUMMARY (first page only) - Summary card design updated */}
             {pageIndex === 0 && (
-              <View style={[styles.card, { marginBottom: 20 }]}>
-                <Text style={styles.cardTitle}>Overview</Text>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text>Total Records:</Text>
-                    <Text style={styles.cardContent}>{total}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Reported:</Text>
-                    <Text style={styles.cardContent}>{reported}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Investigating:</Text>
-                    <Text style={styles.cardContent}>{investigating}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Processing:</Text>
-                    <Text style={styles.cardContent}>{processing}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Resolved:</Text>
-                    <Text style={styles.cardContent}>{resolved}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Faults:</Text>
-                    <Text style={styles.cardContent}>{faults}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Non-faults:</Text>
-                    <Text style={styles.cardContent}>{nonFaults}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total Claims:</Text>
-                    <Text style={styles.cardContent}>£{totalClaims.toFixed(2)}</Text>
+              <View style={[styles.sectionBreak]} wrap={false}>
+                <View style={styles.titleContainer}>
+                  <Text style={styles.title}>{title}</Text>
+                </View>
+                {/* Updated summary card design to match VehicleBulkDocument */}
+                <View style={[styles.section, styles.infoCard, { borderLeft: '3 solid #3B82F6', breakInside: 'avoid' }]}>
+                  <Text style={styles.infoCardTitle}>Accident Overview</Text> {/* Changed title */}
+                  <View style={styles.grid}>
+                    <View style={[styles.gridItem, { width: '50%' }]}> {/* Using 50% width for two columns */}
+                      <Text style={styles.subLabel}>Total Records:</Text>
+                      <Text style={styles.subValue}>{total}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Reported:</Text>
+                      <Text style={styles.subValue}>{reported}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Investigating:</Text>
+                      <Text style={styles.subValue}>{investigating}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Processing:</Text>
+                      <Text style={styles.subValue}>{processing}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Resolved:</Text>
+                      <Text style={styles.subValue}>{resolved}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Faults:</Text>
+                      <Text style={styles.subValue}>{faults}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Non-faults:</Text>
+                      <Text style={styles.subValue}>{nonFaults}</Text>
+                    </View>
+                    <View style={[styles.gridItem, { width: '50%' }]}>
+                      <Text style={styles.subLabel}>Total Claims:</Text>
+                      <Text style={styles.subValue}>£{totalClaims.toFixed(2)}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
             )}
 
             {/* table */}
-            <View style={styles.section}>
+            <View style={styles.tableContainer}> {/* Wrapped table in tableContainer */}
+              {pageIndex === 0 && <Text style={styles.sectionTitle}>Accident Details</Text>} {/* Added section title to tableContainer */}
               {renderTableHeader()}
               {slice.map(rec => (
-                <View key={rec.id} style={styles.tableRow}>
+                <View key={rec.id} style={styles.tableRow} wrap={false}> {/* Added wrap={false} */}
                   <Text style={[styles.tableCell, { width: '15%' }]}>
                     {formatDate(rec.accidentDate)}
                   </Text>
@@ -140,13 +148,16 @@ const AccidentBulkDocument: React.FC<AccidentBulkDocumentProps> = ({
               ))}
             </View>
 
-            {/* footer */}
-            <Text style={styles.footer}>
-              {companyDetails.fullName} | Generated on {formatDate(new Date())}
-            </Text>
-            <Text style={styles.pageNumber}>
-              Page {pageIndex + 1} of {pages}
-            </Text>
+            {/* FOOTER (fixed to repeat on every page) - Copied from VehicleBulkDocument.tsx */}
+            <View style={styles.footer} fixed>
+              <Text style={styles.footerText}>
+                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+              </Text>
+              <Text
+                style={styles.pageNumber}
+                render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              />
+            </View>
           </Page>
         );
       })}

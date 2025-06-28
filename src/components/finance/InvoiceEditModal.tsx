@@ -159,7 +159,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       const newRemaining = total - totalPaid;
       const newStatus =
         totalPaid === 0
-          ? 'pending'
+          ? 'unpaid'
           : totalPaid >= total
           ? 'paid'
           : 'partially_paid';
@@ -221,18 +221,19 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: url });
 
       if (formData.isAddingPayment && payNow > 0) {
-        await createFinanceTransaction({
-          type: 'income',
-          category: formData.category,
-          amount: payNow,
-          description: `Payment for invoice ${invoice.id}`,
-          referenceId: invoice.id,
-          vehicleId: formData.vehicleId || undefined,
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          paymentStatus: newStatus
-        });
-      }
+      await createFinanceTransaction({
+        type: 'income',
+        category: formData.category,
+        amount: payNow,
+        description: `Payment for invoice ${invoice.id}`,
+        referenceId: invoice.id,
+        vehicleId: formData.vehicleId || undefined,
+        paymentMethod: formData.paymentMethod,
+        paymentReference: formData.paymentReference,
+        paymentStatus: newStatus,
+        status: newStatus // ✅ pass status here
+      });
+    }
 
       toast.success('Invoice updated successfully');
       onClose();

@@ -377,6 +377,7 @@ const Finance: React.FC = () => {
         type={type}
         onTypeChange={setType}
         onManageGroups={() => setManageOpen(true)}
+        onManageCategories={() => setShowCatModal(true)}
       />
 
       {/* ── FILTERS ── */}

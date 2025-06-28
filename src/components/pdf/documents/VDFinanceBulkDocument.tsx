@@ -1,7 +1,7 @@
 import React from 'react';
-import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { VDFinanceRecord } from '../../../types/vdFinance';
-import { styles } from '../styles';
+import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict
 import { formatDate } from '../../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../../hooks/useFormattedDisplay'; // Import currency formatting
 
@@ -10,6 +10,41 @@ interface VDFinanceBulkDocumentProps {
   companyDetails: any;
   title?: string;
 }
+
+// Local styles for the summary card, mimicking FinanceDocument.tsx's local styles
+const localStyles = StyleSheet.create({
+  summaryCard: {
+    ...globalStyles.card, // Use existing card style as base
+    marginBottom: 10,
+    padding: 10,
+    backgroundColor: '#F9FAFB',
+    breakInside: 'avoid', // Ensure card stays together
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  summaryLabel: {
+    ...globalStyles.text, // Use existing text style as base
+    fontSize: 10,
+    color: '#4B5563',
+  },
+  summaryValue: {
+    ...globalStyles.text, // Use existing text style as base
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  positiveValue: {
+    color: '#10B981', // green
+  },
+  negativeValue: {
+    color: '#EF4444', // red
+  },
+  neutralValue: {
+    color: '#3B82F6', // blue (not explicitly used for profit but good to have)
+  },
+});
 
 const VDFinanceBulkDocument: React.FC<VDFinanceBulkDocumentProps> = ({
   records,
@@ -26,114 +61,174 @@ const VDFinanceBulkDocument: React.FC<VDFinanceBulkDocumentProps> = ({
   const totalClientRepair = records.reduce((sum, r) => sum + (r.clientRepair || 0), 0);
   const totalProfit = records.reduce((sum, r) => sum + (r.profit || 0), 0);
   const { formatCurrency } = useFormattedDisplay();
-  const ITEMS_PER_PAGE = 10;
-  const pages = Math.ceil(records.length / ITEMS_PER_PAGE);
+
+  // Pagination adjustments
+  const ITEMS_FIRST_PAGE = 5; // 5 records on the first page
+  const ITEMS_PER_PAGE = 7;   // 7 records on other pages
+
+  const remainder = Math.max(0, records.length - ITEMS_FIRST_PAGE);
+  const otherPages = Math.ceil(remainder / ITEMS_PER_PAGE);
+  const pageCount = records.length > 0 ? 1 + otherPages : 0; // Handle empty records case
+
+  const getSlice = (page: number) =>
+    page === 0
+      ? records.slice(0, ITEMS_FIRST_PAGE)
+      : records.slice(
+          ITEMS_FIRST_PAGE + (page - 1) * ITEMS_PER_PAGE,
+          ITEMS_FIRST_PAGE + page * ITEMS_PER_PAGE
+        );
+
+  // Derive header details from companyDetails, splitting the address
+  const headerDetails = {
+    logoUrl: companyDetails?.logoUrl || '',
+    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP.',
+    phone: companyDetails?.phone || 'N/A',
+    email: companyDetails?.email || 'N/A',
+  };
 
   return (
     <Document>
-      {Array.from({ length: pages }).map((_, pageIndex) => (
-        <Page key={pageIndex} size="A4" style={styles.page}>
-          {/* Header - on every page */}
-          <View style={styles.header}>
-            <Image src={companyDetails.logoUrl} style={styles.logo} />
-            <View style={styles.companyInfo}>
-              <Text>{companyDetails.fullName}</Text>
-              <Text>{companyDetails.officialAddress}</Text>
-              <Text>Tel: {companyDetails.phone}</Text>
-              <Text>Email: {companyDetails.email}</Text>
+      {Array.from({ length: pageCount }).map((_, pageIndex) => {
+        const slice = getSlice(pageIndex);
+        return (
+          <Page key={pageIndex} size="A4" style={globalStyles.page}>
+            {/* Header - on every page */}
+            <View style={globalStyles.header} fixed>
+              <View style={globalStyles.headerLeft}>
+                {headerDetails.logoUrl && (
+                  <Image src={headerDetails.logoUrl} style={globalStyles.logo} />
+                )}
+              </View>
+              <View style={globalStyles.headerRight}>
+                <Text style={globalStyles.companyName}>{headerDetails.fullName}</Text>
+                <Text style={globalStyles.companyDetail}>{headerDetails.addressLine1}</Text>
+                <Text style={globalStyles.companyDetail}>{headerDetails.addressLine2}</Text>
+                <Text style={globalStyles.companyDetail}>Tel: {headerDetails.phone}</Text>
+                <Text style={globalStyles.companyDetail}>Email: {headerDetails.email}</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Title and Summary - only on first page */}
-          {pageIndex === 0 && (
-            <>
-              <Text style={styles.title}>{title}</Text>
+            {/* Title and Summary - only on first page */}
+            {pageIndex === 0 && (
+              <>
+                <Text style={globalStyles.title}>{title}</Text>
 
-              <View style={[styles.section, styles.keepTogether]}>
-                <Text style={styles.sectionTitle}>Payment Summary</Text>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text>Total Amount: {formatCurrency(totalAmount)}</Text>
+                {/* Updated Payment Summary Card */}
+                <View style={localStyles.summaryCard}>
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total Amount:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalAmount)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total NET Amount: {formatCurrency(totalNetAmount)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total NET Amount:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalNetAmount)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total VAT IN: {formatCurrency(totalVatIn)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total VAT IN:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalVatIn)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total VAT OUT: {formatCurrency(totalVatOut)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total VAT OUT:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalVatOut)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total Expenses: {formatCurrency(totalExpenses)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total Expenses:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalExpenses)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total Solicitor Fees: {formatCurrency(totalSolicitorFees)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total Solicitor Fees:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalSolicitorFees)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total Client Repair: {formatCurrency(totalClientRepair)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total Client Repair:</Text>
+                    <Text style={localStyles.summaryValue}>
+                      {formatCurrency(totalClientRepair)}
+                    </Text>
                   </View>
-                  <View style={styles.gridItem}>
-                    <Text>Total Profit: {formatCurrency(totalProfit)}</Text>
+
+                  <View style={localStyles.summaryRow}>
+                    <Text style={localStyles.summaryLabel}>Total Profit:</Text>
+                    <Text style={[localStyles.summaryValue, totalProfit >= 0 ? localStyles.positiveValue : localStyles.negativeValue]}>
+                      {formatCurrency(totalProfit)}
+                    </Text>
                   </View>
                 </View>
-              </View>
-            </>
-          )}
+              </>
+            )}
 
-          {/* VD Finance Records */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>VD Finance Records</Text>
-            <View style={styles.tableContainer}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableCell, { width: '20%' }]}>Name</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Reference</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Registration</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Total Amount</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>Profit</Text>
-                <Text style={[styles.tableCell, { width: '20%' }]}>Date</Text>
-              </View>
+            {/* VD Finance Records Table */}
+            <View style={globalStyles.section}>
+              <Text style={globalStyles.sectionTitle}>VD Finance Records</Text>
+              <View style={globalStyles.tableContainer}>
+                {/* Table Header */}
+                <View style={globalStyles.tableHeader}>
+                  <Text style={[globalStyles.tableCell, { width: '20%' }]}>Name</Text>
+                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Reference</Text>
+                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Registration</Text>
+                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Total Amount</Text>
+                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Profit</Text>
+                  <Text style={[globalStyles.tableCell, { width: '20%' }]}>Date</Text>
+                </View>
 
-              {/* Table Rows */}
-              {records
-                .slice(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE)
-                .map((record) => (
-                  <View key={record.id} style={styles.tableRow}>
-                    <Text style={[styles.tableCell, { width: '20%' }]}>
+                {/* Table Rows */}
+                {slice.map((record) => (
+                  <View key={record.id} style={globalStyles.tableRow}>
+                    <Text style={[globalStyles.tableCell, { width: '20%' }]}>
                       {record.name}
                     </Text>
-                    <Text style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                       {record.reference}
                     </Text>
-                    <Text style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                       {record.registration}
                     </Text>
-                    <Text style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                       {formatCurrency(record.totalAmount)}
                     </Text>
-                    <Text style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                       {formatCurrency(record.profit)}
                     </Text>
-                    <Text style={[styles.tableCell, { width: '20%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '20%' }]}>
                       {formatDate(record.date)}
                     </Text>
                   </View>
                 ))}
+              </View>
             </View>
-          </View>
 
-          {/* Footer */}
-          <Text style={styles.footer}>
-            {companyDetails.fullName} | Generated on {formatDate(new Date())}
-          </Text>
-
-          {/* Page Number */}
-          <Text style={styles.pageNumber}>
-            Page {pageIndex + 1} of {pages}
-          </Text>
-        </Page>
-      ))}
+            {/* Footer */}
+            <View style={globalStyles.footer} fixed>
+              <Text style={globalStyles.footerText}>
+                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+              </Text>
+              <Text
+                style={globalStyles.pageNumber}
+                render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              />
+            </View>
+          </Page>
+        );
+      })}
     </Document>
   );
 };

@@ -24,6 +24,7 @@ export interface VATRecord {
   customerId?: string;
   status: 'awaiting' | 'processing' | 'paid';
   notes?: string;
+  vatNo?: string;
   date: Date;
   createdAt: Date;
   updatedAt: Date;

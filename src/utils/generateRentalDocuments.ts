@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createElement } from 'react';
 import toast from 'react-hot-toast';
-import { 
+import {
   ConditionOfHire,
   CreditHireMitigation,
   NoticeOfRightToCancel,
@@ -61,15 +61,15 @@ export const generateRentalDocuments = async (
 
 
     // parking permit
- const permitBlob = await pdf(createElement(ParkingPermitLetter, {
-     rental: validatedRental,
-     vehicle,
-     customer,
-     companyDetails
-   })).toBlob();
+    const permitBlob = await pdf(createElement(ParkingPermitLetter, {
+      rental: validatedRental,
+      vehicle,
+      customer,
+      companyDetails
+    })).toBlob();
 
-   
-    
+
+
 
     // Generate invoice PDF
     const invoiceBlob = await pdf(createElement(RentalInvoice, {
@@ -87,12 +87,12 @@ export const generateRentalDocuments = async (
     if (rental.type === 'claim' || rental.reason === 'claim') {
       console.log("Generating claim documents for rental:", rental.id);
       const claimDocuments: Record<string, Blob> = {};
-      
+
       // Calculate days of hire
       const startDate = new Date(rental.startDate);
       const endDate = new Date(rental.endDate);
       const daysOfHire = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       // Create a claim-like object from rental data
       const claimData = {
         id: rental.id,
@@ -102,9 +102,8 @@ export const generateRentalDocuments = async (
           phone: customer.mobile,
           email: customer.email,
           dateOfBirth: customer.dateOfBirth,
-          // nationalInsuranceNumber: customer.nationalInsuranceNumber || '',
-          driverLicenseNumber: customer.driverLicenseNumber,  // ← now populated
-          licenseExpiry: customer.licenseExpiry,  
+          driverLicenseNumber: customer.driverLicenseNumber,
+          licenseExpiry: customer.licenseExpiry,
           address: customer.address,
           signature: rental.signature || customer.signature || '',
         },
@@ -175,12 +174,16 @@ export const generateRentalDocuments = async (
         },
         claimType: 'Domestic',
         claimReason: ['H'],
-        caseProgress: 'Awaiting',
+        // Correctly set caseProgress based on rental.status or a dedicated claim progress field
+        // Assuming rental.status 'completed' means claim is completed, otherwise 'Awaiting'
+        caseProgress: rental.status === 'completed' ? 'Completed' : 'Awaiting',
         progress: 'Your Claim Has Started',
         progressHistory: [],
         createdBy: rental.createdBy,
         submittedAt: rental.createdAt,
         updatedAt: rental.updatedAt,
+        // Determine completion status based on rental.status
+        completionStatus: rental.status === 'completed' ? 'completed' : 'in-progress',
       };
 
       // Generate claim documents
@@ -206,10 +209,30 @@ export const generateRentalDocuments = async (
             companyDetails
           })).toBlob();
         }
-        
+
+        // --- ADDED: CreditHireMitigation Generation ---
+        // Generates CreditHireMitigation for all claim rentals.
+        // Add a condition here if it's only for specific claim types/statuses.
+        claimDocuments.creditHireMitigation = await pdf(createElement(CreditHireMitigation, {
+          claim: claimData,
+          companyDetails
+        })).toBlob();
+        console.log("Credit Hire Mitigation generated.");
+
+        // --- ADDED: SatisfactionNotice Generation (Conditional) ---
+        // This will now generate if rental.status is 'completed'.
+        if (claimData.completionStatus === 'completed') {
+          claimDocuments.satisfactionNotice = await pdf(createElement(SatisfactionNotice, {
+            claim: claimData,
+            companyDetails
+          })).toBlob();
+          console.log("Satisfaction Notice generated.");
+        }
+
         console.log("Successfully generated claim documents:", Object.keys(claimDocuments));
       } catch (error) {
         console.error("Error generating claim documents:", error);
+        toast.error(`Failed to generate one or more claim documents: ${error.message}`);
         throw new Error(`Failed to generate claim documents: ${error.message}`);
       }
 
@@ -219,7 +242,7 @@ export const generateRentalDocuments = async (
     return { agreement: agreementBlob, invoice: invoiceBlob, permit: permitBlob };
   } catch (error) {
     console.error('Error generating rental documents:', error);
-    toast.error('Failed to generate rental documents. Please check company settings.');
+    toast.error('Failed to generate rental documents. Please check data and company settings.');
     throw error;
   }
 };

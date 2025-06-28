@@ -22,7 +22,8 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
       const matchesSearch =
         rec.receiptNo.toLowerCase().includes(q) ||
         rec.supplier.toLowerCase().includes(q) ||
-        rec.customerName.toLowerCase().includes(q);
+        rec.customerName.toLowerCase().includes(q) ||
+        (rec.vatNo && rec.vatNo.toLowerCase().includes(q)); // Include vatNo in search
 
       if (!matchesSearch) return false;
 

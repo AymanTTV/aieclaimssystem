@@ -2,8 +2,10 @@
 import React from 'react'
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import { ShareEntry, SplitRecord, Recipient } from '../../../types/share'
-import { styles } from '../styles'
+import { styles } from '../styles' // Assuming 'styles.ts' contains the shared styles
+
 import { format } from 'date-fns'
+
 import { formatDate } from '../../../utils/dateHelpers'
 
 interface ShareBulkDocumentProps {
@@ -11,7 +13,7 @@ interface ShareBulkDocumentProps {
   companyDetails: {
     logoUrl: string
     fullName: string
-    officialAddress: string
+    officialAddress: string // This will be split
     phone: string
     email: string
     // we’re “injecting” splits here:
@@ -60,20 +62,29 @@ const ShareBulkDocument: React.FC<ShareBulkDocumentProps> = ({
       ? records.slice(0, ITEMS_FIRST_PAGE)
       : records.slice(ITEMS_FIRST_PAGE + (page-1)*ITEMS_PER_PAGE, ITEMS_FIRST_PAGE + (page)*ITEMS_PER_PAGE)
 
+  // Derive header details from companyDetails, splitting the address
+  // Note: VehicleDocument uses companyDetails.officialAddress directly, no split required for that header.
+  // I will mimic VehicleDocument's header, which uses officialAddress directly.
+  const officialAddress = companyDetails?.officialAddress || 'N/A';
+
   return (
     <Document>
       {Array.from({length:pageCount}).map((_, pageIndex) => {
         const slice = getSlice(pageIndex)
         return (
           <Page key={pageIndex} size="A4" style={styles.page}>
-            {/* HEADER */}
-            <View style={styles.header}>
-              <Image src={companyDetails.logoUrl} style={styles.logo}/>
-              <View style={styles.companyInfo}>
-                <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-                <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-                <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-                <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+            {/* HEADER - Updated to match VehicleDocument.tsx and global styles.ts */}
+            <View style={styles.header} fixed>
+              <View style={styles.headerLeft}>
+                {companyDetails?.logoUrl && (
+                  <Image src={companyDetails.logoUrl} style={styles.logo} />
+                )}
+              </View>
+              <View style={styles.headerRight}>
+                <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+                <Text style={styles.companyDetail}>{officialAddress}</Text> {/* Using officialAddress directly */}
+                <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+                <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
               </View>
             </View>
 
@@ -98,20 +109,27 @@ const ShareBulkDocument: React.FC<ShareBulkDocumentProps> = ({
                       £{totalExpense.toFixed(2)}
                     </Text>
                   </View>
-                  {/* Shared breakdown */}
-                  <View style={[styles.infoCard,{borderLeftColor:'#3B82F6',borderLeftWidth:4,width:'23%'}]}>
+                  {/* Shared breakdown - Adjusting width and display for readability */}
+                  <View style={[styles.infoCard,{borderLeftColor:'#3B82F6',borderLeftWidth:4,width:'28%'}]}> {/* Increased width for shared card */}
                     <Text style={styles.infoCardTitle}>Shared</Text>
-                    {Object.entries(recipientMap).map(([name,{percentage,amount}])=>(
-                      <Text key={name} style={styles.value}>
-                        {name} ({percentage.toFixed(1)}%) = £{amount.toFixed(2)}
-                      </Text>
-                    ))}
-                    <Text style={[styles.value,{marginTop:4,fontWeight:'bold'}]}>
+                    <View> {/* Wrapper for recipients to ensure column layout */}
+                      {Object.entries(recipientMap).map(([name,{percentage,amount}])=>(
+                        <View key={name} style={{marginBottom: 2, flexDirection: 'row', justifyContent: 'space-between'}}>
+                          <Text style={[styles.value, {fontSize: 9, flexShrink: 1, flexBasis: '70%'}]}>
+                            {name} ({percentage.toFixed(1)}%)
+                          </Text>
+                          <Text style={[styles.value, {fontSize: 9, flexShrink: 0, flexBasis: '30%', textAlign: 'right'}]}>
+                            £{amount.toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={[styles.value,{marginTop:4,fontWeight:'bold', fontSize: 10}]}> {/* Adjusted font size for total */}
                       Total: £{sharedTotal.toFixed(2)}
                     </Text>
                   </View>
                   {/* Balance */}
-                  <View style={[styles.infoCard,{borderLeftColor:'#059669',borderLeftWidth:4,width:'23%'}]}>
+                  <View style={[styles.infoCard,{borderLeftColor:'#059669',borderLeftWidth:4,width:'20%'}]}> {/* Adjusted width slightly */}
                     <Text style={styles.infoCardTitle}>Balance</Text>
                     <Text style={[styles.value,{fontSize:16,fontWeight:'bold'}]}>
                       £{balance.toFixed(2)}
@@ -145,20 +163,17 @@ const ShareBulkDocument: React.FC<ShareBulkDocumentProps> = ({
               </View>
             ))}
 
-            {/* FOOTER */}
+            {/* FOOTER - Updated to match VehicleDocument.tsx and global styles.ts */}
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>
-                AIE Skyline Limited | Registered in England and Wales | Company No: 12592207
+                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
               </Text>
-              <Text style={styles.footerText}>
-                Generated on {format(new Date(),'dd/MM/yyyy HH:mm')}
-              </Text>
+              <Text
+                // The pageNumber style is removed from here as it's not a separate style,
+                // but rather part of the Text component's render prop within the flex container.
+                render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              />
             </View>
-
-            {/* PAGE NUMBER */}
-            <Text style={styles.pageNumber}>
-              Page {pageIndex+1} of {pageCount}
-            </Text>
           </Page>
         )
       })}

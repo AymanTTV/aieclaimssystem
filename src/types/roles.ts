@@ -9,6 +9,10 @@ export interface Permission {
   recordPayment: boolean;
   delete: boolean;
   cards: boolean;
+  // NEW: Rental Type Permissions
+  daily: boolean;
+  weekly: boolean;
+  claim: boolean;
 }
 
 export interface RolePermissions {
@@ -38,7 +42,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
     vehicles:      { view: true,  create: true,  update: true,  delete: true,  cards: true },
     maintenance:   { view: true,  create: true,  update: true,  delete: true,  cards: true },
-    rentals:       { view: true,  create: true,  update: true,  delete: true,  cards: true },
+    rentals:       { view: true,  create: true,  update: true,  delete: true,  cards: true, daily: true, weekly: true, claim: true }, // Added rental type permissions
     accidents:     { view: true,  create: true,  update: true,  delete: true,  cards: true },
     claims:        { view: true,  create: true,  update: true,  delete: true,  cards: true },
     personalInjury:{ view: true,  create: true,  update: true,  delete: true,  cards: true },
@@ -60,7 +64,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true,  create: false, update: true,  delete: false, cards: true },
     vehicles:      { view: true,  create: false, update: true,  delete: false, cards: true },
     maintenance:   { view: true,  create: false, update: true,  delete: false, cards: true },
-    rentals:       { view: true,  create: false, update: true,  delete: false, cards: true },
+    rentals:       { view: true,  create: false, update: true,  delete: false, cards: true, daily: true, weekly: true, claim: true }, // Added rental type permissions
     accidents:     { view: true,  create: false, update: true,  delete: false, cards: true },
     claims:        { view: true,  create: false, update: true,  delete: false, cards: true },
     personalInjury:{ view: true,  create: false, update: true,  delete: false, cards: true },
@@ -81,7 +85,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true,  create: false, update: false, delete: false, cards: true },
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true },
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false },
-    rentals:       { view: true,  create: false, update: false, delete: false, cards: true },
+    rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: false }, // Added rental type permissions
     accidents:     { view: false, create: false, update: false, delete: false, cards: false },
     claims:        { view: true,  create: false, update: false, delete: false, cards: true },
     personalInjury:{ view: false, create: false, update: false, delete: false, cards: false },
@@ -103,7 +107,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true,  create: false, update: false, delete: false, cards: true },
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true },
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false },
-    rentals:       { view: true,  create: false, update: false, delete: false, cards: true },
+    rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: true }, // Added rental type permissions, Claims users can only see claim rentals by default
     accidents:     { view: true,  create: true,  update: true,  delete: false, cards: true },
     claims:        { view: true,  create: true,  update: true,  delete: false, cards: true },
     personalInjury:{ view: true,  create: true,  update: true,  delete: false, cards: true },

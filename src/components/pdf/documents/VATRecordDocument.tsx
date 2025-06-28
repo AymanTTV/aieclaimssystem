@@ -3,19 +3,20 @@ import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { VATRecord } from '../../../types/vatRecord';
 import { format } from 'date-fns';
-import logo from '../../../assets/logo.png';
-import { styles } from '../styles';
+// Removed 'logo' import as we'll use companyDetails.logoUrl
+import { styles } from '../styles'; // Your global styles.ts
 
+// Re-introducing styles2 as per user's request for the Descriptions Table
 const styles2 = StyleSheet.create({
-  page: {
+  page: { // This style is not used, as the main Page uses `styles.page`
     padding: 40,
     fontSize: 10,
     fontFamily: 'Helvetica',
   },
-  header: {
+  header: { // This style is not used
     marginBottom: 20,
   },
-  title: {
+  title: { // This style is not used
     fontSize: 16,
     marginBottom: 20,
     textAlign: 'center',
@@ -51,14 +52,14 @@ const styles2 = StyleSheet.create({
   },
   tableCellAmount: {
     padding: 5,
-    width: 80,
+    width: 80, // Specific width
     textAlign: 'right',
   },
   totalRow: {
     backgroundColor: '#f3f4f6',
     fontWeight: 'bold',
   },
-  footer: {
+  footer: { // This style is not used
     position: 'absolute',
     bottom: 30,
     left: 40,
@@ -72,6 +73,7 @@ const styles2 = StyleSheet.create({
 interface VATRecordDocumentProps {
   data: VATRecord;
   companyDetails: {
+    logoUrl?: string; // Added for the new header
     fullName: string;
     officialAddress: string;
     vatNumber: string;
@@ -81,29 +83,28 @@ interface VATRecordDocumentProps {
   };
 }
 
-
-
 const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDetails }) => (
-  
-
   <Document>
     <Page size="A4" style={styles.page}>
-      {/* Header */}
-      <View style={styles.header}>
-          <Image src={logo} style={styles.logo} />
-          <View style={styles.companyInfo}>
-            <Text>{companyDetails.fullName}</Text>
-            <Text>{companyDetails.officialAddress}</Text>
-            <Text>Tel: {companyDetails.phone}</Text>
-            <Text>Email: {companyDetails.email}</Text>
-            <Text>VAT No: {companyDetails.vatNumber}</Text>
-          </View>
+      {/* HEADER - Replicated from VehicleDocument.tsx */}
+      <View style={styles.header} fixed> {/* Marked as fixed as in VehicleDocument */}
+        <View style={styles.headerLeft}>
+          {companyDetails?.logoUrl && (
+            <Image src={companyDetails.logoUrl} style={styles.logo} />
+          )}
         </View>
+        <View style={styles.headerRight}>
+          <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+          <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+          <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+          <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+        </View>
+      </View>
 
       <Text style={styles.title}>VAT RECORD</Text>
 
       {/* Record Details Card */}
-      <View style={[styles.card, styles.sectionBreak]}> {/* Removed wrap={false} */}
+      <View style={[styles.card, styles.sectionBreak]} wrap={false}> {/* Added wrap={false} to keep card together */}
         <Text style={styles.infoCardTitle}>Record Details</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Receipt No:</Text>
@@ -127,8 +128,8 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
         </View>
       </View>
 
-      {/* Descriptions Table */}
-      <View style={styles2.section}>
+      {/* Descriptions Table - Reverted to original styles2 usage */}
+      <View style={styles2.section} wrap={false}> {/* Added wrap={false} */}
         <Text style={styles2.sectionTitle}>Descriptions</Text>
         <View style={styles2.table}>
           {/* Table Header */}
@@ -192,10 +193,10 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
         </View>
       </View>
 
-      {/* Customer Information and Additional Details Cards */}
-      <View style={[styles.cardContainer, styles.sectionBreak]}> {/* Removed wrap={false} */}
+      {/* Customer Information and Additional Details Cards - Side by Side */}
+      <View style={[styles.flexRow, styles.sectionBreak, { justifyContent: 'space-between', alignItems: 'flex-start' }]} wrap={false}>
         {/* Customer Information Card */}
-        <View style={[styles.card, styles.halfCard]}>
+        <View style={[styles.card, { width: '48%' }]} wrap={false}>
           <Text style={styles.infoCardTitle}>Customer Information</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Customer Name:</Text>
@@ -210,7 +211,7 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
         </View>
 
         {/* Additional Details Card */}
-        <View style={[styles.card, styles.halfCard]}>
+        <View style={[styles.card, { width: '48%' }]} wrap={false}>
           <Text style={styles.infoCardTitle}>Additional Details</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Status:</Text>
@@ -225,10 +226,15 @@ const VATRecordDocument: React.FC<VATRecordDocumentProps> = ({ data, companyDeta
         </View>
       </View>
 
-      {/* Footer */}
-      <Text style={styles.footer}>
-        {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
-      </Text>
+      {/* FOOTER - Replicated from VehicleDocument.tsx */}
+      <View style={styles.footer} fixed> {/* Marked as fixed as in VehicleDocument */}
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+      </View>
     </Page>
   </Document>
 );

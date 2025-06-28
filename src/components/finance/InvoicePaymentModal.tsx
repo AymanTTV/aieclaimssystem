@@ -86,7 +86,8 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
         paymentMethod: formData.method,
         paymentReference: formData.reference,
-        paymentStatus: newPaymentStatus
+        paymentStatus: newPaymentStatus,
+        status: newPaymentStatus // ✅ add this
       });
 
       toast.success('Payment recorded successfully');
