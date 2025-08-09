@@ -66,23 +66,11 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
     }
   };
 
-  // Precompute raw totals for summary
-  let grossTotal = 0;      // sum of (quantity × unitPrice)
-  let totalDiscount = 0;   // sum of discount amounts
-  let totalVat = 0;        // sum of VAT amounts
-
-  data.lineItems.forEach((item) => {
-    const lineGross = item.quantity * item.unitPrice;
-    const discountAmt = (item.discount / 100) * lineGross;
-    const netAfterDisc = lineGross - discountAmt;
-    const vatAmt = item.includeVAT ? netAfterDisc * 0.2 : 0;
-    grossTotal += lineGross;
-    totalDiscount += discountAmt;
-    totalVat += vatAmt;
-  });
-
-  // Final total already stored on invoice ( subTotal + vatAmount )
-  const finalTotal = data.total;
+  // Calculate total discount from line items
+  const totalDiscount = data.lineItems.reduce((sum, li) => {
+    const gross = li.quantity * li.unitPrice;
+    return sum + (li.discount / 100) * gross;
+  }, 0);
 
   // Derive header details from companyDetails, splitting the address
   const headerDetails = {
@@ -286,25 +274,37 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           <View style={[globalStyles.card, { width: '48%' }]}>
             <Text style={globalStyles.cardTitle}>Payment Details</Text>
             <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>NET (Gross):</Text>
+              <Text style={globalStyles.summaryTextDefault}>NET:</Text>
               <Text style={globalStyles.summaryValueDefault}>
-                £{grossTotal.toFixed(2)}
+                £{data.subTotal.toFixed(2)}
               </Text>
             </View>
             <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>VAT Total:</Text>
+              <Text style={globalStyles.summaryTextDefault}>VAT:</Text>
               <Text style={globalStyles.summaryValueDefault}>
-                £{totalVat.toFixed(2)}
+                £{data.vatAmount.toFixed(2)}
               </Text>
             </View>
             {totalDiscount > 0 && (
               <View style={globalStyles.spaceBetweenRow}>
-                <Text style={globalStyles.summaryTextDefault}>Discount Total:</Text>
+                <Text style={globalStyles.summaryTextDefault}>Discount:</Text>
                 <Text style={globalStyles.summaryValueDefault}>
-                  £{totalDiscount.toFixed(2)}
+                  -£{totalDiscount.toFixed(2)}
                 </Text>
               </View>
             )}
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.summaryTextDefault}>Paid:</Text>
+              <Text style={globalStyles.summaryValueDefault}>
+                £{data.paidAmount.toFixed(2)}
+              </Text>
+            </View>
+            <View style={globalStyles.spaceBetweenRow}>
+              <Text style={globalStyles.summaryTextDefault}>Owing:</Text>
+              <Text style={globalStyles.summaryValueDefault}>
+                £{data.remainingAmount.toFixed(2)}
+              </Text>
+            </View>
             <View
               style={[
                 globalStyles.spaceBetweenRow,
@@ -316,9 +316,15 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                 },
               ]}
             >
-              <Text style={globalStyles.summaryTextGreen}>Total:</Text>
-              <Text style={globalStyles.summaryValueGreen}>
-                £{finalTotal.toFixed(2)}
+              <Text
+                style={data.remainingAmount === 0 ? globalStyles.summaryTextGreen : globalStyles.summaryTextRed}
+              >
+                Total:
+              </Text>
+              <Text
+                style={data.remainingAmount === 0 ? globalStyles.summaryValueGreen : globalStyles.summaryValueRed}
+              >
+                £{data.total.toFixed(2)}
               </Text>
             </View>
           </View>

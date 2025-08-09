@@ -75,6 +75,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     return 0;
   }, [rental, vehicle]);
 
+  const returnCharges = rental.returnCondition?.totalCharges || 0;
+
   // Re-calculate claim specific costs with their stored VAT settings for display clarity
   const displayStorageCost = (rental.storageCost || 0); // Display stored value which includes its VAT if applicable
   const displayRecoveryCost = (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1); // NEW: Apply VAT for display
@@ -90,7 +92,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     + displayDeliveryCharge
     + displayCollectionFee
     + displayInsuranceCost
-    + ongoingCharges;  // <-- include overdue charges
+    + ongoingCharges
+    + returnCharges;
 
   // Apply overall rental VAT
   const totalWithOverallVAT = subtotalBeforeOverallVAT * (rental.includeVAT ? 1.2 : 1);
@@ -462,6 +465,13 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
           {rental.discountNotes && (
             <div className="text-sm italic text-gray-700 mt-1">
               {rental.discountNotes}
+            </div>
+          )}
+
+          { returnCharges > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Return Charges:</span>
+              <span>{formatCurrency(returnCharges)}</span>
             </div>
           )}
 

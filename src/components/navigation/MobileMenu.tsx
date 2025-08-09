@@ -2,15 +2,15 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'; // Import MessageSquare
-import { ROUTES, ROUTE_METADATA } from '../../routes'; // Import ROUTES and ROUTE_METADATA
+import { X, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { ROUTES, ROUTE_METADATA } from '../../routes';
 
 interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
-  permission?: string; // Add permission property
-  submenu?: { name: string; href: string; permission?: string }[]; // Add permission to submenu
+  permission?: string;
+  submenu?: { name: string; href: string; permission?: string }[];
 }
 
 interface MobileMenuProps {
@@ -18,7 +18,7 @@ interface MobileMenuProps {
   onClose: () => void;
   navigation: NavItem[];
   currentPath: string;
-  unreadChatCount: number; // Add unreadChatCount prop
+  unreadChatCount: number;
 }
 
 const MobileMenu: React.FC<MobileMenuProps> = ({
@@ -26,10 +26,9 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
   onClose,
   navigation,
   currentPath,
-  unreadChatCount, // Destructure unreadChatCount
+  unreadChatCount,
 }) => {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
-
   if (!isOpen) return null;
 
   return (
@@ -50,26 +49,23 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
         </div>
 
         <nav className="px-4 py-6">
-          {navigation.map((item) => {
+          {navigation.map(item => {
             const Icon = item.icon;
-            const isActive = currentPath === item.href;
             const hasSubmenu = item.submenu && item.submenu.length > 0;
+            const isActive = currentPath === item.href;
             const isSubmenuOpen = openSubmenu === item.name;
-            // Check if any submenu item is active
-            const isSubmenuActive = item.submenu?.some(subitem => currentPath === subitem.href);
-
-            // Determine if the main item itself is active (excluding submenu matches)
-            const isSelfActive = currentPath === item.href && !isSubmenuActive;
-
+            const isSubmenuActive = item.submenu?.some(sub => currentPath === sub.href) ?? false;
 
             return (
               <div key={item.name} className="mb-2">
                 {hasSubmenu ? (
-                  <div>
+                  <>
                     <button
-                      onClick={() => setOpenSubmenu(isSubmenuOpen ? null : item.name)}
+                      onClick={() =>
+                        setOpenSubmenu(isSubmenuOpen ? null : item.name)
+                      }
                       className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                        isSubmenuActive // Highlight if any submenu item is active
+                        isSubmenuActive
                           ? 'text-primary bg-primary/5'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
@@ -87,9 +83,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
 
                     {isSubmenuOpen && (
                       <div className="ml-6 mt-2 space-y-1">
-                        {item.submenu.map((subitem) => (
-                           // Assuming can() function is available in this scope or passed as prop if needed
-                           // For now, rendering all submenu items as the filtering is done in Layout.tsx
+                        {item.submenu!.map(subitem => (
                           <Link
                             key={subitem.href}
                             to={subitem.href}
@@ -105,7 +99,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                         ))}
                       </div>
                     )}
-                  </div>
+                  </>
                 ) : (
                   <Link
                     to={item.href}
@@ -117,13 +111,11 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                     }`}
                   >
                     <div className="flex items-center">
-                         <Icon className="w-5 h-5 mr-3" />
-                         <span>{item.name}</span>
+                      <Icon className="w-5 h-5 mr-3" />
+                      <span>{item.name}</span>
                     </div>
-
-                    {/* Display unread count next to Chat link in mobile menu */}
                     {item.href === ROUTES.CHAT && unreadChatCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                      <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold text-red-100 bg-red-600 rounded-full">
                         {unreadChatCount}
                       </span>
                     )}

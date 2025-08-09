@@ -460,6 +460,7 @@ const Rentals = () => {
             rental={editingRental}
             vehicles={vehicles}
             customers={customers}
+            
             onClose={() => setEditingRental(null)}
           />
         )}
@@ -486,6 +487,7 @@ const Rentals = () => {
         {payingRental && (
           <RentalPaymentModal
             rental={payingRental}
+            vehicle={vehicles.find(v => v.id === payingRental.vehicleId)}
             onClose={() => setPayingRental(null)}
           />
         )}

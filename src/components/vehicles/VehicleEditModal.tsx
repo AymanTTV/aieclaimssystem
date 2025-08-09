@@ -30,6 +30,7 @@ export const VehicleEditModal: React.FC<VehicleEditModalProps> = ({
     year: vehicle.year.toString(),
     registrationNumber: vehicle.registrationNumber,
     mileage: vehicle.mileage.toString(),
+    nextServiceMileage: vehicle?.nextServiceMileage.toString() || (vehicle?.mileage + 10000).toString(), 
     motTestDate: vehicle.motTestDate
       ? new Date(vehicle.motTestDate).toISOString().split('T')[0]
       : '',
@@ -199,6 +200,7 @@ export const VehicleEditModal: React.FC<VehicleEditModalProps> = ({
             { label: 'Model', name: 'model' },
             { label: 'Year', name: 'year', type: 'number' },
             { label: 'Mileage', name: 'mileage', type: 'number' },
+            { label: 'Next Service Mileage', name: 'nextServiceMileage', type: 'number' },
           ].map((f) => (
             <FormField
               key={f.name}

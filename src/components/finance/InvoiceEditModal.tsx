@@ -221,19 +221,35 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: url });
 
       if (formData.isAddingPayment && payNow > 0) {
-      await createFinanceTransaction({
-        type: 'income',
-        category: formData.category,
-        amount: payNow,
-        description: `Payment for invoice ${invoice.id}`,
-        referenceId: invoice.id,
-        vehicleId: formData.vehicleId || undefined,
-        paymentMethod: formData.paymentMethod,
-        paymentReference: formData.paymentReference,
-        paymentStatus: newStatus,
-        status: newStatus // ✅ pass status here
-      });
-    }
+  const vehicle = vehicles.find(v => v.id === formData.vehicleId);
+  const custName = formData.useCustomCustomer
+    ? formData.customerName
+    : customers.find(c => c.id === formData.customerId)?.name;
+  const lookup = vehicles.find(v => v.id === formData.vehicleId);
+  const vehicleOwner = lookup?.owner
+    ? {
+        name: lookup.owner.name,
+        isDefault: lookup.owner.isDefault ?? false,
+      }
+    : undefined;
+  await createFinanceTransaction({
+    type: 'income',
+    category: formData.category,
+    amount: payNow,
+    description: formData.paymentNotes,
+    referenceId: invoice.id,
+    vehicleId: formData.vehicleId || undefined,
+    vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+    vehicleOwner,          // ← new
+    customerId: formData.useCustomCustomer ? undefined : formData.customerId,
+    customerName: custName,
+    paymentMethod: formData.paymentMethod,
+    paymentReference: formData.paymentReference,
+    paymentStatus: newStatus
+  });
+}
+
+
 
       toast.success('Invoice updated successfully');
       onClose();

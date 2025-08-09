@@ -159,15 +159,22 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
 
   return (
     <div className="space-y-6">
-      {!loading && <IncomeExpenseSummary entries={filter.filteredEntries} shares={shares} />}
+      {!loading && (
+   <IncomeExpenseSummary
+     entries={filter.filteredEntries}
+     shares={shares}
+     startDate={filter.dateRange.start}
+     endDate={filter.dateRange.end}
+   />
+ )}
 
       <div className="flex justify-end space-x-2">
-        {can('finance', 'create') && (
+        {can('incomeExpense', 'create') && (
           <button onClick={() => { setShowIncome(true); setRecordBeingEdited(null); }} className="px-4 py-2 bg-primary text-white rounded">
             + Add Income
           </button>
         )}
-        {can('finance', 'create') && (
+        {can('incomeExpense', 'create') && (
         <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); }} className="px-4 py-2 border rounded">
           + Add Expense
         </button>
@@ -175,7 +182,7 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
         {/* <button onClick={() => setShowShareHistory(true)} className="px-4 py-2 border rounded">Shares</button> */}
         
         <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded">Shares</button>
-        {user?.role === 'manager' && (
+        {can('incomeExpense', 'share') && (
         <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded">Share Profit</button>
         )}
         {user?.role === 'manager' && (
@@ -193,6 +200,7 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
         onProgress={filter.setProgress}
         dateRange={filter.dateRange}
         onDateRange={filter.setDateRange}
+        permissionScope="incomeExpense"
       />
 
       <div className="bg-white rounded-lg shadow">
@@ -202,6 +210,7 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
         onEdit={handleEdit}
         onDelete={setDeletingEntry} // ✅ trigger modal
         onGenerateDocument={handleGenerateDocument}
+        permissionScope="incomeExpense"
       />
 
 

@@ -44,15 +44,21 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const [manualMileage, setManualMileage] = useState(0);
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(editLog?.vehicleId || '');
-  const [attachments, setAttachments] = useState<File[] | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<
+  { name: string; url: string }[]
+>(editLog?.attachments || []);
 
-  const [parts, setParts] = useState<(Part & { includeVAT: boolean; discount: number })[]>(
-    editLog?.parts.map(part => ({
-      ...part,
-      includeVAT: editLog.vatDetails?.partsVAT.find(v => v.partName === part.name)?.includeVAT || false,
-      discount: 0,
-    })) || [{ name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }]
-  );
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+
+  const [parts, setParts] = useState<Part[]>(
+  editLog?.parts.map(p => ({
+    ...p,
+    includeVAT: editLog.vatDetails?.partsVAT.find(v => v.partName === p.name)
+      ?.includeVAT ?? false,
+    discount: p.discount ?? 0,
+  })) || [{ name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }]
+);
+
   const [showPartSuggestions, setShowPartSuggestions] = useState<boolean[]>([]);
   const [includeVATOnLabor, setIncludeVATOnLabor] = useState(editLog?.vatDetails?.laborVAT || false);
   const [existingPaidAmount, setExistingPaidAmount] = useState(editLog?.paidAmount || 0);
@@ -91,38 +97,64 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   });
 
   const computeCosts = () => {
-    const round = (n: number) => Math.round(n * 100) / 100;
-    let totalDiscount = 0;
-    const partsTotal = round(
-      parts.reduce((sum, p) => {
-        const line = round(p.cost * p.quantity);
-        const disc = round((p.discount / 100) * line);
-        totalDiscount = round(totalDiscount + disc);
-        const sub = round(line - disc);
-        const vat = p.includeVAT ? round(sub * 0.2) : 0;
-        return round(sum + sub + vat);
-      }, 0)
-    );
-    const laborBase = round(formData.laborHours * formData.laborRate);
-    const laborCost = includeVATOnLabor ? round(laborBase * 1.2) : laborBase;
-    const subtotal = round(partsTotal + laborCost);
-    const vatAmount = round(
-      parts.reduce((a, p) => {
-        const line = round(p.cost * p.quantity);
-        const disc = round((p.discount / 100) * line);
-        const sub = round(line - disc);
-        return p.includeVAT ? round(a + sub * 0.2) : a;
-      }, 0) + (includeVATOnLabor ? round(laborBase * 0.2) : 0)
-    );
-    return {
-      partsTotal,
-      laborTotal: laborCost,
-      netAmount: round(subtotal - vatAmount),
-      vatAmount,
-      totalAmount: subtotal,
-      totalDiscount
-    };
+  const round = (n: number) => Math.round(n * 100) / 100;
+  let totalDiscount = 0;
+
+  // Sum up parts (with per-line discount & VAT)
+  const partsTotal = round(
+    parts.reduce((sum, p) => {
+      // line gross = unit cost × qty
+      const lineGross = round(p.cost * p.quantity);
+
+      // discount amount on this line
+      const discAmt = round((p.discount / 100) * lineGross);
+      totalDiscount = round(totalDiscount + discAmt);
+
+      // net after discount
+      const net = round(lineGross - discAmt);
+
+      // VAT on this line if applicable
+      const vat = p.includeVAT ? round(net * 0.2) : 0;
+
+      // accumulate
+      return round(sum + net + vat);
+    }, 0)
+  );
+
+  // Labor base cost
+  const laborBase = round(formData.laborHours * formData.laborRate);
+
+  // labor + VAT if toggled
+  const laborTotal = includeVATOnLabor
+    ? round(laborBase * 1.2)
+    : laborBase;
+
+  // subtotal before separating out VAT/net
+  const subtotal = round(partsTotal + laborTotal);
+
+  // compute total VAT separately for netAmount calculation
+  const vatAmount = round(
+    parts.reduce((acc, p) => {
+      const lineGross = round(p.cost * p.quantity);
+      const discAmt = round((p.discount / 100) * lineGross);
+      const net = round(lineGross - discAmt);
+      return acc + (p.includeVAT ? round(net * 0.2) : 0);
+    }, 0)
+    + (includeVATOnLabor ? round(laborBase * 0.2) : 0)
+  );
+
+  // net = subtotal minus all VAT
+  const netAmount = round(subtotal - vatAmount);
+
+  return {
+    partsTotal,
+    laborTotal,
+    netAmount,
+    vatAmount,
+    totalAmount: subtotal,
+    totalDiscount
   };
+};
   const { partsTotal, laborTotal, netAmount, vatAmount, totalAmount, totalDiscount } = computeCosts();
 
   const maxAdditionalPayment = parseFloat((totalAmount - existingPaidAmount).toFixed(2));
@@ -177,44 +209,45 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
+  e.preventDefault();
   if (!user) {
-    toast.error('Please log in')
-    return
+    toast.error('Please log in');
+    return;
   }
   if (!manualEntry && !selectedVehicleId) {
-    toast.error('Please select a vehicle')
-    return
+    toast.error('Please select a vehicle');
+    return;
   }
   if (
     manualEntry &&
     (!manualMake.trim() || !manualModel.trim() || !manualRegNumber.trim())
   ) {
-    toast.error('Please fill in all vehicle fields')
-    return
+    toast.error('Please fill in all vehicle fields');
+    return;
   }
 
-  setLoading(true)
+  setLoading(true);
   try {
-    let vehicleIdToUse: string
-    let vehicleToUse: Vehicle
-
+    // 1) Determine which vehicle to use
+    let vehicleIdToUse: string;
+    let vehicleToUse: Vehicle;
     if (manualEntry) {
       const vd = {
         make: manualMake.trim(),
         model: manualModel.trim(),
         registrationNumber: manualRegNumber.trim(),
         mileage: manualMileage,
-      }
-      const vr = await addDoc(collection(db, 'vehicles'), vd)
-      vehicleIdToUse = vr.id
-      vehicleToUse = { id: vr.id, ...vd } as Vehicle
+      };
+      const vr = await addDoc(collection(db, 'vehicles'), vd);
+      vehicleIdToUse = vr.id;
+      vehicleToUse = { id: vr.id, ...vd } as Vehicle;
     } else {
-      const ev = vehicles.find(v => v.id === selectedVehicleId)!
-      vehicleIdToUse = ev.id
-      vehicleToUse = ev
+      const ev = vehicles.find(v => v.id === selectedVehicleId)!;
+      vehicleIdToUse = ev.id;
+      vehicleToUse = ev;
     }
 
+    // 2) Build the maintenance object to write
     const maintenanceData = {
       vehicleId: vehicleIdToUse,
       type: formData.type,
@@ -236,6 +269,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       laborRate: formData.laborRate,
       laborCost: laborTotal,
       cost: totalAmount,
+      netAmount,     // ← new
+      vatAmount,     // ← new
       paidAmount: totalPaidAmount,
       remainingAmount,
       paymentStatus,
@@ -243,19 +278,22 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       paymentReference,
       status: formData.status,
       notes: formData.notes,
+      totalDiscount,
       vatDetails: {
         partsVAT: parts.map(p => ({ partName: p.name, includeVAT: p.includeVAT })),
         laborVAT: includeVATOnLabor,
       },
-    }
+    };
 
     if (editLog) {
+      // 3A) update existing record
       await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
         ...maintenanceData,
         updatedAt: new Date(),
         updatedBy: user.id,
-      })
+      });
 
+      // 3B) record additional payment if any
       if (additionalPayment > 0) {
         await createMaintenanceTransaction(
           { id: editLog.id, ...maintenanceData },
@@ -263,18 +301,31 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           additionalPayment,
           paymentMethod,
           paymentReference
-        )
+        );
       }
 
-      toast.success('Maintenance updated successfully')
+      // 3C) upload & merge any new attachments
+      if (newAttachments.length) {
+        const uploaded = await uploadMaintenanceAttachments(editLog.id, newAttachments);
+        const merged = [...existingAttachments, ...uploaded];
+        await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+          attachments: merged,
+        });
+        setExistingAttachments(merged);
+        setNewAttachments([]);
+      }
+
+      toast.success('Maintenance updated successfully');
     } else {
+      // 4A) create a brand-new log
       const dr = await addDoc(collection(db, 'maintenanceLogs'), {
         ...maintenanceData,
         createdAt: new Date(),
         createdBy: user.id,
         updatedAt: new Date(),
-      })
+      });
 
+      // 4B) initial payment record
       if (totalPaidAmount > 0) {
         await createMaintenanceTransaction(
           { id: dr.id, ...maintenanceData },
@@ -282,36 +333,44 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           totalPaidAmount,
           paymentMethod,
           paymentReference
-        )
+        );
       }
 
-      if (attachments?.length) {
-        await uploadMaintenanceAttachments(dr.id, attachments)
+      // 4C) upload attachments & persist URLs
+      if (newAttachments.length) {
+        const uploaded = await uploadMaintenanceAttachments(dr.id, newAttachments);
+        await updateDoc(doc(db, 'maintenanceLogs', dr.id), {
+          attachments: uploaded,
+        });
+        setExistingAttachments(uploaded);
+        setNewAttachments([]);
       }
+
+      // 4D) record mileage history
       if (formData.currentMileage !== vehicleToUse.mileage) {
         await createMileageHistoryRecord(
           vehicleToUse,
           formData.currentMileage,
           user.name || 'System',
           'Updated during maintenance'
-        )
+        );
       }
 
-      toast.success('Maintenance scheduled successfully')
+      toast.success('Maintenance scheduled successfully');
     }
 
-    onClose()
+    onClose();
   } catch (error) {
-    console.error(error)
+    console.error(error);
     toast.error(
-      editLog
-        ? 'Failed to update maintenance'
-        : 'Failed to schedule maintenance'
-    )
+      editLog ? 'Failed to update maintenance' : 'Failed to schedule maintenance'
+    );
   } finally {
-    setLoading(false)
+    setLoading(false);
   }
-}
+};
+
+
 
 
   return (
@@ -647,15 +706,47 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           </span>
         </div>
       </div>
-
+      
+      
       <FileUpload
-        label="Attachments"
-        accept="image/*,.pdf,.doc,.docx"
-        multiple
-        value={attachments}
-        onChange={setAttachments}
-        showPreview
-      />
+      label="Add Attachments"
+      accept="image/*,.pdf,.doc,.docx"
+      multiple
+      value={newAttachments}
+      onChange={setNewAttachments}
+      showPreview
+    />
+
+
+      {existingAttachments.length > 0 && (
+  <div className="mb-4">
+    <h4 className="font-medium">Current Attachments</h4>
+    <ul className="space-y-2">
+      {existingAttachments.map((att, idx) => (
+        <li key={idx} className="flex items-center space-x-2">
+          <a
+            href={att.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            {att.name}
+          </a>
+          <button
+            type="button"
+            onClick={() =>
+              setExistingAttachments(existingAttachments.filter((_, i) => i !== idx))
+            }
+            className="text-red-600 hover:text-red-800 text-sm"
+          >
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
+
 
       {/* Payment Section */}
       <div className="border-t pt-4 space-y-4">
@@ -701,40 +792,36 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             />
           </div>
         </div>
+
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm font-medium">
-            <span>NET Amount:</span>
-            <span>{formatCurrency(netAmount)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>VAT Amount:</span>
-            <span>{formatCurrency(vatAmount)}</span>
-          </div>
-          <div className="flex justify-between text-sm text-red-600">
-            <span>Total Discount:</span>
-            <span>- {formatCurrency(totalDiscount)}</span>
-          </div>
-          <div className="flex justify-between text-lg font-bold pt-2 border-t">
-            <span>Total Amount:</span>
-            <span>{formatCurrency(totalAmount)}</span>
-          </div>
-          <div className="pt-4 border-t space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Total Paid Amount:</span>
-              <span className="text-green-600">{formatCurrency(totalPaidAmount)}</span>
-            </div>
-            {remainingAmount > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Remaining Amount:</span>
-                <span className="text-amber-600">{formatCurrency(remainingAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm pt-2 border-t">
-              <span>Payment Status:</span>
-              <span className="font-medium capitalize">{paymentStatus.replace('_',' ')}</span>
-            </div>
-          </div>
-        </div>
+  <div className="flex justify-between text-sm font-medium">
+    <span>NET:</span>
+    <span>{formatCurrency(netAmount)}</span>
+  </div>
+  <div className="flex justify-between text-sm">
+    <span>VAT:</span>
+    <span>{formatCurrency(vatAmount)}</span>
+  </div>
+  {totalDiscount > 0 && (
+    <div className="flex justify-between text-sm text-red-600">
+      <span>Discount:</span>
+      <span>–{formatCurrency(totalDiscount)}</span>
+    </div>
+  )}
+  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+    <span>Total:</span>
+    <span>{formatCurrency(totalAmount)}</span>
+  </div>
+  <div className="flex justify-between text-sm text-green-600">
+    <span>Paid:</span>
+    <span>{formatCurrency(totalPaidAmount)}</span>
+  </div>
+  <div className="flex justify-between text-sm text-amber-600">
+    <span>Owing:</span>
+    <span>{formatCurrency(remainingAmount)}</span>
+  </div>
+</div>
+
       </div>
 
       <div className="flex justify-end space-x-3">

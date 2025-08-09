@@ -297,6 +297,42 @@ const RentalAgreement: React.FC<{
           </View>
         )}
 
+        {rental.returnCondition && (
+  <View style={[styles.sectionBreak]} wrap={false}>
+    <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
+    <View style={styles.card}>
+      {/* Grid of return details */}
+      <View style={styles.grid}>
+        <View style={styles.gridItem}>
+          <Text style={styles.subLabel}>Return Date & Time:</Text>
+          <Text style={styles.subValue}>
+            {formatDateTime(rental.returnCondition.date)}
+          </Text>
+        </View>
+        <View style={styles.gridItem}>
+          <Text style={styles.subLabel}>Mileage:</Text>
+          <Text style={styles.subValue}>
+            {rental.returnCondition.mileage.toLocaleString()} miles
+          </Text>
+        </View>
+        {/* Fuel, Clean, Damage… */}
+        <View style={styles.gridItem}>
+          <Text style={styles.subLabel}>Total Additional Charges:</Text>
+          <Text style={styles.subValue}>
+            £{rental.returnCondition.totalCharges.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+      {/* Images grid, 3 per row */}
+      <View style={styles.grid} /* or your custom image-grid style */>
+        {rental.returnCondition.images.map((img, i) => (
+          <Image key={i} src={img} style={{ width: '30%', margin: '1%' }} />
+        ))}
+      </View>
+    </View>
+  </View>
+)}
+
         {/* TERMS AND CONDITIONS */}
        <View style={[styles.section, styles.sectionBreak, { marginBottom: 20 }]}> {/* Or even 0 */}
   <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>

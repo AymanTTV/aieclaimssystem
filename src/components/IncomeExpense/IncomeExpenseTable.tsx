@@ -5,6 +5,7 @@ import { Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataTable } from '../DataTable/DataTable';
 import { format } from 'date-fns';
+import { RolePermissions } from '../../types/roles';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
   onEdit: (entry: IncomeExpenseEntry) => void;
   onDelete: (entry: IncomeExpenseEntry) => void;
   onGenerateDocument: (entry: IncomeExpenseEntry) => void;
+  permissionScope?: keyof RolePermissions;
 }
 
 const IncomeExpenseTable: React.FC<Props> = ({
@@ -20,7 +22,8 @@ const IncomeExpenseTable: React.FC<Props> = ({
   onView,
   onEdit,
   onDelete,
-  onGenerateDocument
+  onGenerateDocument,
+  permissionScope = 'incomeExpense'
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -75,7 +78,7 @@ const IncomeExpenseTable: React.FC<Props> = ({
           >
             <Eye className="h-4 w-4" />
           </button>
-          {can('finance', 'update') && (
+          {can(permissionScope, 'update') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -87,11 +90,11 @@ const IncomeExpenseTable: React.FC<Props> = ({
               <Edit className="h-4 w-4" />
             </button>
           )}
-          {can('finance', 'delete') && (
+          {can(permissionScope, 'delete') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(row.original); // Triggers custom modal
+                onDelete(row.original);
               }}
               title="Delete"
               className="text-red-600 hover:text-red-800"
@@ -118,7 +121,7 @@ const IncomeExpenseTable: React.FC<Props> = ({
     <DataTable
       data={entries}
       columns={columns}
-      onRowClick={(e) => can('finance', 'view') && onView(e)}
+      onRowClick={(e) => can(permissionScope, 'view') && onView(e)}
     />
   );
 };

@@ -1,6 +1,16 @@
 // src/utils/financeTransactions.ts
 
-import { addDoc, collection, doc, updateDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  query,
+  updateDoc,
+  where,
+  getDocs
+} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MaintenanceLog, Vehicle } from '../types';
 import toast from 'react-hot-toast';
@@ -17,18 +27,44 @@ interface FinanceTransactionParams {
     name: string;
     isDefault: boolean;
   };
-  status?: 'paid' | 'partially_paid' | 'unpaid'; 
+  status?: 'pending' | 'completed' | 'cancelled';
   paymentMethod?: string;
   paymentReference?: string;
   paymentStatus?: 'paid' | 'partially_paid' | 'unpaid';
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
-  customerId?: string; // NEW: Add customerId
-  customerName?: string; // NEW: Add customerName
+  customerId?: string;
+  customerName?: string;
 }
 
-// src/utils/financeTransactions.ts
+export async function reverseFinanceTransaction(params: {
+  referenceId: string;
+  paymentId: string;
+}) {
+  const { referenceId, paymentId } = params;
+  try {
+    const txRef = collection(db, 'transactions');
+    const q = query(
+      txRef,
+      where('referenceId', '==', referenceId),
+      where('paymentReference', '==', paymentId)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      console.warn('No matching finance transaction to reverse');
+      return;
+    }
+    await Promise.all(
+      snap.docs.map((d) => deleteDoc(doc(db, 'transactions', d.id)))
+    );
+    toast.success('Finance transaction reversed');
+  } catch (err) {
+    console.error('Failed to reverse finance transaction', err);
+    toast.error('Could not reverse finance transaction');
+    throw err;
+  }
+}
 
 export const createMaintenanceTransaction = async (
   maintenanceLog: MaintenanceLog,
@@ -45,34 +81,46 @@ export const createMaintenanceTransaction = async (
 
   // Prevent duplicate
   const transactionsRef = collection(db, 'transactions');
-  const q = query(
+  const dupQuery = query(
     transactionsRef,
     where('referenceId', '==', maintenanceLog.id),
-    where('category', '==', maintenanceLog.type)        // ← use actual type
+    where('category', '==', maintenanceLog.type)
   );
-  const snapshot = await getDocs(q);
-  if (!snapshot.empty) {
+  const dupSnap = await getDocs(dupQuery);
+  if (!dupSnap.empty) {
     console.warn('Transaction for this maintenance log already exists.');
     toast.error('Transaction for this maintenance log already exists.');
     return;
   }
 
-  const transaction: Transaction = {
+  // Build base transaction
+  const transaction: Record<string, any> = {
     type: 'expense',
-    category: maintenanceLog.type,                       // ← dynamic category
+    category: maintenanceLog.type,
     amount,
-    description: maintenanceLog.description,              // ← use the log’s description
+    description: maintenanceLog.description,
     referenceId: maintenanceLog.id,
     vehicleId: vehicle.id,
-    vehicleName: `${vehicle.make} ${vehicle.model}`,
-    paymentMethod,
+    vehicleName: `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`,
     paymentStatus: 'paid',
     date: new Date(),
     createdAt: new Date(),
     createdBy: 'system',
+    // only include paymentMethod if defined
+    ...(paymentMethod && { paymentMethod })
   };
 
-  if (paymentReference) transaction.paymentReference = paymentReference;
+  // inject owner if present
+  if (vehicle.owner) {
+    transaction.vehicleOwner = {
+      name: vehicle.owner.name,
+      isDefault: vehicle.owner.isDefault ?? false
+    };
+  }
+
+  if (paymentReference) {
+    transaction.paymentReference = paymentReference;
+  }
 
   try {
     await addDoc(collection(db, 'transactions'), transaction);
@@ -82,8 +130,6 @@ export const createMaintenanceTransaction = async (
     toast.error('Failed to create maintenance transaction');
   }
 };
-
-
 
 export const createFinanceTransaction = async (params: FinanceTransactionParams) => {
   const {
@@ -95,104 +141,86 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     vehicleId,
     vehicleName,
     vehicleOwner,
-    status,
+    status = 'completed',
     paymentMethod,
     paymentReference,
     paymentStatus,
     date,
     accountFrom,
     accountTo,
-    customerId, // NEW
-    customerName, // NEW
+    customerId,
+    customerName
   } = params;
 
   try {
-    // If it's a transfer, update account balances
+    // If it's a transfer, update both accounts (not strictly reachable unless you extend the interface)
     if (type === 'transfer') {
       if (!accountFrom || !accountTo) {
         toast.error('Transfer requires both from and to accounts');
         return { success: false };
       }
-
-      const accountFromRef = doc(db, 'accounts', accountFrom);
-      const accountToRef = doc(db, 'accounts', accountTo);
-
-      const [accountFromDoc, accountToDoc] = await Promise.all([
-        getDoc(accountFromRef),
-        getDoc(accountToRef)
-      ]);
-
-      if (accountFromDoc.exists() && accountToDoc.exists()) {
-        const accountFromData = accountFromDoc.data();
-        const accountToData = accountToDoc.data();
-
-        await updateDoc(accountFromRef, {
-          balance: accountFromData.balance - amount,
-          updatedAt: new Date()
-        });
-
-        await updateDoc(accountToRef, {
-          balance: accountToData.balance + amount,
-          updatedAt: new Date()
-        });
+      const fromRef = doc(db, 'accounts', accountFrom);
+      const toRef = doc(db, 'accounts', accountTo);
+      const [fromSnap, toSnap] = await Promise.all([getDoc(fromRef), getDoc(toRef)]);
+      if (fromSnap.exists() && toSnap.exists()) {
+        const fromData = fromSnap.data();
+        const toData = toSnap.data();
+        await updateDoc(fromRef, { balance: fromData.balance - amount, updatedAt: new Date() });
+        await updateDoc(toRef,   { balance: toData.balance + amount,   updatedAt: new Date() });
       } else {
         toast.error('One or both accounts not found for transfer');
         return { success: false };
       }
     } else {
-      // For income/expense, update single account if specified
+      // For income/expense, update single account if provided
       if (accountFrom) {
-        const accountFromRef = doc(db, 'accounts', accountFrom);
-        const accountFromDoc = await getDoc(accountFromRef);
-
-        if (accountFromDoc.exists()) {
-          const accountFromData = accountFromDoc.data();
-          await updateDoc(accountFromRef, {
-            balance: type === 'income' ? accountFromData.balance + amount : accountFromData.balance - amount,
+        const fromRef = doc(db, 'accounts', accountFrom);
+        const fromSnap = await getDoc(fromRef);
+        if (fromSnap.exists()) {
+          const fromData = fromSnap.data();
+          await updateDoc(fromRef, {
+            balance: type === 'income' ? fromData.balance + amount : fromData.balance - amount,
             updatedAt: new Date()
           });
         }
       }
-
       if (accountTo) {
-        const accountToRef = doc(db, 'accounts', accountTo);
-        const accountToDoc = await getDoc(accountToRef);
-        
-        if (accountToDoc.exists()) {
-          const accountToData = accountToDoc.data();
-          await updateDoc(accountToRef, {
-            balance: type === 'income' ? accountToData.balance + amount : accountToData.balance - amount,
+        const toRef = doc(db, 'accounts', accountTo);
+        const toSnap = await getDoc(toRef);
+        if (toSnap.exists()) {
+          const toData = toSnap.data();
+          await updateDoc(toRef, {
+            balance: type === 'income' ? toData.balance + amount : toData.balance - amount,
             updatedAt: new Date()
           });
         }
       }
     }
 
-    const transaction = {
-  type,
-  category,
-  amount,
-  description,
-  referenceId,
-  ...(vehicleId && { vehicleId }),
-  ...(vehicleName && { vehicleName }),
-  ...(vehicleOwner && { vehicleOwner }),
-  ...(paymentMethod && { paymentMethod }),
-  ...(paymentReference && { paymentReference }),
-  ...(accountFrom && { accountFrom }),
-  ...(accountTo && { accountTo }),
-  ...(customerId && { customerId }),
-  ...(customerName && { customerName }),
-  ...(date && { date }), // ✅ only include if defined
-  status: status || paymentStatus || 'unpaid',
-  paymentStatus,
-  createdAt: new Date(),
-};
-
+    // Build transaction object, only including defined fields
+    const transaction: Record<string, any> = {
+      type,
+      category,
+      amount,
+      description,
+      referenceId,
+      status,
+      date: date || new Date(),
+      createdAt: new Date(),
+      ...(vehicleId        && { vehicleId }),
+      ...(vehicleName      && { vehicleName }),
+      ...(vehicleOwner     && { vehicleOwner }),
+      ...(paymentMethod    && { paymentMethod }),
+      ...(paymentReference && { paymentReference }),
+      ...(paymentStatus    && { paymentStatus }),
+      ...(accountFrom      && { accountFrom }),
+      ...(accountTo        && { accountTo }),
+      ...(customerId       && { customerId }),
+      ...(customerName     && { customerName })
+    };
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);
     console.log('Transaction created with ID:', docRef.id);
-    
     toast.success(`${type === 'income' ? 'Income' : 'Expense'} transaction created successfully`);
     return { success: true, id: docRef.id };
   } catch (error) {

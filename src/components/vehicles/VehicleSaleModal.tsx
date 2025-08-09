@@ -24,6 +24,7 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.salePrice || parseFloat(formData.salePrice) <= 0) {
       toast.error('Please enter a valid sale price');
       return;
@@ -35,17 +36,25 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
       const salePrice = parseFloat(formData.salePrice);
       const saleDate = new Date(formData.saleDate);
 
-      // Update vehicle record with sold status
+      // 1) Update vehicle record with sold status
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
         status: 'sold',
-        activeStatuses: ['sold'], // Set activeStatuses to only include 'sold'
+        activeStatuses: ['sold'],
         soldDate: saleDate,
         salePrice,
         notes: formData.notes || null,
         updatedAt: new Date()
       });
 
-      // Create finance transaction
+      // 2) Extract and coalesce vehicle owner info
+      const vehicleOwner = vehicle.owner
+        ? {
+            name: vehicle.owner.name,
+            isDefault: vehicle.owner.isDefault ?? false,
+          }
+        : undefined;
+
+      // 3) Create finance transaction for the sale
       await createFinanceTransaction({
         type: 'income',
         category: 'vehicle-sale',
@@ -54,6 +63,7 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
         referenceId: vehicle.id,
         vehicleId: vehicle.id,
         vehicleName: `${vehicle.make} ${vehicle.model}`,
+        vehicleOwner,           // ← owner info injected here
         paymentStatus: 'paid',
         date: saleDate
       });

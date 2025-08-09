@@ -1,11 +1,15 @@
 import { useState, useMemo } from 'react';
 import { MaintenanceLog, Vehicle } from '../types';
 
-export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<string, Vehicle>) => {
+export const useMaintenanceFilters = (
+  logs: MaintenanceLog[],
+  vehicles: Record<string, Vehicle>
+) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [vehicleFilter, setVehicleFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
 
   const filteredLogs = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
@@ -15,7 +19,6 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<s
 
       const matchesSearch = (() => {
         if (!searchQuery) return true;
-
         return (
           vehicle?.registrationNumber.toLowerCase().includes(searchLower) ||
           `${vehicle?.make} ${vehicle?.model}`.toLowerCase().includes(searchLower) ||
@@ -25,15 +28,38 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<s
         );
       })();
 
-      const matchesStatus = statusFilter === 'all' || log.status.toLowerCase() === statusFilter.toLowerCase();
+      const matchesStatus =
+        statusFilter === 'all' ||
+        log.status.toLowerCase() === statusFilter.toLowerCase();
 
-      const matchesType = typeFilter === 'all' || log.type.toLowerCase() === typeFilter.toLowerCase();
+      const matchesType =
+        typeFilter === 'all' ||
+        log.type.toLowerCase() === typeFilter.toLowerCase();
 
-      const matchesVehicle = !vehicleFilter || log.vehicleId === vehicleFilter;
+      const matchesVehicle =
+        !vehicleFilter || log.vehicleId === vehicleFilter;
 
-      return matchesSearch && matchesStatus && matchesType && matchesVehicle;
+      const matchesPaymentStatus =
+        paymentStatusFilter === 'all' ||
+        log.paymentStatus.toLowerCase() === paymentStatusFilter.toLowerCase();
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesVehicle &&
+        matchesPaymentStatus
+      );
     });
-  }, [logs, vehicles, searchQuery, statusFilter, typeFilter, vehicleFilter]);
+  }, [
+    logs,
+    vehicles,
+    searchQuery,
+    statusFilter,
+    typeFilter,
+    vehicleFilter,
+    paymentStatusFilter,
+  ]);
 
   return {
     searchQuery,
@@ -44,6 +70,8 @@ export const useMaintenanceFilters = (logs: MaintenanceLog[], vehicles: Record<s
     setTypeFilter,
     vehicleFilter,
     setVehicleFilter,
-    filteredLogs
+    paymentStatusFilter,
+    setPaymentStatusFilter,
+    filteredLogs,
   };
 };

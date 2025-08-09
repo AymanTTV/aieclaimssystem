@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useCustomers } from '../hooks/useCustomers';
+import { reverseFinanceTransaction } from '../utils/financeTransactions';
 import { useInvoices } from '../hooks/useInvoices';
 import { useInvoiceFilters } from '../hooks/useInvoiceFilters';
 import InvoiceTable from '../components/finance/InvoiceTable';
@@ -372,6 +373,7 @@ const Invoices: React.FC = () => {
           <InvoicePaymentModal
             invoice={payingInvoice}
             vehicle={vehicles.find((v) => v.id === payingInvoice.vehicleId)}
+            customers={customers}
             onClose={() => setPayingInvoice(null)}
           />
         )}

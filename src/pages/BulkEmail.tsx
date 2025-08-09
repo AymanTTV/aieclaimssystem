@@ -1,727 +1,492 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/BulkEmail.tsx
+import React, { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import { format } from 'date-fns';
+import { Search, Mail, Trash2 } from 'lucide-react';
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  writeBatch,
+  doc
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+
 import { useCustomers } from '../hooks/useCustomers';
 import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
-import {
-  Customer,
-  Vehicle,
-  Rental,
-  Invoice,
-  MaintenanceLog,
-  Claim
-} from '../types';
-import { LegalHandler } from '../types/legalHandler';
-import {
-  sendEmail,
-  generateRentalEmailContent,
-  generateMaintenanceEmailContent,
-  generateInvoiceEmailContent,
-  generateClaimEmailContent
-} from '../utils/emailService';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
-import { Search, Mail } from 'lucide-react';
-import { useServiceCenters } from '../hooks/useServiceCenters'; // Corrected import: Use the new hook
+import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
+import { useServiceCenters } from '../hooks/useServiceCenters';
+import { useInvoices } from '../hooks/useInvoices';
+import { useClaims } from '../hooks/useClaims';
 import { fetchLegalHandlers } from '../utils/legalHandlers';
-import { collection, query, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
-type EmailType = 'rental' | 'maintenance' | 'invoice' | 'custom' | 'claim';
+import {
+  emailTemplates,
+  EmailType
+} from '../constants/emailTemplates';
+import { fillPlaceholders } from '../utils/templateUtils';
+import { sendEmail } from '../utils/emailService';
+import { useEmailHistory, logEmailHistory } from '../hooks/useEmailHistory';
 
-interface RelatedRecord {
-  id: string;
-  type: 'rental' | 'maintenance' | 'invoice' | 'claim';
-  title: string;
-  date?: Date;
-  startDate?: Date;
-  endDate?: Date;
-  rentalType?: string;
-  documentUrl?: string;
-  amount?: number;
-  paidAmount?: number;
-  remainingAmount?: number;
-  claimStatus?: string;
-  claimAmount?: number;
-  claimDescription?: string;
-}
+import SearchableSelect from '../components/ui/SearchableSelect';
+import { LegalHandler } from '../types/legalHandler';
 
-const safeToDate = (timestamp: any): Date | null => {
-  if (timestamp && typeof timestamp.toDate === 'function') {
-    return timestamp.toDate();
-  }
-  if (timestamp instanceof Date) {
-    return timestamp;
-  }
-  return null;
-};
+export default function BulkEmail() {
+  const { user } = useAuth();
 
-const BulkEmail = () => {
-  const { customers } = useCustomers();
-  const { vehicles } = useVehicles();
-  const { rentals } = useRentals();
-  // Use the new useServiceCenters hook for real-time data
-  const { serviceCenters, loading: loadingServiceCenters } = useServiceCenters();
-
+  // ─── STATE ──────────────────────────────────────────────────────
+  const [emailType, setEmailType]                   = useState<EmailType>('custom');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [searchQuery, setSearchQuery]               = useState<string>('');
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
-  const [emailType, setEmailType] = useState<EmailType>('custom');
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRecord, setSelectedRecord] = useState<RelatedRecord | null>(null);
+
+  const [selectedVehicleId, setSelectedVehicleId]         = useState<string>('');
+  const [selectedRecordId, setSelectedRecordId]           = useState<string>('');
+  const [selectedMaintenanceId, setSelectedMaintenanceId] = useState<string>('');
+
+  const [subject, setSubject] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // ─── DATA HOOKS ─────────────────────────────────────────────────
+  const { customers }            = useCustomers();
+  const { vehicles }             = useVehicles();
+  const { rentals }              = useRentals();
+  const { logs: maintenanceLogs} = useMaintenanceLogs();
+  const { serviceCenters }       = useServiceCenters();
+  const { invoices }             = useInvoices();
+  const { claims }               = useClaims();
+  const { history }              = useEmailHistory();
+
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [claims, setClaims] = useState<Claim[]>([]);
-  const [showBankDetails, setShowBankDetails] = useState(false); // State for bank details checkbox
 
+  // Pull templates for this type
+  const templates       = emailTemplates[emailType] || [];
+  const currentTemplate = templates.find(t => t.id === selectedTemplateId);
 
-  // ── Load legal handlers if we’re sending claim emails ──
+  // ─── LOAD LEGAL HANDLERS ────────────────────────────────────────
   useEffect(() => {
-    const loadLegalHandlers = async () => {
-      try {
-        const handlers = await fetchLegalHandlers();
-        setLegalHandlers(handlers);
-      } catch (error) {
-        console.error('Error fetching legal handlers:', error);
-        toast.error('Failed to load legal handlers');
-      }
-    };
     if (emailType === 'claim') {
-      loadLegalHandlers();
+      fetchLegalHandlers()
+        .then(setLegalHandlers)
+        .catch(() => toast.error('Failed to load legal handlers'));
     }
   }, [emailType]);
 
-  // ── Fetch maintenance logs ──
-  useEffect(() => {
-    const fetchMaintenanceLogs = async () => {
-      const q = query(collection(db, 'maintenanceLogs'));
-      const snapshot = await getDocs(q);
-      const logs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        date: safeToDate(doc.data().date)
-      })) as MaintenanceLog[];
-      setMaintenanceLogs(logs);
-    };
+  // ─── RECIPIENT FILTER ───────────────────────────────────────────
+  const filteredRecipients = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     if (emailType === 'maintenance') {
-      fetchMaintenanceLogs();
+      return serviceCenters.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q)
+      );
     }
-  }, [emailType]);
-
-  // ── Fetch invoices ──
-  useEffect(() => {
-    const fetchInvoices = async () => {
-      const q = query(collection(db, 'invoices'));
-      const snapshot = await getDocs(q);
-      const invoiceData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        date: safeToDate(doc.data().date),
-        dueDate: safeToDate(doc.data().dueDate)
-      })) as Invoice[];
-      setInvoices(invoiceData);
-    };
-    if (emailType === 'invoice') {
-      fetchInvoices();
-    }
-  }, [emailType]);
-
-  // ── Fetch claims ──
-  useEffect(() => {
-    const fetchClaims = async () => {
-      const q = query(collection(db, 'claims'));
-      const snapshot = await getDocs(q);
-      const claimData = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: safeToDate(data.createdAt),
-          updatedAt: safeToDate(data.updatedAt),
-          dateOfEvent: safeToDate(data.dateOfEvent),
-          submitter: {
-            ...data.submitter,
-            dob: safeToDate(data.submitter?.dob)
-          },
-          driver: {
-            ...data.driver,
-            dob: safeToDate(data.driver?.dob)
-          },
-          vehicle: {
-            ...data.vehicle,
-            motExpiry: safeToDate(data.vehicle?.motExpiry)
-          },
-          gpInformation: {
-            ...data.gpInformation,
-            gpDate: safeToDate(data.gpInformation?.gpDate)
-          },
-          hospitalInformation: {
-            ...data.hospitalInformation,
-            hospitalDate: safeToDate(data.hospitalInformation?.hospitalDate)
-          },
-          hireDetails: data.hireDetails
-            ? {
-                ...data.hireDetails,
-                startDate: safeToDate(data.hireDetails?.startDate),
-                endDate: safeToDate(data.hireDetails?.endDate)
-              }
-            : undefined,
-          recovery: data.recovery
-            ? {
-                ...data.recovery,
-                date: safeToDate(data.recovery?.date)
-              }
-            : undefined,
-          storage: data.storage
-            ? {
-                ...data.storage,
-                startDate: safeToDate(data.storage?.startDate),
-                endDate: safeToDate(data.storage?.endDate)
-              }
-            : undefined,
-          progressHistory:
-            data.progressHistory?.map((item: any) => ({
-              ...item,
-              date: safeToDate(item.date)
-            })) || [],
-          fileHandlers: {
-            aieHandler: data.fileHandlers?.aieHandler || '',
-            legalHandler: data.fileHandlers?.legalHandler
-              ? ({
-                  id:
-                    typeof data.fileHandlers.legalHandler === 'string'
-                      ? data.fileHandlers.legalHandler
-                      : data.fileHandlers.legalHandler.id
-                } as LegalHandler)
-              : null
-          }
-        } as Claim;
-      });
-      setClaims(claimData);
-    };
     if (emailType === 'claim') {
-      fetchClaims();
+      return legalHandlers.filter(h =>
+        h.name.toLowerCase().includes(q) ||
+        h.email.toLowerCase().includes(q)
+      );
     }
-  }, [emailType]);
-
-  // ─────────────── Filter Recipients ───────────────
-  const filteredRecipients = React.useMemo(() => {
-    const q = searchQuery.toLowerCase();
-
-    if (emailType === 'maintenance') {
-      let filtered = serviceCenters; // Use serviceCenters from the hook
-      if (searchQuery) {
-        filtered = filtered.filter(
-          (center) =>
-            center.name.toLowerCase().includes(q) ||
-            center.address.toLowerCase().includes(q) ||
-            center.email?.toLowerCase().includes(q)
-        );
-      }
-      return filtered;
-    } else if (emailType === 'claim') {
-      let filtered = legalHandlers;
-      if (searchQuery) {
-        filtered = filtered.filter(
-          (handler) =>
-            handler.name.toLowerCase().includes(q) ||
-            handler.email?.toLowerCase().includes(q) ||
-            handler.phone?.toLowerCase().includes(q)
-        );
-      }
-      return filtered;
-    } else {
-      let filtered = customers;
-      if (searchQuery) {
-        filtered = filtered.filter(
-          (customer) =>
-            customer.fullName.toLowerCase().includes(q) || // Assuming customers have fullName for searching
-            customer.mobile.includes(q) ||
-            customer.email.toLowerCase().includes(q)
-        );
-      }
-      if (emailType === 'rental') {
-        filtered = filtered.filter((cust) =>
-          rentals.some((r) => r.customerId === cust.id)
-        );
-      } else if (emailType === 'invoice') {
-        filtered = filtered.filter((cust) =>
-          invoices.some((inv) => inv.customerId === cust.id)
-        );
-      }
-      return filtered;
-    }
-  }, [
-    emailType,
-    searchQuery,
-    customers,
-    serviceCenters, // Dependency for the hook's data
-    rentals,
-    invoices,
-    legalHandlers
-  ]);
-
-  const handleEmailTypeChange = (type: EmailType) => {
-    setEmailType(type);
-    setSelectedRecord(null);
-    setSelectedRecipients([]);
-    setSubject('');
-    setMessage('');
-    setShowBankDetails(false); // Reset bank details on type change
-  };
-
-  // ─────────────── Select/Deselect a Recipient ───────────────
-  const handleRecipientSelect = (id: string) => {
-    let recipientEmail: string | undefined;
-
-    if (emailType === 'maintenance') {
-      const center = serviceCenters.find((c) => c.id === id);
-      if (!center) return;
-      recipientEmail = center.email;
-    } else if (emailType === 'claim') {
-      const handler = legalHandlers.find((h) => h.id === id);
-      if (!handler) return;
-      recipientEmail = handler.email;
-    } else {
-      const customer = customers.find((c) => c.id === id);
-      if (!customer) return;
-      recipientEmail = customer.email;
-    }
-
-    if (!recipientEmail) {
-      toast.error(`Selected recipient does not have an email address configured.`);
-      return;
-    }
-
-    setSelectedRecipients((prev) =>
-      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q)
     );
-  };
+  }, [emailType, searchQuery, customers, serviceCenters, legalHandlers]);
 
-  // ─────────────── Return “Related Records” for a given recipient ───────────────
-  const getRelatedRecords = (recipientId: string): RelatedRecord[] => {
+  // ─── RELATED RECORDS ────────────────────────────────────────────
+  function getRelatedRecords(recipientId: string) {
     switch (emailType) {
-      case 'maintenance': {
-        const serviceCenter = serviceCenters.find((c) => c.id === recipientId);
-        if (!serviceCenter) return [];
-        return maintenanceLogs
-          .filter((log) => log.serviceProvider === serviceCenter.name)
-          .map((log) => {
-            const vehicle = vehicles.find((v) => v.id === log.vehicleId);
-            return {
-              id: log.id,
-              type: 'maintenance',
-              title: `${log.type
-                .replace('-', ' ')
-                .trim()} – ${vehicle?.registrationNumber || 'Unknown'} – ${format(
-                log.date!,
-                'dd/MM/yyyy'
-              )}`,
-              date: log.date!
-            };
+      case 'custom':
+        return rentals
+          .filter(r => r.customerId === recipientId && new Date() < r.endDate)
+          .map(r => {
+            const v = vehicles.find(v => v.id === r.vehicleId)!;
+            return { id: v.id, label: v.registrationNumber };
           });
-      }
 
       case 'rental':
         return rentals
-          .filter((r) => r.customerId === recipientId)
-          .map((rental) => {
-            const vehicle = vehicles.find((v) => v.id === rental.vehicleId);
+          .filter(r => r.customerId === recipientId)
+          .map(r => {
+            const v = vehicles.find(v => v.id === r.vehicleId);
+            if (!v) return null;
             return {
-              id: rental.id,
-              type: 'rental',
-              title: `Rental – ${
-                vehicle
-                  ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
-                  : 'Unknown Vehicle'
-              }`,
-              date: rental.startDate,
-              startDate: rental.startDate,
-              endDate: rental.endDate,
-              rentalType: rental.type
+              id: r.id,
+              label: `${v.registrationNumber} (${format(r.startDate,'dd/MM/yyyy')})`
             };
-          });
+          })
+          .filter((x): x is {id:string;label:string} => !!x);
+
+      case 'maintenance':
+        const centerName = serviceCenters.find(c => c.id === recipientId)?.name;
+        return maintenanceLogs
+          .filter(m => m.serviceProvider === centerName)
+          .map(m => ({
+            id: m.id,
+            label: `${m.type} @ ${format(m.date,'dd/MM/yyyy')}`
+          }));
 
       case 'invoice':
         return invoices
-          .filter((inv) => inv.customerId === recipientId)
-          .map((inv) => ({
+          .filter(inv => inv.customerId === recipientId)
+          .map(inv => ({
             id: inv.id,
-            type: 'invoice',
-            title: `Invoice #${inv.id.slice(-8).toUpperCase()}`,
-            date: inv.date!,
-            amount: inv.amount,
-            paidAmount: inv.paidAmount,
-            remainingAmount: inv.remainingAmount
+            label: `INV-${inv.id.slice(-8).toUpperCase()} (${format(inv.date,'dd/MM/yyyy')})`
           }));
 
       case 'claim':
         return claims
-          .filter((c) => {
-            const handlerId = c.fileHandlers?.legalHandler?.id;
-            return handlerId === recipientId;
-          })
-          .map((c) => ({
+          .filter(c => c.fileHandlers.legalHandler?.id === recipientId)
+          .map(c => ({
             id: c.id,
-            type: 'claim',
-            title: `Claim Ref: ${c.claimId || c.id.slice(-8).toUpperCase()}`,
-            date: c.dateOfEvent || c.createdAt!,
-            claimStatus: c.progress,
-            claimAmount: c.claimAmount,
-            claimDescription: c.accidentDetails?.cause || 'No description available'
+            label: `${c.claimId.toUpperCase()} – ${format(c.dateOfEvent,'dd/MM/yyyy')}`
           }));
 
       default:
         return [];
     }
+  }
+
+  // ─── AUTO-FILL PLACEHOLDERS ────────────────────────────────────
+  useEffect(() => {
+    if (!currentTemplate || !selectedTemplateId || selectedRecipients.length !== 1) return;
+    const rid = selectedRecipients[0];
+    const ctx: Record<string, string> = {};
+
+    // common name fields
+    const cust = customers.find(c => c.id === rid);
+    if (cust) {
+      ctx["Driver's Name"] = cust.name;
+      ctx['Customer Name']  = cust.name;
+    }
+    if (emailType === 'maintenance') {
+      const sc = serviceCenters.find(c => c.id === rid);
+      if (sc) ctx["Recipient's Name"] = sc.name;
+    }
+    if (emailType === 'claim') {
+      const lh = legalHandlers.find(h => h.id === rid);
+      if (lh) ctx["Recipient's Name"] = lh.name;
+    }
+
+    // mileageRequest
+    if (currentTemplate.id === 'mileageRequest') {
+      ctx['Date'] = format(new Date(), 'dd/MM/yyyy');
+    }
+
+    // vehicle placeholders
+    if (selectedVehicleId) {
+      const v = vehicles.find(v => v.id === selectedVehicleId);
+      if (v) {
+        ctx['Vehicle Registration Number'] = v.registrationNumber;
+        if (emailType === 'maintenance' || emailType === 'custom') {
+          ctx['Make & Model'] = `${v.make} ${v.model}`;
+          ctx['Year']         = `${v.year}`;
+        }
+      }
+    }
+
+    // custom “serviceBooking”
+    if (
+      emailType === 'custom' &&
+      currentTemplate.id === 'serviceBooking' &&
+      selectedMaintenanceId
+    ) {
+      const m = maintenanceLogs.find(m => m.id === selectedMaintenanceId);
+      if (m) {
+        const v = vehicles.find(v => v.id === m.vehicleId);
+        if (v) {
+          ctx['Vehicle Registration Number'] = v.registrationNumber;
+          ctx['Make & Model']                = `${v.make} ${v.model}`;
+          ctx['Year']                        = `${v.year}`;
+        }
+        ctx['Service Type'] = m.type;
+        ctx['Date & Time']  = format(m.date,'dd/MM/yyyy HH:mm');
+        ctx['Location']     = m.location;
+      }
+    }
+
+    // maintenance templates
+    if (emailType === 'maintenance' && selectedMaintenanceId) {
+      const m = maintenanceLogs.find(m => m.id === selectedMaintenanceId);
+      if (m) {
+        const v = vehicles.find(v => v.id === m.vehicleId);
+        if (v) {
+          ctx['Vehicle Registration Number'] = v.registrationNumber;
+          ctx['Make & Model']                = `${v.make} ${v.model}`;
+          ctx['Year']                        = `${v.year}`;
+        }
+        if (currentTemplate.id === 'serviceBooking') {
+          ctx['Service Type'] = m.type;
+          ctx['Date & Time']  = format(m.date,'dd/MM/yyyy HH:mm');
+          ctx['Location']     = m.location;
+          ctx['Additional Notes'] = m.description;
+        }
+        if (currentTemplate.id === 'invoiceRequest') {
+          ctx['Repair Date']  = format(m.date,'dd/MM/yyyy');
+          ctx['Service Type'] = m.type;
+        }
+      }
+    }
+
+    // rental
+    if (emailType === 'rental' && selectedRecordId) {
+      const r = rentals.find(r => r.id === selectedRecordId);
+      if (r) {
+        const v = vehicles.find(v => v.id === r.vehicleId);
+        if (v) {
+          ctx['Vehicle Registration Number'] = v.registrationNumber;
+          ctx['Start Date']   = format(r.startDate,'dd/MM/yyyy');
+          ctx['End Date']     = format(r.endDate,  'dd/MM/yyyy');
+        }
+        ctx['Rental Type']  = r.type;
+        ctx['Total Amount'] = `£${r.cost.toFixed(2)}`;
+        ctx['Amount Paid']  = `£${r.paidAmount.toFixed(2)}`;
+        ctx['Outstanding Balance'] = `£${r.remainingAmount.toFixed(2)}`;
+      }
+    }
+
+    // invoice
+    if (emailType === 'invoice' && selectedRecordId) {
+      const inv = invoices.find(i => i.id === selectedRecordId);
+      if (inv) {
+        ctx['Invoice Number'] = `INV-${inv.id.slice(-8).toUpperCase()}`;
+        ctx['Invoice Date']   = format(inv.date,'dd/MM/yyyy');
+        ctx['Amount']         = `£${inv.amount.toFixed(2)}`;
+        ctx['Due Date']       = format(inv.dueDate,'dd/MM/yyyy');
+      }
+    }
+
+    // claim
+    if (emailType === 'claim' && selectedRecordId) {
+      const c = claims.find(c => c.id === selectedRecordId);
+      if (c) {
+        const clientName = c.driver.fullName || c.submitter.fullName;
+        ctx['Client Name']              = clientName;
+        ctx['Client Registration']      = c.submitter.companyRegistration || '';
+        ctx['Third Party Registration'] = c.faultParty.vehicleRegistration || '';
+        ctx['Date']                     = format(c.dateOfEvent,'dd/MM/yyyy');
+        ctx['Time']                     = c.incidentTime;
+        ctx['Location']                 = c.locationOfEvent;
+        ctx['Description']              = c.accidentDetails.cause;
+      }
+    }
+
+    setSubject(fillPlaceholders(currentTemplate.subjectTemplate, ctx));
+    setMessage(fillPlaceholders(currentTemplate.bodyTemplate, ctx));
+  }, [
+    emailType,
+    selectedTemplateId,
+    selectedRecipients,
+    selectedVehicleId,
+    selectedMaintenanceId,
+    selectedRecordId,
+    currentTemplate,
+    customers,
+    vehicles,
+    rentals,
+    maintenanceLogs,
+    invoices,
+    claims,
+    legalHandlers
+  ]);
+
+  // ─── HISTORY FILTERS & CLEAR ───────────────────────────────────
+  const [historyTypeFilter, setHistoryTypeFilter]           = useState<EmailType|'all'>('all');
+  const [historyTemplateFilter, setHistoryTemplateFilter]   = useState<string>('');
+  const [historyRecipientFilter, setHistoryRecipientFilter] = useState<string>('');
+
+  const filteredHistory = useMemo(() => {
+    return history.filter(h => {
+      if (historyTypeFilter!=='all' && h.type!==historyTypeFilter) return false;
+      if (historyTemplateFilter && h.templateId!==historyTemplateFilter) return false;
+      if (historyRecipientFilter) {
+        const names = h.recipients.map(rid => {
+          if (h.type==='maintenance') return serviceCenters.find(c=>c.id===rid)?.name;
+          if (h.type==='claim')       return legalHandlers.find(l=>l.id===rid)?.name;
+          return customers.find(c=>c.id===rid)?.name;
+        }).filter(Boolean).join(', ').toLowerCase();
+        if (!names.includes(historyRecipientFilter.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [
+    history,
+    historyTypeFilter,
+    historyTemplateFilter,
+    historyRecipientFilter,
+    serviceCenters,
+    legalHandlers,
+    customers
+  ]);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Delete ALL history entries forever?')) return;
+    const batch = writeBatch(db);
+    history.forEach(h => batch.delete(doc(db,'emailHistory',h.id)));
+    await batch.commit();
+    toast.success('Email history cleared');
   };
 
-  // ─────────────── Called when a “Related Record” is clicked ───────────────
-  const handleRecordSelect = (record: RelatedRecord) => {
-    setSelectedRecord(record);
-
-    // Reset subject and message to default for the selected type, then generate
-    setSubject('');
-    setMessage('');
-
-    // Logic to set subject and message based on the selected record type
-    switch (record.type) {
-      case 'rental': {
-        const rental = rentals.find((r) => r.id === record.id);
-        const vehicle = rental ? vehicles.find((v) => v.id === rental.vehicleId) : undefined;
-        const customer = rental ? customers.find((c) => c.id === rental.customerId) : undefined;
-        if (customer && rental && vehicle) {
-          const content = generateRentalEmailContent(customer, rental, vehicle);
-          setSubject(content.subject);
-          setMessage(content.message);
-        }
-        break;
-      }
-
-      case 'maintenance': {
-        const log = maintenanceLogs.find((l) => l.id === record.id);
-        const vehicle = log ? vehicles.find((v) => v.id === log.vehicleId) : undefined;
-        const serviceCenter = log ? serviceCenters.find(
-          (c) => c.name === log.serviceProvider
-        ) : undefined;
-        if (serviceCenter && log && vehicle) {
-          const content = generateMaintenanceEmailContent(
-            serviceCenter,
-            log,
-            vehicle
-          );
-          setSubject(content.subject);
-          setMessage(content.message);
-        }
-        break;
-      }
-
-      case 'invoice': {
-        const inv = invoices.find((i) => i.id === record.id);
-        const customer = inv ? customers.find((c) => c.id === inv.customerId) : undefined;
-        if (customer && inv) {
-          const content = generateInvoiceEmailContent(customer, inv);
-          setSubject(content.subject);
-          setMessage(content.message);
-        }
-        break;
-      }
-
-      case 'claim': {
-        const c = claims.find((c2) => c2.id === record.id);
-        if (!c) break;
-        // Find “legal handler” object for this claim
-        const handlerForThisClaim = legalHandlers.find(
-          (h) => h.id === c.fileHandlers?.legalHandler?.id
-        );
-
-        // Figure out which “client” to show (driver if isClaimant=true, else submitter)
-        let client: Customer | null = null;
-        if (c.driver?.isClaimant) {
-          client = {
-            id: '', // Dummy ID
-            fullName: c.driver.fullName || '',
-            mobile: c.driver.contactNumber || '',
-            email: c.driver.email || ''
-          } as Customer; // Cast to Customer to match interface
-        } else if (c.submitter) {
-          client = {
-            id: '', // Dummy ID
-            fullName: c.submitter.fullName || '',
-            mobile: '', // Assuming submitter doesn't have a mobile in this context
-            email: c.submitter.email || ''
-          } as Customer; // Cast to Customer to match interface
-        }
-
-        const content = generateClaimEmailContent(c, client, handlerForThisClaim);
-        setSubject(content.subject);
-        setMessage(content.message);
-        break;
-      }
-    }
-  };
-
-  // ─────────────── Send the emails ───────────────
-  const handleSendEmails = async () => {
-    if (!selectedRecipients.length) {
-      toast.error('Please select at least one recipient');
-      return;
-    }
-    if (!subject || !message) {
-      toast.error('Please provide both subject and message');
-      return;
-    }
+  // ─── SEND EMAILS ──────────────────────────────────────────────
+  const handleSend = async () => {
+    if (!subject || !message) return toast.error('Subject & message required');
+    if (!selectedRecipients.length) return toast.error('Pick at least one recipient');
 
     setLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    try {
-      for (const recipientId of selectedRecipients) {
-        try {
-          let toName: string;
-          let toEmail: string;
-
-          if (emailType === 'maintenance') {
-            const center = serviceCenters.find((c) => c.id === recipientId);
-            if (!center) throw new Error('Service center not found');
-            toName = center.name;
-            toEmail = center.email;
-          } else if (emailType === 'claim') {
-            const handler = legalHandlers.find((h) => h.id === recipientId);
-            if (!handler) throw new Error('Legal handler not found');
-            toName = handler.name;
-            toEmail = handler.email;
-          } else {
-            const cust = customers.find((c) => c.id === recipientId);
-            if (!cust) throw new Error('Customer not found');
-            toName = cust.fullName; // Use fullName for customers
-            toEmail = cust.email;
-          }
-
-          // Decide “showBankDetails” and “reference” based on selectedRecord and emailType
-          let currentShowBankDetails = showBankDetails; // Start with the checkbox state
-          let reference = '';
-
-          if (selectedRecord && selectedRecord.id === recipientId) { // Apply record-specific details only if this record is selected for THIS recipient
-            switch (selectedRecord.type) {
-              case 'rental': {
-                const r = rentals.find((r2) => r2.id === selectedRecord.id);
-                const v = r ? vehicles.find((v2) => v2.id === r.vehicleId) : undefined;
-                if (r) currentShowBankDetails = (r.remainingAmount || 0) > 0;
-                if (v) reference = v.registrationNumber;
-                break;
-              }
-              case 'invoice': {
-                const inv = invoices.find((i) => i.id === selectedRecord.id);
-                if (inv) currentShowBankDetails = (inv.remainingAmount || 0) > 0;
-                if (inv) reference = `INV-${inv.id.slice(-8).toUpperCase()}`;
-                break;
-              }
-              case 'claim': {
-                const c = claims.find((c2) => c2.id === selectedRecord.id);
-                currentShowBankDetails = false; // Claims usually don't involve bank details for payment
-                if (c) reference = `CLAIM-${c.claimId || c.id.slice(-8).toUpperCase()}`;
-                break;
-              }
-            }
-          }
-
-          const emailParams = {
-            to_name: toName,
-            to_email: toEmail,
-            subject,
-            message,
-            show_bank_details: currentShowBankDetails,
-            reference,
-            reply_to: 'admin@aieskyline.co.uk'
-          };
-
-          await sendEmail(emailParams);
-          successCount++;
-        } catch (err) {
-          console.error(`Failed to send to ${recipientId}`, err);
-          failCount++;
-        }
+    let sent = 0;
+    for (let rid of selectedRecipients) {
+      let to_email='', to_name='';
+      if (emailType==='maintenance') {
+        const sc = serviceCenters.find(c=>c.id===rid)!;
+        to_email=sc.email; to_name=sc.name;
+      } else if (emailType==='claim') {
+        const lh = legalHandlers.find(h=>h.id===rid)!;
+        to_email=lh.email; to_name=lh.name;
+      } else {
+        const c = customers.find(c=>c.id===rid)!;
+        to_email=c.email; to_name=c.name;
       }
-
-      if (successCount > 0) {
-        toast.success(
-          `Successfully sent ${successCount} email${
-            successCount > 1 ? 's' : ''
-          }`
-        );
-        setSelectedRecipients([]);
-        setSubject('');
-        setMessage('');
-        setSelectedRecord(null);
-        setShowBankDetails(false);
+      try {
+        await sendEmail({ to_email, to_name, subject, message });
+        sent++;
+      } catch {
+        toast.error(`Failed to send to ${to_name}`);
       }
-      if (failCount > 0) {
-        toast.error(
-          `Failed to send ${failCount} email${failCount > 1 ? 's' : ''}`
-        );
-      }
-    } catch (err) {
-      console.error('Error sending emails:', err);
-      toast.error('Failed to send emails');
-    } finally {
-      setLoading(false);
     }
+    toast.success(`Sent ${sent} email${sent!==1?'s':''}`);
+    await logEmailHistory({
+      sentBy: user?.uid || 'unknown',
+      type: emailType,
+      templateId: selectedTemplateId,
+      recipients: selectedRecipients,
+      subject,
+      timestamp: new Date()
+    });
+    setLoading(false);
   };
 
+  // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* ───────────────────────── Page Header ───────────────────────── */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Bulk Email</h1>
+      {/* Email Type & Template */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {(Object.keys(emailTemplates) as EmailType[]).map(t => (
+          <button
+            key={t}
+            onClick={() => {
+              setEmailType(t);
+              setSelectedTemplateId('');
+              setSelectedRecipients([]);
+              setSelectedRecordId('');
+              setSelectedVehicleId('');
+              setSelectedMaintenanceId('');
+              setSubject('');
+              setMessage('');
+            }}
+            className={`px-4 py-2 rounded ${
+              emailType === t ? 'bg-blue-600 text-white' : 'bg-gray-200'
+            }`}
+          >
+            {t.charAt(0).toUpperCase()+t.slice(1)}
+          </button>
+        ))}
+        <select
+          className="border col-span-2 md:col-span-2 p-2"
+          value={selectedTemplateId}
+          onChange={e => setSelectedTemplateId(e.target.value)}
+        >
+          <option value="">– Select Message… (manual) –</option>
+          {templates.map(tpl => (
+            <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+          ))}
+        </select>
       </div>
 
-      {/* ───────────────────────── Email Type Selection ───────────────────────── */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Email Type</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {(['custom', 'rental', 'maintenance', 'invoice', 'claim'] as EmailType[]).map(
-            (type) => (
-              <button
-                key={type}
-                onClick={() => handleEmailTypeChange(type)}
-                className={`px-4 py-2 rounded-md ${
-                  emailType === type
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 hover:bg-gray-200'
-                }`}
-              >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </button>
-            )
-          )}
+      {/* Recipients + Record Pickers */}
+      <div className="bg-white p-4 rounded shadow space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-2 text-gray-400"/>
+          <input
+            className="pl-8 pr-4 py-2 border rounded w-full"
+            placeholder="Search recipients…"
+            value={searchQuery}
+            onChange={e=>setSearchQuery(e.target.value)}
+          />
         </div>
-      </div>
-
-      {/* ───────────────────────── Recipients Selection ───────────────────────── */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-medium text-gray-900">
-            Select{' '}
-            {emailType === 'maintenance'
-              ? 'Service Centers'
-              : emailType === 'claim'
-              ? 'Legal Handlers'
-              : 'Recipients'}
-          </h2>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search ${
-                  emailType === 'maintenance'
-                    ? 'service centers'
-                    : emailType === 'claim'
-                    ? 'legal handlers'
-                    : 'recipients'
-                }...`}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
-              />
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {filteredRecipients.map((recipient: any) => { // Use 'any' here for flexibility with different types
-            const name = recipient.fullName || recipient.name; // Prioritize fullName for customers
-            const email = recipient.email || '';
-            const phone =
-              'phone' in recipient
-                ? recipient.phone
-                : 'mobile' in recipient
-                ? recipient.mobile
-                : undefined;
-
+          {filteredRecipients.map(r => {
+            const id       = r.id;
+            const name     = (r as any).name || (r as any).fullName;
+            const email    = (r as any).email;
+            const selected = selectedRecipients.includes(id);
             return (
-              <div
-                key={recipient.id}
-                className={`p-4 rounded-lg border ${
-                  selectedRecipients.includes(recipient.id)
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-primary/50'
-                }`}
-              >
-                <div className="flex items-start justify-between">
+              <div key={id} className={`p-3 rounded border ${
+                selected ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+              }`}>
+                <div className="flex justify-between">
                   <div>
                     <div className="font-medium">{name}</div>
-                    <div className="text-sm text-gray-500">
-                      {email || 'No email configured'}
-                    </div>
-                    {phone && (
-                      <div className="text-sm text-gray-500">{phone}</div>
-                    )}
+                    <div className="text-sm text-gray-600">{email}</div>
                   </div>
                   <button
-                    onClick={() => handleRecipientSelect(recipient.id)}
-                    className={`p-2 rounded-full ${
-                      selectedRecipients.includes(recipient.id)
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                    disabled={!email}
+                    onClick={()=>setSelectedRecipients(selected?[]:[id])}
+                    className="p-1 bg-gray-100 rounded"
                   >
-                    <Mail className="h-4 w-4" />
+                    <Mail className="h-4 w-4"/>
                   </button>
                 </div>
 
-                {selectedRecipients.includes(recipient.id) && (
-                  <div className="mt-3 border-t pt-3">
-                    <div className="text-sm font-medium text-gray-700 mb-2">
-                      {emailType === 'maintenance'
-                        ? 'Assigned Maintenance'
-                        : emailType === 'claim'
-                        ? 'Assigned Claims'
-                        : 'Related Records'}
-                      :
-                    </div>
-                    <div className="space-y-2">
-                      {getRelatedRecords(recipient.id).map((record) => (
-                        <button
-                          key={record.id}
-                          onClick={() => handleRecordSelect(record)}
-                          className={`w-full text-left px-3 py-2 rounded text-sm ${
-                            selectedRecord?.id === record.id
-                              ? 'bg-primary text-white'
-                              : 'bg-gray-50 hover:bg-gray-100'
-                          }`}
-                        >
-                          <div className="font-medium">{record.title}</div>
-                          {record.type === 'rental' && record.startDate && record.endDate && (
-                            <div className="text-xs opacity-75">
-                              {format(record.startDate, 'dd/MM/yyyy')} -{' '}
-                              {format(record.endDate, 'dd/MM/yyyy')}
-                              <br />
-                              Type: {record.rentalType}
-                            </div>
-                          )}
-                          {record.type === 'invoice' && (
-                            <div className="text-xs opacity-75">
-                              Amount: £{record.amount?.toFixed(2)}
-                              <br />
-                              Remaining: £{record.remainingAmount?.toFixed(2)}
-                            </div>
-                          )}
-                          {record.type === 'claim' && (
-                            <div className="text-xs opacity-75">
-                              Status: {record.claimStatus}
-                              <br />
-                              Amount: £{record.claimAmount?.toFixed(2)}
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                {emailType==='custom' && currentTemplate?.requiredFields.includes('vehicle') && selected && (
+                  <SearchableSelect
+                    label="Select Vehicle"
+                    options={getRelatedRecords(id)}
+                    value={selectedVehicleId}
+                    onChange={setSelectedVehicleId}
+                  />
+                )}
+                {emailType==='custom' && currentTemplate?.requiredFields.includes('maintenance') && selected && (
+                  <SearchableSelect
+                    label="Select Maintenance"
+                    options={getRelatedRecords(id)}
+                    value={selectedMaintenanceId}
+                    onChange={setSelectedMaintenanceId}
+                  />
+                )}
+                {emailType==='rental' && selected && (
+                  <SearchableSelect
+                    label="Select Rental"
+                    options={getRelatedRecords(id)}
+                    value={selectedRecordId}
+                    onChange={setSelectedRecordId}
+                  />
+                )}
+                {emailType==='maintenance' && selected && (
+                  <SearchableSelect
+                    label="Select Maintenance"
+                    options={getRelatedRecords(id)}
+                    value={selectedMaintenanceId}
+                    onChange={setSelectedMaintenanceId}
+                  />
+                )}
+                {emailType==='invoice' && selected && (
+                  <SearchableSelect
+                    label="Select Invoice"
+                    options={getRelatedRecords(id)}
+                    value={selectedRecordId}
+                    onChange={setSelectedRecordId}
+                  />
+                )}
+                {emailType==='claim' && selected && (
+                  <SearchableSelect
+                    label="Select Claim"
+                    options={getRelatedRecords(id)}
+                    value={selectedRecordId}
+                    onChange={setSelectedRecordId}
+                  />
                 )}
               </div>
             );
@@ -729,63 +494,103 @@ const BulkEmail = () => {
         </div>
       </div>
 
-      {/* ───────────────────────── Email Content ───────────────────────── */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Email Content</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Subject</label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              placeholder="Enter email subject"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Message</label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={10}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              placeholder="Enter email message"
-            />
-          </div>
-          {emailType === 'invoice' && (
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="showBankDetails"
-                checked={showBankDetails}
-                onChange={(e) => setShowBankDetails(e.target.checked)}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-              />
-              <label htmlFor="showBankDetails" className="ml-2 block text-sm font-medium text-gray-700">
-                Include Bank Details
-              </label>
-            </div>
-          )}
+      {/* Content Preview & Edit */}
+      <div className="bg-white p-4 rounded shadow space-y-4">
+        <div>
+          <label className="font-medium">Subject</label>
+          <input
+            className="mt-1 w-full border rounded p-2"
+            value={subject}
+            onChange={e=>setSubject(e.target.value)}
+          />
         </div>
+        <div>
+          <label className="font-medium">Message</label>
+          <textarea
+            className="mt-1 w-full border rounded p-2 h-32"
+            value={message}
+            onChange={e=>setMessage(e.target.value)}
+          />
+        </div>
+        <button
+          className="bg-green-600 text-white px-4 py-2 rounded"
+          onClick={handleSend}
+          disabled={loading}
+        >
+          {loading ? 'Sending…' : 'Send'}
+        </button>
       </div>
 
-      {/* ───────────────────────── Send Button ───────────────────────── */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSendEmails}
-          disabled={loading || !selectedRecipients.length}
-          className="px-6 py-3 bg-primary text-white rounded-md hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading
-            ? 'Sending...'
-            : `Send Email${selectedRecipients.length > 1 ? 's' : ''} (${
-                selectedRecipients.length
-              } selected)`}
-        </button>
+      {/* History Section */}
+      <div className="bg-white p-4 rounded shadow">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="font-medium">Email History</h2>
+          <div className="flex space-x-2">
+            <select
+              className="border p-1 rounded"
+              value={historyTypeFilter}
+              onChange={e=>setHistoryTypeFilter(e.target.value as any)}
+            >
+              <option value="all">All Types</option>
+              {(Object.keys(emailTemplates) as EmailType[]).map(t=>(
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <select
+              className="border p-1 rounded"
+              value={historyTemplateFilter}
+              onChange={e=>setHistoryTemplateFilter(e.target.value)}
+            >
+              <option value="">All Templates</option>
+              {Array.from(new Set(history.map(h=>h.templateId))).map(id=>(
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+            <input
+              className="border p-1 rounded"
+              placeholder="Recipient…"
+              value={historyRecipientFilter}
+              onChange={e=>setHistoryRecipientFilter(e.target.value)}
+            />
+          </div>
+          {user?.role==='manager' && (
+            <button
+              onClick={handleClearHistory}
+              className="flex items-center space-x-1 text-red-600 hover:underline"
+            >
+              <Trash2 size={16}/> <span>Clear History</span>
+            </button>
+          )}
+        </div>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="border px-2 py-1">Date</th>
+              <th className="border px-2 py-1">Type</th>
+              <th className="border px-2 py-1">Template</th>
+              <th className="border px-2 py-1">Recipients</th>
+              <th className="border px-2 py-1">Subject</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredHistory.map(h=>(
+              <tr key={h.id}>
+                <td className="border px-2 py-1">{format(h.timestamp,'dd/MM/yyyy HH:mm')}</td>
+                <td className="border px-2 py-1">{h.type}</td>
+                <td className="border px-2 py-1">{h.templateId}</td>
+                <td className="border px-2 py-1">
+                  {h.recipients.map(rid=>{
+                    if(h.type==='maintenance') return serviceCenters.find(c=>c.id===rid)?.name;
+                    if(h.type==='claim')       return legalHandlers.find(l=>l.id===rid)?.name;
+                    return customers.find(c=>c.id===rid)?.name;
+                  }).filter(Boolean).join(', ')}
+                </td>
+                <td className="border px-2 py-1">{h.subject}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
-};
-
-export default BulkEmail;
+}

@@ -206,7 +206,7 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
 
       {/* Creation Information */}
       <div className="text-sm text-gray-500">
-        <p>Created at {formatDate(transaction.createdAt)}</p>
+        <p>Created at {formatDate(transaction.date)}</p>
       </div>
     </div>
   );

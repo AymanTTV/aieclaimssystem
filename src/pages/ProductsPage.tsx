@@ -225,12 +225,14 @@ const ProductsPage: React.FC = () => {
             Manage Categories
           </button>
           )}
+          {can('products', 'create') && (
           <button
             onClick={() => openProductForm()}
             className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-600"
           >
             + Add Product
           </button>
+          )}
           {user?.role === 'manager' && (
   <button
           onClick={() => handleProductExport(products, categories)}

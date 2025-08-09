@@ -21,6 +21,7 @@ import AssignGroupModal from '../components/finance/AssignGroupModal';
 import { generateFinancePDF } from '../utils/financePDF';
 import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { FinanceDocument } from '../components/pdf/documents';
+import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
 import { doc, updateDoc, collection, query, onSnapshot, Timestamp } from 'firebase/firestore';
@@ -29,11 +30,8 @@ import * as XLSX from 'xlsx';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
-
-/** ────── Category Service Import ────── **/
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2 } from 'lucide-react';
-/** ────────────────────────────────────── **/
 
 const Finance: React.FC = () => {
   const { transactions, loading, error } = useFinances();
@@ -43,6 +41,7 @@ const Finance: React.FC = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
 
+  // ── Groups ─────────────────────────────
   const [groups, setGroups] = useState<FinanceGroup[]>([]);
   const loadGroups = useCallback(async () => {
     const all = await financeGroupService.getAll();
@@ -51,10 +50,11 @@ const Finance: React.FC = () => {
   useEffect(() => { loadGroups(); }, [loadGroups]);
   const [manageOpen, setManageOpen] = useState(false);
 
-  // ─── Assign ──────────────────────────
-  const [assignTxn, setAssignTxn] = useState<Transaction|null>(null);
+  // ── Assign Group ────────────────────────
+  const [assignTxn, setAssignTxn] = useState<Transaction | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
 
+  // ── Modals & Selection State ────────────
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -64,7 +64,7 @@ const Finance: React.FC = () => {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
 
-  /** ────── Category Management State ────── **/
+  // ── Category Management ─────────────────
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
@@ -82,10 +82,7 @@ const Finance: React.FC = () => {
       })
       .finally(() => setLoadingCats(false));
   }, []);
-
-  useEffect(() => {
-    loadCategories();
-  }, [loadCategories]);
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   const openCatForm = (cat?: { id: string; name: string }) => {
     if (cat) {
@@ -133,10 +130,8 @@ const Finance: React.FC = () => {
       toast.error('Failed to delete finance category');
     }
   };
-  /** ────────────────────────────────────── **/
 
-
-  // ── Fetch accounts (used by AccountManageModal/TransferMoneyModal) ──
+  // ── Fetch accounts ──────────────────────
   useEffect(() => {
     const unsubscribe = onSnapshot(
       query(collection(db, 'accounts')),
@@ -155,46 +150,31 @@ const Finance: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-
-  // ── FinanceFilters Hook ──
+  // ── Filters Hook ────────────────────────
   const {
-    searchQuery,
-    setSearchQuery,
-    type,
-    setType,
-    category,
-    groupFilter,
-    setGroupFilter,
-    setCategory,
-    paymentStatus,
-    setPaymentStatus,
-    dateRange,
-    setDateRange,
-    selectedCustomerId,
-    setSelectedCustomerId,
-    selectedOwner,
-    setSelectedOwner,
-    owners,
-    filteredTransactions,
-    accountFilter,
-    setAccountFilter,
-    accountSummary,
-    totalOwingFromOwners,
+    searchQuery, setSearchQuery,
+    type, setType,
+    category, setCategory,
+    groupFilter, setGroupFilter,
+    paymentStatus, setPaymentStatus,
+    dateRange, setDateRange,
+    selectedCustomerId, setSelectedCustomerId,
+    selectedOwner, setSelectedOwner,
+    owners, filteredTransactions,
+    accountFilter, setAccountFilter,
+    accountSummary, totalOwingFromOwners,
   } = useFinanceFilters(transactions, vehicles, accounts);
 
-  const memoizedFilteredTransactions = filteredTransactions;
-
-  const totalIncome = memoizedFilteredTransactions
+  const totalIncome = filteredTransactions
     .filter((t) => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpenses = memoizedFilteredTransactions
+  const totalExpenses = filteredTransactions
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
-
   const netIncome = totalIncome - totalExpenses;
   const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
 
+  // ── Generate bulk A4 PDF ────────────────
   const handleGeneratePDF = useCallback(async () => {
     try {
       toast.loading('Generating financial report...');
@@ -225,19 +205,12 @@ const Finance: React.FC = () => {
       toast.error('Failed to generate PDF');
     }
   }, [
-    filteredTransactions,
-    vehicles,
-    customers,
-    accounts,
-    totalIncome,
-    totalExpenses,
-    netIncome,
-    profitMargin,
-    totalOwingFromOwners,
-    selectedOwner,
-    dateRange,
+    filteredTransactions, vehicles, customers, accounts,
+    totalIncome, totalExpenses, netIncome, profitMargin,
+    totalOwingFromOwners, selectedOwner, dateRange,
   ]);
 
+  // ── Generate single A4 document ─────────
   const handleGenerateDocument = useCallback(
     async (transaction: Transaction) => {
       if (!user) {
@@ -267,8 +240,7 @@ const Finance: React.FC = () => {
           companyDetails
         );
 
-        const txRef = doc(db, 'transactions', transaction.id);
-        await updateDoc(txRef, { documentUrl: url });
+        await updateDoc(doc(db, 'transactions', transaction.id), { documentUrl: url });
 
         toast.dismiss();
         toast.success('Document generated and uploaded');
@@ -283,35 +255,57 @@ const Finance: React.FC = () => {
     [vehicles, customers, user]
   );
 
-  const handleUpdateTransaction = useCallback(
-    async (updatedTransaction: Transaction) => {
-      try {
-        const txRef = doc(db, 'transactions', updatedTransaction.id!);
-        await updateDoc(txRef, {
-          ...updatedTransaction,
-          date:
-            updatedTransaction.date instanceof Date
-              ? Timestamp.fromDate(updatedTransaction.date)
-              : updatedTransaction.date,
-          createdAt:
-            updatedTransaction.createdAt instanceof Date
-              ? Timestamp.fromDate(updatedTransaction.createdAt)
-              : updatedTransaction.createdAt,
-        });
-        toast.success('Transaction updated successfully');
-        setShowEditModal(false);
-        setSelectedTransaction(null);
-      } catch (err) {
-        console.error('Error updating transaction:', err);
-        toast.error('Failed to update transaction');
-      }
-    },
-    []
-  );
+  // ── Generate POS-style receipt ──────────
+  const handlePrintReceipt = useCallback(
+  async (transaction: Transaction) => {
+    if (!user) {
+      toast.error('You must be logged in to generate a receipt.');
+      return;
+    }
+    try {
+      toast.loading('Generating receipt…');
+      const vehicle    = vehicles.find(v => v.id === transaction.vehicleId);
+      const customer   = transaction.customerId
+                         ? customers.find(c => c.id === transaction.customerId)
+                         : null;
+      const companyDetails = await getCompanyDetails();
+      if (!companyDetails) throw new Error('Company details not found');
 
+      // ———————— use the original ID here ————————
+      const url = await generateAndUploadDocument(
+        ReceiptDocument,
+        {
+          ...transaction,
+          vehicle,
+          customer: customer || { name: transaction.customerName },
+        },
+        'finance',
+        transaction.id,              // ← keep original doc ID
+        'transactions',
+        companyDetails
+      );
+
+      // now update the same doc, which definitely exists
+      const txRef = doc(db, 'transactions', transaction.id);
+      await updateDoc(txRef, { receiptUrl: url });
+
+      toast.dismiss();
+      toast.success('Receipt generated and uploaded');
+      window.open(url, '_blank');
+      return url;
+    } catch (err) {
+      console.error('Error generating receipt:', err);
+      toast.dismiss();
+      toast.error('Failed to generate receipt');
+    }
+  },
+  [vehicles, customers, user]
+);
+
+  // ── Export to Excel ─────────────────────
   const handleExport = useCallback(() => {
     try {
-      const data = memoizedFilteredTransactions.map((txn) => ({
+      const data = filteredTransactions.map((txn) => ({
         Date:
           txn.date instanceof Date
             ? txn.date.toLocaleDateString()
@@ -340,7 +334,7 @@ const Finance: React.FC = () => {
       console.error('Error exporting to Excel:', err);
       toast.error('Failed to export data to Excel.');
     }
-  }, [memoizedFilteredTransactions, vehicles, customers]);
+  }, [filteredTransactions, vehicles, customers]);
 
   if (loading) {
     return (
@@ -402,43 +396,31 @@ const Finance: React.FC = () => {
         selectedCustomerId={selectedCustomerId}
         onCustomerChange={setSelectedCustomerId}
         accountSummary={accountSummary}
-        /** ── Pass finance-specific category names ── **/
         categories={financeCategories.map((c) => c.name)}
         groupFilter={groupFilter}
         onGroupFilterChange={setGroupFilter}
-        groupOptions={groups.map(g => ({ id: g.id, name: g.name }))}
+        groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))}
       />
 
       {/* ── TABLE ── */}
       <TransactionTable
-        transactions={memoizedFilteredTransactions}
+        transactions={filteredTransactions}
         vehicles={vehicles}
         customers={customers}
         accounts={accounts}
         selectedCustomerId={selectedCustomerId}
         onCustomerChange={setSelectedCustomerId}
-        onView={(txn) => {
-          setSelectedTransaction(txn);
-          setShowDetailsModal(true);
-        }}
-        onEdit={(txn) => {
-          setSelectedTransaction(txn);
-          setShowEditModal(true);
-        }}
-        onDelete={(txn) => {
-          setSelectedTransaction(txn);
-          setShowDeleteModal(true);
-        }}
+        onView={(txn) => { setSelectedTransaction(txn); setShowDetailsModal(true); }}
+        onEdit={(txn) => { setSelectedTransaction(txn); setShowEditModal(true); }}
+        onDelete={(txn) => { setSelectedTransaction(txn); setShowDeleteModal(true); }}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={(url) => window.open(url, '_blank')}
-        onAssign={txn => { setAssignTxn(txn); setAssignOpen(true); }}
-        groups={groups.map(g => ({ id: g.id, name: g.name }))}
-        onAssignAccount={(txn) => {
-          setSelectedTransaction(txn);
-          setShowAccountModal(true);
-        }}
+        onPrintReceipt={handlePrintReceipt}
+        onAssign={(txn) => { setAssignTxn(txn); setAssignOpen(true); }}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        onAssignAccount={(txn) => { setSelectedTransaction(txn); setShowAccountModal(true); }}
       />
-      
+
       {/* ── ADD / EDIT TRANSACTION MODALS ── */}
       <Modal
         isOpen={showAddIncome || showAddExpense}
@@ -481,12 +463,11 @@ const Finance: React.FC = () => {
               setShowEditModal(false);
               setSelectedTransaction(null);
             }}
-            onUpdateTransaction={handleUpdateTransaction}
           />
         )}
       </Modal>
 
-      {/* ── OTHER MODALS ── */}
+      {/* ── DETAILS MODAL ── */}
       <Modal
         isOpen={showDetailsModal}
         onClose={() => {
@@ -509,11 +490,14 @@ const Finance: React.FC = () => {
           />
         )}
       </Modal>
+
+      {/* ── MANAGE GROUPS ── */}
       <ManageGroupsModal
         open={manageOpen}
         onClose={() => { setManageOpen(false); loadGroups(); }}
       />
 
+      {/* ── ASSIGN GROUP ── */}
       {assignTxn && (
         <AssignGroupModal
           open={assignOpen}
@@ -522,11 +506,12 @@ const Finance: React.FC = () => {
           onClose={() => setAssignOpen(false)}
           onAssigned={() => {
             setAssignOpen(false);
-            loadTransactions();
+            loadGroups();
           }}
         />
       )}
 
+      {/* ── DELETE MODAL ── */}
       <Modal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -547,6 +532,7 @@ const Finance: React.FC = () => {
         )}
       </Modal>
 
+      {/* ── MANAGE ACCOUNTS ── */}
       <Modal
         isOpen={showAccountModal}
         onClose={() => setShowAccountModal(false)}
@@ -559,6 +545,7 @@ const Finance: React.FC = () => {
         />
       </Modal>
 
+      {/* ── TRANSFER MONEY ── */}
       <Modal
         isOpen={showTransferModal}
         onClose={() => setShowTransferModal(false)}
@@ -571,7 +558,7 @@ const Finance: React.FC = () => {
         />
       </Modal>
 
-      {/* ── Manage Categories Modal ── */}
+      {/* ── MANAGE CATEGORIES ── */}
       <Modal
         isOpen={showCatModal}
         onClose={() => {
@@ -638,7 +625,6 @@ const Finance: React.FC = () => {
           )}
         </div>
       </Modal>
-      {/* ──────────────────────────────────────────────────────────────────── */}
     </div>
   );
 };

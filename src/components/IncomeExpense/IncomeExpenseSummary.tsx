@@ -1,45 +1,75 @@
+// src/components/IncomeExpense/IncomeExpenseSummary.tsx
 import React from 'react';
 import { IncomeExpenseEntry, ProfitShare } from '../../types/incomeExpense';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
+import { RolePermissions } from '../../types/roles';
+
 interface Props {
   entries?: IncomeExpenseEntry[];
   shares?: ProfitShare[];
   startDate?: string;
   endDate?: string;
+  permissionScope?: keyof RolePermissions;
 }
 
 export default function IncomeExpenseSummary({
   entries = [],
   shares = [],
   startDate,
-  endDate
+  endDate,
+  permissionScope = 'incomeExpense'
 }: Props) {
   const { formatCurrency } = useFormattedDisplay();
-
   const { can } = usePermissions();
-  
-    // Don't even render the cards if the user lacks the 'cards' permission
-    if (!can('finance', 'cards')) {
-      return null;
-    }
+  if (!can(permissionScope, 'cards')) return null;
 
-  const totalIncome = entries
+  // --- figure out which shares to show based on filter window ---
+  const displayShares =
+    startDate && endDate
+      ? shares.filter(
+          sp =>
+            new Date(sp.endDate) >= new Date(startDate) &&
+            new Date(sp.startDate) <= new Date(endDate)
+        )
+      : shares;
+
+  // --- find the last share up to the end of the filter (or overall) ---
+  const cutOffShares = endDate
+    ? shares.filter(sp => new Date(sp.endDate) <= new Date(endDate))
+    : shares;
+  const lastShare = cutOffShares.length
+    ? cutOffShares.reduce((a, b) =>
+        new Date(a.endDate) > new Date(b.endDate) ? a : b
+      )
+    : null;
+  const lastClearDate = lastShare?.endDate;
+
+  // --- only keep entries after that last clear date ---
+  const periodEntries = lastClearDate
+    ? entries.filter(e => new Date(e.date) > new Date(lastClearDate))
+    : entries;
+
+  // --- totals on the post-split slice ---
+  const totalIncome = periodEntries
     .filter(e => e.type === 'income')
-    .reduce((sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0), 0);
+    .reduce((sum, e) => sum + (e.total ?? 0), 0);
 
-
-    const totalExpense = entries
+  const totalExpense = periodEntries
     .filter(e => e.type === 'expense')
     .reduce((sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0), 0);
-  
 
-  const totalShared = shares
-    .reduce((sum, sp) => sum + sp.totalSplitAmount, 0);
+  // --- shared only for display (breakdown) ---
+  const totalShared = displayShares.reduce((sum, sp) => sum + sp.totalSplitAmount, 0);
 
-  const balance = totalIncome - totalExpense - totalShared;
+  // --- subtract shared only if filtering, otherwise leave it out ---
+  const effectiveShared = startDate && endDate ? totalShared : 0;
 
-  const breakdown = shares.reduce<Record<string, number>>((acc, sp) => {
+  // --- final balance, clamped ≥ 0 ---
+  const balance = Math.max(0, totalIncome - totalExpense - effectiveShared);
+
+  // breakdown per recipient (always shown in Shared card)
+  const breakdown = displayShares.reduce<Record<string, number>>((acc, sp) => {
     sp.recipients.forEach(rec => {
       acc[rec.name] = (acc[rec.name] || 0) + rec.amount;
     });
@@ -47,10 +77,10 @@ export default function IncomeExpenseSummary({
   }, {});
 
   const cards = [
-    { label: 'Income', amount: totalIncome, color: 'text-gray-900' },
-    { label: 'Expense', amount: totalExpense, color: 'text-red-600' },
-    { label: 'Shared', amount: totalShared, color: 'text-blue-600', isShared: true },
-    { label: 'Balance', amount: balance, color: 'text-green-600' }
+    { label: 'Income',  amount: totalIncome,     color: 'text-gray-900' },
+    { label: 'Expense', amount: totalExpense,    color: 'text-red-600' },
+    { label: 'Shared',  amount: totalShared,     color: 'text-blue-600', isShared: true },
+    { label: 'Balance', amount: balance,         color: 'text-green-600' }
   ] as const;
 
   return (
@@ -73,7 +103,8 @@ export default function IncomeExpenseSummary({
                 return (
                   <p key={name}>
                     <span className="font-medium">{name}</span>{' '}
-                    ({pct}%) = <span className="font-semibold">{formatCurrency(amt)}</span>
+                    ({pct}%) ={' '}
+                    <span className="font-semibold">{formatCurrency(amt)}</span>
                   </p>
                 );
               })}

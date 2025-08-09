@@ -1,3 +1,4 @@
+// src/hooks/useTodos.ts
 import { useState, useEffect } from 'react';
 import {
   collection,
@@ -14,19 +15,12 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-
-export interface TodoItem {
-  id: string;
-  text: string;
-  completed: boolean;
-  createdAt: Timestamp;
-}
+import { TodoItem, Priority } from '../types/todo';
 
 export function useTodos(targetUserId?: string) {
   const { user } = useAuth();
   const { isManager } = usePermissions();
 
-  // use `user.id` (your User type uses `id`, not `uid`)
   const ownerId = isManager && targetUserId
     ? targetUserId
     : user?.id;
@@ -48,19 +42,61 @@ export function useTodos(targetUserId?: string) {
     return unsubscribe;
   }, [ownerId]);
 
-  const addTodo = async (text: string) => {
+  const addTodo = async (
+    text: string,
+    options?: {
+      description?: string;
+      dueDate?: Date;
+      priority?: Priority;
+      tags?: string[];
+      category?: string;
+    }
+  ) => {
     if (!ownerId) return;
     await addDoc(
       collection(db, 'todos', ownerId, 'items'),
-      { text, completed: false, createdAt: serverTimestamp() }
+      {
+        text,
+        completed: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        description: options?.description || null,
+        dueDate: options?.dueDate ? Timestamp.fromDate(options.dueDate) : null,
+        priority: options?.priority || null,
+        tags: options?.tags || [],
+        category: options?.category || null
+      }
     );
+  };
+
+  const updateTodo = async (
+    todoId: string,
+    updates: Partial<{
+      text: string;
+      description: string;
+      dueDate: Date | null;
+      priority: Priority | null;
+      tags: string[];
+      category: string | null;
+    }>
+  ) => {
+    if (!ownerId) return;
+    const docRef = doc(db, 'todos', ownerId, 'items', todoId);
+    const payload: any = { updatedAt: serverTimestamp() };
+    if (updates.text !== undefined) payload.text = updates.text;
+    if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.dueDate !== undefined) payload.dueDate = updates.dueDate ? Timestamp.fromDate(updates.dueDate) : null;
+    if (updates.priority !== undefined) payload.priority = updates.priority;
+    if (updates.tags !== undefined) payload.tags = updates.tags;
+    if (updates.category !== undefined) payload.category = updates.category;
+    await updateDoc(docRef, payload);
   };
 
   const toggleTodo = async (todoId: string, completed: boolean) => {
     if (!ownerId) return;
     await updateDoc(
       doc(db, 'todos', ownerId, 'items', todoId),
-      { completed: !completed }
+      { completed: !completed, updatedAt: serverTimestamp() }
     );
   };
 
@@ -71,5 +107,5 @@ export function useTodos(targetUserId?: string) {
 
   const canEdit = ownerId === user?.id;
 
-  return { todos, addTodo, toggleTodo, removeTodo, canEdit };
+  return { todos, addTodo, updateTodo, toggleTodo, removeTodo, canEdit };
 }

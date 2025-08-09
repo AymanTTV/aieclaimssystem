@@ -1,23 +1,32 @@
+// src/components/pdf/documents/FinanceDocument.tsx
 import React from 'react';
-import { Document, Page, View, Text, StyleSheet, Image } from '@react-pdf/renderer';
-import { Transaction, Vehicle, Customer, Account } from '../../../types';
+import {
+  Document,
+  Page,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+} from '@react-pdf/renderer';
+import { Transaction, Vehicle } from '../../../types';
 import { format } from 'date-fns';
-import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict with local styles
+import { styles as globalStyles } from '../styles';
 
 interface FinanceDocumentProps {
-  data: Transaction | {
-    transactions: Transaction[];
-    summary: {
-      totalIncome: number;
-      totalExpenses: number;
-      netIncome: number;
-      profitMargin: number;
-    };
+  data:
+    | Transaction
+    | Transaction[]
+    | { transactions: Transaction[] };
+  vehicles?: Vehicle[];
+  companyDetails: {
+    logoUrl?: string;
+    fullName?: string;
+    phone?: string;
+    email?: string;
   };
-  companyDetails: any;
 }
 
-const localStyles = StyleSheet.create({ // Renamed 'styles' to 'localStyles' to avoid conflict
+const localStyles = StyleSheet.create({
   tableRow: {
     ...globalStyles.tableRow,
     minHeight: 24,
@@ -48,71 +57,24 @@ const localStyles = StyleSheet.create({ // Renamed 'styles' to 'localStyles' to 
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 5,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   summaryLabel: {
     ...globalStyles.text,
     fontSize: 10,
     color: '#4B5563',
+    flexBasis: '30%',
   },
   summaryValue: {
     ...globalStyles.text,
     fontSize: 10,
     fontWeight: 'bold',
+    flexBasis: '65%',
+    flexWrap: 'wrap',
   },
-  positiveValue: {
-    color: '#10B981', // green
-  },
-  negativeValue: {
-    color: '#EF4444', // red
-  },
-  neutralValue: {
-    color: '#3B82F6', // blue
-  },
-  vehicleInfo: {
-    ...globalStyles.text,
-    fontSize: 9,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  customerInfo: {
-    ...globalStyles.text,
-    fontSize: 9,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  // These header/footer styles from the original document are replaced by globalStyles
-  // headerContainer: {
-  //   flexDirection: 'row',
-  //   marginBottom: 20,
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: '#E5E7EB',
-  //   paddingBottom: 10,
-  // },
-  // logoContainer: {
-  //   width: '30%',
-  // },
-  // logo: {
-  //   width: 100,
-  //   height: 50,
-  //   objectFit: 'contain',
-  // },
-  // companyDetails: {
-  //   width: '70%',
-  //   textAlign: 'right',
-  // },
-  // companyName: {
-  //   fontSize: 14,
-  //   fontWeight: 'bold',
-  //   marginBottom: 4,
-  // },
-  // companyAddress: {
-  //   fontSize: 9,
-  //   color: '#4B5563',
-  // },
-  // companyContact: {
-  //   fontSize: 9,
-  //   color: '#4B5563',
-  // },
+  positive: { color: '#10B981' },
+  negative: { color: '#EF4444' },
   transactionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -120,319 +82,434 @@ const localStyles = StyleSheet.create({ // Renamed 'styles' to 'localStyles' to 
     color: '#111827',
     textAlign: 'center',
   },
-  // These footer styles from the original document are replaced by globalStyles
-  // customFooter: {
-  //   position: 'absolute',
-  //   bottom: 30,
-  //   left: 0,
-  //   right: 0,
-  //   textAlign: 'center',
-  //   paddingHorizontal: 40,
-  // },
-  // footerText: {
-  //   fontSize: 8,
-  //   color: '#6B7280',
-  //   textAlign: 'center',
-  // },
 });
 
-const FinanceDocument: React.FC<FinanceDocumentProps> = ({ data, companyDetails }) => {
-  const formatCurrency = (amount: number) => {
-    return `£${amount.toFixed(2)}`;
-  };
+const FinanceDocument: React.FC<FinanceDocumentProps> = ({
+  data,
+  vehicles = [],
+  companyDetails,
+}) => {
+  // normalize transactions array
+  let transactions: Transaction[];
+  if (Array.isArray(data)) {
+    transactions = data;
+  } else if ('transactions' in data) {
+    transactions = data.transactions;
+  } else {
+    transactions = [data as Transaction];
+  }
 
-  const formatDate = (date: Date) => {
-    return format(date, 'dd/MM/yyyy');
-  };
+  // summary calculations for bulk
+  const totalIncome = transactions
+    .filter((tx) => tx.type === 'income')
+    .reduce((sum, tx) => sum + (tx.amount ?? 0), 0);
+  const totalExpenses = transactions
+    .filter((tx) => tx.type === 'expense')
+    .reduce((sum, tx) => sum + (tx.amount ?? 0), 0);
+  const netIncome = totalIncome - totalExpenses;
+  const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
 
-  // Check if data is a single transaction or a collection
-  const isSingleTransaction = !('transactions' in data);
+  const formatCurrency = (amt: number) => `£${amt.toFixed(2)}`;
+  const formatDate = (d?: Date | string) =>
+    d ? format(new Date(d), 'dd/MM/yyyy') : 'N/A';
 
-  // For single transaction
-  const transaction = isSingleTransaction ? data as Transaction : null;
-
-  // For multiple transactions
-  const { transactions, summary } = isSingleTransaction
-    ? { transactions: [data as Transaction], summary: null }
-    : data as { transactions: Transaction[], summary: any };
-
-  // Function to get customer display
-  const getCustomerDisplay = (transaction: Transaction): string => {
-    // First check for manually entered customer name
-    if (transaction.customerName) {
-      return transaction.customerName;
+  // lookup registration
+  const getReg = (tx: Transaction) => {
+    if (tx.vehicleId) {
+      const v = vehicles.find((v) => v.id === tx.vehicleId);
+      return v?.registrationNumber || tx.vehicleName || 'N/A';
     }
-
-    // If no customer information is available
-    return 'N/A';
+    return tx.vehicleName || 'N/A';
   };
 
-  // Function to get vehicle display
-  const getVehicleDisplay = (transaction: Transaction): string => {
-    // First check for vehicle name (make + model)
-    if (transaction.vehicleName) {
-      return transaction.vehicleName;
-    }
-
-    // If no vehicle information is available
-    return 'N/A';
-  };
-
-  // Derive header details from companyDetails, splitting the address
-  const headerDetails = {
-    logoUrl: companyDetails?.logoUrl || '',
-    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
-    addressLine1: 'United House, 39-41 North Road,',
-    addressLine2: 'London, N7 9DP.',
-    phone: companyDetails?.phone || 'N/A',
-    email: companyDetails?.email || 'N/A',
-  };
-
-  // Function to render a page of transactions for bulk document
-  const renderTransactionsPage = (pageTransactions: Transaction[], pageNumber: number, totalPages: number) => (
-    <Page size="A4" style={globalStyles.page} key={`page-${pageNumber}`}>
-      {/* Header with Logo and Company Details - FIXED */}
-      <View style={globalStyles.header} fixed>
-        <View style={globalStyles.headerLeft}>
-          {headerDetails.logoUrl && (
-            <Image src={headerDetails.logoUrl} style={globalStyles.logo} />
-          )}
-        </View>
-        <View style={globalStyles.headerRight}>
-          <Text style={globalStyles.companyName}>{headerDetails.fullName}</Text>
-          <Text style={globalStyles.companyDetail}>{headerDetails.addressLine1}</Text>
-          <Text style={globalStyles.companyDetail}>{headerDetails.addressLine2}</Text>
-          <Text style={globalStyles.companyDetail}>Tel: {headerDetails.phone}</Text>
-          <Text style={globalStyles.companyDetail}>Email: {headerDetails.email}</Text>
-        </View>
+  const Header = () => (
+    <View style={globalStyles.header} fixed>
+      <View style={globalStyles.headerLeft}>
+        {companyDetails.logoUrl && (
+          <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
+        )}
       </View>
+      <View style={globalStyles.headerRight}>
+        <Text style={globalStyles.companyName}>
+          {companyDetails.fullName || 'AIE Skyline Limited'}
+        </Text>
+        <Text style={globalStyles.companyDetail}>
+          United House, 39-41 North Road,
+        </Text>
+        <Text style={globalStyles.companyDetail}>London, N7 9DP</Text>
+        <Text style={globalStyles.companyDetail}>
+          Tel: {companyDetails.phone || 'N/A'}
+        </Text>
+        <Text style={globalStyles.companyDetail}>
+          Email: {companyDetails.email || 'N/A'}
+        </Text>
+      </View>
+    </View>
+  );
 
-      {/* Title */}
-      <Text style={localStyles.transactionTitle}>Financial Report</Text>
+  // single-transaction page
+  const renderSingle = () => {
+    const tx = transactions[0];
+    return (
+      <Page size="A4" style={globalStyles.page}>
+        <Header />
+        <Text style={localStyles.transactionTitle}>
+          Transaction Details
+        </Text>
 
-      {/* Summary Card - Only on first page */}
-      {pageNumber === 1 && summary && (
         <View style={localStyles.summaryCard}>
           <View style={localStyles.summaryRow}>
-            <Text style={localStyles.summaryLabel}>Total Income:</Text>
-            <Text style={{...localStyles.summaryValue, ...localStyles.positiveValue}}>
-              {formatCurrency(summary.totalIncome ?? 0)}
+            <Text style={localStyles.summaryLabel}>Customer:</Text>
+            <Text style={localStyles.summaryValue}>
+              {tx.customerName || 'N/A'}
             </Text>
           </View>
-
           <View style={localStyles.summaryRow}>
-            <Text style={localStyles.summaryLabel}>Total Expenses:</Text>
-            <Text style={{...localStyles.summaryValue, ...localStyles.negativeValue}}>
-              {formatCurrency(summary.totalExpenses ?? 0)}
+            <Text style={localStyles.summaryLabel}>Vehicle Reg:</Text>
+            <Text style={localStyles.summaryValue}>
+              {getReg(tx)}
             </Text>
           </View>
-
           <View style={localStyles.summaryRow}>
-            <Text style={localStyles.summaryLabel}>Net Income:</Text>
-            <Text style={{
-              ...localStyles.summaryValue,
-              ...(summary.netIncome >= 0 ? localStyles.positiveValue : localStyles.negativeValue)
-            }}>
-              {formatCurrency(summary.netIncome ?? 0)}
+            <Text style={localStyles.summaryLabel}>Category:</Text>
+            <Text style={localStyles.summaryValue}>
+              {tx.category}
             </Text>
           </View>
+          <View style={localStyles.summaryRow}>
+            <Text style={localStyles.summaryLabel}>Date:</Text>
+            <Text style={localStyles.summaryValue}>
+              {formatDate(tx.date)}
+            </Text>
+          </View>
+          {/* Description row restored to original two-column layout */}
+          <View style={localStyles.summaryRow}>
+            <Text style={localStyles.summaryLabel}>Description:</Text>
+            <Text style={localStyles.summaryValue}>
+              {tx.description || 'N/A'}
+            </Text>
+          </View>
+        </View>
 
+        <View style={globalStyles.section}>
+          <View
+            style={{
+              ...localStyles.tableRow,
+              ...localStyles.tableHeader,
+            }}
+          >
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '40%',
+              }}
+            >
+              Amount
+            </Text>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '30%',
+              }}
+            >
+              Method
+            </Text>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '30%',
+              }}
+            >
+              Status
+            </Text>
+          </View>
+          <View style={localStyles.tableRow}>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '40%',
+                color:
+                  tx.type === 'income'
+                    ? localStyles.positive.color
+                    : localStyles.negative.color,
+                fontWeight: 'bold',
+              }}
+            >
+              {formatCurrency(tx.amount ?? 0)}
+            </Text>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '30%',
+              }}
+            >
+              {tx.paymentMethod
+                ?.replace('_', ' ')
+                .toUpperCase() || 'N/A'}
+            </Text>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '30%',
+              }}
+            >
+              {tx.paymentStatus
+                ?.replace('_', ' ')
+                .toUpperCase() || 'N/A'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={globalStyles.footer} fixed>
+          <Text style={globalStyles.footerText}>
+            AIE SKYLINE LIMITED, reg. in England & Wales no.
+            15616639, United House, 39-41 North Road, London
+            N7 9DP. VAT 453448875
+          </Text>
+          <Text
+            style={globalStyles.pageNumber}
+            render={({ pageNumber, totalPages }) =>
+              `Page ${pageNumber} of ${totalPages}`
+            }
+          />
+        </View>
+      </Page>
+    );
+  };
+
+  // bulk pages renderer
+  const renderTransactionsPage = (
+    pageTxs: Transaction[],
+    pageNum: number,
+    totalPages: number
+  ) => (
+    <Page size="A4" style={globalStyles.page} key={pageNum}>
+      <Header />
+      <Text style={localStyles.transactionTitle}>
+        Financial Report
+      </Text>
+
+      {pageNum === 1 && (
+        <View style={localStyles.summaryCard}>
+          <View style={localStyles.summaryRow}>
+            <Text style={localStyles.summaryLabel}>
+              Total Income:
+            </Text>
+            <Text
+              style={{
+                ...localStyles.summaryValue,
+                ...localStyles.positive,
+              }}
+            >
+              {formatCurrency(totalIncome)}
+            </Text>
+          </View>
+          <View style={localStyles.summaryRow}>
+            <Text style={localStyles.summaryLabel}>
+              Total Expenses:
+            </Text>
+            <Text
+              style={{
+                ...localStyles.summaryValue,
+                ...localStyles.negative,
+              }}
+            >
+              {formatCurrency(totalExpenses)}
+            </Text>
+          </View>
+          <View style={localStyles.summaryRow}>
+            <Text style={localStyles.summaryLabel}>
+              Net Income:
+            </Text>
+            <Text
+              style={{
+                ...localStyles.summaryValue,
+                ...(netIncome >= 0
+                  ? localStyles.positive
+                  : localStyles.negative),
+              }}
+            >
+              {formatCurrency(netIncome)}
+            </Text>
+          </View>
           <View style={localStyles.summaryRow}>
             <Text style={localStyles.summaryLabel}>
               Profit Margin:
             </Text>
-            <Text style={{
-              ...localStyles.summaryValue,
-              ...(typeof summary?.profitMargin === 'number' && summary.profitMargin >= 0
-                ? localStyles.positiveValue
-                : localStyles.negativeValue)
-            }}>
-              {typeof summary?.profitMargin === 'number'
-                ? `${summary.profitMargin.toFixed(1)}%`
-                : '0.0%'}
+            <Text
+              style={{
+                ...localStyles.summaryValue,
+                ...(profitMargin >= 0
+                  ? localStyles.positive
+                  : localStyles.negative),
+              }}
+            >
+              {profitMargin.toFixed(1)}%
             </Text>
           </View>
         </View>
       )}
 
-      {/* Transactions Table */}
-      <View style={{...globalStyles.section, breakInside: 'avoid'}}>
-        <Text style={globalStyles.sectionTitle}>Transaction Details</Text>
-
-        {/* Table Header */}
-        <View style={{...localStyles.tableRow, ...localStyles.tableHeader}}>
-          <Text style={{...localStyles.tableCell, width: '12%'}}>Type</Text>
-          <Text style={{...localStyles.tableCell, width: '18%'}}>Category</Text>
-          <Text style={{...localStyles.tableCell, width: '18%'}}>Customer</Text>
-          <Text style={{...localStyles.tableCell, width: '15%'}}>Vehicle</Text>
-          <Text style={{...localStyles.tableCell, width: '12%', textAlign: 'right'}}>Amount</Text>
-          <Text style={{...localStyles.tableCell, width: '12%'}}>Status</Text>
-          <Text style={{...localStyles.tableCell, width: '13%'}}>Date</Text>
-        </View>
-
-        {/* Table Rows */}
-        {pageTransactions.map((tx, index) => (
-          <View key={index} style={{...localStyles.tableRow, breakInside: 'avoid'}}>
-            <Text style={{...localStyles.tableCell, width: '12%', textTransform: 'capitalize'}}>{tx.type}</Text>
-            <Text style={{...localStyles.tableCell, width: '18%'}}>{tx.category}</Text>
-            <Text style={{...localStyles.tableCell, width: '18%'}}>{getCustomerDisplay(tx)}</Text>
-            <Text style={{...localStyles.tableCell, width: '15%'}}>{getVehicleDisplay(tx)}</Text>
-            <Text style={{
+      <View
+        style={{ ...globalStyles.section, breakInside: 'avoid' }}
+      >
+        <Text style={globalStyles.sectionTitle}>
+          Transaction Details
+        </Text>
+        <View
+          style={{
+            ...localStyles.tableRow,
+            ...localStyles.tableHeader,
+          }}
+        >
+          <Text
+            style={{ ...localStyles.tableCell, width: '12%' }}
+          >
+            Type
+          </Text>
+          <Text
+            style={{ ...localStyles.tableCell, width: '18%' }}
+          >
+            Category
+          </Text>
+          <Text
+            style={{ ...localStyles.tableCell, width: '18%' }}
+          >
+            Customer
+          </Text>
+          <Text
+            style={{ ...localStyles.tableCell, width: '15%' }}
+          >
+            Reg No.
+          </Text>
+          <Text
+            style={{
               ...localStyles.tableCell,
               width: '12%',
               textAlign: 'right',
-              color: tx.type === 'income' ? '#10B981' : '#EF4444'
-            }}>
-              {formatCurrency(tx.amount)}
+            }}
+          >
+            Amount
+          </Text>
+          <Text
+            style={{ ...localStyles.tableCell, width: '12%' }}
+          >
+            Status
+          </Text>
+          <Text
+            style={{ ...localStyles.tableCell, width: '13%' }}
+          >
+            Date
+          </Text>
+        </View>
+
+        {pageTxs.map((tx, i) => (
+          <View
+            key={i}
+            style={{ ...localStyles.tableRow, breakInside: 'avoid' }}
+          >
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '12%',
+                textTransform: 'capitalize',
+              }}
+            >
+              {tx.type}
             </Text>
-            <Text style={{...localStyles.tableCell, width: '12%'}}>{tx.paymentStatus?.replace('_', ' ') || 'N/A'}</Text>
-            <Text style={{...localStyles.tableCell, width: '13%'}}>{formatDate(tx.date)}</Text>
+            <Text
+              style={{ ...localStyles.tableCell, width: '18%' }}
+            >
+              {tx.category}
+            </Text>
+            <Text
+              style={{ ...localStyles.tableCell, width: '18%' }}
+            >
+              {tx.customerName || 'N/A'}
+            </Text>
+            <Text
+              style={{ ...localStyles.tableCell, width: '15%' }}
+            >
+              {getReg(tx)}
+            </Text>
+            <Text
+              style={{
+                ...localStyles.tableCell,
+                width: '12%',
+                textAlign: 'right',
+                color:
+                  tx.type === 'income'
+                    ? localStyles.positive.color
+                    : localStyles.negative.color,
+              }}
+            >
+              {formatCurrency(tx.amount ?? 0)}
+            </Text>
+            <Text
+              style={{ ...localStyles.tableCell, width: '12%' }}
+            >
+              {tx.paymentStatus
+                ?.replace('_', ' ')
+                .toUpperCase() || 'N/A'}
+            </Text>
+            <Text
+              style={{ ...localStyles.tableCell, width: '13%' }}
+            >
+              {formatDate(tx.date)}
+            </Text>
           </View>
         ))}
       </View>
 
-      {/* Footer - Updated to consistent design */}
       <View style={globalStyles.footer} fixed>
         <Text style={globalStyles.footerText}>
-          AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          AIE SKYLINE LIMITED, reg. in England & Wales no.
+          15616639, United House, 39-41 North Road, London N7 9DP.
+          VAT 453448875
         </Text>
         <Text
           style={globalStyles.pageNumber}
-          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          render={({ pageNumber, totalPages }) =>
+            `Page ${pageNumber} of ${totalPages}`
+          }
         />
       </View>
     </Page>
   );
 
-  // For single transaction document
-  const renderSingleTransactionDocument = () => (
-    <Page size="A4" style={globalStyles.page}>
-      {/* Header with Logo and Company Details - Updated to consistent design */}
-      <View style={globalStyles.header}>
-        <View style={globalStyles.headerLeft}>
-          {headerDetails.logoUrl && (
-            <Image src={headerDetails.logoUrl} style={globalStyles.logo} />
-          )}
-        </View>
-        <View style={globalStyles.headerRight}>
-          <Text style={globalStyles.companyName}>{headerDetails.fullName}</Text>
-          <Text style={globalStyles.companyDetail}>{headerDetails.addressLine1}</Text>
-          <Text style={globalStyles.companyDetail}>{headerDetails.addressLine2}</Text>
-          <Text style={globalStyles.companyDetail}>Tel: {headerDetails.phone}</Text>
-          <Text style={globalStyles.companyDetail}>Email: {headerDetails.email}</Text>
-        </View>
-      </View>
+  // paginate: 4 on first, then 5 per
+  const renderBulk = () => {
+    const firstCount = 4;
+    const perPage = 4;
+    const pages: React.ReactNode[] = [];
+    let rem = [...transactions];
 
-      {/* Transaction Type Title */}
-      <Text style={localStyles.transactionTitle}>
-        Transaction Type: {transaction?.type.charAt(0).toUpperCase() + transaction?.type.slice(1)}
-      </Text>
+    // first page
+    pages.push(
+      renderTransactionsPage(
+        rem.slice(0, firstCount),
+        1,
+        Math.ceil((transactions.length - firstCount) / perPage) + 1
+      )
+    );
+    rem = rem.slice(firstCount);
 
-      {/* Transaction Details Card */}
-      <View style={localStyles.summaryCard}>
-        <Text style={{...globalStyles.sectionTitle, marginBottom: 10}}>Transaction Details</Text>
-
-        <View style={localStyles.summaryRow}>
-          <Text style={localStyles.summaryLabel}>Customer:</Text>
-          <Text style={localStyles.summaryValue}>{getCustomerDisplay(transaction as Transaction)}</Text>
-        </View>
-
-        <View style={localStyles.summaryRow}>
-          <Text style={localStyles.summaryLabel}>Vehicle:</Text>
-          <Text style={localStyles.summaryValue}>{getVehicleDisplay(transaction as Transaction)}</Text>
-        </View>
-
-        <View style={localStyles.summaryRow}>
-          <Text style={localStyles.summaryLabel}>Transaction Category:</Text>
-          <Text style={localStyles.summaryValue}>{transaction?.category}</Text>
-        </View>
-
-        <View style={localStyles.summaryRow}>
-          <Text style={localStyles.summaryLabel}>Date:</Text>
-          <Text style={localStyles.summaryValue}>{formatDate(transaction?.date)}</Text>
-        </View>
-
-        <View style={localStyles.summaryRow}>
-          <Text style={localStyles.summaryLabel}>Description:</Text>
-          <Text style={localStyles.summaryValue}>{transaction?.description}</Text>
-        </View>
-      </View>
-
-      {/* Transaction Amount Table */}
-      <View style={globalStyles.section}>
-        <View style={{...localStyles.tableRow, ...localStyles.tableHeader}}>
-          <Text style={{...localStyles.tableCell, width: '40%'}}>Amount</Text>
-          <Text style={{...localStyles.tableCell, width: '30%'}}>Payment Method</Text>
-          <Text style={{...localStyles.tableCell, width: '30%'}}>Payment Status</Text>
-        </View>
-
-        <View style={localStyles.tableRow}>
-          <Text style={{
-            ...localStyles.tableCell,
-            width: '40%',
-            color: transaction?.type === 'income' ? '#10B981' : '#EF4444',
-            fontWeight: 'bold'
-          }}>
-            {formatCurrency(transaction?.amount)}
-          </Text>
-          <Text style={{...localStyles.tableCell, width: '30%'}}>
-            {transaction?.paymentMethod?.replace('_', ' ') || 'N/A'}
-          </Text>
-          <Text style={{...localStyles.tableCell, width: '30%'}}>
-            {transaction?.paymentStatus?.replace('_', ' ') || 'N/A'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Footer - Updated to consistent design */}
-      <View style={globalStyles.footer} fixed>
-        <Text style={globalStyles.footerText}>
-          AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-        </Text>
-        <Text
-          style={globalStyles.pageNumber}
-          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-        />
-      </View>
-    </Page>
-  );
-
-  // For bulk document, split transactions into pages
-  const renderBulkDocument = () => {
-    const recordsPerPage = 6; // 6 records per page after the first page (changed from 7)
-    const firstPageRecords = 4; // 4 records on the first page due to summary card (changed from 5)
-
-    const pages = [];
-    let remainingTransactions = [...transactions];
-
-    // First page with summary
-    const firstPageTransactions = remainingTransactions.slice(0, firstPageRecords);
-    remainingTransactions = remainingTransactions.slice(firstPageRecords);
-
-    // Calculate total pages
-    const totalPages = Math.ceil(
-      (transactions.length - firstPageRecords) / recordsPerPage
-    ) + 1;
-
-    // Add first page
-    pages.push(renderTransactionsPage(firstPageTransactions, 1, totalPages));
-
-    // Add remaining pages
-    let pageNumber = 2;
-    while (remainingTransactions.length > 0) {
-      const pageTransactions = remainingTransactions.slice(0, recordsPerPage);
-      remainingTransactions = remainingTransactions.slice(recordsPerPage);
-
-      pages.push(renderTransactionsPage(pageTransactions, pageNumber, totalPages));
-      pageNumber++;
+    // subsequent pages
+    let pageNo = 2;
+    const totalPages =
+      Math.ceil((transactions.length - firstCount) / perPage) + 1;
+    while (rem.length) {
+      const batch = rem.slice(0, perPage);
+      rem = rem.slice(perPage);
+      pages.push(renderTransactionsPage(batch, pageNo, totalPages));
+      pageNo++;
     }
-
     return pages;
   };
 
   return (
     <Document>
-      {isSingleTransaction ? renderSingleTransactionDocument() : renderBulkDocument()}
+      {transactions.length === 1 ? renderSingle() : renderBulk()}
     </Document>
   );
 };

@@ -32,6 +32,7 @@ export interface Vehicle {
   status: VehicleStatus;
   activeStatuses: VehicleStatus[];
   mileage: number;
+  nextServiceMileage: number;
   insuranceExpiry: Date;
   motTestDate: Date; // Changed from motExpiry to motTestDate
   motExpiry: Date; // This will be calculated as 6 months after motTestDate

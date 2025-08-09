@@ -1,11 +1,11 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText } from 'lucide-react';
+import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle } from 'lucide-react'; // Added Wrench and AlertTriangle
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { isExpiringOrExpired } from '../../utils/vehicleUtils';
+import { isExpiringOrExpired, isServiceOverdue, isServiceDueSoon } from '../../utils/vehicleUtils'; // Import new utility functions
 import { addDays } from 'date-fns';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
@@ -21,6 +21,7 @@ interface VehicleTableProps {
   onUndoSale: (vehicle: Vehicle) => void;
   onGenerateDocument: (vehicle: Vehicle) => Promise<void>;
   onViewDocument: (url: string) => void;
+  onSetServiceMileage: (vehicle: Vehicle) => void;
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -31,6 +32,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onMarkAsSold,
   onUndoSale,
   onGenerateDocument,
+  onSetServiceMileage,
   onViewDocument
 }) => {
   const { can } = usePermissions();
@@ -53,6 +55,14 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       if (vehicle.insuranceExpiry < now) count += 10;
       if (vehicle.nslExpiry < now) count += 10;
       if (vehicle.roadTaxExpiry < now) count += 10;
+      // Add service mileage to sorting priority
+      // Ensure mileage is a number before checking service status
+      const aMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
+      const aNextServiceMileage = typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : aMileage + 25000; // Use the calculated value if not present
+
+      if (aMileage >= aNextServiceMileage) count += 15; // Higher priority for overdue service
+      if (aMileage < aNextServiceMileage && (aNextServiceMileage - aMileage <= 1000)) count += 7; // Medium priority for due soon service
+
 
       if (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) count += 5;
       if (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) count += 5;
@@ -69,6 +79,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       return bCount - aCount;
     }
 
+    // Fallback to earliest expiry date for documents if counts are equal
     const aEarliestExpiry = Math.min(
       new Date(a.motExpiry).getTime(),
       new Date(a.insuranceExpiry).getTime(),
@@ -190,14 +201,55 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       },
     },
     {
-      header: 'Mileage',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <div>Current: {row.original.mileage.toLocaleString()} Mi</div>
-          <div>Next Service: {(row.original.mileage + 25000).toLocaleString()} Mi</div>
+  header: 'Mileage',
+  cell: ({ row }) => {
+    const vehicle = row.original;
+    const currentMileage =
+      typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
+
+    // use the stored nextServiceMileage, falling back to current + 25000 if undefined
+    const nextServiceMileageStored =
+      typeof vehicle.nextServiceMileage === 'number'
+        ? vehicle.nextServiceMileage
+        : currentMileage + 25000;
+
+    const milesToNext = nextServiceMileageStored - currentMileage;
+
+    return (
+      <div className="space-y-1">
+        <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>
+          Current: {currentMileage.toLocaleString()} Mi
         </div>
-      ),
-    },
+        <div
+          className={
+            isServiceOverdue(vehicle)
+              ? 'text-red-600 font-medium flex items-center'
+              : isServiceDueSoon(vehicle)
+              ? 'text-yellow-600 font-medium flex items-center'
+              : 'flex items-center'
+          }
+        >
+          Next Service: {nextServiceMileageStored.toLocaleString()} Mi
+          {isServiceOverdue(vehicle) && (
+            <AlertTriangle
+              className="h-4 w-4 ml-1 text-red-600"
+              title="Service Overdue!"
+            />
+          )}
+          {!isServiceOverdue(vehicle) && isServiceDueSoon(vehicle) && (
+            <Wrench
+              className="h-4 w-4 ml-1 text-yellow-600"
+              title="Service Due Soon!"
+            />
+          )}
+        </div>
+        <div className="text-xs text-gray-500">
+          Remaining: {milesToNext.toLocaleString()} Mi
+        </div>
+      </div>
+    );
+  },
+},
     {
   header: 'Actions',
   cell: ({ row }) => (
@@ -238,6 +290,18 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           </button>
         </>
       )}
+      {can('vehicles', 'mileage') && (
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              onSetServiceMileage(row.original);
+            }}
+            className="text-gray-600 hover:text-gray-800"
+            title="Set Next Service"
+          >
+            <Wrench className="h-4 w-4" />
+          </button>
+        )}
       {can('vehicles', 'update') && row.original.status === 'sold' && (
         <button
           onClick={(e) => {
@@ -304,6 +368,17 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         const now = new Date();
         const thirtyDays = addDays(now, 30);
 
+        // High priority for overdue service
+        if (isServiceOverdue(vehicle)) {
+          return 'bg-red-100'; // Lighter red for service overdue
+        }
+
+        // Medium priority for service due soon
+        if (isServiceDueSoon(vehicle)) {
+          return 'bg-yellow-100'; // Lighter yellow for service due soon
+        }
+
+        // Existing document expiry highlighting
         if (
           vehicle.motExpiry < now ||
           vehicle.insuranceExpiry < now ||

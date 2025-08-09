@@ -217,6 +217,14 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
 
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.cardTitle}>Payment Summary</Text>
+            {data.totalDiscount! > 0 && (
+      <View style={styles.spaceBetweenRow}>
+        <Text style={styles.label}>Total Discount:</Text>
+        <Text style={[styles.value, { textAlign: 'right' }]}>
+          £{data.totalDiscount!.toFixed(2)}
+        </Text>
+      </View>
+    )}
             <View style={styles.spaceBetweenRow}>
               <Text style={styles.label}>Total NET:</Text>
               <Text style={[styles.value, { textAlign: 'right' }]}>£{documentTotals.netAmount.toFixed(2)}</Text>

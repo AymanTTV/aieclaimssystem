@@ -12,12 +12,14 @@ import toast from 'react-hot-toast';
 interface InvoicePaymentModalProps {
   invoice: Invoice;
   vehicle?: Vehicle;
+  customers: Customer[];
   onClose: () => void;
 }
 
 const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
   invoice,
   vehicle,
+  customers,
   onClose
 }) => {
   const { user } = useAuth();
@@ -76,18 +78,28 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
       });
 
       // Create finance transaction
+      const paymentCustomer = customers.find(c => c.id === invoice.customerId);
+      const vehicleOwner = vehicle?.owner
+  ? {
+      name: vehicle.owner.name,
+      isDefault: vehicle.owner.isDefault ?? false,
+    }
+  : undefined;
       await createFinanceTransaction({
         type: 'income',
         category: invoice.category,
         amount: paymentAmount,
-        description: `Partial payment for invoice #${invoice.id.slice(-8).toUpperCase()}`,
+        description: formData.notes,
         referenceId: invoice.id,
         vehicleId: invoice.vehicleId,
         vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+        vehicleOwner,          // ← new
+        customerId: invoice.customerId,
+        customerName: paymentCustomer?.name,
         paymentMethod: formData.method,
         paymentReference: formData.reference,
         paymentStatus: newPaymentStatus,
-        status: newPaymentStatus // ✅ add this
+        status: newPaymentStatus 
       });
 
       toast.success('Payment recorded successfully');

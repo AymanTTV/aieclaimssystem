@@ -171,47 +171,63 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         </div>
 
         {log.attachments?.length > 0 && (
-  <div className="mt-6">
-    <h3 className="text-lg font-medium text-gray-900 mb-2">Attachments</h3>
-    <div className="grid grid-cols-2 gap-4">
-      {log.attachments.map((att, i) => (
-        <a
-          key={i}
-          href={att.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50"
-        >
-          {att.type.startsWith('image/') ? (
-            <img src={att.url} alt={att.name} className="h-12 w-12 object-cover rounded" />
-          ) : (
-            <FileText className="h-6 w-6 text-gray-500" />
-          )}
-          <span className="text-sm truncate">{att.name}</span>
-        </a>
-      ))}
-    </div>
-  </div>
-)}
+      <section className="mt-4">
+        <h3 className="font-semibold mb-2">Attachments</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {log.attachments.map((att, idx) => (
+            <a
+              key={idx}
+              href={att.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block border rounded p-2 hover:bg-gray-50"
+            >
+              {att.type.startsWith('image/') ? (
+                <img src={att.url} alt={att.name} className="w-full h-32 object-cover rounded" />
+              ) : (
+                <div className="flex flex-col items-center">
+                  <FileText className="h-6 w-6 text-gray-600" />
+                  <span className="mt-1 text-sm truncate">{att.name}</span>
+                </div>
+              )}
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
 
 
         {/* Payment Summary */}
         <div className="border-t pt-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Total Amount:</span>
-            <span className="font-medium">{formatCurrency(log.cost)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Amount Paid:</span>
-            <span className="text-green-600">{formatCurrency(log.paidAmount || 0)}</span>
-          </div>
-          {log.remainingAmount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span>Remaining Amount:</span>
-              <span className="text-amber-600">{formatCurrency(log.remainingAmount)}</span>
-            </div>
-          )}
-        </div>
+  <div className="flex justify-between text-sm font-medium">
+    <span>NET:</span>
+    <span>{formatCurrency(log.netAmount!)}</span>
+  </div>
+  <div className="flex justify-between text-sm">
+    <span>VAT:</span>
+    <span>{formatCurrency(log.vatAmount!)}</span>
+  </div>
+  {log.totalDiscount! > 0 && (
+    <div className="flex justify-between text-sm text-red-600">
+      <span>Discount:</span>
+      <span>–{formatCurrency(log.totalDiscount!)}</span>
+    </div>
+  )}
+  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+    <span>Total:</span>
+    <span>{formatCurrency(log.cost)}</span>
+  </div>
+  <div className="flex justify-between text-sm text-green-600">
+    <span>Paid:</span>
+    <span>{formatCurrency(log.paidAmount || 0)}</span>
+  </div>
+  <div className="flex justify-between text-sm text-amber-600">
+    <span>Owing:</span>
+    <span>{formatCurrency(log.remainingAmount)}</span>
+  </div>
+</div>
+
+
       </div>
 
       

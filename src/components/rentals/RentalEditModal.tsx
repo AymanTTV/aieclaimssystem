@@ -574,8 +574,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         date: new Date(),
         amount: newPayment,
         method: formData.paymentMethod,
-        reference: formData.paymentReference || undefined,
-        notes: formData.paymentNotes || undefined,
+        ...(formData.paymentReference && { reference: formData.paymentReference }),
+    ...(formData.paymentNotes     && { notes:     formData.paymentNotes     }),
         createdAt: new Date(),
         createdBy: user.id,
       });
@@ -721,23 +721,37 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         toast.error("Rental updated, but failed to regenerate documents.");
       }
     }, 0);
-
+    const initialPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+    submitRemainingAmount <= 0.001
+      ? 'paid'
+      : (updatedTotalPaid || 0) > 0
+        ? 'partially_paid'
+        : 'unpaid';
     // 3) If a new payment was added, record it in the background:
     if (newPayment > 0) {
       setTimeout(async () => {
         try {
+          const vehicleOwner = selectedVehicle?.owner
+  ? {
+      name: selectedVehicle.owner.name,
+      isDefault: selectedVehicle.owner.isDefault ?? false,
+    }
+  : undefined;
           await createFinanceTransaction({
           type: 'income',
           category: 'Rental', // Capitalize R
           amount: formData.amountToAdd,
-          description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'}) - Rental ID: ${rental.id}`, // More descriptive
+          description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})` +
+             `${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
           referenceId: rental.id,
           paymentMethod: formData.paymentMethod,
           paymentReference: formData.paymentReference,
           status: 'completed',
+          paymentStatus: initialPaymentStatus,
           date: new Date(),
           vehicleId: rental.vehicleId,
-          vehicleName: `${selectedVehicle?.make} ${selectedVehicle?.model}`,
+          vehicleName: `${selectedVehicle!.make} ${selectedVehicle!.model} (${selectedVehicle!.registrationNumber})`,
+          vehicleOwner,
           customerId: rental.customerId, // Pass customerId
           customerName: selectedCustomer?.name, // Pass customerName
         });
@@ -1856,6 +1870,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
               <span>-{formatCurrency(currentDiscountAmount)}</span>
             </div>
           )}
+
+          
 
           <div className="flex justify-between text-lg font-semibold pt-2 border-t mt-2">
             <span>Total Amount Due:</span>

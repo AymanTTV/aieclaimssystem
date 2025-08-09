@@ -1,7 +1,9 @@
+// src/components/finance/TransactionTable.tsx
+
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle, Customer, Account } from '../../types';
-import { Eye, Edit, Trash2, FileText, Share2 } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Share2, Printer } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
@@ -17,6 +19,7 @@ interface TransactionTableProps {
   onDelete: (transaction: Transaction) => void;
   onGenerateDocument: (transaction: Transaction) => void;
   onViewDocument: (url: string) => void;
+  onPrintReceipt?: (transaction: Transaction) => void;
   onAssign: (txn: Transaction) => void;
   groups: { id: string; name: string }[];
   selectedCustomerId?: string;
@@ -33,10 +36,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   onDelete,
   onGenerateDocument,
   onViewDocument,
+  onPrintReceipt,
   onAssign,
   groups,
   selectedCustomerId,
-  onCustomerChange
+  onCustomerChange,
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -56,20 +60,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         </div>
       ),
     },
-    // {
-    //   header: 'Accounts',
-    //   cell: ({ row }) => {
-    //     const fromAccount = accounts.find(a => a.id === row.original.accountFrom);
-    //     const toAccount = accounts.find(a => a.id === row.original.accountTo);
-        
-    //     return (
-    //       <div>
-    //         {fromAccount && <div className="font-medium">From: {fromAccount.name}</div>}
-    //         {toAccount && <div className="text-sm text-gray-500">To: {toAccount.name}</div>}
-    //       </div>
-    //     );
-    //   },
-    // },
     {
       header: 'Category',
       accessorKey: 'category',
@@ -85,12 +75,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     {
       header: 'Customer',
       cell: ({ row }) => {
-        // First check for manually entered customer name
         if (row.original.customerName) {
           return <div>{row.original.customerName}</div>;
         }
-        
-        // Then check for customer from the customers array
         if (row.original.customerId) {
           const customer = customers.find(c => c.id === row.original.customerId);
           if (customer) {
@@ -102,19 +89,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             );
           }
         }
-        
         return <div className="text-gray-400">N/A</div>;
       },
     },
     {
       header: 'Vehicle',
       cell: ({ row }) => {
-        // First check for vehicle name
         if (row.original.vehicleName) {
           return <div>{row.original.vehicleName}</div>;
         }
-        
-        // Then check for vehicle from the vehicles array
         if (row.original.vehicleId) {
           const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
           if (vehicle) {
@@ -126,7 +109,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             );
           }
         }
-        
         return <div className="text-gray-400">N/A</div>;
       },
     },
@@ -151,18 +133,31 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             </button>
           </div>
         );
-      }
+      },
     },
+
+    // ── Receipt Column ─────────────────────
+    {
+      header: 'Receipt',
+      cell: ({ row }) =>
+        onPrintReceipt ? (
+          <button
+            onClick={e => { e.stopPropagation(); onPrintReceipt(row.original); }}
+            className="p-1 hover:bg-gray-100 rounded"
+            title="Print Receipt"
+          >
+            <Printer className="h-4 w-4 text-gray-600" />
+          </button>
+        ) : null,
+    },
+
     {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
           {can('finance', 'view') && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
+              onClick={e => { e.stopPropagation(); onView(row.original); }}
               className="text-blue-600 hover:text-blue-800"
               title="View Details"
             >
@@ -172,43 +167,24 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           {can('finance', 'update') && (
             <>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(row.original);
-                }}
+                onClick={e => { e.stopPropagation(); onEdit(row.original); }}
                 className="text-blue-600 hover:text-blue-800"
                 title="Edit"
               >
                 <Edit className="h-4 w-4" />
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onGenerateDocument(row.original);
-                }}
+                onClick={e => { e.stopPropagation(); onGenerateDocument(row.original); }}
                 className="text-green-600 hover:text-green-800"
                 title="Generate Document"
               >
                 <FileText className="h-4 w-4" />
               </button>
-              {/* <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAssignAccount(row.original);
-                }}
-                className="text-purple-600 hover:text-purple-800"
-                title="Assign Account"
-              >
-                <Share2 className="h-4 w-4" />
-              </button> */}
             </>
           )}
           {can('finance', 'delete') && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
+              onClick={e => { e.stopPropagation(); onDelete(row.original); }}
               className="text-red-600 hover:text-red-800"
               title="Delete"
             >
@@ -217,10 +193,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           )}
           {row.original.documentUrl && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewDocument(row.original.documentUrl!);
-              }}
+              onClick={e => { e.stopPropagation(); onViewDocument(row.original.documentUrl!); }}
               className="text-blue-600 hover:text-blue-800"
               title="View Document"
             >
@@ -236,7 +209,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     <DataTable
       data={transactions}
       columns={columns}
-      onRowClick={(transaction) => can('finance', 'view') && onView(transaction)}
+      onRowClick={transaction => can('finance', 'view') && onView(transaction)}
     />
   );
 };

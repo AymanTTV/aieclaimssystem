@@ -1,7 +1,6 @@
 // src/pages/Login.tsx
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -10,20 +9,18 @@ import toast from 'react-hot-toast';
 import ForgotPassword from '../components/auth/ForgotPassword';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [loading, setLoading]           = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-
       if (userDoc.exists()) {
         toast.success('Welcome back!');
         navigate('/');
@@ -141,6 +138,15 @@ const Login: React.FC = () => {
               </button>
             </div>
           </form>
+
+          {/* Go to Members Portal button */}
+          <div className="mt-6 text-center">
+            <Link to="/members/login">
+              <button className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition">
+                Go to Members Portal
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -148,16 +154,20 @@ const Login: React.FC = () => {
       <div className="hidden lg:block relative w-0 flex-1">
         <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-primary-800">
           <div className="absolute inset-0 bg-white/10 backdrop-blur-lg">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23FFFFFF' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              backgroundSize: '30px 30px'
-            }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23FFFFFF' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                backgroundSize: '30px 30px',
+              }}
+            />
           </div>
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-white text-center px-8">
               <h1 className="text-4xl font-bold mb-4">Welcome Back!</h1>
               <p className="text-lg text-white/80">
-                Sign in to manage your fleet, track maintenance, and handle rentals all in one place.
+                Sign in to manage your fleet, track maintenance, and handle rentals all
+                in one place.
               </p>
             </div>
           </div>

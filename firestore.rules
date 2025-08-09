@@ -1,60 +1,54 @@
+// firestore.rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isAdmin() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
+
     function isManager() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
-    
-    // Users collection
+
+    match /customers/{customerId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || request.auth.uid == userId;
     }
-    
-    // Vehicles collection
+
     match /vehicles/{vehicleId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isManager();
     }
-    
-    // Maintenance logs collection
+
     match /maintenanceLogs/{logId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isManager();
     }
-    
-    // Rentals collection
+
     match /rentals/{rentalId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isManager();
     }
-    
-    // Mileage History collection
+
     match /mileageHistory/{historyId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isManager();
     }
-    
-    // ─────────────── To-Do Lists ───────────────
-    // Each user has their own subcollection at /todos/{userId}/items/{todoId}
+
     match /todos/{userId}/items/{itemId} {
-      // Owners can read or write their own items
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
-      
-      // Managers may also read any user's items (but not write)
       allow read: if isAuthenticated() && isManager();
     }
-    // ────────────────────────────────────────────
   }
 }

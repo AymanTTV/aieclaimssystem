@@ -1,52 +1,68 @@
+// src/utils/maintenanceCostUtils.ts
 const VAT_RATE = 0.20; // 20% VAT
 
-interface Part {
+export interface Part {
   name: string;
   quantity: number;
   cost: number;
   includeVAT: boolean;
+  discount?: number;
 }
 
-interface CostBreakdown {
-  netAmount: number;
-  vatAmount: number;
-  totalAmount: number;
-  partsTotal: number;
-  laborTotal: number;
+export interface CostBreakdown {
+  partsNet: number;       // parts after discount, before VAT
+  partsVAT: number;       // VAT on parts
+  laborNet: number;       // labor before VAT
+  laborVAT: number;       // VAT on labor
+  totalDiscount: number;  // sum of all (base*qty*discount%)
+  netAmount: number;      // partsNet + laborNet
+  vatAmount: number;      // partsVAT + laborVAT
+  totalAmount: number;    // netAmount + vatAmount
 }
 
-export const calculateCosts = (
+export function calculateCosts(
   parts: Part[],
   laborHours: number,
   laborRate: number,
   includeVATOnLabor: boolean
-): CostBreakdown => {
-  // Calculate parts costs
-  const partsNetAmount = parts.reduce((sum, part) => {
-    return sum + (part.cost * part.quantity);
-  }, 0);
+): CostBreakdown {
+  let partsNet = 0;
+  let partsVAT = 0;
+  let totalDiscount = 0;
 
-  const partsVATAmount = parts.reduce((sum, part) => {
-    return sum + (part.includeVAT ? part.cost * part.quantity * VAT_RATE : 0);
-  }, 0);
+  for (const p of parts) {
+    const base = p.cost * p.quantity;
+    const discAmt = base * ((p.discount ?? 0) / 100);
+    totalDiscount += discAmt;
 
-  // Calculate labor costs
-  const laborNetAmount = laborHours * laborRate;
-  const laborVATAmount = includeVATOnLabor ? laborNetAmount * VAT_RATE : 0;
+    const afterDisc = base - discAmt;
+    partsNet += afterDisc;
 
-  // Calculate totals
-  const netAmount = partsNetAmount + laborNetAmount;
-  const vatAmount = partsVATAmount + laborVATAmount;
+    if (p.includeVAT) {
+      partsVAT += afterDisc * VAT_RATE;
+    }
+  }
+
+  const laborNet = laborHours * laborRate;
+  const laborVAT = includeVATOnLabor ? laborNet * VAT_RATE : 0;
+
+  const netAmount   = partsNet + laborNet;
+  const vatAmount   = partsVAT + laborVAT;
   const totalAmount = netAmount + vatAmount;
 
   return {
+    partsNet,
+    partsVAT,
+    laborNet,
+    laborVAT,
+    totalDiscount,
     netAmount,
     vatAmount,
-    totalAmount,
-    partsTotal: partsNetAmount + partsVATAmount,
-    laborTotal: laborNetAmount + laborVATAmount
+    totalAmount
   };
-};
+}
+
+
 
 export const calculatePartialPayment = (
   totalAmount: number,

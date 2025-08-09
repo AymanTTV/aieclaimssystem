@@ -6,7 +6,9 @@ import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
 import MaintenanceTable from '../components/maintenance/MaintenanceTable';
 import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
+import MaintenancePaymentModal from '../components/maintenance/MaintenancePaymentModal';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
+import MaintenanceSummaryCards from '../components/maintenance/MaintenanceSummaryCards';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
@@ -56,6 +58,8 @@ const Maintenance: React.FC = () => {
     setTypeFilter,
     vehicleFilter,
     setVehicleFilter,
+    paymentStatusFilter,
+    setPaymentStatusFilter,
     filteredLogs,
   } = useMaintenanceFilters(logs, vehiclesMap);
 
@@ -71,6 +75,9 @@ const Maintenance: React.FC = () => {
   const [loadingCats, setLoadingCats] = useState(false);
   const [editCat, setEditCat] = useState<{ id: string; name: string } | null>(null);
   const [catName, setCatName] = useState<string>('');
+
+  const [payLog, setPayLog] = useState<MaintenanceLog|null>(null);
+  
 
   // Load maintenance categories from Firestore
   const loadCategories = useCallback(() => {
@@ -238,6 +245,10 @@ const Maintenance: React.FC = () => {
 
   return (
     <div className="space-y-6 p-4">
+
+      {/* ── Summary Cards ── */}
+      <MaintenanceSummaryCards logs={filteredLogs} />
+
       {/* ── Top Bar ── */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
@@ -298,6 +309,8 @@ const Maintenance: React.FC = () => {
         vehicleFilter={vehicleFilter}
         onVehicleFilterChange={setVehicleFilter}
         vehicles={vehicles}
+        paymentStatusFilter={paymentStatusFilter}
+        onPaymentStatusFilterChange={setPaymentStatusFilter}
         /** Pass dynamic categories into the “Type” dropdown **/
         categories={maintCategories.map((c) => c.name)}
       />
@@ -312,6 +325,7 @@ const Maintenance: React.FC = () => {
           onDelete={handleDelete}
           onGenerateDocument={handleGenerateDocument}
           onViewDocument={handleViewDocument}
+          onPay={setPayLog}
         />
       </div>
 
@@ -334,6 +348,20 @@ const Maintenance: React.FC = () => {
           editLog={editingLog || undefined}
         />
       </Modal>
+
+      <Modal
+  isOpen={!!payLog}
+  onClose={()=>setPayLog(null)}
+  title="Record Maintenance Payment"
+>
+  {payLog && (
+    <MaintenancePaymentModal
+      log={payLog}
+      vehicle={vehiclesMap[payLog.vehicleId]}
+      onClose={()=>setPayLog(null)}
+    />
+  )}
+</Modal>
 
       {/* ── View Maintenance Details Modal ── */}
       <Modal

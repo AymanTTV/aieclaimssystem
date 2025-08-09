@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { Eye, Edit, Trash2, FileText } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, DollarSign } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
@@ -16,6 +16,7 @@ interface MaintenanceTableProps {
   onDelete: (log: MaintenanceLog) => void;
   onGenerateDocument: (log: MaintenanceLog) => void;
   onViewDocument: (url: string) => void;
+  onPay: (log: MaintenanceLog) => void;
 }
 
 const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
@@ -25,7 +26,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onEdit,
   onDelete,
   onGenerateDocument,
-  onViewDocument
+  onViewDocument,
+  onPay
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -79,35 +81,46 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     {
       header: 'Cost',
       cell: ({ row }) => {
-        const log = row.original;
+  const {
+    netAmount,
+    vatAmount,
+    totalDiscount = 0,
+    cost,
+    paidAmount = 0,
+    remainingAmount,
+  } = row.original;
 
-        // We assume MaintenanceLog now has a `totalDiscount` property
-        const discount = log.totalDiscount || 0;
-
-        return (
-          <div>
-            <div className="font-medium">{formatCurrency(log.cost)}</div>
-
-            {/* show total discount (if any) */}
-            {discount > 0 && (
-              <div className="text-sm text-red-600">
-                Discount: –{formatCurrency(discount)}
-              </div>
-            )}
-
-            <div className="text-xs space-y-0.5">
-              <div className="text-green-600">
-                Paid: {formatCurrency(log.paidAmount || 0)}
-              </div>
-              {log.remainingAmount > 0 && (
-                <div className="text-amber-600">
-                  Due: {formatCurrency(log.remainingAmount)}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      },
+  return (
+    <div className="space-y-1 text-sm">
+      <div className="flex justify-between">
+        <span>NET:</span>
+        <span>{formatCurrency(netAmount!)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>VAT:</span>
+        <span>{formatCurrency(vatAmount!)}</span>
+      </div>
+      {totalDiscount > 0 && (
+        <div className="flex justify-between text-red-600">
+          <span>Discount:</span>
+          <span>–{formatCurrency(totalDiscount)}</span>
+        </div>
+      )}
+      <div className="flex justify-between font-medium">
+        <span>Total:</span>
+        <span>{formatCurrency(cost)}</span>
+      </div>
+      <div className="flex justify-between text-green-600">
+        <span>Paid:</span>
+        <span>{formatCurrency(paidAmount)}</span>
+      </div>
+      <div className="flex justify-between text-amber-600">
+        <span>Owing:</span>
+        <span>{formatCurrency(remainingAmount)}</span>
+      </div>
+    </div>
+  );
+},
     },
     {
       header: 'Actions',
@@ -125,6 +138,16 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               <Eye className="h-4 w-4" />
             </button>
           )}
+          {can('maintenance','update') && (
+            <button
+              onClick={e=>{ e.stopPropagation(); onPay(row.original); }}
+              className="text-green-600 hover:text-green-800"
+              title="Record Payment"
+            >
+              <DollarSign className="h-4 w-4" />
+            </button>
+          )}
+
           {can('maintenance', 'update') && (
             <button
               onClick={e => {

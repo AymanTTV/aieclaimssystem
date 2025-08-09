@@ -46,6 +46,8 @@ export interface MaintenanceLog {
   description: string;
   cost: number;
   paidAmount?: number;
+  netAmount?: number;
+  vatAmount?: number;
   serviceProvider: string;
   location: string;
   updatedBy: string;
@@ -55,6 +57,7 @@ export interface MaintenanceLog {
   currentMileage: number;
   nextServiceDate: Date;
   nextServiceMileage: number;
+  totalDiscount?: number;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
   notes?: string;
@@ -77,6 +80,8 @@ export interface Part {
   name: string;
   quantity: number;
   cost: number;
+  discount?: number;     // ← new
+  includeVAT?: boolean;  // ← new
 }
 
 export interface CostBreakdown {

@@ -226,6 +226,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const discountAmount = (totalCost * (formData.discountPercentage || 0)) / 100; // Update calculation to use 'totalCost'
   const finalCostAfterDiscount = totalCost - discountAmount; // Calculate final cost
   const remainingAmount = finalCostAfterDiscount - (formData.paidAmount || 0); // Update calculation to use 'finalCostAfterDiscount'
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -363,8 +364,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         date: new Date(),
         amount: formData.paidAmount,
         method: formData.paymentMethod,
-        reference: formData.paymentReference || undefined,
-        notes: formData.paymentNotes   || undefined,
+        ...(formData.paymentReference && { reference: formData.paymentReference }),
+        ...(formData.paymentNotes     && { notes:     formData.paymentNotes     }),
         createdAt: new Date(),
         createdBy: user.id,
       });
@@ -546,31 +547,47 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         toast.error("Created rental, but failed to generate documents.");
       }
     }, 0);
-
+   
+    const initialPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+    finalRemainingAmount <= 0.001
+      ? 'paid'
+      : (formData.paidAmount || 0) > 0
+        ? 'partially_paid'
+        : 'unpaid';
     // 3) If there was an initial payment, record it in the background:
     if (formData.paidAmount > 0) {
-      setTimeout(async () => {
-        try {
-          await createFinanceTransaction({
-          type: 'income',
-          category: 'Rental', // Capitalize R
-          amount: formData.paidAmount,
-          description: `A ${formData.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'}) - Rental ID: ${docRef.id}`, // More descriptive
-          referenceId: docRef.id,
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          status: 'completed',
-          date: new Date(),
-          vehicleId: formData.vehicleId,
-          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          customerId: formData.customerId, // Pass customerId
-          customerName: selectedCustomer?.name, // Pass customerName
-        });
-        } catch {
-          toast.error("Rental created, but failed to record finance transaction.");
-        }
-      }, 0);
+  setTimeout(async () => {
+    try {
+      const vehicleOwner = selectedVehicle?.owner
+  ? {
+      name: selectedVehicle.owner.name,
+      // coalesce undefined → false (or whatever makes sense)
+      isDefault: selectedVehicle.owner.isDefault ?? false,
     }
+  : undefined;
+      await createFinanceTransaction({
+        type: 'income',
+        category: 'Rental',
+        amount: formData.paidAmount,
+        description: `A ${formData.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
+        referenceId: docRef.id,
+        paymentMethod: formData.paymentMethod,
+        paymentReference: formData.paymentReference,
+        status: 'completed',
+        paymentStatus: initialPaymentStatus,
+        date: new Date(),
+        vehicleId: formData.vehicleId,
+        vehicleName: `${selectedVehicle!.make} ${selectedVehicle!.model} (${selectedVehicle!.registrationNumber})`,
+        vehicleOwner,
+        customerId: formData.customerId,
+        customerName: selectedCustomer?.name,
+      });
+    } catch {
+      toast.error("Rental created, but failed to record finance transaction.");
+    }
+  }, 0);
+}
+
 
     // 4) Return here so nothing else runs on the main thread:
     return;

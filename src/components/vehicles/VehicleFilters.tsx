@@ -11,6 +11,8 @@ interface VehicleFiltersProps {
   makes: string[];
   showSold: boolean;
   onShowSoldChange: (show: boolean) => void;
+  showDueSoon: boolean;
+ onShowDueSoonChange: (show: boolean) => void;
 }
 
 const VehicleFilters: React.FC<VehicleFiltersProps> = ({
@@ -23,6 +25,8 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   makes,
   showSold,
   onShowSoldChange,
+  showDueSoon,
+ onShowDueSoonChange,
 }) => {
   return (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -74,6 +78,16 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         />
         <span className="text-sm text-gray-700">Show Sold Vehicles</span>
       </label>
+
+      <label className="flex items-center space-x-2">
+       <input
+         type="checkbox"
+         checked={showDueSoon}
+         onChange={e => onShowDueSoonChange(e.target.checked)}
+         className="rounded border-gray-300 text-primary focus:ring-primary"
+       />
+       <span className="text-sm text-gray-700">Due for service soon</span>
+     </label>
     </div>
   );
 };
