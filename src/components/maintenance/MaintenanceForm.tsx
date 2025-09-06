@@ -1,5 +1,4 @@
 // src/components/maintenance/MaintenanceForm.tsx
-
 import React, { useState, useEffect } from 'react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -27,8 +26,10 @@ interface MaintenanceFormProps {
 }
 
 interface PartSuggestion {
+  id: string;
+  partNumber: string;
   name: string;
-  lastCost: number;
+  lastCost: number; // comes from product.retailPrice (fallback to legacy price)
 }
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
@@ -186,10 +187,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
   const [partSuggestionsList, setPartSuggestionsList] = useState<PartSuggestion[]>([]);
   useEffect(() => {
-    productService.getAll()
-      .then(ps => setPartSuggestionsList(ps.map(p => ({ name: p.name, lastCost: p.price }))))
-      .catch(console.error);
-  }, []);
+  productService.getAll()
+    .then(ps =>
+      setPartSuggestionsList(
+        ps.map(p => ({
+          id: p.id,
+          partNumber: p.partNumber ?? '',
+          name: p.name ?? '',
+          lastCost: Number(p.retailPrice ?? p.price ?? 0), // ← retailPrice first
+        }))
+      )
+    )
+    .catch(console.error);
+}, []);
   useEffect(() => setShowPartSuggestions(new Array(parts.length).fill(false)), [parts.length]);
 
   const handleServiceCenterSelect = (c: any) => setFormData(prev => ({
@@ -549,48 +559,64 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
               {/* Part Name + Suggestions */}
-              <div className="relative col-span-1 sm:col-span-2">
-                <FormField
-                  label="Part Name"
-                  value={part.name}
-                  onChange={e => {
-                    const newParts = [...parts];
-                    newParts[index] = { ...newParts[index], name: e.target.value }; setParts(newParts);
-                  }}
-                  onFocus={() => {
-                    const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                    }, 100);
-                  }}
-                  placeholder="Type to search products"
-                  inputClassName="w-full"
-                />
-                {showPartSuggestions[index] && part.name && partSuggestionsList.filter(s =>
-                  s.name.toLowerCase().includes(part.name.toLowerCase())
-                ).length > 0 && (
-                  <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-                    {partSuggestionsList
-                      .filter(s => s.name.toLowerCase().includes(part.name.toLowerCase()))
-                      .map((s, i) => (
-                        <li
-                          key={i}
-                          className="px-4 py-2 cursor-pointer hover:bg-gray-100"
-                          onMouseDown={() => {
-                            const newParts = [...parts];
-                            newParts[index] = { ...newParts[index], name: s.name, cost: s.lastCost };
-                            setParts(newParts);
-                            const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                          }}
-                        >
-                          {s.name} <span className="text-gray-500 text-sm">(Last cost: {formatCurrency(s.lastCost)})</span>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
+<div className="relative col-span-1 sm:col-span-2">
+  <FormField
+    label="Part Name"
+    value={part.name}
+    onChange={e => {
+      const newParts = [...parts];
+      newParts[index] = { ...newParts[index], name: e.target.value };
+      setParts(newParts);
+    }}
+    onFocus={() => {
+      const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
+    }}
+    onBlur={() => {
+      setTimeout(() => {
+        const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+      }, 100);
+    }}
+    placeholder="Type to search products (name or part number)…"
+    inputClassName="w-full"
+  />
+
+  {showPartSuggestions[index] && part.name && (() => {
+    const q = part.name.toLowerCase();
+    const matches = partSuggestionsList.filter(s =>
+      s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q)
+    );
+    return matches.length > 0 ? (
+      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+        {matches.map((s) => (
+          <li
+            key={s.id}
+            className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+            onMouseDown={() => {
+              const newParts = [...parts];
+              newParts[index] = {
+                ...newParts[index],
+                name: s.name,
+                cost: s.lastCost, // ← auto-fill Unit Price from retailPrice
+              };
+              setParts(newParts);
+              const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+            }}
+            title={`${s.name} (${s.partNumber})`}
+          >
+            <span className="truncate">
+              {s.name}
+              {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+            </span>
+            <span className="text-gray-500 text-sm ml-3">
+              {formatCurrency(s.lastCost)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+  })()}
+</div>
+
 
               {/* Quantity */}
               <FormField
@@ -671,14 +697,16 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         <label className="block text-sm font-medium text-gray-700">Labor</label>
         <div className="flex items-center space-x-2 mt-1">
           <input
-            type="number"
-            value={formData.laborHours}
-            onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
-            placeholder="Hours"
-            className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            min={0}
-            step={0.5}
-          />
+  type="number"
+  value={formData.laborHours}
+  onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
+  placeholder="Hours"
+  className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+  min={0}
+  step="any"              // ✅ allows 0.6, 0.75, etc.
+  inputMode="decimal"
+/>
+
           <span className="py-2">×</span>
           <input
             type="number"

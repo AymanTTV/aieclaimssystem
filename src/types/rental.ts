@@ -1,120 +1,198 @@
-// rental.ts
-export interface Rental {
+// src/types/rental.ts
+
+export type RentalType = 'daily' | 'weekly' | 'claim';
+export type RentalReason =
+  | 'hired'
+  | 'claim'
+  | 'o/d'
+  | 'staff'
+  | 'workshop'
+  | 'c-substitute'
+  | 'h-substitute';
+export type RentalStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
+export type PaymentStatus = 'pending' | 'partially_paid' | 'paid';
+export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'cheque';
+
+export type FuelLevel = '0' | '25' | '50' | '75' | '100';
+
+export interface VehicleOwner {
+  name: string;
+  isDefault?: boolean;
+}
+
+export interface Vehicle {
   id: string;
-  vehicleId: string;
-  customerId: string;
-  startDate: Date;
-  endDate: Date;
-  type: RentalType;
-  reason: RentalReason;
-  status: RentalStatus;
-  paymentStatus: PaymentStatus;
-  cost: number; // This will include the new charges
-  paidAmount: number;
-  remainingAmount: number;
-  ongoingCharges: number;
-  negotiatedRate?: number | null;
-  negotiationNotes?: string | null;
-  discountPercentage?: number | null;
-  discountAmount?: number | null;
-  discountNotes?: string | null;
-  paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'cheque';
-  paymentReference?: string;
-  standardCost?: number;
+  make: string;
+  model: string;
+  registrationNumber: string;
+  mileage: number;
+  dailyRentalPrice?: number | null;
+  weeklyRentalPrice?: number | null;
+  claimRentalPrice?: number | null;
+  owner?: VehicleOwner;
+}
 
-
-  // Storage details
-  storageStartDate?: Date;
-  storageEndDate?: Date;
-  storageCostPerDay?: number;
-  storageDays?: number;
-  includeStorageVAT?: boolean;
-  storageCost?: number; // Cost calculated from storage days/rate
-
-  // Recovery cost
-  recoveryCost?: number;
-  includeRecoveryCostVAT?: boolean; // NEW: Add field for Recovery Cost VAT
-
-  // ---> NEW: Add Hire-related charges <---
-  deliveryCharge?: number;
-  collectionCharge?: number;
-  insurancePerDay?: number;
-  // Note: Total insurance cost isn't stored directly, it's calculated and added to 'cost'
-  claimRef?: string;
-
-  includeVAT?: boolean; // New field for overall rental VAT
-  deliveryChargeIncludeVAT?: boolean; // New field for delivery charge VAT
-  collectionChargeIncludeVAT?: boolean; // New field for collection charge VAT
-  insurancePerDayIncludeVAT?: boolean; // New field for insurance per day VAT
-  negotiated?: boolean;
-  numberOfWeeks?: number;
-  extensionHistory?: RentalExtension[];
-  payments: RentalPayment[];
-  documents?: {
-    agreement?: string;
-    invoice?: string;
-    permit?: string;
-  };
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  address?: string;
+  driverLicenseNumber?: string;
+  licenseExpiry?: Date; // Firestore Timestamp is compatible at runtime
   signature?: string;
+}
 
+export interface RentalPayment {
+  id: string;
+  date: Date; // Firestore Timestamp is compatible at runtime
+  amount: number;
+  method: PaymentMethod;
+  reference?: string;
+  notes?: string;
   createdAt: Date;
-  updatedAt: Date;
-  createdBy?: string;
-  updatedBy?: string;
-  checkOutCondition?: VehicleCondition;
-  checkInCondition?: ReturnCondition;
-  returnCondition?: ReturnCondition; // Duplicate checkout/return condition fields? Review needed.
+  createdBy: string; // user id
+  receiptUrl?: string;
 }
 
 export interface VehicleCondition {
   id: string;
-  type: 'check-in' | 'check-out';
-  date: Date;
+  type: 'check-out' | 'check-in';
+  date: Date; // Firestore Timestamp compatible
   mileage: number;
-  fuelLevel: '0' | '25' | '50' | '75' | '100';
+  fuelLevel: FuelLevel;
   isClean: boolean;
   hasDamage: boolean;
   damageDescription?: string;
   images: string[];
+  notes?: string;
   createdAt: Date;
   createdBy: string;
 }
 
 export interface ReturnCondition extends VehicleCondition {
-  damageCost?: number;
-  fuelCharge?: number;
-  cleaningCharge?: number;
+  type: 'check-in';
+  damageCost: number;
+  fuelCharge: number;
+  cleaningCharge: number;
   totalCharges: number;
 }
 
-export interface RentalPayment {
-  id: string;
-  date: Date;
-  amount: number;
-  method: 'cash' | 'card' | 'bank_transfer' | 'cheque';
-  reference?: string;
-  document?: string;
-  notes?: string;
-  createdAt: Date;
-  createdBy: string;
-  negotiated?: boolean;
-  negotiationNotes?: string;
-  approvedBy?: string;
-  standardCost?: number;
+export interface RentalDocuments {
+  agreement?: string;
+  invoice?: string;
+  permit?: string;
+
+  // Claim docs
+  conditionOfHire?: string;
+  noticeOfRightToCancel?: string;
+  hireAgreement?: string;
+  creditStorageAndRecovery?: string;
+  creditHireMitigation?: string;
+  satisfactionNotice?: string;
+
+  // Allow future keys while maintaining index signature
+  [key: string]: string | undefined;
 }
 
-export type PaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'overdue';
-export type RentalType = 'daily' | 'weekly' | 'claim';
-export type RentalStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
-export type RentalReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'c-substitute' | 'h-substitute';
-
-export interface RentalExtension {
-  id: string;
+export interface ExtensionEntry {
   date: Date;
-  originalEndDate: Date;
+  userId: string;
+  previousEndDate: Date;
   newEndDate: Date;
+  notes?: string;
+}
+
+export interface Claim {
+  id: string;
+  clientRef?: string | null;
+  clientInfo?: { name: string };
+  clientVehicle?: { registration?: string };
+  [key: string]: any;
+}
+
+export interface Rental {
+  id: string;
+
+  vehicleId: string;
+  customerId: string;
+
+  startDate: Date;
+  endDate: Date;
+
+  originalStartDate?: Date; 
+
+  type: RentalType;
+  reason: RentalReason;
+  status: RentalStatus;
+
+  // Financials (final 'cost' is after discount, before any future overdue/return charges)
   cost: number;
-  negotiated?: boolean;
-  negotiationNotes?: string;
-  approvedBy?: string;
+  standardCost?: number;
+
+  includeVAT: boolean;
+
+  // Extra line items (+ their VAT flags)
+  deliveryCharge?: number | null;
+  collectionCharge?: number | null;
+  insurancePerDay?: number | null;
+  deliveryChargeIncludeVAT?: boolean;
+  collectionChargeIncludeVAT?: boolean;
+  insurancePerDayIncludeVAT?: boolean;
+
+  // Claim-only extras (+ storage VAT flag/value)
+  claimRef?: string | null;
+  storageStartDate?: Date | null;
+  storageEndDate?: Date | null;
+  storageCostPerDay?: number | null;
+  storageDays?: number | null;
+  includeStorageVAT?: boolean | null;
+  storageCost?: number | null;
+
+  // Recovery (+ VAT flag)
+  recoveryCost?: number | null;
+  includeRecoveryCostVAT?: boolean | null;
+
+  // Negotiation
+  negotiatedRate?: number | null;
+  negotiationNotes?: string | null;
+
+  // Discount
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  discountNotes?: string | null;
+
+  // Weekly
+  numberOfWeeks?: number | null;
+
+  // Payments
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentStatus?: PaymentStatus;
+  payments?: RentalPayment[];
+
+  // Signature
+  signature?: string | null;
+
+  // Conditions
+  checkOutCondition?: VehicleCondition;
+  checkInCondition?: VehicleCondition;
+  returnCondition?: ReturnCondition;
+
+  // Docs
+  documents?: RentalDocuments;
+
+  // Misc
+  ongoingCharges?: number;
+  extensionHistory?: ExtensionEntry[];
+
+  // Audit
+  createdAt: Date;
+  createdBy: string;
+  updatedAt: Date;
+  updatedBy: string;
+
+  // Optional flat fields captured at creation/edit time
+  paymentMethod?: PaymentMethod;
+  paymentReference?: string | null;
 }

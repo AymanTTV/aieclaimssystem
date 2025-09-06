@@ -16,6 +16,8 @@ export interface VATRecord {
   accountant: string;
   supplier: string;
   regNo: string;
+  categoryId?: string;
+  categoryName?: string;
   descriptions: VATRecordDescription[];
   net: number;
   vat: number;

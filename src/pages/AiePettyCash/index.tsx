@@ -82,25 +82,34 @@ const AiePettyCash = () => {
     <div className="space-y-6">
 
       {can('pettyCash', 'cards') && (
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h3 className="text-sm font-medium text-gray-500">Total In</h3>
-      <p className="mt-2 text-3xl font-semibold text-green-600">{formatCurrency(totalIn)}</p>
+  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total In</h3>
+      <p className="mt-2 text-lg sm:text-3xl font-semibold text-green-600">
+        {formatCurrency(totalIn)}
+      </p>
     </div>
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h3 className="text-sm font-medium text-gray-500">Total Out</h3>
-      <p className="mt-2 text-3xl font-semibold text-red-600">{formatCurrency(totalOut)}</p>
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total Out</h3>
+      <p className="mt-2 text-lg sm:text-3xl font-semibold text-red-600">
+        {formatCurrency(totalOut)}
+      </p>
     </div>
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h3 className="text-sm font-medium text-gray-500">Balance</h3>
-      <p className="mt-2 text-3xl font-semibold text-blue-600">{formatCurrency(netIncome)}</p>
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Balance</h3>
+      <p className="mt-2 text-lg sm:text-3xl font-semibold text-blue-600">
+        {formatCurrency(netIncome)}
+      </p>
     </div>
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h3 className="text-sm font-medium text-gray-500">Profit Margin</h3>
-      <p className="mt-2 text-3xl font-semibold text-purple-600">{profitMargin.toFixed(1)}%</p>
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Profit Margin</h3>
+      <p className="mt-2 text-lg sm:text-3xl font-semibold text-purple-600">
+        {profitMargin.toFixed(1)}%
+      </p>
     </div>
   </div>
 )}
+
 
       <PettyCashHeader
   title="AIE Petty Cash"

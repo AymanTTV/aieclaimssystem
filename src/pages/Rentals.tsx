@@ -276,98 +276,115 @@ const Rentals = () => {
   return (
     <div className="space-y-6 p-4">
       
-      <RentalSummaryCards rentals={filteredRentals} />
+      <RentalSummaryCards rentals={filteredRentals} vehicles={vehicles} />
+
       
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
-        <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-          <button
-            onClick={handleGenerateBulkDocument}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <FileText className="h-5 w-5 mr-2" />
-            Generate PDF
-          </button>
-          )}
+      {/* ── Top Bar (Responsive) ── */}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Rentals</h1>
 
-          {user?.role === 'manager' && (
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </button>
-          )}
-          <button
-            onClick={() => setShowAvailableVehicles(true)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Car className="h-5 w-5 mr-2" />
-            Available Vehicles
-          </button>
-          <button
-            onClick={syncVehicleStatuses}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <RefreshCw className="h-5 w-5 mr-2" />
-            Sync Statuses
-          </button>
+  <div className="flex flex-wrap items-center gap-2">
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleGenerateBulkDocument}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <FileText className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">PDF</span>
+        <span className="hidden sm:inline">&nbsp;Report</span>
+      </button>
+    )}
 
-          {can('rentals', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Schedule Rental
-              </button>
-            </>
-          )}
-        </div>
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleExport}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <Download className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Export</span>
+      </button>
+    )}
+
+    <button
+      onClick={() => setShowAvailableVehicles(true)}
+      className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+    >
+      <Car className="h-5 w-5 mr-1 sm:mr-2" />
+      <span className="truncate">Available</span>
+      <span className="hidden sm:inline">&nbsp;Vehicles</span>
+    </button>
+
+    <button
+      onClick={syncVehicleStatuses}
+      className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+    >
+      <RefreshCw className="h-5 w-5 mr-1 sm:mr-2" />
+      <span className="truncate">Sync</span>
+      <span className="hidden sm:inline">&nbsp;Statuses</span>
+    </button>
+
+    {can('rentals', 'create') && (
+      <button
+        onClick={() => setShowForm(true)}
+        className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+      >
+        <Plus className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Schedule</span>
+        <span className="hidden sm:inline">&nbsp;Rental</span>
+      </button>
+    )}
+  </div>
+</div>
+
+
+      {/* ── Search + All Records (Responsive) ── */}
+<div className="bg-white p-4 rounded-lg shadow-sm">
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-center">
+    {/* Search (spans 2 cols on tablet/desktop) */}
+    <div className="relative sm:col-span-2">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="h-5 w-5 text-gray-400" />
       </div>
+      <input
+        type="text"
+        placeholder="Search rentals..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+      />
+    </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-center">
-        {/* Search bar */}
-        <div className="relative flex-1 min-w-[200px]">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search rentals..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          />
-        </div>
+    {/* All Records toggle (wraps nicely; right-aligned on sm+) */}
+    <div className="flex sm:justify-end">
+      <label
+        htmlFor="allRecords"
+        className="inline-flex items-center gap-2 select-none cursor-pointer"
+      >
+        <input
+          type="checkbox"
+          id="allRecords"
+          checked={showAllRecords}
+          onChange={(e) => {
+            setShowAllRecords(e.target.checked);
+            if (e.target.checked) {
+              setStatusFilter('all');
+              setTypeFilter('all');
+              setVehicleFilter('');
+              setReasonFilter('all');
+            }
+          }}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        {/* Pill label adapts on small screens */}
+        <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+          All Records
+        </span>
+      </label>
+    </div>
+  </div>
 
-        {/* All Records Checkbox */}
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="allRecords"
-            checked={showAllRecords}
-            onChange={(e) => {
-              setShowAllRecords(e.target.checked);
-              // Optionally reset other filters when "All Records" is checked, but NOT search or date filters
-              if (e.target.checked) {
-                setStatusFilter('all');
-                setTypeFilter('all');
-                setVehicleFilter('');
-                setReasonFilter('all');
-                // startDateFilter and endDateFilter are intentionally NOT reset here
-              }
-            }}
-            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-          />
-          <label htmlFor="allRecords" className="ml-2 text-sm font-medium text-gray-700">
-            All Records
-          </label>
-        </div>
+
         
         {/* Existing filters */}
         <RentalFilters
@@ -494,36 +511,61 @@ const Rentals = () => {
       </Modal>
 
       <Modal
-        isOpen={!!completingRental}
-        onClose={() => setCompletingRental(null)}
-        title="Vehicle Return Condition"
-      >
-        {completingRental && (
-          <ReturnConditionForm
-            checkOutCondition={completingRental.checkOutCondition}
-            onSubmit={async (condition) => {
-              try {
-                const newTotalCost = completingRental.cost + condition.totalCharges;
-                const newRemainingAmount = newTotalCost - completingRental.paidAmount;
+  isOpen={!!completingRental}
+  onClose={() => setCompletingRental(null)}
+  title="Vehicle Return Condition"
+  size='xl'
+>
+  {completingRental && (
+    <ReturnConditionForm
+      checkOutCondition={completingRental.checkOutCondition!}
+      initialCondition={completingRental.returnCondition ?? undefined}
+      onClose={() => setCompletingRental(null)}
+      onSubmit={async (condition) => {
+        try {
+          const r = completingRental!;
+          const prevReturn = r.returnCondition?.totalCharges ?? 0;
 
-                await updateDoc(doc(db, 'rentals', completingRental.id), {
-                  returnCondition: condition,
-                  cost: newTotalCost,
-                  remainingAmount: newRemainingAmount,
-                  updatedAt: new Date()
-                });
+          // keep base rental cost normalized (exclude return charges)
+          const baseCost = (r.cost ?? 0) - prevReturn;
 
-                toast.success('Return condition saved successfully');
-                setCompletingRental(null);
-              } catch (error) {
-                console.error('Error saving return condition:', error);
-                toast.error('Failed to save return condition');
-              }
-            }}
-            onClose={() => setCompletingRental(null)}
-          />
-        )}
-      </Modal>
+          // recompute remaining using new return charges, but DO NOT change status
+          const newRemaining = (baseCost + condition.totalCharges) - (r.paidAmount ?? 0);
+
+          const newPaymentStatus =
+            newRemaining <= 0.001
+              ? 'paid'
+              : (r.paidAmount ?? 0) > 0
+              ? 'partially_paid'
+              : 'pending';
+
+          await updateDoc(doc(db, 'rentals', r.id), {
+            returnCondition: {
+              ...condition,
+              id: r.returnCondition?.id ?? `return_${Date.now()}`,
+              createdAt: r.returnCondition?.createdAt ?? new Date(),
+              createdBy: r.returnCondition?.createdBy ?? user?.id,
+            },
+            cost: baseCost,                 // keep rental cost without return charges
+            remainingAmount: Math.max(newRemaining, 0),
+            paymentStatus: newPaymentStatus,
+            // ❌ status: 'completed',   // <-- removed so the form never touches status
+            updatedAt: new Date(),
+            updatedBy: user?.id,
+          });
+
+          toast.success('Return condition saved.');
+          setCompletingRental(null);
+        } catch (error) {
+          console.error('Error saving return condition:', error);
+          toast.error('Failed to save return condition');
+        }
+      }}
+    />
+  )}
+</Modal>
+
+
 
       <Modal
         isOpen={showAvailableVehicles}

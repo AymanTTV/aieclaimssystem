@@ -1,9 +1,17 @@
 // src/components/IncomeExpense/IncomeExpenseSummary.tsx
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { IncomeExpenseEntry, ProfitShare } from '../../types/incomeExpense';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { RolePermissions } from '../../types/roles';
+import {
+  Banknote as IncomeIcon,
+  ArrowDownCircle as ExpenseIcon,
+  Users as SharedIcon,
+  Wallet as BalanceIcon,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 interface Props {
   entries?: IncomeExpenseEntry[];
@@ -18,104 +26,208 @@ export default function IncomeExpenseSummary({
   shares = [],
   startDate,
   endDate,
-  permissionScope = 'incomeExpense'
+  permissionScope = 'incomeExpense',
 }: Props) {
   const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
+  const [showSharedBreakdown, setShowSharedBreakdown] = useState(false);
+
   if (!can(permissionScope, 'cards')) return null;
 
-  // --- figure out which shares to show based on filter window ---
-  const displayShares =
-    startDate && endDate
-      ? shares.filter(
-          sp =>
-            new Date(sp.endDate) >= new Date(startDate) &&
-            new Date(sp.startDate) <= new Date(endDate)
-        )
+  // Shares visible inside the "Shared" card (respects active filter)
+  const displayShares = useMemo(() => {
+    if (startDate && endDate) {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      return shares.filter(
+        (sp) => new Date(sp.endDate) >= s && new Date(sp.startDate) <= e
+      );
+    }
+    return shares;
+  }, [shares, startDate, endDate]);
+
+  // Last share cut-off (up to end of filter, or overall if none)
+  const { lastShare, lastClearDate } = useMemo(() => {
+    const base = endDate
+      ? shares.filter((sp) => new Date(sp.endDate) <= new Date(endDate))
       : shares;
 
-  // --- find the last share up to the end of the filter (or overall) ---
-  const cutOffShares = endDate
-    ? shares.filter(sp => new Date(sp.endDate) <= new Date(endDate))
-    : shares;
-  const lastShare = cutOffShares.length
-    ? cutOffShares.reduce((a, b) =>
-        new Date(a.endDate) > new Date(b.endDate) ? a : b
-      )
-    : null;
-  const lastClearDate = lastShare?.endDate;
+    const ls = base.length
+      ? base.reduce((a, b) =>
+          new Date(a.endDate) > new Date(b.endDate) ? a : b
+        )
+      : null;
 
-  // --- only keep entries after that last clear date ---
-  const periodEntries = lastClearDate
-    ? entries.filter(e => new Date(e.date) > new Date(lastClearDate))
-    : entries;
+    return { lastShare: ls, lastClearDate: ls?.endDate };
+  }, [shares, endDate]);
 
-  // --- totals on the post-split slice ---
-  const totalIncome = periodEntries
-    .filter(e => e.type === 'income')
-    .reduce((sum, e) => sum + (e.total ?? 0), 0);
+  // Only keep entries AFTER the last clear/share date
+  const periodEntries = useMemo(() => {
+    if (!lastClearDate) return entries;
+    const cutoff = new Date(lastClearDate);
+    return entries.filter((e) => new Date(e.date) > cutoff);
+  }, [entries, lastClearDate]);
 
-  const totalExpense = periodEntries
-    .filter(e => e.type === 'expense')
-    .reduce((sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0), 0);
+  // Totals on the post-split slice
+  const totalIncome = useMemo(
+    () =>
+      periodEntries
+        .filter((e) => e.type === 'income')
+        .reduce((sum, e) => sum + (e.total ?? 0), 0),
+    [periodEntries]
+  );
 
-  // --- shared only for display (breakdown) ---
-  const totalShared = displayShares.reduce((sum, sp) => sum + sp.totalSplitAmount, 0);
+  const totalExpense = useMemo(
+    () =>
+      periodEntries
+        .filter((e) => e.type === 'expense')
+        .reduce(
+          (sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0),
+          0
+        ),
+    [periodEntries]
+  );
 
-  // --- subtract shared only if filtering, otherwise leave it out ---
+  // Shares (for display + optional subtraction when filtered)
+  const totalShared = useMemo(
+    () => displayShares.reduce((sum, sp) => sum + (sp.totalSplitAmount ?? 0), 0),
+    [displayShares]
+  );
+
+  // subtract shared ONLY when there is an explicit date filter
   const effectiveShared = startDate && endDate ? totalShared : 0;
 
-  // --- final balance, clamped ≥ 0 ---
-  const balance = Math.max(0, totalIncome - totalExpense - effectiveShared);
+  // Final balance (allow negatives to show overdraft clearly)
+  const balance = useMemo(
+    () => totalIncome - totalExpense - effectiveShared,
+    [totalIncome, totalExpense, effectiveShared]
+  );
 
-  // breakdown per recipient (always shown in Shared card)
-  const breakdown = displayShares.reduce<Record<string, number>>((acc, sp) => {
-    sp.recipients.forEach(rec => {
-      acc[rec.name] = (acc[rec.name] || 0) + rec.amount;
-    });
-    return acc;
-  }, {});
+  // Per-recipient breakdown for the Shared card
+  const breakdown: Record<string, number> = useMemo(() => {
+    return displayShares.reduce<Record<string, number>>((acc, sp) => {
+      sp.recipients?.forEach((rec) => {
+        acc[rec.name] = (acc[rec.name] || 0) + rec.amount;
+      });
+      return acc;
+    }, {});
+  }, [displayShares]);
+
+  const dateChipActive = Boolean(startDate && endDate);
 
   const cards = [
-    { label: 'Income',  amount: totalIncome,     color: 'text-gray-900' },
-    { label: 'Expense', amount: totalExpense,    color: 'text-red-600' },
-    { label: 'Shared',  amount: totalShared,     color: 'text-blue-600', isShared: true },
-    { label: 'Balance', amount: balance,         color: 'text-green-600' }
+    {
+      key: 'income',
+      label: 'Income',
+      amount: totalIncome,
+      icon: <IncomeIcon className="h-5 w-5" aria-hidden />,
+      tone: 'text-gray-900',
+      pillTone: 'bg-gray-100 text-gray-700',
+    },
+    {
+      key: 'expense',
+      label: 'Expense',
+      amount: totalExpense,
+      icon: <ExpenseIcon className="h-5 w-5" aria-hidden />,
+      tone: 'text-red-600',
+      pillTone: 'bg-red-50 text-red-700',
+    },
+    {
+      key: 'shared',
+      label: 'Shared',
+      amount: totalShared,
+      icon: <SharedIcon className="h-5 w-5" aria-hidden />,
+      tone: 'text-blue-600',
+      pillTone: 'bg-blue-50 text-blue-700',
+      isShared: true,
+    },
+    {
+      key: 'balance',
+      label: 'Balance',
+      amount: balance,
+      icon: <BalanceIcon className="h-5 w-5" aria-hidden />,
+      tone: balance < 0 ? 'text-red-600' : 'text-green-600',
+      pillTone: balance < 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700',
+    },
   ] as const;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map(card => (
-        <div key={card.label} className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">
-            {card.label.toUpperCase()}
-          </h3>
-
-          {card.isShared && (
-            <div className="mt-2 space-y-1 text-sm text-gray-700">
-              {startDate && endDate && (
-                <p className="italic text-xs text-gray-500">
-                  {startDate} → {endDate}
-                </p>
-              )}
-              {Object.entries(breakdown).map(([name, amt]) => {
-                const pct = totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0;
-                return (
-                  <p key={name}>
-                    <span className="font-medium">{name}</span>{' '}
-                    ({pct}%) ={' '}
-                    <span className="font-semibold">{formatCurrency(amt)}</span>
-                  </p>
-                );
-              })}
+    <div className="space-y-3">
+      {/* Cards: now 2 per row on mobile, 4 per row on large */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {cards.map((card) => (
+          <div
+            key={card.key}
+            className="bg-white rounded-lg shadow-sm p-4 border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md p-2 bg-gray-50">{card.icon}</div>
+                <h3 className="text-[11px] font-medium text-gray-500 tracking-wide">
+                  {card.label.toUpperCase()}
+                </h3>
+              </div>
+              <span
+                className={`hidden sm:inline-block text-xs px-2 py-0.5 rounded-full ${card.pillTone}`}
+              >
+                {card.label}
+              </span>
             </div>
-          )}
 
-          <p className={`mt-2 text-3xl font-semibold ${card.color}`}>
-            {formatCurrency(card.amount)}
-          </p>
-        </div>
-      ))}
+            <p className={`mt-3 text-2xl font-semibold ${card.tone}`}>
+              {formatCurrency(card.amount)}
+            </p>
+
+            {/* Shared breakdown (collapsible to save mobile space) */}
+            {card.isShared && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSharedBreakdown((s) => !s)}
+                  className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-800"
+                >
+                  {showSharedBreakdown ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" /> Hide breakdown
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" /> Show breakdown
+                    </>
+                  )}
+                </button>
+
+                {showSharedBreakdown && (
+                  <div className="mt-2 space-y-1 text-sm text-gray-700">
+                    {Object.keys(breakdown).length === 0 && (
+                      <p className="text-gray-400 italic">No shared payouts in range.</p>
+                    )}
+                    {Object.entries(breakdown).map(([name, amt]) => {
+                      const pct =
+                        totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0;
+                      return (
+                        <div key={name} className="flex items-center justify-between">
+                          <span className="truncate pr-2">
+                            <span className="font-medium">{name}</span>{' '}
+                            <span className="text-gray-400">({pct}%)</span>
+                          </span>
+                          <span className="font-semibold">{formatCurrency(amt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {dateChipActive && (
+                  <p className="mt-2 text-[11px] text-gray-500">
+                    Showing shares intersecting the selected dates.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

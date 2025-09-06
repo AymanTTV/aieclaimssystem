@@ -1,145 +1,187 @@
 // src/components/rentals/RentalSummaryCards.tsx
-
 import React from 'react';
-import { Rental } from '../../types';
 import { Calendar, Clock, FileText } from 'lucide-react';
+import { Rental, Vehicle } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
+import { isAfter } from 'date-fns';
+import { calculateOverdueCost } from '../../utils/rentalCalculations';
 
-interface RentalSummaryCardsProps {
+type Bucket = 'daily' | 'weekly' | 'claim';
+
+type Totals = {
+  count: number;
+  // breakdown for the base block (base+extras with/without overall VAT) BEFORE adding overdue/return
+  net: number;
+  vat: number;
+  discount: number;
+
+  // add-ons
+  ongoing: number;
+  returnCharges: number;
+
+  // roll-ups
+  total: number;
+  paid: number;
+  owing: number;
+};
+
+const emptyTotals: Totals = {
+  count: 0,
+  net: 0,
+  vat: 0,
+  discount: 0,
+  ongoing: 0,
+  returnCharges: 0,
+  total: 0,
+  paid: 0,
+  owing: 0,
+};
+
+interface Props {
   rentals: Rental[];
+  vehicles?: Vehicle[];
 }
 
-const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
+const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
   const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
+  if (!can('rentals', 'cards')) return null;
 
-  // Don't even render the cards if the user lacks the 'cards' permission
-  if (!can('rentals', 'cards')) {
-    return null;
-  }
+  const now = new Date();
 
-  // Calculate rental type counts and financial details
+  // Align with table logic:
+  // - r.cost  = (base + extras [+ overall VAT if includeVAT]) - discount
+  // - Add overdue (ongoing) charges and return charges on top of r.cost
+  // - For Net/VAT breakdown on the card, reconstruct from (r.cost + r.discountAmount)
   const summary = rentals.reduce(
-    (acc, rental) => {
-      // Count by type
-      acc.counts[rental.type] = (acc.counts[rental.type] || 0) + 1;
-      // Sum total cost by type
-      acc.totalCost[rental.type] = (acc.totalCost[rental.type] || 0) + rental.cost;
-      // Sum paid amount
-      acc.paidAmount[rental.type] = (acc.paidAmount[rental.type] || 0) + rental.paidAmount;
-      // Sum discount
-      acc.discountAmount[rental.type] = (acc.discountAmount[rental.type] || 0) + (rental.discountAmount || 0);
-      // Sum remaining
-      acc.remainingAmount[rental.type] = (acc.remainingAmount[rental.type] || 0) + rental.remainingAmount;
+    (acc, r) => {
+      const bucket = (r.type || 'daily') as Bucket;
 
-      // Status counts
-      if (rental.status === 'active') acc.active++;
-      if (rental.status === 'scheduled') acc.scheduled++;
-      if (rental.status === 'completed') acc.completed++;
+      // 1) Base AFTER discount (stored)
+      const baseAfterDiscount = Number(r.cost || 0);
+
+      // 2) For Net/VAT lines on the card we need the pre-discount, post-overall-VAT subtotal:
+      const discount = Number(r.discountAmount || 0);
+      const subtotalWithOverallVAT = baseAfterDiscount + discount;
+
+      // Derive Net & VAT exactly like the table/modals
+      const net = r.includeVAT ? subtotalWithOverallVAT / 1.2 : subtotalWithOverallVAT;
+      const vat = r.includeVAT ? subtotalWithOverallVAT - net : 0;
+
+      // 3) Ongoing (overdue) charges (VAT-inclusive from util). Needs vehicle to compute accurately.
+      const veh = vehicles.find(v => v.id === r.vehicleId);
+      const end = r.endDate instanceof Date ? r.endDate : new Date(r.endDate);
+      const ongoing =
+        r.status === 'active' && veh && isAfter(now, end)
+          ? calculateOverdueCost(r, now, veh)
+          : 0;
+
+      // 4) Return charges (already VAT-inclusive in your flow)
+      const returnCharges = Number(r.returnCondition?.totalCharges || 0);
+
+      // 5) Totals
+      const total = baseAfterDiscount + ongoing + returnCharges;
+      const paid = Number(r.paidAmount || 0);
+      const owing = total - paid;
+
+      // ensure bucket exists
+      if (!acc.byType[bucket]) acc.byType[bucket] = { ...emptyTotals };
+
+      // bump bucket sums
+      acc.byType[bucket].count += 1;
+      acc.byType[bucket].net += net;
+      acc.byType[bucket].vat += vat;
+      acc.byType[bucket].discount += discount;
+      acc.byType[bucket].ongoing += ongoing;
+      acc.byType[bucket].returnCharges += returnCharges;
+      acc.byType[bucket].total += total;
+      acc.byType[bucket].paid += paid;
+      acc.byType[bucket].owing += owing;
+
+      // status counters
+      if (r.status === 'active') acc.status.active += 1;
+      if (r.status === 'scheduled') acc.status.scheduled += 1;
+      if (r.status === 'completed') acc.status.completed += 1;
 
       return acc;
     },
     {
-      counts: {} as Record<string, number>,
-      totalCost: {} as Record<string, number>,
-      paidAmount: {} as Record<string, number>,
-      discountAmount: {} as Record<string, number>,
-      remainingAmount: {} as Record<string, number>,
-      active: 0,
-      scheduled: 0,
-      completed: 0,
+      byType: {} as Record<Bucket, Totals>,
+      status: { active: 0, scheduled: 0, completed: 0 },
     }
   );
 
+  const card = (label: string, icon: React.ReactNode, t?: Totals) => {
+    const d = t ?? emptyTotals;
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">{label}</p>
+            <p className="mt-2 text-3xl font-semibold text-gray-900">{d.count}</p>
+          </div>
+          {icon}
+        </div>
+
+        <div className="mt-3 space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span>Net:</span>
+            <span className="font-medium">{formatCurrency(d.net)}</span>
+          </div>
+
+          <div className="flex justify-between text-blue-600">
+            <span>VAT:</span>
+            <span className="font-medium">{formatCurrency(d.vat)}</span>
+          </div>
+
+          {d.discount > 0 && (
+            <div className="flex justify-between text-purple-600">
+              <span>Discount:</span>
+              <span className="font-medium">-{formatCurrency(d.discount)}</span>
+            </div>
+          )}
+
+          {d.ongoing > 0 && (
+            <div className="flex justify-between text-amber-700">
+              <span>Ongoing (Overdue):</span>
+              <span className="font-medium">{formatCurrency(d.ongoing)}</span>
+            </div>
+          )}
+
+          {d.returnCharges > 0 && (
+            <div className="flex justify-between">
+              <span>Return Charges:</span>
+              <span className="font-medium">{formatCurrency(d.returnCharges)}</span>
+            </div>
+          )}
+
+          <div className="border-t my-1" />
+
+          <div className="flex justify-between font-semibold">
+            <span>Total:</span>
+            <span>{formatCurrency(d.total)}</span>
+          </div>
+
+          <div className="flex justify-between text-green-700">
+            <span>Paid:</span>
+            <span className="font-bold">{formatCurrency(d.paid)}</span>
+          </div>
+
+          <div className="flex justify-between text-amber-600">
+            <span>Owing:</span>
+            <span className="font-bold">{formatCurrency(d.owing)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-      {/* Daily Rentals */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Daily Rentals</p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {summary.counts.daily || 0}
-            </p>
-          </div>
-          <Calendar className="h-10 w-10 text-blue-500" />
-        </div>
-        <div className="mt-2 space-y-1">
-          <p className="text-sm text-blue-600">
-            Total: {formatCurrency(summary.totalCost.daily || 0)}
-          </p>
-          <p className="text-sm text-green-600">
-            Paid: {formatCurrency(summary.paidAmount.daily || 0)}
-          </p>
-          {(summary.discountAmount.daily || 0) > 0 && (
-            <p className="text-sm text-purple-600">
-              Discount: {formatCurrency(summary.discountAmount.daily || 0)}
-            </p>
-          )}
-          <p className="text-sm text-amber-600">
-            Unpaid: {formatCurrency(summary.remainingAmount.daily || 0)}
-          </p>
-        </div>
-      </div>
-
-      {/* Weekly Rentals */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Weekly Rentals</p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {summary.counts.weekly || 0}
-            </p>
-          </div>
-          <Calendar className="h-10 w-10 text-green-500" />
-        </div>
-        <div className="mt-2 space-y-1">
-          <p className="text-sm text-blue-600">
-            Total: {formatCurrency(summary.totalCost.weekly || 0)}
-          </p>
-          <p className="text-sm text-green-600">
-            Paid: {formatCurrency(summary.paidAmount.weekly || 0)}
-          </p>
-          {(summary.discountAmount.weekly || 0) > 0 && (
-            <p className="text-sm text-purple-600">
-              Discount: {formatCurrency(summary.discountAmount.weekly || 0)}
-            </p>
-          )}
-          <p className="text-sm text-amber-600">
-            Unpaid: {formatCurrency(summary.remainingAmount.weekly || 0)}
-          </p>
-        </div>
-      </div>
-
-      {/* Claim Rentals */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Claim Rentals</p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {summary.counts.claim || 0}
-            </p>
-          </div>
-          <FileText className="h-10 w-10 text-purple-500" />
-        </div>
-        <div className="mt-2 space-y-1">
-          <p className="text-sm text-blue-600">
-            Total: {formatCurrency(summary.totalCost.claim || 0)}
-          </p>
-          <p className="text-sm text-green-600">
-            Paid: {formatCurrency(summary.paidAmount.claim || 0)}
-          </p>
-          {(summary.discountAmount.claim || 0) > 0 && (
-            <p className="text-sm text-purple-600">
-              Discount: {formatCurrency(summary.discountAmount.claim || 0)}
-            </p>
-          )}
-          <p className="text-sm text-amber-600">
-            Unpaid: {formatCurrency(summary.remainingAmount.claim || 0)}
-          </p>
-        </div>
-      </div>
+      {card('Daily Rentals', <Calendar className="h-10 w-10 text-blue-500" />, summary.byType.daily)}
+      {card('Weekly Rentals', <Calendar className="h-10 w-10 text-green-500" />, summary.byType.weekly)}
+      {card('Claim Rentals', <FileText className="h-10 w-10 text-purple-500" />, summary.byType.claim)}
 
       {/* Rental Status */}
       <div className="bg-white rounded-lg shadow-sm p-6">
@@ -147,18 +189,18 @@ const RentalSummaryCards: React.FC<RentalSummaryCardsProps> = ({ rentals }) => {
           <p className="text-sm font-medium text-gray-500">Rental Status</p>
           <Clock className="h-10 w-10 text-orange-500" />
         </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
             <span className="text-blue-600">Active:</span>
-            <span className="font-medium">{summary.active}</span>
+            <span className="font-medium">{summary.status.active}</span>
           </div>
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between">
             <span className="text-yellow-600">Scheduled:</span>
-            <span className="font-medium">{summary.scheduled}</span>
+            <span className="font-medium">{summary.status.scheduled}</span>
           </div>
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between">
             <span className="text-green-600">Completed:</span>
-            <span className="font-medium">{summary.completed}</span>
+            <span className="font-medium">{summary.status.completed}</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 // src/components/vehicles/VehicleForm.tsx
 import React, { useState } from 'react';
-import { Vehicle, DEFAULT_RENTAL_PRICES, DEFAULT_OWNER } from '../../types/vehicle';
+import { Vehicle, DEFAULT_RENTAL_PRICES, DEFAULT_OWNER, MileageUpdate } from '../../types/vehicle';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Upload, X } from 'lucide-react';
@@ -61,7 +61,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   const meter  = useDocumentManager(vehicle?.documents?.MeterCertificateImage || []);
   const insure = useDocumentManager(vehicle?.documents?.insuranceImage || []);
 
-  const formatDateForInput = (t?: Timestamp | string | Date) => {
+  const formatDateForInput = (t?: Timestamp | string | Date | null) => {
     if (!t) return '';
     const d = t instanceof Timestamp ? t.toDate() : (typeof t === 'string' ? new Date(t) : t);
     const off = d.getTimezoneOffset() * 60000;
@@ -75,24 +75,28 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     year: vehicle?.year?.toString() ?? new Date().getFullYear().toString(),
     registrationNumber: vehicle?.registrationNumber ?? '',
     mileage: vehicle?.mileage?.toString() ?? '0',
-    insuranceExpiry: formatDateForInput(vehicle?.insuranceExpiry),
-    motTestDate:    formatDateForInput(vehicle?.motTestDate),
-    nslExpiry:      formatDateForInput(vehicle?.nslExpiry),
-    roadTaxExpiry:  formatDateForInput(vehicle?.roadTaxExpiry),
-    lastMaintenance: formatDateForInput(vehicle?.lastMaintenance),
-    nextMaintenance: formatDateForInput(vehicle?.nextMaintenance),
     nextServiceMileage:
       vehicle?.nextServiceMileage?.toString() ??
       ((vehicle?.mileage ?? 0) + 25000).toString(),
+
+    // Pricing
     weeklyRentalPrice:
-      vehicle?.weeklyRentalPrice?.toString() ??
-      DEFAULT_RENTAL_PRICES.weekly.toString(),
+      vehicle?.weeklyRentalPrice?.toString() ?? DEFAULT_RENTAL_PRICES.weekly.toString(),
     dailyRentalPrice:
-      vehicle?.dailyRentalPrice?.toString() ??
-      DEFAULT_RENTAL_PRICES.daily.toString(),
+      vehicle?.dailyRentalPrice?.toString() ?? DEFAULT_RENTAL_PRICES.daily.toString(),
     claimRentalPrice:
-      vehicle?.claimRentalPrice?.toString() ??
-      DEFAULT_RENTAL_PRICES.claim.toString(),
+      vehicle?.claimRentalPrice?.toString() ?? DEFAULT_RENTAL_PRICES.claim.toString(),
+
+    // Dates
+    insuranceExpiry: formatDateForInput(vehicle?.insuranceExpiry ?? null),
+    motTestDate:     formatDateForInput(vehicle?.motTestDate ?? null),
+    nslExpiry:       formatDateForInput(vehicle?.nslExpiry ?? null),
+    roadTaxExpiry:   formatDateForInput(vehicle?.roadTaxExpiry ?? null),
+    lastMaintenance: formatDateForInput(vehicle?.lastMaintenance ?? null),
+    nextMaintenance: formatDateForInput(vehicle?.nextMaintenance ?? null),
+
+    // NEW: Purchased Date
+    purchasedDate:   formatDateForInput(vehicle?.purchasedDate ?? null),
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,14 +129,17 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       const motDate = formData.motTestDate ? parseISO(formData.motTestDate) : undefined;
       const motExpiry = motDate ? addMonths(motDate, 6) : undefined;
 
+      const newMileage = parseInt(formData.mileage, 10);
+      const nextServiceMileage = parseInt(formData.nextServiceMileage, 10);
+
       const payload: Partial<Vehicle> = {
         vin: formData.vin,
         make: formData.make,
         model: formData.model,
         year: parseInt(formData.year, 10),
         registrationNumber: formData.registrationNumber,
-        mileage: parseInt(formData.mileage, 10),
-        nextServiceMileage: parseInt(formData.nextServiceMileage, 10),
+        mileage: newMileage,
+        nextServiceMileage,
         insuranceExpiry: formData.insuranceExpiry ? parseISO(formData.insuranceExpiry) : undefined,
         motTestDate: motDate,
         motExpiry,
@@ -144,6 +151,10 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         dailyRentalPrice:  Math.round(parseFloat(formData.dailyRentalPrice)),
         claimRentalPrice:  Math.round(parseFloat(formData.claimRentalPrice)),
         owner: isCustomOwner ? owner : DEFAULT_OWNER,
+
+        // NEW: Purchased Date
+        purchasedDate: formData.purchasedDate ? parseISO(formData.purchasedDate) : undefined,
+
         updatedAt: new Date(),
         documents: {
           nslImage: nslUrls,
@@ -153,6 +164,20 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           insuranceImage: insUrls,
         },
       };
+
+      // If mileage changed on an existing vehicle, append a history entry
+      if (vehicle && typeof vehicle.mileage === 'number' && vehicle.mileage !== newMileage) {
+        const history: MileageUpdate[] = Array.isArray(vehicle.mileageUpdates)
+          ? [...vehicle.mileageUpdates]
+          : [];
+        history.push({
+          date: new Date(),
+          mileage: newMileage,
+          updatedBy: user.uid || user.email || 'unknown',
+          source: 'form',
+        });
+        payload.mileageUpdates = history;
+      }
 
       if (newImageFile) {
         payload.image = await uploadImage(newImageFile, 'vehicle-main');
@@ -208,15 +233,26 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
         <div className="space-y-4">
           <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={isCustomOwner} onChange={e => { setIsCustomOwner(e.target.checked); if (!e.target.checked) setOwner(DEFAULT_OWNER); }} className="rounded border-gray-300 text-primary focus:ring-primary" />
+            <input
+              type="checkbox"
+              checked={isCustomOwner}
+              onChange={e => { setIsCustomOwner(e.target.checked); if (!e.target.checked) setOwner(DEFAULT_OWNER); }}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
             <span>Custom Owner</span>
           </label>
           {isCustomOwner ? (
             <div className="space-y-4">
-              <FormField label="Owner Name" value={owner.name} onChange={e => setOwner({ ...owner, name: e.target.value, isDefault: false })} required />
+              <FormField label="Owner Name" value={owner?.name || ''} onChange={e => setOwner({ ...(owner || {}), name: e.target.value, isDefault: false })} required />
               <div>
                 <label className="block text-sm font-medium text-gray-700">Owner Address</label>
-                <textarea rows={3} value={owner.address} onChange={e => setOwner({ ...owner, address: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
+                <textarea
+                  rows={3}
+                  value={owner?.address || ''}
+                  onChange={e => setOwner({ ...(owner || {}), address: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  required
+                />
               </div>
             </div>
           ) : (
@@ -227,6 +263,14 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
 
       {/* DATES */}
       <div className="grid grid-cols-2 gap-4">
+        {/* NEW: Purchased Date */}
+        <FormField
+          type="date"
+          label="Purchased Date"
+          value={formData.purchasedDate}
+          onChange={e => setFormData({ ...formData, purchasedDate: e.target.value })}
+        />
+
         <FormField type="date" label="MOT Test Date" value={formData.motTestDate} onChange={e => setFormData({ ...formData, motTestDate: e.target.value })} required />
         <FormField type="date" label="NSL Expiry" value={formData.nslExpiry} onChange={e => setFormData({ ...formData, nslExpiry: e.target.value })} required />
         <FormField type="date" label="Road Tax Expiry" value={formData.roadTaxExpiry} onChange={e => setFormData({ ...formData, roadTaxExpiry: e.target.value })} required />

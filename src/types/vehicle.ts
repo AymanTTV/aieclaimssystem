@@ -1,4 +1,6 @@
-export type VehicleStatus = 
+// src/types/vehicle.ts
+
+export type VehicleStatus =
   | 'available'
   | 'hired'
   | 'scheduled-rental'
@@ -16,10 +18,18 @@ export interface VehicleOwner {
 
 export interface VehicleDocuments {
   nslImage?: string[];
-  MeterCertificateImage?: string[];
   motImage?: string[];
   v5Image?: string[];
+  MeterCertificateImage?: string[];
   insuranceImage?: string[];
+}
+
+export interface MileageUpdate {
+  date: Date;
+  mileage: number;
+  note?: string;
+  updatedBy?: string; // uid or display name
+  source?: 'form' | 'service' | 'import' | 'other';
 }
 
 export interface Vehicle {
@@ -29,43 +39,60 @@ export interface Vehicle {
   model: string;
   year: number;
   registrationNumber: string;
-  status: VehicleStatus;
-  activeStatuses: VehicleStatus[];
+
+  // Core counters
   mileage: number;
   nextServiceMileage: number;
-  insuranceExpiry: Date;
-  motTestDate: Date; // Changed from motExpiry to motTestDate
-  motExpiry: Date; // This will be calculated as 6 months after motTestDate
-  nslExpiry: Date;
-  roadTaxExpiry: Date;
-  lastMaintenance: Date;
-  nextMaintenance: Date;
-  image?: string;
-  createdAt: Date;
-  createdBy: string;
-  soldDate?: Date;
-  salePrice?: number;
-  owner: VehicleOwner;
+
+  // Dates
+  insuranceExpiry?: Date | null;
+  motTestDate?: Date | null;
+  motExpiry?: Date | null;
+  nslExpiry?: Date | null;
+  roadTaxExpiry?: Date | null;
+  lastMaintenance?: Date | null;
+  nextMaintenance?: Date | null;
+
+  // NEW: when the car was purchased
+  purchasedDate?: Date | null;
+
+  // Pricing
   weeklyRentalPrice: number;
   dailyRentalPrice: number;
   claimRentalPrice: number;
+
+  // Ownership
+  owner?: VehicleOwner;
+
+  // Media & docs
+  image?: string;
   documents?: VehicleDocuments;
-  documentUrl?: string;
+
+  // Status & audit
+  status: VehicleStatus;
+  createdAt?: Date;
+  updatedAt?: Date;
+  createdBy?: string;
+
+  // Sales (if sold)
+  soldDate?: Date | null;
+  salePrice?: number | null;
+
+  // NEW: mileage history
+  mileageUpdates?: MileageUpdate[];
 }
 
-// Default rental prices as whole numbers
+// Defaults
 export const DEFAULT_RENTAL_PRICES = {
-  weekly: 360,   // £360 per week
-  daily: 60,     // £60 per day
-  claim: 340     // £340 per day for claim rentals
+  weekly: 360,
+  daily: 60,
+  claim: 340,
 } as const;
 
-// Default owner address
-export const DEFAULT_OWNER_ADDRESS = "39-41 North Road, London, N7 9DP";
+export const DEFAULT_OWNER_ADDRESS = '39-41 North Road, London, N7 9DP';
 
-// Default owner object
 export const DEFAULT_OWNER: VehicleOwner = {
-  name: "AIE Skyline",
+  name: 'AIE Skyline',
   address: DEFAULT_OWNER_ADDRESS,
-  isDefault: true
+  isDefault: true,
 };

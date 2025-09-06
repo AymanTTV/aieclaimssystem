@@ -14,6 +14,14 @@ interface VDFinanceDetailsProps {
 
 const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
 
+  const REASON_LABELS: Record<'VD'|'H'|'S'|'PI', string> = {
+  VD: 'Vehicle Damage',
+  H: 'Hire',
+  S: 'Storage',
+  PI: 'Personal Injury',
+};
+
+
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const { formatCurrency } = useFormattedDisplay(); // Use the hook
   useEffect(() => {
@@ -52,27 +60,47 @@ const VDFinanceDetails: React.FC<VDFinanceDetailsProps> = ({ record }) => {
 
   return (
     <div className="space-y-6">
-      {/* Basic Information */}
       <Section title="Basic Information">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Name</dt>
-            <dd className="mt-1 text-sm text-gray-900">{record.name}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Reference</dt>
-            <dd className="mt-1 text-sm text-gray-900">{record.reference}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Registration</dt>
-            <dd className="mt-1 text-sm text-gray-900">{record.registration}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Date</dt>
-            <dd className="mt-1 text-sm text-gray-900">{format(record.date, 'dd/MM/yyyy HH:mm')}</dd>
-          </div>
-        </div>
-      </Section>
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <dt className="text-sm font-medium text-gray-500">Name</dt>
+      <dd className="mt-1 text-sm text-gray-900">{record.name}</dd>
+    </div>
+    <div>
+      <dt className="text-sm font-medium text-gray-500">Reference</dt>
+      <dd className="mt-1 text-sm text-gray-900">{record.reference}</dd>
+    </div>
+    <div>
+      <dt className="text-sm font-medium text-gray-500">Registration</dt>
+      <dd className="mt-1 text-sm text-gray-900">{record.registration}</dd>
+    </div>
+    <div>
+      <dt className="text-sm font-medium text-gray-500">Date</dt>
+      <dd className="mt-1 text-sm text-gray-900">{format(record.date, 'dd/MM/yyyy HH:mm')}</dd>
+    </div>
+
+    {/* NEW: Claim Reason(s) */}
+    <div className="col-span-2">
+      <dt className="text-sm font-medium text-gray-500">Claim Reason(s)</dt>
+      <dd className="mt-2 flex flex-wrap gap-2">
+        {(record.claimReasons && record.claimReasons.length > 0) ? (
+          record.claimReasons.map(code => (
+            <span
+              key={code}
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+              title={REASON_LABELS[code]}
+            >
+              {code}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-gray-400">N/A</span>
+        )}
+      </dd>
+    </div>
+  </div>
+</Section>
+
 
       {/* Financial Details */}
       <Section title="Financial Details">

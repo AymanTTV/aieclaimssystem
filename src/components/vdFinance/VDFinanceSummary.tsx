@@ -1,8 +1,7 @@
 // src/components/vdFinance/VDFinanceSummary.tsx
-
 import React from 'react';
 import { VDFinanceRecord } from '../../types/vdFinance';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface VDFinanceSummaryProps {
@@ -10,29 +9,22 @@ interface VDFinanceSummaryProps {
 }
 
 const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
-
+  const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
-  
-    // Don't even render the cards if the user lacks the 'cards' permission
-    if (!can('vdFinance', 'cards')) {
-      return null;
-    }
+  if (!can('vdFinance', 'cards')) return null;
 
-  // Calculate summary including new fields
   const summary = records.reduce(
-    (acc, record) => ({
-      total: acc.total + record.totalAmount,
-      net: acc.net + record.netAmount,
-      vatIn: acc.vatIn + record.vatIn,
-      vatOut: acc.vatOut + record.vatOut,
-      expenses: acc.expenses + record.purchasedItems,
-      solicitorFee: acc.solicitorFee + record.solicitorFee,
-      clientRepair: acc.clientRepair + record.clientRepair,
-      // Add salvage and clientReferralFee to the accumulator
-      salvage: acc.salvage + (record.salvage || 0), // Ensure default to 0 if undefined
-      clientReferralFee: acc.clientReferralFee + (record.clientReferralFee || 0), // Ensure default to 0 if undefined
-      profit: acc.profit + record.profit, // Assuming profit is already calculated correctly in the record
+    (acc, r) => ({
+      total:           acc.total + (r.totalAmount ?? 0),
+      net:             acc.net + (r.netAmount ?? 0),
+      vatIn:           acc.vatIn + (r.vatIn ?? 0),
+      vatOut:          acc.vatOut + (r.vatOut ?? 0),
+      expenses:        acc.expenses + (r.purchasedItems ?? 0),
+      solicitorFee:    acc.solicitorFee + (r.solicitorFee ?? 0),
+      clientRepair:    acc.clientRepair + (r.clientRepair ?? 0),
+      salvage:         acc.salvage + (r.salvage ?? 0),
+      clientReferralFee: acc.clientReferralFee + (r.clientReferralFee ?? 0),
+      profit:          acc.profit + (r.profit ?? 0),
     }),
     {
       total: 0,
@@ -42,97 +34,33 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
       expenses: 0,
       solicitorFee: 0,
       clientRepair: 0,
-      salvage: 0, // Initialize new fields
-      clientReferralFee: 0, // Initialize new fields
-      profit: 0
+      salvage: 0,
+      clientReferralFee: 0,
+      profit: 0,
     }
   );
 
+  const Card: React.FC<{ label: string; value: number; tone?: string }> = ({ label, value, tone }) => (
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h3 className="text-xs sm:text-sm font-medium text-gray-500">{label}</h3>
+      <p className={`mt-2 text-lg sm:text-3xl font-semibold ${tone ?? 'text-gray-900'}`}>
+        {formatCurrency(value)}
+      </p>
+    </div>
+  );
+
   return (
-    // Updated grid layout to accommodate 5 columns on extra-large screens (xl)
-    // grid-cols-1 for mobile, sm:grid-cols-2 for small screens, lg:grid-cols-3 for large screens, xl:grid-cols-5 for extra-large screens
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-
-      {/* Total Amount Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">TOTAL AMOUNT</h3>
-        <p className="mt-2 text-3xl font-semibold text-gray-900">
-          {formatCurrency(summary.total)}
-        </p>
-      </div>
-
-      {/* NET Amount Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">NET AMOUNT</h3>
-        <p className="mt-2 text-3xl font-semibold text-green-600">
-          {formatCurrency(summary.net)}
-        </p>
-      </div>
-
-      {/* VAT IN Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">VAT IN</h3>
-        <p className="mt-2 text-3xl font-semibold text-blue-600">
-          {formatCurrency(summary.vatIn)}
-        </p>
-      </div>
-
-      {/* VAT OUT Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">VAT OUT</h3>
-        <p className="mt-2 text-3xl font-semibold text-red-600">
-          {formatCurrency(summary.vatOut)}
-        </p>
-      </div>
-
-      {/* Expenses Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">EXPENSES (Purchased Items)</h3> {/* Clarified label */}
-        <p className="mt-2 text-3xl font-semibold text-amber-600">
-          {formatCurrency(summary.expenses)}
-        </p>
-      </div>
-
-      {/* Solicitor Fee Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">SOLICITOR FEE</h3>
-        <p className="mt-2 text-3xl font-semibold text-indigo-600">
-          {formatCurrency(summary.solicitorFee)}
-        </p>
-      </div>
-
-      {/* Client Repair Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">CLIENT REPAIR</h3>
-        <p className="mt-2 text-3xl font-semibold text-orange-600">
-          {formatCurrency(summary.clientRepair)}
-        </p>
-      </div>
-
-      {/* Salvage Card - New */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">SALVAGE</h3>
-        <p className="mt-2 text-3xl font-semibold text-purple-600"> {/* Using a different color */}
-          {formatCurrency(summary.salvage)}
-        </p>
-      </div>
-
-      {/* Client Referral Fee Card - New */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">CLIENT REFERRAL FEE</h3>
-        <p className="mt-2 text-3xl font-semibold text-pink-600"> {/* Using a different color */}
-          {formatCurrency(summary.clientReferralFee)}
-        </p>
-      </div>
-
-      {/* Profit Card */}
-      {/* This card's position might shift depending on the grid layout */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-sm font-medium text-gray-500">PROFIT</h3>
-        <p className="mt-2 text-3xl font-semibold text-emerald-600">
-          {formatCurrency(summary.profit)}
-        </p>
-      </div>
+    <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+      <Card label="TOTAL AMOUNT"               value={summary.total} />
+      <Card label="NET AMOUNT"                 value={summary.net} tone="text-green-600" />
+      <Card label="VAT IN"                     value={summary.vatIn} tone="text-blue-600" />
+      <Card label="VAT OUT"                    value={summary.vatOut} tone="text-red-600" />
+      <Card label="EXPENSES (Purchased Items)" value={summary.expenses} tone="text-amber-600" />
+      <Card label="SOLICITOR FEE"              value={summary.solicitorFee} tone="text-indigo-600" />
+      <Card label="CLIENT REPAIR"              value={summary.clientRepair} tone="text-orange-600" />
+      <Card label="SALVAGE"                    value={summary.salvage} tone="text-purple-600" />
+      <Card label="CLIENT REFERRAL FEE"        value={summary.clientReferralFee} tone="text-pink-600" />
+      <Card label="PROFIT"                     value={summary.profit} tone="text-emerald-600" />
     </div>
   );
 };

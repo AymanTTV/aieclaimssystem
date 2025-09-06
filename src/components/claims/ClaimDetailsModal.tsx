@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { isLegacyClaimProgress, deriveDisplayStatus, PROGRESS_OPTIONS } from '../../utils/claimProgress';
 
 import clsx from 'clsx';
 
@@ -19,6 +20,29 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
   // Initialize createdByName state
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const { formatCurrency } = useFormattedDisplay();
+  const legacy = useMemo(() => isLegacyClaimProgress(claim), [claim]);
+  const displayStatus = useMemo(() => deriveDisplayStatus(claim) ?? 'N/A', [claim]);
+  const [serverHistory, setServerHistory] = useState(claim.progressHistory || []);
+  const historyToShow = (serverHistory?.length ? serverHistory : (claim.progressHistory || []));
+
+
+  useEffect(() => {
+  (async () => {
+    try {
+      const snap = await getDoc(doc(db, 'claims', claim.id));
+      if (!snap.exists()) return;
+      const data = snap.data() as any;
+      const hist = (data.progressHistory || []).map((h: any) => ({
+        ...h,
+        date: h?.date?.toDate ? h.date.toDate() : new Date(h.date),
+      }));
+      setServerHistory(hist);
+    } catch (e) {
+      console.warn('Failed to refresh progress history:', e);
+    }
+  })();
+}, [claim.id]);
+
 
 
   useEffect(() => {
@@ -141,14 +165,21 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
         </div>
         <div className="space-y-1">
-          <StatusBadge status={claim.claimType} />
-          {/* Ensure claimReason is an array before mapping */}
-          {Array.isArray(claim.claimReason) && claim.claimReason.map(reason => (
-             <StatusBadge key={reason} status={reason} />
-          ))}
-          <StatusBadge status={claim.caseProgress} />
-          <StatusBadge status={claim.progress} />
-        </div>
+  <StatusBadge status={claim.claimType} />
+  {Array.isArray(claim.claimReason) && claim.claimReason.map(reason => (
+    <StatusBadge key={reason} status={reason} />
+  ))}
+  <StatusBadge status={claim.caseProgress} />
+  <div className="flex items-center gap-2">
+    <StatusBadge status={displayStatus} />
+    {legacy && (
+      <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+        Legacy
+      </span>
+    )}
+  </div>
+</div>
+
       </div>
 
       {/* Client Information */}
@@ -813,42 +844,31 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
 
 
       {/* Progress History */}
-            {/* Progress History */}
-            <Section title="Progress History">
-        <div className="space-y-6">
-          {claim.progressHistory && claim.progressHistory.length > 0 ? ( // Added null/empty check
-             claim.progressHistory.map((h, i) => {
-              const historyDate = toJsDate(h.date); // Convert history date
-              if (!historyDate) return null; // Skip if date is invalid
+<Section title={legacy ? 'Legacy Progress History (read‑only)' : 'Claim Progress History'}>
+  <div className="space-y-6">
+    {historyToShow.length > 0 ? (
+      historyToShow.map((h, i) => {
+        const historyDate = toJsDate(h.date);
+        if (!historyDate) return null;
+        return (
+          <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center">
+              <StatusBadge status={h.status} />
+              <span className="text-xs text-gray-500">{formatDateTime(historyDate)}</span>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{h.note ?? 'N/A'}</p>
+            </div>
+            <div className="mt-3 text-xs text-gray-400 text-right">— {h.author ?? 'N/A'}</div>
+          </div>
+        );
+      })
+    ) : (
+      <p className="text-sm text-gray-500">No progress updates yet.</p>
+    )}
+  </div>
+</Section>
 
-              return (
-                <div
-                  key={i}
-                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-                >
-                  <div className="flex justify-between items-center">
-                    <StatusBadge status={h.status} />
-                    <span className="text-xs text-gray-500">
-                      {formatDateTime(historyDate)} {/* Use converted date */}
-                    </span>
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="sr-only">Note</h4>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                      {h.note ?? 'N/A'} {/* Use ?? 'N/A' */}
-                    </p>
-                  </div>
-                  <div className="mt-3 text-xs text-gray-400 text-right">
-                    — {h.author ?? 'N/A'} {/* Use ?? 'N/A' */}
-                  </div>
-                </div>
-              );
-             })
-          ) : (
-            <p className="text-sm text-gray-500">No progress updates yet.</p>
-          )}
-        </div>
-      </Section>
 
       {/* Audit Information */}
       <div className="text-sm text-gray-500 border-t pt-4">

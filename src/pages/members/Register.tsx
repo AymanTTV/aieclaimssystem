@@ -76,6 +76,17 @@ const MemberRegister: React.FC = () => {
         role: 'member',
         createdAt: serverTimestamp()
       });
+      const snap = await getDocs(
+    query(collection(db, 'customers'), where('email', '==', email.trim().toLowerCase()), limit(1))
+  );
+  if (!snap.empty) {
+    const cDoc = snap.docs[0];
+    await setDoc(
+      doc(db, 'customers', cDoc.id),
+      { memberUid: cred.user.uid, email: email.trim().toLowerCase() },
+      { merge: true }
+    );
+  }
       toast.success('Account created!');
       navigate('/members/transactions');
     } catch (err: any) {

@@ -1,6 +1,5 @@
 // src/components/Layout.tsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -10,7 +9,7 @@ import {
   AlertTriangle,
   DollarSign,
   Users,
-  User,          // ← for member profile link
+  User as UserIcon,
   LogOut,
   Menu,
   ChevronDown,
@@ -25,8 +24,8 @@ import {
   Car,
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
-import logo from '../assets/logo.png';
 import MobileMenu from './navigation/MobileMenu';
+// IMPORTANT: import from constants-only file to avoid circular import issues
 import { ROUTES, ROUTE_METADATA, ROUTE_PERMISSIONS } from '../routes';
 import {
   collection,
@@ -51,32 +50,6 @@ interface NavItem {
   }>;
 }
 
-// Map metadata icon names to components
-const IconMap: Record<string, React.ElementType> = {
-  Home, Car, Box, Wrench, Calendar, AlertTriangle,
-  FileText, DollarSign, Users, Building,
-  Calculator, Mail, Share2, MessageSquare,
-};
-
-const getNavItem = (
-  route: string,
-  customName?: string,
-  customIcon?: React.ElementType,
-  customPermission?: { module: string; action: string }
-): NavItem | null => {
-  const metadata = ROUTE_METADATA[route as keyof typeof ROUTE_METADATA];
-  const permission = ROUTE_PERMISSIONS[route as keyof typeof ROUTE_PERMISSIONS];
-  if (!metadata && !customName && !customIcon) return null;
-  const iconName = metadata?.icon as string | undefined;
-  const IconComponent = customIcon || (iconName && IconMap[iconName]) || MessageSquare;
-  return {
-    name: customName || metadata!.title,
-    href: route,
-    icon: IconComponent,
-    permission: customPermission || permission,
-  };
-};
-
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -89,10 +62,94 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [lastReadTimestamp, setLastReadTimestamp] = useState<Timestamp | null>(null);
 
-  // detect members area
   const isMemberArea = location.pathname.startsWith('/members');
 
-  // listen for lastReadTimestamp
+  // BASE-safe logo URL (works with any Vite base)
+  const logoUrl = useMemo(
+    () => new URL('../assets/logo.png', import.meta.url).href,
+    []
+  );
+
+  // Build maps lazily (kept inside component)
+  const ROUTE_ICON = useMemo<Partial<Record<string, React.ElementType>>>(() => ({
+    [ROUTES.DASHBOARD]: Home,
+
+    [ROUTES.VEHICLES]: Car,
+    [ROUTES.MAINTENANCE]: Wrench,
+    [ROUTES.PRODUCTS]: Box,
+    [ROUTES.RENTALS]: Calendar,
+    [ROUTES.ACCIDENTS]: AlertTriangle,
+
+    // Finance cluster
+    [ROUTES.FINANCE]: DollarSign,
+    [ROUTES.PETTY_CASH]: DollarSign,
+    [ROUTES.INVOICES]: FileText,
+    [ROUTES.VAT_RECORD]: Calculator,
+    [ROUTES.INCOME_EXPENSE]: DollarSign,
+
+    // Claims cluster (legacy names)
+    [ROUTES.CLAIMS]: FileText,
+    [ROUTES.VD_FINANCE]: DollarSign,
+    [ROUTES.VD_INVOICE]: FileText,
+    [ROUTES.SHARE]: Share2,
+
+    // Skyline cluster
+    [ROUTES.DRIVER_PAY]: Building,
+    [ROUTES.SKYLINE_PETTY_CASH]: DollarSign,
+    [ROUTES.SKYLINE_INCOME_EXPENSE]: DollarSign,
+
+    // Company / users
+    [ROUTES.CUSTOMERS]: Users,
+    [ROUTES.USERS]: Users,
+    [ROUTES.BULK_EMAIL]: Mail,
+    [ROUTES.COMPANY_MANAGERS]: Users,
+
+    // Chat
+    [ROUTES.CHAT]: MessageSquare,
+
+    // Members area
+    '/members/dashboard': Home,
+    '/members/transactions': FileText,
+    '/members/invoices': FileText,
+    '/members/rentals': Calendar,
+    '/members/profile': UserIcon,
+
+    // Profile (staff/admin)
+    [ROUTES.PROFILE]: UserIcon,
+  }), []);
+
+  const ROUTE_LABEL = useMemo<Partial<Record<string, string>>>(() => ({
+    [ROUTES.DASHBOARD]: 'Dashboard',
+    [ROUTES.FINANCE]: 'Finance',
+    [ROUTES.INVOICES]: 'Invoices',
+    [ROUTES.CUSTOMERS]: 'Members',
+    [ROUTES.USERS]: 'Users',
+    [ROUTES.CHAT]: 'Chat',
+    [ROUTES.PROFILE]: 'Profile',
+
+    // Members area
+    '/members/dashboard': 'Dashboard',
+    '/members/transactions': 'Transactions',
+    '/members/invoices': 'Invoices',
+    '/members/rentals': 'Rentals',
+    '/members/profile': 'Profile',
+  }), []);
+
+  const resolveLabel = (route: string): string =>
+    ROUTE_LABEL[route] ||
+    ROUTE_METADATA[route as keyof typeof ROUTE_METADATA]?.title ||
+    route.split('/').pop()?.replace(/[-_]/g, ' ') ||
+    'Page';
+
+  const resolveIcon = (route: string): React.ElementType =>
+    ROUTE_ICON[route] || FileText;
+
+  const resolvePerm = (
+    route: string
+  ): { module: string; action: string } | undefined =>
+    ROUTE_PERMISSIONS[route as keyof typeof ROUTE_PERMISSIONS];
+
+  // Listen for last read timestamp
   useEffect(() => {
     if (!user?.id) return setLastReadTimestamp(null);
     const ref = doc(db, 'users', user.id);
@@ -102,15 +159,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => unsub();
   }, [user?.id]);
 
-  // listen for unread chat
+  // Unread chat counter
   useEffect(() => {
     if (!user?.id) return setUnreadChatCount(0);
-    let q = query(collection(db, 'messages'), orderBy('timestamp','desc'));
+    let q = query(collection(db, 'messages'), orderBy('timestamp', 'desc'));
     if (lastReadTimestamp) {
       q = query(
         collection(db, 'messages'),
-        where('timestamp','>', lastReadTimestamp),
-        orderBy('timestamp','desc')
+        where('timestamp', '>', lastReadTimestamp),
+        orderBy('timestamp', 'desc')
       );
     }
     const unsub = onSnapshot(q, snap => {
@@ -126,108 +183,168 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => unsub();
   }, [user?.id, lastReadTimestamp]);
 
-  // clear when viewing chat
+  // Clear when viewing chat
   useEffect(() => {
     if (location.pathname === ROUTES.CHAT) setUnreadChatCount(0);
   }, [location.pathname]);
 
-  // build nav
-  const rawNavigation: NavItem[] = isMemberArea
-    ? [
-        { name:'Transactions', href:'/members/transactions', icon:FileText },
-        { name:'Profile',      href:'/members/profile',      icon:User     },
-      ]
-    : [
-        getNavItem(ROUTES.VEHICLES),
-        getNavItem(ROUTES.MAINTENANCE),
-        getNavItem(ROUTES.PRODUCTS),
-        getNavItem(ROUTES.RENTALS),
-        getNavItem(ROUTES.ACCIDENTS),
-        {
-          name: ROUTE_METADATA[ROUTES.CLAIMS].title!,
-          href: ROUTES.CLAIMS,
-          icon: IconMap[ROUTE_METADATA[ROUTES.CLAIMS].icon as string] || FileText,
-          permission: ROUTE_PERMISSIONS[ROUTES.CLAIMS],
-          submenu: [
-            getNavItem(ROUTES.CLAIMS)!,
-            getNavItem(ROUTES.VD_FINANCE)!,
-            { name:'VD Invoice', href:ROUTES.VD_INVOICE, permission:ROUTE_PERMISSIONS[ROUTES.CLAIMS] },
-            { name:'Share', href:ROUTES.SHARE, permission:{module:'share',action:'view'} },
-          ],
-        },
-        {
-          name:'Skyline Cabs', href:ROUTES.DRIVER_PAY, icon:Building,
-          permission:{module:'driverPay',action:'view'},
-          submenu:[
-            { name:'Driver Pay', href:ROUTES.DRIVER_PAY, permission:{module:'driverPay',action:'view'} },
-            { name:'Petty Cash', href:ROUTES.SKYLINE_PETTY_CASH, permission:{module:'driverPay',action:'view'} },
-            { name:'Income & Expense', href:ROUTES.SKYLINE_INCOME_EXPENSE, permission:{module:'driverPay',action:'view'} },
-          ]
-        },
-        {
-          name:ROUTE_METADATA[ROUTES.FINANCE].title!, href:ROUTES.FINANCE,
-          icon: IconMap[ROUTE_METADATA[ROUTES.FINANCE].icon as string] || DollarSign,
-          permission:ROUTE_PERMISSIONS[ROUTES.FINANCE],
-          submenu:[
-            getNavItem(ROUTES.FINANCE)!,
-            getNavItem(ROUTES.PETTY_CASH)!,
-            getNavItem(ROUTES.INVOICES)!,
-            { name:'VAT Records', href:ROUTES.VAT_RECORD, permission:{module:'vatRecord',action:'view'}, icon:Calculator },
-            getNavItem(ROUTES.INCOME_EXPENSE)!,
-          ]
-        },
-        getNavItem(ROUTES.CUSTOMERS)!,
-        {
-          name:'Company', href:ROUTES.USERS,
-          icon: IconMap[ROUTE_METADATA[ROUTES.USERS].icon as string] || Users,
-          permission:ROUTE_PERMISSIONS[ROUTES.USERS],
-          submenu:[
-            { name:'Bulk Email', href:ROUTES.BULK_EMAIL, permission:ROUTE_PERMISSIONS[ROUTES.USERS], icon:Mail },
-            getNavItem(ROUTES.USERS)!,
-            { name:'Company Managers', href:ROUTES.COMPANY_MANAGERS, permission:ROUTE_PERMISSIONS[ROUTES.USERS] },
-          ]
-        },
-        getNavItem(ROUTES.CHAT)!,
-      ].filter(Boolean) as NavItem[];
+  const isActiveRoute = (href: string) => {
+    const p = location.pathname;
+    return (
+      href === p ||
+      (href !== '/' && p.startsWith(href) && (p.length === href.length || p[href.length] === '/')) ||
+      (href === '/' && p === '/')
+    );
+  };
 
-  const navigation = rawNavigation.filter(item => {
-    const ok = !item.permission || can(item.permission.module, item.permission.action);
-    if (item.submenu) {
-      item.submenu = item.submenu.filter(sub => !sub.permission || can(sub.permission.module, sub.permission.action));
-      return ok || item.submenu.length > 0;
+  // Build navigation (desktop & mobile menu)
+  const rawNavigation: NavItem[] = useMemo(() => {
+    if (isMemberArea) {
+      // Full member nav (matches your main design)
+      return [
+        { name: resolveLabel('/members/dashboard'), href: '/members/dashboard', icon: resolveIcon('/members/dashboard') },
+        { name: resolveLabel('/members/transactions'), href: '/members/transactions', icon: resolveIcon('/members/transactions') },
+        { name: resolveLabel('/members/invoices'), href: '/members/invoices', icon: resolveIcon('/members/invoices') },
+        { name: resolveLabel('/members/rentals'), href: '/members/rentals', icon: resolveIcon('/members/rentals') },
+        { name: resolveLabel('/members/profile'), href: '/members/profile', icon: resolveIcon('/members/profile') },
+      ];
     }
-    return ok;
-  });
+
+    return [
+      { name: resolveLabel(ROUTES.DASHBOARD), href: ROUTES.DASHBOARD, icon: resolveIcon(ROUTES.DASHBOARD), permission: resolvePerm(ROUTES.DASHBOARD) },
+
+      { name: resolveLabel(ROUTES.VEHICLES), href: ROUTES.VEHICLES, icon: resolveIcon(ROUTES.VEHICLES), permission: resolvePerm(ROUTES.VEHICLES) },
+      { name: resolveLabel(ROUTES.MAINTENANCE), href: ROUTES.MAINTENANCE, icon: resolveIcon(ROUTES.MAINTENANCE), permission: resolvePerm(ROUTES.MAINTENANCE) },
+      { name: resolveLabel(ROUTES.PRODUCTS), href: ROUTES.PRODUCTS, icon: resolveIcon(ROUTES.PRODUCTS), permission: resolvePerm(ROUTES.PRODUCTS) },
+      { name: resolveLabel(ROUTES.RENTALS), href: ROUTES.RENTALS, icon: resolveIcon(ROUTES.RENTALS), permission: resolvePerm(ROUTES.RENTALS) },
+      { name: resolveLabel(ROUTES.ACCIDENTS), href: ROUTES.ACCIDENTS, icon: resolveIcon(ROUTES.ACCIDENTS), permission: resolvePerm(ROUTES.ACCIDENTS) },
+
+      {
+        name: resolveLabel(ROUTES.CLAIMS),
+        href: ROUTES.CLAIMS,
+        icon: resolveIcon(ROUTES.CLAIMS),
+        permission: resolvePerm(ROUTES.CLAIMS),
+        submenu: [
+          { name: resolveLabel(ROUTES.CLAIMS), href: ROUTES.CLAIMS, icon: resolveIcon(ROUTES.CLAIMS), permission: resolvePerm(ROUTES.CLAIMS) },
+          { name: resolveLabel(ROUTES.VD_FINANCE), href: ROUTES.VD_FINANCE, icon: resolveIcon(ROUTES.VD_FINANCE), permission: resolvePerm(ROUTES.VD_FINANCE) },
+          { name: 'VD Invoice', href: ROUTES.VD_INVOICE, icon: resolveIcon(ROUTES.VD_INVOICE), permission: resolvePerm(ROUTES.CLAIMS) },
+          { name: resolveLabel(ROUTES.SHARE), href: ROUTES.SHARE, icon: resolveIcon(ROUTES.SHARE), permission: { module: 'share', action: 'view' } },
+        ],
+      },
+
+      {
+        name: 'Skyline Cabs',
+        href: ROUTES.DRIVER_PAY,
+        icon: resolveIcon(ROUTES.DRIVER_PAY),
+        permission: { module: 'driverPay', action: 'view' },
+        submenu: [
+          { name: resolveLabel(ROUTES.DRIVER_PAY), href: ROUTES.DRIVER_PAY, icon: resolveIcon(ROUTES.DRIVER_PAY), permission: { module: 'driverPay', action: 'view' } },
+          { name: 'Petty Cash', href: ROUTES.SKYLINE_PETTY_CASH, icon: resolveIcon(ROUTES.SKYLINE_PETTY_CASH), permission: { module: 'driverPay', action: 'view' } },
+          { name: 'Income & Expense', href: ROUTES.SKYLINE_INCOME_EXPENSE, icon: resolveIcon(ROUTES.SKYLINE_INCOME_EXPENSE), permission: { module: 'driverPay', action: 'view' } },
+        ],
+      },
+
+      {
+        name: resolveLabel(ROUTES.FINANCE),
+        href: ROUTES.FINANCE,
+        icon: resolveIcon(ROUTES.FINANCE),
+        permission: resolvePerm(ROUTES.FINANCE),
+        submenu: [
+          { name: resolveLabel(ROUTES.FINANCE), href: ROUTES.FINANCE, icon: resolveIcon(ROUTES.FINANCE), permission: resolvePerm(ROUTES.FINANCE) },
+          { name: resolveLabel(ROUTES.PETTY_CASH), href: ROUTES.PETTY_CASH, icon: resolveIcon(ROUTES.PETTY_CASH), permission: resolvePerm(ROUTES.PETTY_CASH) },
+          { name: resolveLabel(ROUTES.INVOICES), href: ROUTES.INVOICES, icon: resolveIcon(ROUTES.INVOICES), permission: resolvePerm(ROUTES.INVOICES) },
+          { name: 'VAT Records', href: ROUTES.VAT_RECORD, icon: resolveIcon(ROUTES.VAT_RECORD), permission: { module: 'vatRecord', action: 'view' } },
+          { name: resolveLabel(ROUTES.INCOME_EXPENSE), href: ROUTES.INCOME_EXPENSE, icon: resolveIcon(ROUTES.INCOME_EXPENSE), permission: resolvePerm(ROUTES.INCOME_EXPENSE) },
+        ],
+      },
+
+      { name: resolveLabel(ROUTES.CUSTOMERS), href: ROUTES.CUSTOMERS, icon: resolveIcon(ROUTES.CUSTOMERS), permission: resolvePerm(ROUTES.CUSTOMERS) },
+
+      {
+        name: 'Company',
+        href: ROUTES.USERS,
+        icon: resolveIcon(ROUTES.USERS),
+        permission: resolvePerm(ROUTES.USERS),
+        submenu: [
+          { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.USERS) },
+          { name: 'Users', href: ROUTES.USERS, icon: resolveIcon(ROUTES.USERS), permission: resolvePerm(ROUTES.USERS) },
+          { name: 'Company Managers', href: ROUTES.COMPANY_MANAGERS, icon: resolveIcon(ROUTES.COMPANY_MANAGERS), permission: resolvePerm(ROUTES.USERS) },
+        ],
+      },
+
+      { name: resolveLabel(ROUTES.CHAT), href: ROUTES.CHAT, icon: resolveIcon(ROUTES.CHAT), permission: resolvePerm(ROUTES.CHAT) },
+    ].filter(Boolean) as NavItem[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMemberArea, can]);
+
+  // Permissions filter
+  const navigation = useMemo(() => {
+    const filtered = rawNavigation.filter(item => {
+      const ok = !item.permission || can(item.permission.module, item.permission.action);
+      if (item.submenu) {
+        item.submenu = item.submenu.filter(
+          sub => !sub.permission || can(sub.permission.module, sub.permission.action)
+        );
+        return ok || item.submenu.length > 0;
+      }
+      return ok;
+    });
+    return filtered;
+  }, [rawNavigation, can]);
 
   const handleLogout = async () => {
     await auth.signOut();
     navigate(isMemberArea ? '/members/login' : ROUTES.LOGIN);
   };
 
-  const isActiveRoute = (href: string) => {
-    const p = location.pathname;
-    return href === p
-      || (href !== '/' && p.startsWith(href) && (p.length === href.length || p[href.length] === '/'))
-      || (href === '/' && p === '/');
-  };
+  // Mobile bottom bar items
+  const bottomNavItems = useMemo(() => {
+    if (isMemberArea) {
+      // Keep it compact: Transactions, Invoices, Rentals, Profile
+      return [
+        { name: resolveLabel('/members/transactions'), href: '/members/transactions', icon: resolveIcon('/members/transactions') },
+        { name: resolveLabel('/members/invoices'), href: '/members/invoices', icon: resolveIcon('/members/invoices') },
+        { name: resolveLabel('/members/rentals'), href: '/members/rentals', icon: resolveIcon('/members/rentals') },
+        { name: resolveLabel('/members/profile'), href: '/members/profile', icon: resolveIcon('/members/profile') },
+      ] as NavItem[];
+    }
+
+    const order = [ROUTES.DASHBOARD, ROUTES.RENTALS, ROUTES.MAINTENANCE, ROUTES.FINANCE, ROUTES.PROFILE];
+    const byHref = new Map(navigation.map(n => [n.href, n]));
+    const items: NavItem[] = [];
+
+    for (const href of order) {
+      const found = byHref.get(href);
+      if (found) {
+        items.push(found);
+      } else if (href === ROUTES.PROFILE) {
+        // synthesize a Profile item if it's not in the main nav
+        items.push({
+          name: resolveLabel(ROUTES.PROFILE),
+          href: ROUTES.PROFILE,
+          icon: resolveIcon(ROUTES.PROFILE),
+        });
+      }
+    }
+    return items.slice(0, 5);
+  }, [navigation, isMemberArea]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-md">
+      {/* Top bar */}
+      <nav className="bg-white shadow-md sticky top-0 z-30">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-
             {/* Logo */}
-            <Link to={isMemberArea ? '/members/transactions' : ROUTES.DASHBOARD} className="flex-shrink-0">
-              <img src={logo} alt="AIE Skyline" className="h-10 w-auto" />
+            <Link to={isMemberArea ? '/members/dashboard' : ROUTES.DASHBOARD} className="flex-shrink-0">
+              <img src={logoUrl} alt="AIE Skyline" className="h-10 w-auto" />
             </Link>
 
             {/* Desktop Nav */}
             <div className="hidden lg:flex items-center space-x-1">
               {navigation.map(item => {
                 const Icon = item.icon;
-                const active = isActiveRoute(item.href)
-                  || !!item.submenu?.some(sub => isActiveRoute(sub.href));
+                const active = isActiveRoute(item.href) || !!item.submenu?.some(sub => isActiveRoute(sub.href));
 
                 if (item.submenu) {
                   return (
@@ -243,7 +360,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         <ChevronDown className={`w-4 h-4 ml-1 ${openSubmenu === item.name ? 'rotate-180' : ''}`} />
                       </button>
                       {openSubmenu === item.name && (
-                        <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                        <div className="absolute left-0 mt-2 w-52 bg-white rounded-md shadow-lg py-1 z-50">
                           {item.submenu!.map(sub => (
                             <Link
                               key={sub.href}
@@ -283,18 +400,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               })}
             </div>
 
-            {/* User Menu */}
+            {/* Right side */}
             <div className="flex items-center">
+              {/* User Menu */}
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md transition-colors"
                 >
                   {user?.photoURL ? (
-                    <img src={user.photoURL} alt={user.name} className="h-8 w-8 rounded-full object-cover" />
+                    <img src={user.photoURL} alt={user?.name || 'User'} className="h-8 w-8 rounded-full object-cover" />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center">
-                      {user?.name?.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0)?.toUpperCase()}
                     </div>
                   )}
                   <div className="hidden sm:block text-right">
@@ -315,7 +433,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       Profile
                     </Link>
                     <button
-                      onClick={handleLogout}
+                      onClick={async () => {
+                        setIsUserMenuOpen(false);
+                        await auth.signOut();
+                        navigate(isMemberArea ? '/members/login' : ROUTES.LOGIN);
+                      }}
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
                     >
                       <LogOut className="w-4 h-4 mr-2" />
@@ -325,20 +447,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 )}
               </div>
 
-              {/* Mobile toggle */}
-              <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="lg:hidden ml-4 p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
+              {/* Mobile hamburger (admin/staff only) */}
+              {!isMemberArea && (
+                <button
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="lg:hidden ml-2 p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  aria-label="Open menu"
+                >
+                  <Menu className="h-6 w-6" />
+                </button>
+              )}
             </div>
-
           </div>
         </div>
       </nav>
 
-      {/* Mobile menu (hide for members) */}
+      {/* Mobile slide-over menu (admin/staff only) */}
       {!isMemberArea && (
         <MobileMenu
           isOpen={isMobileMenuOpen}
@@ -349,10 +473,41 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         />
       )}
 
-      {/* Main content */}
-      <main className="py-6 px-4 sm:px-6 lg:px-8">
+      {/* Main content (extra bottom padding for bottom bar) */}
+      <main className="py-6 px-4 sm:px-6 lg:px-8 pb-20">
         {children}
       </main>
+
+      {/* Mobile Bottom Navigation (now shows for members too) */}
+      {bottomNavItems.length > 0 && (
+        <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t lg:hidden">
+          <div className={`grid ${bottomNavItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+            {bottomNavItems.map(item => {
+              const Icon = item.icon;
+              const active = isActiveRoute(item.href) || !!item.submenu?.some(sub => isActiveRoute(sub.href));
+              const showBadge = (item.name.toLowerCase() === 'chat' || item.href === ROUTES.CHAT) && unreadChatCount > 0;
+
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className="flex flex-col items-center justify-center py-2 text-xs"
+                >
+                  <div className="relative">
+                    <Icon className={`h-5 w-5 ${active ? 'text-primary' : 'text-gray-500'}`} />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-2 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full">
+                        {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`${active ? 'text-primary' : 'text-gray-600'}`}>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 };

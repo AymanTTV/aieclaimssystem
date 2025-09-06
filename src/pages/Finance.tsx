@@ -1,6 +1,6 @@
 // src/pages/Finance.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFinances } from '../hooks/useFinances';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
 import { useVehicles } from '../hooks/useVehicles';
@@ -24,7 +24,7 @@ import { FinanceDocument } from '../components/pdf/documents';
 import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
-import { doc, updateDoc, collection, query, onSnapshot, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import * as XLSX from 'xlsx';
 import { usePermissions } from '../hooks/usePermissions';
@@ -33,7 +33,15 @@ import financeGroupService, { FinanceGroup } from '../services/financeGroup.serv
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2 } from 'lucide-react';
 
-const Finance: React.FC = () => {
+interface MemberPageProps {
+  memberMode?: boolean;
+  memberCustomerId?: string | null;
+}
+
+const Finance: React.FC<MemberPageProps> = ({
+  memberMode = false,
+  memberCustomerId = null,
+}: MemberPageProps) => {
   const { transactions, loading, error } = useFinances();
   const { vehicles } = useVehicles();
   const { customers } = useCustomers();
@@ -41,7 +49,57 @@ const Finance: React.FC = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
 
-  // ── Groups ─────────────────────────────
+  // ───────────────── member customerId resolution (no badge needed) ─────────────────
+  const [derivedCustomerId, setDerivedCustomerId] = useState<string | null>(null);
+
+  // normalize UK numbers: remove non-digits, convert +44 → leading 0
+  const normalizePhone = (raw?: string | null) => {
+    if (!raw) return null;
+    const digits = raw.replace(/[^\d+]/g, '');
+    if (digits.startsWith('+44')) return '0' + digits.slice(3);
+    if (digits.startsWith('44')) return '0' + digits.slice(2);
+    return digits;
+  };
+
+  useEffect(() => {
+    if (!memberMode) {
+      setDerivedCustomerId(null);
+      return;
+    }
+    if (memberCustomerId) {
+      setDerivedCustomerId(memberCustomerId);
+      return;
+    }
+
+    const emailLower = user?.email?.toLowerCase()?.trim() || null;
+    const userPhone = normalizePhone((user as any)?.phoneNumber ?? (user as any)?.mobile ?? null);
+
+    // Try to resolve from already-loaded customers list (fast, avoids extra reads)
+    const pickFromLocal = () => {
+      if (!customers || customers.length === 0) return null;
+
+      if (emailLower) {
+        const byEmail = customers.find(
+          (c: any) => c?.email && String(c.email).toLowerCase().trim() === emailLower
+        );
+        if (byEmail) return byEmail.id;
+      }
+
+      if (userPhone) {
+        const byMobile = customers.find(
+          (c: any) => normalizePhone(c?.mobile) === userPhone
+        );
+        if (byMobile) return byMobile.id;
+      }
+
+      return null;
+    };
+
+    const local = pickFromLocal();
+    setDerivedCustomerId(local); // may be null; filters will handle empty state
+  }, [memberMode, memberCustomerId, customers, user]);
+
+  // ───────────────── Groups ─────────────────
   const [groups, setGroups] = useState<FinanceGroup[]>([]);
   const loadGroups = useCallback(async () => {
     const all = await financeGroupService.getAll();
@@ -50,11 +108,11 @@ const Finance: React.FC = () => {
   useEffect(() => { loadGroups(); }, [loadGroups]);
   const [manageOpen, setManageOpen] = useState(false);
 
-  // ── Assign Group ────────────────────────
+  // ───────────────── Assign Group ─────────────────
   const [assignTxn, setAssignTxn] = useState<Transaction | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
 
-  // ── Modals & Selection State ────────────
+  // ───────────────── Modals & Selection ─────────────────
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -64,7 +122,7 @@ const Finance: React.FC = () => {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
 
-  // ── Category Management ─────────────────
+  // ───────────────── Categories ─────────────────
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
@@ -131,7 +189,7 @@ const Finance: React.FC = () => {
     }
   };
 
-  // ── Fetch accounts ──────────────────────
+  // ───────────────── Accounts ─────────────────
   useEffect(() => {
     const unsubscribe = onSnapshot(
       query(collection(db, 'accounts')),
@@ -150,7 +208,15 @@ const Finance: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // ── Filters Hook ────────────────────────
+  // ───────────────── Member-scoped visible transactions ─────────────────
+  const visibleTransactions: Transaction[] = useMemo(() => {
+    if (!memberMode) return transactions;
+    const scopeId = memberCustomerId ?? derivedCustomerId;
+    if (!scopeId) return []; // lock down if we can’t resolve
+    return transactions.filter((t) => t.customerId === scopeId);
+  }, [transactions, memberMode, memberCustomerId, derivedCustomerId]);
+
+  // ───────────────── Filters ─────────────────
   const {
     searchQuery, setSearchQuery,
     type, setType,
@@ -163,7 +229,7 @@ const Finance: React.FC = () => {
     owners, filteredTransactions,
     accountFilter, setAccountFilter,
     accountSummary, totalOwingFromOwners,
-  } = useFinanceFilters(transactions, vehicles, accounts);
+  } = useFinanceFilters(visibleTransactions, vehicles, accounts);
 
   const totalIncome = filteredTransactions
     .filter((t) => t.type === 'income')
@@ -174,7 +240,7 @@ const Finance: React.FC = () => {
   const netIncome = totalIncome - totalExpenses;
   const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
 
-  // ── Generate bulk A4 PDF ────────────────
+  // ───────────────── Generate bulk A4 PDF ─────────────────
   const handleGeneratePDF = useCallback(async () => {
     try {
       toast.loading('Generating financial report...');
@@ -210,7 +276,7 @@ const Finance: React.FC = () => {
     totalOwingFromOwners, selectedOwner, dateRange,
   ]);
 
-  // ── Generate single A4 document ─────────
+  // ───────────────── Generate single A4 document ─────────────────
   const handleGenerateDocument = useCallback(
     async (transaction: Transaction) => {
       if (!user) {
@@ -255,54 +321,52 @@ const Finance: React.FC = () => {
     [vehicles, customers, user]
   );
 
-  // ── Generate POS-style receipt ──────────
+  // ───────────────── Generate POS-style receipt ─────────────────
   const handlePrintReceipt = useCallback(
-  async (transaction: Transaction) => {
-    if (!user) {
-      toast.error('You must be logged in to generate a receipt.');
-      return;
-    }
-    try {
-      toast.loading('Generating receipt…');
-      const vehicle    = vehicles.find(v => v.id === transaction.vehicleId);
-      const customer   = transaction.customerId
-                         ? customers.find(c => c.id === transaction.customerId)
-                         : null;
-      const companyDetails = await getCompanyDetails();
-      if (!companyDetails) throw new Error('Company details not found');
+    async (transaction: Transaction) => {
+      if (!user) {
+        toast.error('You must be logged in to generate a receipt.');
+        return;
+      }
+      try {
+        toast.loading('Generating receipt…');
+        const vehicle    = vehicles.find(v => v.id === transaction.vehicleId);
+        const customer   = transaction.customerId
+                           ? customers.find(c => c.id === transaction.customerId)
+                           : null;
+        const companyDetails = await getCompanyDetails();
+        if (!companyDetails) throw new Error('Company details not found');
 
-      // ———————— use the original ID here ————————
-      const url = await generateAndUploadDocument(
-        ReceiptDocument,
-        {
-          ...transaction,
-          vehicle,
-          customer: customer || { name: transaction.customerName },
-        },
-        'finance',
-        transaction.id,              // ← keep original doc ID
-        'transactions',
-        companyDetails
-      );
+        const url = await generateAndUploadDocument(
+          ReceiptDocument,
+          {
+            ...transaction,
+            vehicle,
+            customer: customer || { name: transaction.customerName },
+          },
+          'finance',
+          transaction.id,
+          'transactions',
+          companyDetails
+        );
 
-      // now update the same doc, which definitely exists
-      const txRef = doc(db, 'transactions', transaction.id);
-      await updateDoc(txRef, { receiptUrl: url });
+        const txRef = doc(db, 'transactions', transaction.id);
+        await updateDoc(txRef, { receiptUrl: url });
 
-      toast.dismiss();
-      toast.success('Receipt generated and uploaded');
-      window.open(url, '_blank');
-      return url;
-    } catch (err) {
-      console.error('Error generating receipt:', err);
-      toast.dismiss();
-      toast.error('Failed to generate receipt');
-    }
-  },
-  [vehicles, customers, user]
-);
+        toast.dismiss();
+        toast.success('Receipt generated and uploaded');
+        window.open(url, '_blank');
+        return url;
+      } catch (err) {
+        console.error('Error generating receipt:', err);
+        toast.dismiss();
+        toast.error('Failed to generate receipt');
+      }
+    },
+    [vehicles, customers, user]
+  );
 
-  // ── Export to Excel ─────────────────────
+  // ───────────────── Export to Excel ─────────────────
   const handleExport = useCallback(() => {
     try {
       const data = filteredTransactions.map((txn) => ({
@@ -318,8 +382,7 @@ const Finance: React.FC = () => {
         'Payment Reference': txn.paymentReference || '',
         'Vehicle Name': txn.vehicleName || '',
         'Vehicle Reg':
-          vehicles.find((v) => v.id === txn.vehicleId)?.registrationNumber ||
-          '',
+          vehicles.find((v) => v.id === txn.vehicleId)?.registrationNumber || '',
         Owner: txn.vehicleOwner?.name || '',
         'Customer Name':
           customers.find((c) => c.id === txn.customerId)?.name || '',
@@ -335,6 +398,12 @@ const Finance: React.FC = () => {
       toast.error('Failed to export data to Excel.');
     }
   }, [filteredTransactions, vehicles, customers]);
+
+  // ───────────────── UI: when memberMode, block destructive actions ─────────────────
+  const blockIfMember = (fn: () => void) => {
+    if (!memberMode) return fn();
+    toast.error('This action is disabled in member view.');
+  };
 
   if (loading) {
     return (
@@ -363,15 +432,15 @@ const Finance: React.FC = () => {
         onSearch={setSearchQuery}
         onImport={() => {}}
         onExport={handleExport}
-        onAddIncome={() => setShowAddIncome(true)}
-        onAddExpense={() => setShowAddExpense(true)}
+        onAddIncome={() => blockIfMember(() => setShowAddIncome(true))}
+        onAddExpense={() => blockIfMember(() => setShowAddExpense(true))}
         onGeneratePDF={handleGeneratePDF}
         period="month"
         onPeriodChange={() => {}}
         type={type}
         onTypeChange={setType}
-        onManageGroups={() => setManageOpen(true)}
-        onManageCategories={() => setShowCatModal(true)}
+        onManageGroups={() => blockIfMember(() => setManageOpen(true))}
+        onManageCategories={() => blockIfMember(() => setShowCatModal(true))}
       />
 
       {/* ── FILTERS ── */}
@@ -411,14 +480,14 @@ const Finance: React.FC = () => {
         selectedCustomerId={selectedCustomerId}
         onCustomerChange={setSelectedCustomerId}
         onView={(txn) => { setSelectedTransaction(txn); setShowDetailsModal(true); }}
-        onEdit={(txn) => { setSelectedTransaction(txn); setShowEditModal(true); }}
-        onDelete={(txn) => { setSelectedTransaction(txn); setShowDeleteModal(true); }}
+        onEdit={(txn) => blockIfMember(() => { setSelectedTransaction(txn); setShowEditModal(true); })}
+        onDelete={(txn) => blockIfMember(() => { setSelectedTransaction(txn); setShowDeleteModal(true); })}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={(url) => window.open(url, '_blank')}
         onPrintReceipt={handlePrintReceipt}
-        onAssign={(txn) => { setAssignTxn(txn); setAssignOpen(true); }}
+        onAssign={(txn) => blockIfMember(() => { setAssignTxn(txn); setAssignOpen(true); })}
         groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-        onAssignAccount={(txn) => { setSelectedTransaction(txn); setShowAccountModal(true); }}
+        onAssignAccount={(txn) => blockIfMember(() => { setSelectedTransaction(txn); setShowAccountModal(true); })}
       />
 
       {/* ── ADD / EDIT TRANSACTION MODALS ── */}

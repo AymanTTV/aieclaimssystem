@@ -56,7 +56,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
 <Section title="Reference Details">
   <div className="grid grid-cols-2 gap-4">
     <div>
-      <Field label="Reference No" value={accident.referenceNo} />
+      <Field label="Reference No" value={accident.refNo || accident.referenceNo} />
     </div>
     <div>
       <Field label="Reference Name" value={accident.referenceName} />

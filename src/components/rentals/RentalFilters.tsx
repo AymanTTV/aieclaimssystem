@@ -1,6 +1,5 @@
 // src/components/rentals/RentalFilters.tsx
 import React from 'react';
-import { Search } from 'lucide-react'; // This import isn't used in this component. You can remove it.
 import { Vehicle, RentalReason } from '../../types';
 
 interface RentalFiltersProps {
@@ -17,7 +16,8 @@ interface RentalFiltersProps {
   endDateFilter: string;
   onEndDateChange: (date: string) => void;
   vehicles: Vehicle[];
-  isDisabled: boolean; // This prop will now only disable non-date filters
+  /** Only disables non-date filters */
+  isDisabled: boolean;
 }
 
 const RentalFilters: React.FC<RentalFiltersProps> = ({
@@ -34,96 +34,106 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
   endDateFilter,
   onEndDateChange,
   vehicles,
-  isDisabled, // We still use this, but selectively
+  isDisabled,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-      {/* Status Filter */}
-      <select
-        value={statusFilter}
-        onChange={(e) => onStatusFilterChange(e.target.value)}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        // Apply disabled only if isDisabled is true
-        disabled={isDisabled} 
-      >
-        <option value="all">All Status</option>
-        <option value="scheduled">Scheduled</option>
-        <option value="active">Hired</option>
-        <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
+    <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm w-full">
+      {/* Filters grid: 1 col → 2 on small phones → 3 on md → 4 on lg+ */}
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+            disabled={isDisabled}
+          >
+            <option value="all">All Status</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="active">Hired</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
 
-      {/* Type Filter */}
-      <select
-        value={typeFilter}
-        onChange={(e) => onTypeFilterChange(e.target.value)}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        // Apply disabled only if isDisabled is true
-        disabled={isDisabled} 
-      >
-        <option value="all">All Types</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="claim">Claim</option>
-      </select>
+        {/* Type */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => onTypeFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+            disabled={isDisabled}
+          >
+            <option value="all">All Types</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="claim">Claim</option>
+          </select>
+        </div>
 
-      {/* Reason Filter */}
-      <select
-        value={reasonFilter}
-        onChange={(e) => onReasonFilterChange(e.target.value as RentalReason | 'all')}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        // Apply disabled only if isDisabled is true
-        disabled={isDisabled} 
-      >
-        <option value="all">All Reasons</option>
-        <option value="hired">Hired</option>
-        <option value="claim">Claim</option>
-        <option value="o/d">O/D</option>
-        <option value="staff">Staff</option>
-        <option value="workshop">Workshop</option>
-        <option value="c-substitute">C Substitute</option>
-        <option value="h-substitute">H Substitute</option>
-      </select>
+        {/* Reason */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Reason</label>
+          <select
+            value={reasonFilter}
+            onChange={(e) => onReasonFilterChange(e.target.value as RentalReason | 'all')}
+            className="form-select mt-1 w-full"
+            disabled={isDisabled}
+          >
+            <option value="all">All Reasons</option>
+            <option value="hired">Hired</option>
+            <option value="claim">Claim</option>
+            <option value="o/d">O/D</option>
+            <option value="staff">Staff</option>
+            <option value="workshop">Workshop</option>
+            <option value="c-substitute">C Substitute</option>
+            <option value="h-substitute">H Substitute</option>
+          </select>
+        </div>
 
-      {/* Vehicle Filter */}
-      <select
-        value={vehicleFilter}
-        onChange={(e) => onVehicleFilterChange(e.target.value)}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        // Apply disabled only if isDisabled is true
-        disabled={isDisabled} 
-      >
-        <option value="">All Vehicles</option>
-        {vehicles.map((vehicle) => (
-          <option key={vehicle.id} value={vehicle.id}>
-            {vehicle.make} {vehicle.model} - {vehicle.registrationNumber}
-          </option>
-        ))}
-      </select>
+        {/* Vehicle */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Vehicle</label>
+          <select
+            value={vehicleFilter}
+            onChange={(e) => onVehicleFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+            disabled={isDisabled}
+          >
+            <option value="">All Vehicles</option>
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.make} {v.model} — {v.registrationNumber}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {/* Date Filters - These should NOT be disabled by the `isDisabled` prop */}
-      <div className="flex items-center gap-2">
-        <label htmlFor="startDate" className="text-gray-700 text-sm">From:</label>
-        <input
-          type="date"
-          id="startDate"
-          value={startDateFilter}
-          onChange={(e) => onStartDateChange(e.target.value)}
-          className="block w-48 pl-3 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          // REMOVE disabled={isDisabled} from here
-        />
-      </div>
+        {/* From Date */}
+        <div>
+          <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">From</label>
+          <input
+            type="date"
+            id="startDate"
+            value={startDateFilter}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            className="form-input mt-1 w-full"
+          />
+        </div>
 
-      <div className="flex items-center gap-2">
-        <label htmlFor="endDate" className="text-gray-700 text-sm">To:</label>
-        <input
-          type="date"
-          id="endDate"
-          value={endDateFilter}
-          onChange={(e) => onEndDateChange(e.target.value)}
-          className="block w-48 pl-3 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          // REMOVE disabled={isDisabled} from here
-        />
+        {/* To Date */}
+        <div>
+          <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">To</label>
+          <input
+            type="date"
+            id="endDate"
+            value={endDateFilter}
+            onChange={(e) => onEndDateChange(e.target.value)}
+            className="form-input mt-1 w-full"
+          />
+        </div>
       </div>
     </div>
   );

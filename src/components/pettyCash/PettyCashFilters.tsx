@@ -1,17 +1,11 @@
 import React from 'react';
 
 interface PettyCashFiltersProps {
-  dateRange: {
-    start: Date | null;
-    end: Date | null;
-  };
+  dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
-  amountRange: {
-    min: number | null;
-    max: number | null;
-  };
+  amountRange: { min: number | null; max: number | null };
   onAmountRangeChange: (range: { min: number | null; max: number | null }) => void;
 }
 
@@ -23,49 +17,56 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
   amountRange,
   onAmountRangeChange,
 }) => {
+  const startStr = dateRange.start ? dateRange.start.toISOString().split('T')[0] : '';
+  const endStr   = dateRange.end ? dateRange.end.toISOString().split('T')[0] : '';
+  const minStr   = amountRange.min ?? '';
+  const maxStr   = amountRange.max ?? '';
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Date From */}
+    <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
+      {/* Dates + Status */}
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* From */}
         <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
+            value={startStr}
             onChange={(e) =>
               onDateRangeChange({
                 ...dateRange,
                 start: e.target.value ? new Date(e.target.value) : null,
               })
             }
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
+            max={endStr || undefined}
           />
         </div>
 
-        {/* Date To */}
+        {/* To */}
         <div>
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
+            value={endStr}
             onChange={(e) =>
               onDateRangeChange({
                 ...dateRange,
                 end: e.target.value ? new Date(e.target.value) : null,
               })
             }
-            min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="form-input mt-1"
+            min={startStr || undefined}
+            className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Status Filter */}
+        {/* Status */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1"
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -74,37 +75,43 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
           </select>
         </div>
 
-        {/* Min Amount */}
+        {/* Amount Min */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Min Amount</label>
           <input
             type="number"
+            inputMode="decimal"
+            step="0.01"
             placeholder="0.00"
-            value={amountRange.min ?? ''}
+            value={minStr}
             onChange={(e) =>
               onAmountRangeChange({
                 ...amountRange,
-                min: e.target.value ? parseFloat(e.target.value) : null,
+                min: e.target.value !== '' ? parseFloat(e.target.value) : null,
               })
             }
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
           />
         </div>
+      </div>
 
-        {/* Max Amount */}
-        <div>
+      {/* Amount Max — full width on mobile, pairs with Min on ≥380px */}
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
+        <div className="min-[380px]:col-start-2">
           <label className="block text-sm font-medium text-gray-700">Max Amount</label>
           <input
             type="number"
+            inputMode="decimal"
+            step="0.01"
             placeholder="0.00"
-            value={amountRange.max ?? ''}
+            value={maxStr}
             onChange={(e) =>
               onAmountRangeChange({
                 ...amountRange,
-                max: e.target.value ? parseFloat(e.target.value) : null,
+                max: e.target.value !== '' ? parseFloat(e.target.value) : null,
               })
             }
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
           />
         </div>
       </div>

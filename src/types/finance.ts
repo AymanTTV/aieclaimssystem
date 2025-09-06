@@ -13,6 +13,7 @@ export interface InvoicePayment {
 export interface Transaction {
   id: string;
   type: 'income' | 'expense' | 'transfer';
+  customerId?: string;
   category: string;
   amount: number;
   description: string;

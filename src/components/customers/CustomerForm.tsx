@@ -77,17 +77,19 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
     try {
       const dateOfBirth = new Date(formData.dateOfBirth);
       const age = calculateAge(dateOfBirth);
-
+      const normalizedEmail = (formData.email || '').trim().toLowerCase();
       const customerData = {
-        ...formData,
-        dateOfBirth: new Date(formData.dateOfBirth),
-        licenseValidFrom: new Date(formData.licenseValidFrom),
-        licenseExpiry: new Date(formData.licenseExpiry),
-        billExpiry: new Date(formData.billExpiry),
-        age,
-        createdAt: customer?.createdAt || new Date(),
-        updatedAt: new Date(),
-      };
+  ...formData,
+  email: normalizedEmail,
+  // OPTIONALLY keep an emailLower shadow if you want:
+  emailLower: normalizedEmail,
+  dateOfBirth: new Date(formData.dateOfBirth),
+  licenseValidFrom: new Date(formData.licenseValidFrom),
+  licenseExpiry: new Date(formData.licenseExpiry),
+  billExpiry: new Date(formData.billExpiry),
+  createdAt: customer ? customer.createdAt : new Date(),
+  updatedAt: new Date(),
+};
 
       // Upload documents if provided
       const documentUrls: Record<string, string> = {};

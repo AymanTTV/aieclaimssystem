@@ -25,6 +25,7 @@ export interface VDFinanceRecord {
   salvage: number; // New field
   clientReferralFee: number; // New field
   clientRepairAmount: number; // New field
+  claimReasons?: Array<'VD' | 'H' | 'S' | 'PI'>;
   originalProfit?: number;
   vatDetails: {
     partsVAT: { partName: string; includeVAT: boolean }[];

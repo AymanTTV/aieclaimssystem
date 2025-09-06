@@ -6,7 +6,7 @@ import { DriverPay } from '../types/driverPay';
 import { isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns'; // Added isValid
 
 
-export const useDriverPayFilters = (records: DriverPay[]) => {
+export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [collectionFilter, setCollectionFilter] = useState('all');
@@ -24,6 +24,17 @@ export const useDriverPayFilters = (records: DriverPay[]) => {
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
+      // 🟢 NEW: Filter by locked status
+      let matchesLockStatus = true;
+      if (lockFilter === 'locked') {
+        matchesLockStatus = record.isLocked === true;
+      } else if (lockFilter === 'active') {
+        matchesLockStatus = record.isLocked !== true;
+      }
+      // For 'all', matchesLockStatus remains true.
+
+      if (!matchesLockStatus) return false;
+
       // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
@@ -195,7 +206,7 @@ export const useDriverPayFilters = (records: DriverPay[]) => {
             return matchesStatus && matchesPeriodDateRange;
         })
     }));
-  }, [records, searchQuery, statusFilter, collectionFilter, periodDateRange, periodOverlapDateRange]); // Add periodOverlapDateRange to dependencies
+  }, [records, searchQuery, statusFilter, collectionFilter, periodDateRange, periodOverlapDateRange, lockFilter]);
 
 
   const summary = useMemo(() => {

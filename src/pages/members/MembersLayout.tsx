@@ -1,10 +1,30 @@
 // src/pages/members/MembersLayout.tsx
-
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useRef } from "react";
+import { Outlet } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { linkExistingCustomerIfMissing } from "./_linkExistingCustomer";
 
 export default function MembersLayout() {
-  // All member pages (transactions, profile) render here,
-  // with the global <Layout> providing the top‐bar nav.
+  const { user } = useAuth();
+  const ran = useRef(false);
+
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+
+    (async () => {
+      if (!user?.uid) return;
+      try {
+        await linkExistingCustomerIfMissing({
+          uid: user.uid,
+          email: user.email ?? null,
+          mobile: (user as any)?.mobile ?? null,
+        });
+      } catch {
+        // no-op; this is best-effort
+      }
+    })();
+  }, [user?.uid]);
+
   return <Outlet />;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Upload, Plus,  } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 
 interface VehicleHeaderProps {
   onAdd: () => void;
@@ -18,28 +18,28 @@ const VehicleHeader: React.FC<VehicleHeaderProps> = ({
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      onImport(file);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (file) onImport(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
-    <div className="flex justify-between items-center">
-      <h1 className="text-2xl font-bold text-gray-900">Fleet Management</h1>
-      <div className="flex space-x-2">
-        {/* <button
-          onClick={onExport}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-        >
-          <Download className="h-5 w-5 mr-2" />
-          Export
-        </button> */}
+    <div className="space-y-3 sm:space-y-4">
+      {/* Title row */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Fleet Management</h1>
+      </div>
 
-        
-        {/* <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+      {/* Actions: grid on mobile (2-up), flex-wrap on >= sm */}
+      <div
+        className="
+          w-full
+          grid grid-cols-1 min-[380px]:grid-cols-2 gap-2
+          sm:flex sm:flex-wrap sm:items-center
+        "
+      >
+        {/* If you re-enable Import later, keep it w-full on mobile */}
+        {/*
+        <label className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto cursor-pointer">
           <Upload className="h-5 w-5 mr-2" />
           Import
           <input
@@ -49,19 +49,28 @@ const VehicleHeader: React.FC<VehicleHeaderProps> = ({
             accept=".csv,.xlsx"
             onChange={handleImport}
           />
-        </label> */}
+        </label>
+        */}
+
         <button
           onClick={onExport}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
         >
           <Download className="h-5 w-5 mr-2" />
           Export
         </button>
 
-        
+        <button
+          onClick={onGeneratePDF}
+          className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+        >
+          <Download className="h-5 w-5 mr-2" />
+          Generate PDF
+        </button>
+
         <button
           onClick={onAdd}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+          className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
         >
           <Plus className="h-5 w-5 mr-2" />
           Add Vehicle

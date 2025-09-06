@@ -8,8 +8,11 @@ import FormField from '../ui/FormField'
 import TextArea from '../ui/TextArea'
 import toast from 'react-hot-toast'
 import { v4 as uuidv4 } from 'uuid'
-import { format, addDays, differenceInDays, isAfter } from 'date-fns'
+import { format, addDays } from 'date-fns'
 import { ensureValidDate } from '../../utils/dateHelpers'
+
+// Helper function to round to 2 decimal places consistently
+const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 interface AddPaymentPeriodModalProps {
   driverPayRecord: DriverPay
@@ -60,8 +63,11 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
     const commissionP = parseFloat(formData.commissionPercentage)
     if (!isNaN(total) && !isNaN(commissionP)) {
       const commAmt = (total * commissionP) / 100
-      setCommissionAmount(commAmt)
-      setNetPay(total - commAmt)
+      // FIX: Round the calculated values to prevent floating point issues
+      const roundedCommAmt = round2(commAmt);
+      const roundedNetPay = round2(total - roundedCommAmt);
+      setCommissionAmount(roundedCommAmt);
+      setNetPay(roundedNetPay);
     } else {
       setCommissionAmount(0)
       setNetPay(0)
@@ -90,10 +96,10 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         endDate: ensureValidDate(endDate),
         totalAmount: parseFloat(totalAmount),
         commissionPercentage: parseFloat(commissionPercentage),
-        commissionAmount,
-        netPay,
+        commissionAmount, // This is now the rounded value from state
+        netPay,           // This is now the rounded value from state
         paidAmount: 0,
-        remainingAmount: netPay,
+        remainingAmount: netPay, // This will also be the rounded value
         status: 'unpaid' as PaymentStatus,
         payments: [],
         notes: notes || '',
@@ -106,12 +112,11 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         return
       }
       const currentRecord = docSnap.data() as DriverPay
-      const updatedTotalAmount = currentRecord.totalAmount + newPaymentPeriod.totalAmount
-      const updatedCommissionAmount =
-        currentRecord.commissionAmount + newPaymentPeriod.commissionAmount
-      const updatedNetPay = currentRecord.netPay + newPaymentPeriod.netPay
-      const updatedRemainingAmount =
-        currentRecord.remainingAmount + newPaymentPeriod.remainingAmount
+      const updatedTotalAmount = round2(currentRecord.totalAmount + newPaymentPeriod.totalAmount)
+      const updatedCommissionAmount = round2(currentRecord.commissionAmount + newPaymentPeriod.commissionAmount)
+      const updatedNetPay = round2(currentRecord.netPay + newPaymentPeriod.netPay)
+      const updatedRemainingAmount = round2(currentRecord.remainingAmount + newPaymentPeriod.remainingAmount)
+      
       let newStatus: PaymentStatus = 'paid'
       if (updatedRemainingAmount > 0) {
         newStatus =

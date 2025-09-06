@@ -21,6 +21,10 @@ import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { VATRecordDocument } from '../components/pdf/documents';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 
+import { useVATCategories } from '../hooks/useVATCategories';
+import ManageVATCategoriesModal from '../components/vatRecord/ManageVATCategoriesModal';
+
+
 import { generateBulkDocuments } from '../utils/documentGenerator';
 import { VATRecordBulkDocument } from '../components/pdf/documents';
 
@@ -42,6 +46,7 @@ const VATRecordPage = () => {
     amountRange,         // ← new
     setAmountRange,   
     filteredRecords,
+    categoryIdFilter, setCategoryIdFilter,
     summary
   } = useVATRecordFilters(records);
 
@@ -50,6 +55,9 @@ const VATRecordPage = () => {
   const [editingRecord, setEditingRecord] = useState<VATRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<VATRecord | null>(null);
   const [updatingRecord, setUpdatingRecord] = useState<VATRecord | null>(null);
+  const { categories } = useVATCategories(); // (optional, if you want local use)
+const [showManageCategories, setShowManageCategories] = useState(false);
+
   const handleExport = () => {
     try {
       const exportData = records.map(record => ({
@@ -151,85 +159,101 @@ const VATRecordPage = () => {
 
       
       {/* Summary Cards */}
-      {can('vatRecord', 'cards') && (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+{can('vatRecord', 'cards') && (
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
+      <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total NET</h3>
+      <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-green-600">
+        {formatCurrency(isNaN(summary.net) ? 0 : summary.net)}
+      </p>
+    </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total NET</h3>
-          <p className="mt-2 text-3xl font-semibold text-green-600">
-            {formatCurrency(isNaN(summary.net) ? 0 : summary.net)}
-          </p>
-        </div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
+      <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total VAT</h3>
+      <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-blue-600">
+        {formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}
+      </p>
+    </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total VAT</h3>
-          <p className="mt-2 text-3xl font-semibold text-blue-600">
-            {formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}
-          </p>
-        </div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
+      <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total GROSS</h3>
+      <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-gray-900">
+        {formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}
+      </p>
+    </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total GROSS</h3>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">
-            {formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}
-          </p>
-        </div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
+      <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total VAT Received</h3>
+      <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-purple-600">
+        {formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}
+      </p>
+    </div>
+  </div>
+)}
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500">Total VAT Received</h3>
-          <p className="mt-2 text-3xl font-semibold text-purple-600">
-            {formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}
-          </p>
-        </div>
-      </div>
-      )}
 
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
-        <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-          <button
-                    onClick={handleGeneratePDF}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <FileText className="h-5 w-5 mr-2" />
-                    Generate PDF
-                  </button>
-          )}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
 
-          {user?.role === 'manager' && (
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </button>
-          )}
-          {can('vatRecord', 'create') && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Record
-            </button>
-          )}
-        </div>
-      </div>
+  {/* Responsive actions: wrap on mobile */}
+  <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleGeneratePDF}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"
+      >
+        <FileText className="h-5 w-5 mr-2" />
+        Generate PDF
+      </button>
+    )}
+      {user?.role === 'manager' && (
+    <button
+  onClick={() => setShowManageCategories(true)}
+  className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+>
+  Manage Categories
+</button>
+
+      )}
+
+
+    {can('vatRecord', 'export') && (
+      <button
+        onClick={handleExport}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"
+      >
+        <Download className="h-5 w-5 mr-2" />
+        Export
+      </button>
+    )}
+
+    {can('vatRecord', 'create') && (
+      <button
+        onClick={() => setShowForm(true)}
+        className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Add Record
+      </button>
+    )}
+  </div>
+</div>
+
 
       {/* Filters */}
       <VATRecordFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        amountRange={amountRange}               // ← new
-        onAmountRangeChange={setAmountRange}    // ← new
-      />
+  searchQuery={searchQuery}
+  onSearchChange={setSearchQuery}
+  statusFilter={statusFilter}
+  onStatusFilterChange={setStatusFilter}
+  dateRange={dateRange}
+  onDateRangeChange={setDateRange}
+  amountRange={amountRange}
+  onAmountRangeChange={setAmountRange}
+  categoryIdFilter={categoryIdFilter}                         // NEW
+  onCategoryIdFilterChange={setCategoryIdFilter}              // NEW
+/>
 
       {/* Records Table */}
       <VATRecordTable
@@ -286,6 +310,11 @@ const VATRecordPage = () => {
           <VATRecordDetails record={selectedRecord} />
         )}
       </Modal>
+      <ManageVATCategoriesModal
+  isOpen={showManageCategories}
+  onClose={() => setShowManageCategories(false)}
+/>
+
 
       <Modal
         isOpen={!!deletingRecord}

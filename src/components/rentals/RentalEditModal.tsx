@@ -22,6 +22,7 @@ import {
   RentalPayment
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
@@ -57,6 +58,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   onClose
 }) => {
   const { user } = useAuth();
+  const isManager = user?.role === 'manager'; // <-- gate by role
   const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
   const [newImages, setNewImages] = useState<File[]>([]);
@@ -142,6 +144,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     discountAmount: rental.discountAmount || 0,
     discountNotes: rental.discountNotes || '',
 
+    originalStartDate: safeFormatDate(
+    rental.originalStartDate ?? rental.startDate,
+    "yyyy-MM-dd'T'HH:mm"
+  ),
+
     amountToAdd: 0,
     paymentMethod: 'cash' as const,
     paymentReference: '',
@@ -157,48 +164,38 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   );
 
   // --- Initialize vehicle condition data ---
-  const [conditionData, setConditionData] = useState<
-    Partial<VehicleCondition>
-  >(
-    rental.checkOutCondition || {
-      mileage: selectedVehicle?.mileage || 0,
-      fuelLevel: '100',
-      isClean: true,
-      hasDamage: false,
-      damageDescription: '',
-      images: []
-    }
-  );
+  const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>(
+  rental.checkOutCondition ?? {
+    mileage: 0,
+    fuelLevel: '100',
+    isClean: true,
+    hasDamage: false,
+    damageDescription: '',
+    images: []
+  }
+);
+
 
   // --- Populate search inputs on mount/when rental changes ---
   useEffect(() => {
-    if (selectedVehicle) {
-      setVehicleSearchQuery(
-        `${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.registrationNumber}`
-      );
-      if (
-        (conditionData.mileage === 0 ||
-          conditionData.mileage === undefined) &&
-        selectedVehicle.mileage !== undefined
-      ) {
-        setConditionData((prev) => ({
-          ...prev,
-          mileage: selectedVehicle.mileage
-        }));
-      }
-    }
-    if (selectedCustomer) {
-      setCustomerSearchQuery(
-        `${selectedCustomer.name} - ${selectedCustomer.mobile}`
-      );
-    }
-    if (rental.claimRef) {
-      setClaimSearchQuery(rental.claimRef);
-      setManualClaimRef(true);
-    } else {
-      setManualClaimRef(false);
-    }
-  }, [selectedVehicle, selectedCustomer, rental.claimRef, conditionData.mileage]);
+  if (selectedVehicle) {
+    setVehicleSearchQuery(
+      `${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.registrationNumber}`
+    );
+  }
+  if (selectedCustomer) {
+    setCustomerSearchQuery(
+      `${selectedCustomer.name} - ${selectedCustomer.mobile}`
+    );
+  }
+  if (rental.claimRef) {
+    setClaimSearchQuery(rental.claimRef);
+    setManualClaimRef(true);
+  } else {
+    setManualClaimRef(false);
+  }
+}, [selectedVehicle, selectedCustomer, rental.claimRef]);
+
 
   // --- Fetch claims once ---
   useEffect(() => {
@@ -303,11 +300,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       const startDT = new Date(`${formData.startDate}T${formData.startTime}`);
       if (isValid(startDT)) {
         const computedEnd = addWeeks(startDT, formData.numberOfWeeks);
-        setFormData((prev) => ({
-          ...prev,
-          endDate: computedEnd.toISOString().split('T')[0],
-          endTime: prev.startTime
-        }));
+setFormData((prev) => ({
+  ...prev,
+  endDate: format(computedEnd, 'yyyy-MM-dd'),
+  endTime: prev.startTime
+}));
+
       }
     }
     // If type !== 'weekly', we deliberately do NOT reset/clear endDate/endTime,
@@ -620,6 +618,15 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       notes: conditionData.notes || rental.checkOutCondition?.notes || "",
     };
 
+    // NEW: parse original start (datetime-local is local time)
+// NEW: parse original start (datetime-local is local time)
+let submitOriginalStartDate: Date | undefined = undefined;
+if (formData.originalStartDate) {
+  const osd = new Date(formData.originalStartDate);
+  if (isValid(osd)) submitOriginalStartDate = osd;
+}
+
+
     // --- Compile the updated Rental fields for Firestore ---
     const rentalUpdateData: Partial<Rental> = {
       vehicleId: formData.vehicleId,
@@ -684,10 +691,58 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         formData.type === "weekly" ? formData.numberOfWeeks || 1 : null,
 
       checkOutCondition: updatedCondition,
+      // NEW: only include if defined (avoids TS error and Firestore undefined issue)
+  ...(submitOriginalStartDate !== undefined ? { originalStartDate: submitOriginalStartDate } : {}),
 
       updatedAt: new Date(),
       updatedBy: user.id,
     };
+   // ---- Completion validations ----
+if (rental.status !== 'completed' && formData.status === 'completed') {
+  // 1) Must have a return condition before completing
+  if (!rental.returnCondition) {
+    toast.error('You must fill the Return Condition before completing the rental.');
+    return;
+  }
+
+  // 2) Return condition DATE must match End DATE (compare by calendar day)
+  const rcRaw = rental.returnCondition.date as any;
+  let rcDate: Date | null = null;
+  if (rcRaw) {
+    rcDate = typeof rcRaw?.toDate === 'function' ? rcRaw.toDate() : new Date(rcRaw);
+  }
+
+  // Format helper for friendly dd/MM/yyyy
+  const fmt = (d: Date) => {
+    try {
+      // Using Intl for safety; you can swap to date-fns format if you prefer
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  if (!rcDate || isNaN(rcDate.getTime())) {
+    toast.error('Return Condition date is missing or invalid. Please set it before completing.');
+    return;
+  }
+
+  // Compare only the DATE portion (ignore time)
+  const endYMD = `${submitEndDT.getFullYear()}-${submitEndDT.getMonth()+1}-${submitEndDT.getDate()}`;
+  const rcYMD  = `${rcDate.getFullYear()}-${rcDate.getMonth()+1}-${rcDate.getDate()}`;
+
+  if (endYMD !== rcYMD) {
+    toast.error(
+      `Rental end date (${fmt(submitEndDT)}) and the return condition date (${fmt(rcDate)}) are not the same.`
+    );
+    return;
+  }
+}
+
+
 
     // --- Update the Firestore document ---
     const rentalRef = doc(db, "rentals", rental.id);
@@ -1165,6 +1220,44 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
             <option value="h-substitute">H Substitute</option>
           </select>
         </div>
+
+        {/* System section with role-gated "Original Rental Start Date" */}
+        <div className="border-t pt-4 col-span-2">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">System</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {isManager ? (
+              <FormField
+                label="Original Rental Start Date"
+                type="datetime-local"
+                value={formData.originalStartDate}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    originalStartDate: e.target.value
+                  }))
+                }
+                required
+              />
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Original Rental Start Date
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.originalStartDate}
+                  disabled
+                  className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 text-gray-700 shadow-sm sm:text-sm cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Only managers can edit this value.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+
 
         {/* Include overall VAT */}
         <div className="border-t pt-6">
@@ -1920,18 +2013,19 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         </h3>
         <div className="space-y-4">
           <FormField
-            type="number"
-            label="Mileage at Check-Out"
-            value={conditionData.mileage}
-            onChange={(e) =>
-              setConditionData((prev) => ({
-                ...prev,
-                mileage: parseInt(e.target.value) || 0
-              }))
-            }
-            min={selectedVehicle?.mileage}
-            required
-          />
+  type="number"
+  label="Mileage at Check-Out"
+  value={conditionData.mileage}
+  onChange={(e) =>
+    setConditionData((prev) => ({
+      ...prev,
+      mileage: Number(e.target.value) || 0
+    }))
+  }
+  min={rental.checkOutCondition?.mileage ?? 0}
+  required
+/>
+
 
           <div>
             <label className="block text-sm font-medium text-gray-700">

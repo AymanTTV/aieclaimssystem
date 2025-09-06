@@ -194,82 +194,103 @@ const Invoices: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* ─── Page Header ─── */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-        <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-          <button
-            onClick={handleGenerateBulkPDF}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <FileText className="h-5 w-5 mr-2" />
-            Generate PDF
-          </button>
-          )}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
 
-          {user?.role === 'manager' && (
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </button>
-          )}
-          {user?.role === 'manager' && (
-          <button
-            onClick={() => setShowManageCategories(true)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            Manage Categories
-          </button>
-          )}
+  {/* Responsive actions: wrap on mobile */}
+  <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleGenerateBulkPDF}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"
+      >
+        <FileText className="h-5 w-5 mr-2" />
+        Generate PDF
+      </button>
+    )}
 
-          {can('finance', 'create') && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Create Invoice
-            </button>
-          )}
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleExport}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"
+      >
+        <Download className="h-5 w-5 mr-2" />
+        Export
+      </button>
+    )}
+
+    {user?.role === 'manager' && (
+      <button
+        onClick={() => setShowManageCategories(true)}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+      >
+        Manage Categories
+      </button>
+    )}
+
+    {can('finance', 'create') && (
+      <button
+        onClick={() => setShowForm(true)}
+        className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Create Invoice
+      </button>
+    )}
+  </div>
+</div>
+
+
+      {/* ─── Summary Cards (responsive) ─── */}
+{can('finance', 'cards') && (
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+    {/* Total Invoices */}
+    <div className="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="rounded-md p-2 bg-gray-50">
+          <PoundSterling className="h-6 w-6 text-primary" />
         </div>
-      </div>
-
-      {/* ─── Summary Cards ─── */}
-      {can('finance', 'cards') && (
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <PoundSterling className="h-6 w-6 text-primary mr-2" />
-            <h4 className="text-sm font-semibold text-gray-600">Total Invoices</h4>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-gray-900">
+        <div>
+          <h4 className="text-[11px] sm:text-xs font-medium text-gray-600">Total Invoices</h4>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900">
             {formatCurrency(totalInvoicesAmount)}
           </p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <PoundSterling className="h-6 w-6 text-green-600 mr-2" />
-            <h4 className="text-sm font-semibold text-gray-600">Total Paid</h4>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-green-600">
+      </div>
+    </div>
+
+    {/* Total Paid */}
+    <div className="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="rounded-md p-2 bg-gray-50">
+          <PoundSterling className="h-6 w-6 text-green-600" />
+        </div>
+        <div>
+          <h4 className="text-[11px] sm:text-xs font-medium text-gray-600">Total Paid</h4>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-green-600">
             {formatCurrency(totalPaidAmount)}
           </p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <PoundSterling className="h-6 w-6 text-amber-600 mr-2" />
-            <h4 className="text-sm font-semibold text-gray-600">Total Owing</h4>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-amber-600">
+      </div>
+    </div>
+
+    {/* Total Owing */}
+    <div className="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="rounded-md p-2 bg-gray-50">
+          <PoundSterling className="h-6 w-6 text-amber-600" />
+        </div>
+        <div>
+          <h4 className="text-[11px] sm:text-xs font-medium text-gray-600">Total Owing</h4>
+          <p className="mt-1 text-xl sm:text-2xl font-semibold text-amber-600">
             {formatCurrency(totalOwingAmount)}
           </p>
         </div>
       </div>
+    </div>
+  </div>
+)}
 
-      )}
 
       {/* ─── Filters Section ─── */}
       <InvoiceFilters

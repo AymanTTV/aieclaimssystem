@@ -9,10 +9,12 @@ import MaintenanceFilters from '../components/maintenance/MaintenanceFilters';
 import MaintenancePaymentModal from '../components/maintenance/MaintenancePaymentModal';
 import MaintenanceForm from '../components/maintenance/MaintenanceForm';
 import MaintenanceSummaryCards from '../components/maintenance/MaintenanceSummaryCards';
+import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';  
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { Plus, Download, FileText, Edit2, Trash2 } from 'lucide-react';
+import { startOfDay, differenceInCalendarDays } from 'date-fns'; // ⬅ add these
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog, Vehicle, Customer } from '../types'; // IMPORT Customer type
 import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails } from '../utils/documentGenerator';
@@ -154,6 +156,34 @@ const Maintenance: React.FC = () => {
     },
     [can]
   );
+const orderedLogs = React.useMemo(() => {
+  const now = startOfDay(new Date());
+
+  const priority = (log: MaintenanceLog) => {
+    // 0 = scheduled (overdue/today/soon), 1 = in-progress, 2 = completed, 3 = anything else
+    if (log.status === 'scheduled') return 0;
+    if (log.status === 'in-progress') return 1;
+    if (log.status === 'completed') return 2;
+    return 3;
+  };
+
+  return [...filteredLogs].sort((a, b) => {
+    const pa = priority(a);
+    const pb = priority(b);
+    if (pa !== pb) return pa - pb;
+
+    // Within "scheduled": sort by closeness to now — overdue first, then today, then soonest
+    if (pa === 0) {
+      const da = differenceInCalendarDays(a.date, now);
+      const db = differenceInCalendarDays(b.date, now);
+      // Ascending puts negative (overdue) first, then 0 (today), then 1, 2, ...
+      if (da !== db) return da - db;
+    }
+
+    // Tie-break for other statuses: newest first
+    return (b.date?.getTime?.() ?? 0) - (a.date?.getTime?.() ?? 0);
+  });
+}, [filteredLogs]);
 
   // Export all logs to Excel
   const handleExport = useCallback(() => {
@@ -249,54 +279,58 @@ const Maintenance: React.FC = () => {
       {/* ── Summary Cards ── */}
       <MaintenanceSummaryCards logs={filteredLogs} />
 
-      {/* ── Top Bar ── */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
-        <div className="flex space-x-2">
+     {/* ── Top Bar (Responsive) ── */}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance</h1>
 
-          {user?.role === 'manager' && (
-          <button
-            onClick={handleGenerateBulkPDF}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <FileText className="h-5 w-5 mr-2" />
-            Generate PDF
-          </button>
+  {/* Actions (Responsive with labels) */}
+  <div className="flex flex-wrap items-center gap-2">
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleGenerateBulkPDF}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <FileText className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">PDF</span>
+        <span className="hidden sm:inline">&nbsp;Report</span>
+      </button>
+    )}
 
-          )}
+    {can('maintenance', 'export') && (
+      <button
+        onClick={handleExport}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <Download className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Export</span>
+      </button>
+    )}
 
-          {user?.role === 'manager' && (
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </button>
-          )}
+    {can('maintenance', 'create') && (
+      <button
+        onClick={() => setShowForm(true)}
+        className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+      >
+        <Plus className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Schedule</span>
+        <span className="hidden sm:inline">&nbsp;Maintenance</span>
+      </button>
+    )}
 
-          {can('maintenance', 'create') && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Schedule Maintenance
-            </button>
-          )}
+    {user?.role === 'manager' && (
+      <button
+        onClick={() => setShowCatModal(true)}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <Edit2 className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Categories</span>
+        <span className="hidden sm:inline">&nbsp;Manage</span>
+      </button>
+    )}
+  </div>
+</div>
 
-          {/* ── Manage Categories Button ── */}
-          {user?.role === 'manager' && (
-          <button
-            onClick={() => setShowCatModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Edit2 className="h-5 w-5 mr-2" />
-            Manage Categories
-          </button>
-          )}
-        </div>
-      </div>
+
 
       {/* ── Filters ── */}
       <MaintenanceFilters
@@ -317,16 +351,16 @@ const Maintenance: React.FC = () => {
 
       {/* ── Table ── */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <MaintenanceTable
-          logs={filteredLogs}
-          vehicles={vehiclesMap}
-          onView={setSelectedLog}
-          onEdit={setEditingLog}
-          onDelete={handleDelete}
-          onGenerateDocument={handleGenerateDocument}
-          onViewDocument={handleViewDocument}
-          onPay={setPayLog}
-        />
+       <MaintenanceTable
+  logs={orderedLogs}
+  vehicles={vehiclesMap}
+  onView={setSelectedLog}
+  onEdit={setEditingLog}
+  onDelete={handleDelete}
+  onGenerateDocument={handleGenerateDocument}
+  onViewDocument={handleViewDocument}
+  onPay={setPayLog}
+/>
       </div>
 
       {/* ── Add / Edit Maintenance Form Modal ── */}

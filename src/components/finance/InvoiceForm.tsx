@@ -23,8 +23,10 @@ interface InvoiceFormProps {
 }
 
 interface ProductSuggestion {
+  id: string;
+  partNumber: string;
   name: string;
-  price: number;
+  lastPrice: number; // from product.retailPrice (fallback to legacy price)
 }
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose }) => {
@@ -60,27 +62,58 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
 
   // Fetch categories & product list
   useEffect(() => {
-    (async () => {
-      try {
-        const snap = await getDocs(collection(db, 'invoiceCategories'));
-        const fetched: string[] = [];
-        snap.forEach(s => fetched.push((s.data() as any).name));
-        fetched.sort((a, b) => a.localeCompare(b));
-        setCategories(fetched);
-      } catch {
-        toast.error('Failed to load categories');
-      }
-    })();
+  (async () => {
+    try {
+      const snap = await getDocs(collection(db, 'invoiceCategories'));
+      const fetched: string[] = [];
+      snap.forEach(s => fetched.push((s.data() as any).name));
+      fetched.sort((a, b) => a.localeCompare(b));
+      setCategories(fetched);
+    } catch {
+      toast.error('Failed to load categories');
+    }
+  })();
 
-    (async () => {
-      try {
-        const prods = await productService.getAll();
-        setProductSuggestions(prods.map(p => ({ name: p.name, price: p.price })));
-      } catch {
-        console.error('Error fetching products');
-      }
-    })();
-  }, []);
+  (async () => {
+    try {
+      const prods = await productService.getAll();
+      setProductSuggestions(
+        prods.map(p => ({
+          id: p.id,
+          partNumber: p.partNumber ?? '',
+          name: p.name ?? '',
+          lastPrice: Number(p.retailPrice ?? p.price ?? 0),
+        }))
+      );
+    } catch {
+      console.error('Error fetching products');
+    }
+  })();
+}, []);
+
+const filterMatches = (q: string) => {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  return productSuggestions.filter(ps =>
+    ps.name.toLowerCase().includes(s) || ps.partNumber.toLowerCase().includes(s)
+  );
+};
+
+const tryAutofillUnitPrice = (desc: string, idx: number) => {
+  const q = desc.trim().toLowerCase();
+  if (!q) return;
+  const hit = productSuggestions.find(
+    ps => ps.name.toLowerCase() === q || ps.partNumber.toLowerCase() === q
+  );
+  if (hit) {
+    setLineItems(items => {
+      const copy = [...items];
+      copy[idx] = { ...copy[idx], unitPrice: hit.lastPrice };
+      return copy;
+    });
+  }
+};
+
 
   useEffect(() => {
     setShowSuggestions(new Array(lineItems.length).fill(false));
@@ -389,34 +422,51 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
               key={item.id}
               className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
-              <div className="sm:col-span-2">
-                <FormField
-                  label="Description"
-                  value={item.description}
-                  onChange={e => handleDescriptionChange(idx, e.target.value)}
-                  onFocus={() => handleFieldFocus(idx)}
-                  onBlur={() => handleFieldBlur(idx)}
-                  required
-                />
-                {showSuggestions[idx] && item.description && (
-                  <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-                    {productSuggestions
-                      .filter(p => p.name.toLowerCase().includes(item.description.toLowerCase()))
-                      .map((prod, i) => (
-                        <li
-                          key={i}
-                          className="px-4 py-2 cursor-pointer hover:bg-gray-100"
-                          onMouseDown={() => handleSuggestionSelect(prod, idx)}
-                        >
-                          {prod.name}{' '}
-                          <span className="text-gray-500 text-sm">
-                            ({formatCurrency(prod.price)})
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
+              <div className="sm:col-span-2 relative">
+  <FormField
+    label="Description"
+    value={item.description}
+    onChange={e => handleDescriptionChange(idx, e.target.value)}
+    onFocus={() => handleFieldFocus(idx)}
+    onBlur={() => {
+      // close after a short delay so clicks register
+      setTimeout(() => handleFieldBlur(idx), 120);
+      // optional: if exact match, auto-fill price
+      tryAutofillUnitPrice(item.description, idx);
+    }}
+    required
+  />
+
+  {showSuggestions[idx] && item.description && (
+    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+      {filterMatches(item.description).map(s => (
+        <li
+          key={s.id}
+          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+          onMouseDown={() => {
+            handleSuggestionSelect(
+              { name: s.name, price: s.lastPrice }, // uses your existing handler
+              idx
+            );
+          }}
+          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+        >
+          <span className="truncate">
+            {s.name}
+            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+          </span>
+          <span className="text-gray-500 text-sm ml-3">
+            {formatCurrency(s.lastPrice)}
+          </span>
+        </li>
+      ))}
+      {filterMatches(item.description).length === 0 && (
+        <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
+      )}
+    </ul>
+  )}
+</div>
+
               <FormField
                 type="number"
                 label="Quantity"

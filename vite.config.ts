@@ -1,10 +1,10 @@
 // vite.config.ts
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
+  base: '/', // IMPORTANT: domain root. If you deploy under a subfolder, change this.
   plugins: [react()],
   resolve: {
     alias: {
@@ -15,17 +15,17 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor': ['react', 'react-dom', 'react-router-dom'],
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage']
-        }
-      }
-    }
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+        },
+      },
+    },
   },
   optimizeDeps: {
-    exclude: ['lucide-react']
+    exclude: ['lucide-react'],
   },
   server: {
     port: 3000,
-    host: true
-  }
+    host: true,
+  },
 });

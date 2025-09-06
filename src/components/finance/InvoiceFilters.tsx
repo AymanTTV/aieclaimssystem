@@ -1,5 +1,4 @@
 // src/components/finance/InvoiceFilters.tsx
-
 import React from 'react';
 import { Search } from 'lucide-react';
 
@@ -29,8 +28,8 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   categories,
 }) => {
   return (
-    <div className="space-y-4">
-      {/* Search Bar */}
+    <div className="space-y-3">
+      {/* Search Bar (full width) */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
@@ -44,15 +43,15 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         />
       </div>
 
-      {/* Filter Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        {/* Status Filter */}
+      {/* Filters Grid: 2 per row on mobile; 4 per row on large screens */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Status */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1"
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Status</option>
             <option value="paid">Paid</option>
@@ -62,13 +61,13 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Category Filter */}
+        {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Category</label>
           <select
             value={categoryFilter}
             onChange={(e) => onCategoryFilterChange(e.target.value)}
-            className="form-select mt-1"
+            className="form-select mt-1 w-full"
           >
             <option value="all">All Categories</option>
             {categories.map((catName) => (
@@ -79,9 +78,9 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Date “From” */}
+        {/* Date From */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">From</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
             value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
@@ -91,13 +90,13 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 start: e.target.value ? new Date(e.target.value) : null,
               })
             }
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Date “To” */}
+        {/* Date To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">To</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
             value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
@@ -108,7 +107,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               })
             }
             min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="form-input mt-1"
+            className="form-input mt-1 w-full"
           />
         </div>
       </div>

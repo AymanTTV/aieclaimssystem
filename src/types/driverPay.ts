@@ -42,6 +42,7 @@ export interface DriverPay {
   createdAt: Date;
   updatedAt: Date;
   payments: Payment[];
+  isLocked?: boolean; // <-- ADD THIS LINE
 }
 
 export interface Payment {

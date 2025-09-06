@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+// src/pages/Users.tsx
+import React, { useState, useMemo } from 'react';
 import { useUsers } from '../hooks/useUsers';
 import { DataTable } from '../components/DataTable/DataTable';
 import { format } from 'date-fns';
-import { Plus, Download, Upload, Edit, Trash2, Eye, Shield } from 'lucide-react';
+import { Plus, Download, Eye, Shield, Trash2 } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import UserRoleModal from '../components/users/UserRoleModal';
 import UserDeleteModal from '../components/users/UserDeleteModal';
@@ -14,7 +15,6 @@ import { User } from '../types';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
-
 const Users = () => {
   const { users, loading } = useUsers();
   const { can } = usePermissions();
@@ -23,28 +23,37 @@ const Users = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const { user } = useAuth();
+
+
+  // NEW: “Show members” filter (off by default)
+  const [showMembers, setShowMembers] = useState(false);
+
+  // Apply filter: hide role === 'member' unless showMembers is true
+  
+const filteredUsers = useMemo(() => {
+  if (showMembers) {
+    // only members
+    return users.filter(u => u.role === 'member');
+  } else {
+    // everyone except members
+    return users.filter(u => u.role !== 'member');
+  }
+}, [users, showMembers]);
+
   const columns = [
-    {
-      header: 'Name',
-      accessorKey: 'name',
-    },
-    {
-      header: 'Email',
-      accessorKey: 'email',
-    },
+    { header: 'Name', accessorKey: 'name' },
+    { header: 'Email', accessorKey: 'email' },
     {
       header: 'Role',
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.role} />
-      ),
+      cell: ({ row }: any) => <StatusBadge status={row.original.role} />,
     },
     {
       header: 'Created',
-      cell: ({ row }) => format(row.original.createdAt, 'MMM dd, yyyy'),
+      cell: ({ row }: any) => format(row.original.createdAt, 'MMM dd, yyyy'),
     },
     {
       header: 'Actions',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="flex space-x-2">
           {can('users', 'view') && (
             <button
@@ -59,18 +68,16 @@ const Users = () => {
             </button>
           )}
           {can('users', 'update') && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingUser(row.original);
-                }}
-                className="text-purple-600 hover:text-purple-800"
-                title="Manage Permissions"
-              >
-                <Shield className="h-4 w-4" />
-              </button>
-            </>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingUser(row.original);
+              }}
+              className="text-purple-600 hover:text-purple-800"
+              title="Manage Permissions"
+            >
+              <Shield className="h-4 w-4" />
+            </button>
           )}
           {can('users', 'delete') && (
             <button
@@ -90,13 +97,13 @@ const Users = () => {
   ];
 
   const handleExport = () => {
-    const exportData = users.map(user => ({
-      Name: user.name,
-      Email: user.email,
-      Role: user.role,
-      'Created At': format(user.createdAt, 'MMM dd, yyyy'),
+    // Export what’s visible in the table (respects the members filter)
+    const exportData = filteredUsers.map(u => ({
+      Name: u.name,
+      Email: u.email,
+      Role: u.role,
+      'Created At': format(u.createdAt, 'MMM dd, yyyy'),
     }));
-
     exportToExcel(exportData, 'users');
     toast.success('Users exported successfully');
   };
@@ -104,54 +111,66 @@ const Users = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header + Actions */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <div className="flex space-x-2">
-              {user?.role === 'manager' && (
-              <button
-                onClick={handleExport}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Export
-              </button>
-      )}
+
+        <div className="flex items-center gap-3">
+          {/* NEW: Show members toggle */}
+         <label className="inline-flex items-center gap-2 text-sm">
+  <input
+    type="checkbox"
+    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+    checked={showMembers}
+    onChange={(e) => setShowMembers(e.target.checked)}
+  />
+  <span className="text-gray-700">Show members only</span>
+</label>
+
+
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
+
           {can('users', 'create') && (
-            <>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add User
-              </button>
-            </>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add User
+            </button>
           )}
         </div>
       </div>
 
+      {/* Table */}
       <DataTable
-        data={users}
+        data={filteredUsers}
         columns={columns}
-        onRowClick={(user) => setSelectedUser(user)}
+        onRowClick={(u) => setSelectedUser(u)}
         module="users"
       />
 
-      <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title="Add New User"
-      >
+      {/* Create modal */}
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Add New User">
         <UserForm onClose={() => setShowForm(false)} />
       </Modal>
 
+      {/* View modal */}
       <Modal
         isOpen={!!selectedUser}
         onClose={() => setSelectedUser(null)}
@@ -177,7 +196,9 @@ const Users = () => {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Created</h3>
-                <p className="mt-1">{format(selectedUser.createdAt, 'MMM dd, yyyy')}</p>
+                <p className="mt-1">
+                  {format(selectedUser.createdAt, 'MMM dd, yyyy')}
+                </p>
               </div>
               {selectedUser.phoneNumber && (
                 <div>
@@ -196,6 +217,7 @@ const Users = () => {
         )}
       </Modal>
 
+      {/* Permissions modal */}
       <Modal
         isOpen={!!editingUser}
         onClose={() => setEditingUser(null)}
@@ -203,13 +225,11 @@ const Users = () => {
         size="lg"
       >
         {editingUser && (
-          <UserRoleModal
-            user={editingUser}
-            onClose={() => setEditingUser(null)}
-          />
+          <UserRoleModal user={editingUser} onClose={() => setEditingUser(null)} />
         )}
       </Modal>
 
+      {/* Delete modal */}
       <Modal
         isOpen={!!deletingUserId}
         onClose={() => setDeletingUserId(null)}

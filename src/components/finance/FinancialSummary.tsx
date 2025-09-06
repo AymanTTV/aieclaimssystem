@@ -1,14 +1,14 @@
 import React from 'react';
-import { Transaction } from '../../types'; // Assuming Transaction type is imported here
-import { DollarSign, TrendingUp, TrendingDown, Percent, Wallet } from 'lucide-react'; // Import Wallet icon
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
+import { DollarSign, TrendingUp, TrendingDown, Percent, Wallet } from 'lucide-react';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
+
 interface FinancialSummaryProps {
   totalIncome: number;
   totalExpenses: number;
   netIncome: number;
   profitMargin: number;
-  totalOwingFromOwners: number; // New prop for total owing from owners
+  totalOwingFromOwners: number;
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({
@@ -16,90 +16,78 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   totalExpenses,
   netIncome,
   profitMargin,
-  totalOwingFromOwners, // Destructure the new prop
+  totalOwingFromOwners,
 }) => {
-  const { formatCurrency, formatPercentage } = useFormattedDisplay(); // Use the hook
-
+  const { formatCurrency, formatPercentage } = useFormattedDisplay();
   const { can } = usePermissions();
-  
-    // Don't even render the cards if the user lacks the 'cards' permission
-    if (!can('finance', 'cards')) {
-      return null;
-    }
+
+  if (!can('finance', 'cards')) return null;
+
+  const netTone =
+    netIncome > 0 ? 'text-green-600' : netIncome < 0 ? 'text-red-600' : 'text-gray-700';
+
+  // guard against NaN or Infinity in margin
+  const safeProfitMargin =
+    Number.isFinite(profitMargin) && !Number.isNaN(profitMargin) ? profitMargin : 0;
+
+  const cards = [
+    {
+      key: 'income',
+      label: 'Total Income',
+      value: formatCurrency(totalIncome),
+      tone: 'text-gray-900',
+      icon: <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 text-green-500" />,
+    },
+    {
+      key: 'expenses',
+      label: 'Total Expenses',
+      value: formatCurrency(totalExpenses),
+      tone: 'text-gray-900',
+      icon: <TrendingDown className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" />,
+    },
+    {
+      key: 'net',
+      label: 'Net Income',
+      value: formatCurrency(netIncome),
+      tone: netTone,
+      icon: <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500" />,
+    },
+    {
+      key: 'margin',
+      label: 'Profit Margin',
+      value: formatPercentage(safeProfitMargin),
+      tone: 'text-purple-600',
+      icon: <Percent className="w-6 h-6 sm:w-7 sm:h-7 text-purple-500" />,
+    },
+    {
+      key: 'owing',
+      label: 'Owing from Owners',
+      value: formatCurrency(totalOwingFromOwners),
+      tone: 'text-orange-600',
+      icon: <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" />,
+    },
+  ] as const;
 
   return (
-    // Adjust grid columns if needed to accommodate the new card
-    // Added xl:grid-cols-5 to potentially fit 5 cards per row on large screens
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-
-      {/* Total Income Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <TrendingUp className="w-8 h-8 text-green-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Total Income</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalIncome)}
-            </p>
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-6">
+      {cards.map((c) => (
+        <div
+          key={c.key}
+          className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-md p-2 bg-gray-50">{c.icon}</div>
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">
+                {c.label}
+              </p>
+              <p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>
+                {c.value}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Total Expenses Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <TrendingDown className="w-8 h-8 text-red-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Total Expenses</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalExpenses)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Net Income Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <DollarSign className="w-8 h-8 text-blue-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Net Income</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(netIncome)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Profit Margin Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <Percent className="w-8 h-8 text-purple-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Profit Margin</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatPercentage(profitMargin)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Owing from Owners Card - New */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center">
-          <Wallet className="w-8 h-8 text-orange-500" /> {/* Using Wallet icon and orange color */}
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Owing from Owners</p> {/* Updated label */}
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(totalOwingFromOwners)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-       {/* Add more cards here if needed, e.g., Account Balances */}
-       {/* You might want to move AccountBalanceCards content here or keep it separate */}
-
+      ))}
     </div>
   );
 };

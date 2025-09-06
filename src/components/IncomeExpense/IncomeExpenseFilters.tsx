@@ -1,5 +1,4 @@
-// src/components/income-expense/IncomeExpenseFilters.tsx
-
+// src/components/IncomeExpense/IncomeExpenseFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
 
@@ -12,18 +11,25 @@ interface Props {
   onProgress: (val: 'all' | 'in-progress' | 'completed') => void;
   dateRange: { start: string; end: string };
   onDateRange: (range: { start: string; end: string }) => void;
+  permissionScope?: string; // keep optional for compatibility
 }
 
 const IncomeExpenseFilters: React.FC<Props> = ({
-  search, onSearch,
-  typeFilter, onType,
-  progress, onProgress,
-  dateRange, onDateRange
+  search,
+  onSearch,
+  typeFilter,
+  onType,
+  progress,
+  onProgress,
+  dateRange,
+  onDateRange,
 }) => {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="relative">
+    <div className="space-y-3">
+      {/* 2 columns on mobile; 4 on md+ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Search spans full width on mobile */}
+        <div className="relative col-span-2 md:col-span-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" />
           </div>
@@ -56,6 +62,7 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           <option value="completed">Completed</option>
         </select>
 
+        {/* Date range stays tidy in one grid cell */}
         <div className="grid grid-cols-2 gap-2">
           <input
             type="date"

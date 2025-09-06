@@ -122,7 +122,6 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   const showHospitalInformation = watch('claimReason').includes('PI');
   const showRK = watch('registerKeeper.enabled');
 
-  // 1️⃣ Console-log errors whenever they change
   useEffect(() => {
     console.log('⚠️ ClaimEditModal validation errors:', errors);
   }, [errors]);
@@ -177,7 +176,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         )
       };
 
-      // Merge with existing URLs
+      // Existing URLs (strings only)
       const existing = {
         images: data.evidence.images.filter((f) => typeof f === 'string') as string[],
         videos: data.evidence.videos.filter((f) => typeof f === 'string') as string[],
@@ -207,25 +206,30 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         adminDocuments: [...existing.adminDocuments, ...newUploads.adminDocuments]
       };
 
-      // Build payload
+      // EXCLUDE progressHistory from the form payload to preserve it in Firestore
+      // ⛔️ do NOT send progressHistory from the form back to Firestore
+    const { progressHistory: _ignoreProgressHistory, ...dataWithoutHistory } = data;
+
+
       const payload: any = {
-        ...data,
-        clientVehicle: {
-          ...data.clientVehicle!,
-          documents: { ...claim.clientVehicle.documents, ...vehicleDocUrls }
-        },
-        evidence,
-        clientInfo: {
-          ...data.clientInfo,
-          dateOfBirth: new Date(data.clientInfo.dateOfBirth)
-        },
-        incidentDetails: {
-          ...data.incidentDetails,
-          date: new Date(data.incidentDetails.date)
-        },
-        updatedAt: new Date(),
-        updatedBy: user.id
-      };
+  ...dataWithoutHistory, // <-- use this instead of ...data
+  clientVehicle: {
+    ...dataWithoutHistory.clientVehicle!,
+    documents: { ...claim.clientVehicle.documents, ...vehicleDocUrls }
+  },
+  evidence,
+  clientInfo: {
+    ...dataWithoutHistory.clientInfo,
+    dateOfBirth: new Date(dataWithoutHistory.clientInfo.dateOfBirth)
+  },
+  incidentDetails: {
+    ...dataWithoutHistory.incidentDetails,
+    date: new Date(dataWithoutHistory.incidentDetails.date)
+  },
+  updatedAt: new Date(),
+  updatedBy: user.id,
+};
+
 
       // Only include enabled sections
       payload.hireDetails =
@@ -263,7 +267,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           </div>
         )}
 
-        {/* 2️⃣ In-form error summary */}
+        {/* Error summary */}
         {Object.keys(errors).length > 0 && (
           <div className="p-3 bg-red-50 border border-red-200 rounded mb-4">
             <strong className="block text-red-700 mb-2">Please fix:</strong>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
+// src/components/driverPay/DriverPayForm.tsx
+import React, { useState, useEffect } from 'react';
+import { addDoc, collection, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { DriverPay, CollectionPoint } from '../../types/driverPay';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +10,41 @@ import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers';
+
+// ---------- helpers ----------
+const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+const normalizeDriverNo = (raw?: string | null) => {
+  const s = (raw ?? '').toString().trim();
+  if (!s) return '';
+  const cleaned = s.replace(/[\s-]/g, '').toUpperCase();
+  const m = cleaned.match(/^DR(\d+)$/);
+  if (!m) return cleaned;
+  const n = String(parseInt(m[1], 10));
+  return `DR${n}`;
+};
+const normalizeName = (raw?: string | null) =>
+  (raw ?? '').toString().trim().toUpperCase().replace(/\s+/g, ' ');
+const normalizePhone = (raw?: string | null) =>
+  (raw ?? '').toString().replace(/\D/g, '');
+
+const mergePeriodsKeepAll = (lists: any[][]) => {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const arr of lists) {
+    for (const p of arr || []) {
+      if (p?.id) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        out.push(p);
+      } else {
+        out.push(p);
+      }
+    }
+  }
+  return out;
+};
+// --------------------------------
 
 interface DriverPayFormProps {
   record?: DriverPay;
@@ -24,17 +60,20 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // Initialize form data
+  // the doc we will prefer to update (the one with most periods among duplicates)
+  const [baseRecord, setBaseRecord] = useState<DriverPay | undefined>(record || undefined);
+
+  // Basic info
   const [formData, setFormData] = useState({
     driverNo: record?.driverNo || '',
     tidNo: record?.tidNo?.toString() || '',
     name: record?.name || '',
     phoneNumber: record?.phoneNumber || '',
-    collection: record?.collection || 'OFFICE' as CollectionPoint,
+    collection: (record?.collection || 'OFFICE') as CollectionPoint,
     customCollection: record?.customCollection || '',
   });
 
-  // Initialize payment periods with proper date handling
+  // Period editor state
   const [periods, setPeriods] = useState<Array<{
     id?: string;
     startDate: string;
@@ -48,13 +87,14 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
         id: period.id,
         startDate: format(ensureValidDate(period.startDate), 'yyyy-MM-dd'),
         endDate: format(ensureValidDate(period.endDate), 'yyyy-MM-dd'),
-        totalAmount: period.totalAmount.toString(),
-        commissionPercentage: period.commissionPercentage.toString(),
+        totalAmount: (period.totalAmount ?? 0).toString(),
+        commissionPercentage: (period.commissionPercentage ?? 6).toString(),
         notes: period.notes || '',
       }));
     }
     const today = new Date();
     return [{
+      id: uuidv4(),
       startDate: format(today, 'yyyy-MM-dd'),
       endDate: format(today, 'yyyy-MM-dd'),
       totalAmount: '',
@@ -63,26 +103,122 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
     }];
   });
 
+  // -------- Hydrate all periods across duplicate docs for this driver --------
+  useEffect(() => {
+    const hydrate = async () => {
+      // Only bother when editing an existing row
+      if (!record) return;
+
+      const key = {
+        id: record?.id,
+        driverNo: normalizeDriverNo(record?.driverNo),
+        name: normalizeName(record?.name),
+        phone: normalizePhone(record?.phoneNumber),
+        tid: record?.tidNo ? Number(record.tidNo) : null
+      };
+      if (!key.id && !key.driverNo && !key.tid && !(key.name && key.phone)) return;
+
+      try {
+        // scan collection so we can tolerate past inconsistent formatting
+        const snap = await getDocs(collection(db, collectionName));
+        const allDocs = snap.docs.map(d => ({ id: d.id, ...(d.data() as DriverPay) }));
+
+        const sameDriverDocs = allDocs.filter(d => {
+          // The record being edited is always a match
+          if (d.id === key.id) return true;
+
+          const dn = normalizeDriverNo(d.driverNo);
+          const tid = d.tidNo != null ? Number(d.tidNo) : null;
+
+          // Match on a NON-ZERO TID
+          if (key.tid && tid && key.tid > 0 && tid === key.tid) {
+            return true;
+          }
+
+          // Match on a non-empty driver number
+          if (key.driverNo && dn && key.driverNo === dn) {
+            return true;
+          }
+
+          return false;
+        });
+
+        if (sameDriverDocs.length === 0) return;
+
+        // pick doc with most periods as base
+        const base = sameDriverDocs.reduce((best, cur) =>
+          (cur.paymentPeriods?.length ?? 0) > (best.paymentPeriods?.length ?? 0) ? cur : best,
+          sameDriverDocs[0]
+        );
+
+        // union all periods (dedupe by id)
+        const allPeriods = mergePeriodsKeepAll(
+          sameDriverDocs.map(d => (Array.isArray(d.paymentPeriods) ? d.paymentPeriods : []))
+        ).sort(
+          (a, b) => ensureValidDate(a.startDate).getTime() - ensureValidDate(b.startDate).getTime()
+        );
+
+        const merged: DriverPay = { ...base, paymentPeriods: allPeriods };
+        setBaseRecord(merged);
+
+        // seed form fields only if not already typed by user
+        setFormData(fd => ({
+          driverNo: fd.driverNo || merged.driverNo || '',
+          tidNo: (fd.tidNo || (merged.tidNo != null ? String(merged.tidNo) : '')) || '',
+          name: fd.name || merged.name || '',
+          phoneNumber: fd.phoneNumber || merged.phoneNumber || '',
+          collection: (fd.collection || merged.collection || 'OFFICE') as CollectionPoint,
+          customCollection: fd.customCollection || merged.customCollection || '',
+        }));
+
+        // seed period editor
+        setPeriods(
+          (merged.paymentPeriods || []).map(p => ({
+            id: p.id,
+            startDate: format(ensureValidDate(p.startDate), 'yyyy-MM-dd'),
+            endDate: format(ensureValidDate(p.endDate), 'yyyy-MM-dd'),
+            totalAmount: (p.totalAmount ?? 0).toString(),
+            commissionPercentage: (p.commissionPercentage ?? 6).toString(),
+            notes: p.notes || '',
+          }))
+        );
+
+        console.log('[DriverPayForm] merged docs:', sameDriverDocs.length, 'periods:', allPeriods.length);
+      } catch (e) {
+        console.error('DriverPayForm hydrate failed:', e);
+      }
+    };
+
+    hydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record?.id, record?.driverNo, record?.tidNo, record?.name, record?.phoneNumber, collectionName]);
+  // --------------------------------------------------------------------------
+
   const addPeriod = () => {
     const today = new Date();
-    setPeriods([...periods, {
-      id: uuidv4(),
-      startDate: format(today, 'yyyy-MM-dd'),
-      endDate: format(today, 'yyyy-MM-dd'),
-      totalAmount: '',
-      commissionPercentage: '6',
-      notes: '',
-    }]);
+    setPeriods(prev => [
+      ...prev,
+      {
+        id: uuidv4(),
+        startDate: format(today, 'yyyy-MM-dd'),
+        endDate: format(today, 'yyyy-MM-dd'),
+        totalAmount: '',
+        commissionPercentage: '6',
+        notes: '',
+      }
+    ]);
   };
 
   const removePeriod = (index: number) => {
-    setPeriods(periods.filter((_, i) => i !== index));
+    setPeriods(prev => prev.filter((_, i) => i !== index));
   };
 
   const updatePeriod = (index: number, field: string, value: string) => {
-    const newPeriods = [...periods];
-    newPeriods[index] = { ...newPeriods[index], [field]: value };
-    setPeriods(newPeriods);
+    setPeriods(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,14 +227,20 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
     setLoading(true);
 
     try {
-      const processedPeriods = periods.map(period => {
-        const totalAmount = parseFloat(period.totalAmount);
-        const commissionPercentage = parseFloat(period.commissionPercentage);
-        const commissionAmount = parseFloat(((totalAmount * commissionPercentage) / 100).toFixed(2));
-        const netPay = parseFloat((totalAmount - commissionAmount).toFixed(2));
+      // searchPool ensures we KEEP old payments/paidAmount for existing periods
+      const searchPool = baseRecord?.paymentPeriods ?? record?.paymentPeriods ?? [];
 
-        if (period.id) {
-          const existing = record?.paymentPeriods?.find(p => p.id === period.id);
+      const processedPeriods = periods.map(period => {
+        const totalAmount = Number(period.totalAmount) || 0;
+        const commissionPercentage = Number(period.commissionPercentage) || 0;
+        const commissionAmount = round2((totalAmount * commissionPercentage) / 100);
+        const netPay = round2(totalAmount - commissionAmount);
+
+        const existing = period.id ? searchPool.find(p => p.id === period.id) : undefined;
+
+        if (period.id && existing) {
+          const paidAmount = round2(existing?.paidAmount ?? 0);
+          const remainingAmount = round2(netPay - paidAmount);
           return {
             ...existing,
             id: period.id,
@@ -108,20 +250,16 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
             commissionPercentage,
             commissionAmount,
             netPay,
-            paidAmount: existing?.paidAmount || 0,
-            remainingAmount: netPay - (existing?.paidAmount || 0),
+            paidAmount,
+            remainingAmount,
             status:
-              netPay === (existing?.paidAmount || 0)
-                ? 'paid'
-                : (existing?.paidAmount || 0) > 0
-                  ? 'partially_paid'
-                  : 'unpaid',
+              remainingAmount <= 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid',
             notes: period.notes,
             payments: existing?.payments || []
           };
         } else {
           return {
-            id: uuidv4(),
+            id: period.id || uuidv4(),
             startDate: new Date(period.startDate),
             endDate: new Date(period.endDate),
             totalAmount,
@@ -130,24 +268,50 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
             netPay,
             paidAmount: 0,
             remainingAmount: netPay,
-            status: 'unpaid',
+            status: 'unpaid' as const,
             payments: [],
             notes: period.notes,
           };
         }
       });
 
+      // top-level aggregates
+      const totals = processedPeriods.reduce(
+        (acc, p) => {
+          acc.totalAmount += Number(p.totalAmount) || 0;
+          acc.commissionAmount += Number(p.commissionAmount) || 0;
+          acc.netPay += Number(p.netPay) || 0;
+          acc.paidAmount += Number(p.paidAmount) || 0;
+          acc.remainingAmount += Number(p.remainingAmount) || 0;
+          return acc;
+        },
+        { totalAmount: 0, commissionAmount: 0, netPay: 0, paidAmount: 0, remainingAmount: 0 }
+      );
+
+      const overallStatus =
+        totals.remainingAmount <= 0 ? 'paid' : totals.paidAmount > 0 ? 'partially_paid' : 'unpaid';
+
       const driverPayData = {
         ...formData,
-        tidNo: parseInt(formData.tidNo),
+        tidNo: Number(formData.tidNo) || 0,
         paymentPeriods: processedPeriods,
+        totalAmount: round2(totals.totalAmount),
+        commissionAmount: round2(totals.commissionAmount),
+        netPay: round2(totals.netPay),
+        paidAmount: round2(totals.paidAmount),
+        remainingAmount: round2(totals.remainingAmount),
+        status: overallStatus,
         updatedAt: new Date()
       };
 
-      if (record) {
-        await updateDoc(doc(db, collectionName, record.id), driverPayData);
+      // Prefer updating the consolidated doc (baseRecord) to avoid creating more dupes
+      const targetDocId = baseRecord?.id || record?.id;
+
+      if (targetDocId) {
+        await updateDoc(doc(db, collectionName, targetDocId), driverPayData);
         toast.success('Driver pay record updated successfully');
       } else {
+        // Create new if none found (rare)
         await addDoc(collection(db, collectionName), {
           ...driverPayData,
           createdBy: user.id,
@@ -157,7 +321,7 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
       }
 
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving driver pay record:', error);
       toast.error(`Failed to ${record ? 'update' : 'create'} driver pay record`);
     } finally {
@@ -221,10 +385,10 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
 
       {/* Payment Periods */}
       {periods.map((period, idx) => (
-        <div key={idx} className="border-t pt-4 mt-4">
+        <div key={period.id ?? idx} className="border-t pt-4 mt-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">Payment Period {idx + 1}</h3>
-            {idx > 0 && (
+            {periods.length > 1 && (
               <button
                 type="button"
                 onClick={() => removePeriod(idx)}
@@ -280,7 +444,7 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
             </div>
           </div>
 
-          {/* *** Period Summary *** */}
+          {/* Summary */}
           {period.totalAmount && period.commissionPercentage && (
             <div className="col-span-2 bg-gray-50 p-4 rounded-lg space-y-2 mt-4">
               <div className="flex justify-between text-sm">
@@ -312,7 +476,7 @@ const DriverPayForm: React.FC<DriverPayFormProps> = ({
         Add Payment Period
       </button>
 
-      {/* Form Actions */}
+      {/* Actions */}
       <div className="flex justify-end space-x-3">
         <button
           type="button"

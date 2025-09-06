@@ -67,6 +67,11 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
       ),
     },
     {
+  header: 'Category',
+  accessorKey: 'categoryName',
+},
+
+    {
       header: 'Status',
       cell: ({ row }) => (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize

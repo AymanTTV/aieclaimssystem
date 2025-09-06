@@ -2,9 +2,14 @@
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format, differenceInDays, isAfter } from 'date-fns';
+import { format, differenceInDays, differenceInHours, isAfter } from 'date-fns';
 import { styles } from './styles';
-import { calculateOverdueCost } from '../../utils/rentalCalculations';
+import {
+  calculateOverdueCost,
+  calculateRentalCost,
+  RENTAL_RATES,
+  getOverdueUnits,
+} from '../../utils/rentalCalculations';
 
 interface RentalInvoiceProps {
   rental: Rental;
@@ -26,10 +31,11 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
   customer,
   companyDetails,
 }) => {
+  // ---------- Helpers ----------
   const toDate = (d: any): Date | null => {
     if (!d) return null;
     if (d instanceof Date) return d;
-    if (typeof d.toDate === 'function') return (d as any).toDate();
+    if (typeof d?.toDate === 'function') return d.toDate();
     const dt = new Date(d);
     return isNaN(dt.getTime()) ? null : dt;
   };
@@ -39,101 +45,100 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     return dt ? format(dt, 'dd/MM/yyyy HH:mm') : 'N/A';
   };
 
-  // Calculate days charged
+  // ---------- Dates, units ----------
   const sd = toDate(rental.startDate)!;
   const ed = toDate(rental.endDate)!;
-  const days = sd && ed && !isAfter(sd, ed) ? differenceInDays(ed, sd) + 1 : 0;
 
-  const showOverdue =
-    rental.status !== 'completed' && ed && isAfter(new Date(), ed);
+  const safeDays = sd && ed && !isAfter(sd, ed) ? differenceInDays(ed, sd) + 1 : 0;
+  const unit = rental.type === 'weekly' ? 'week' : 'day';
+  const totalHours = differenceInHours(ed, sd);
+  const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
+  const baseUnits = rental.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
 
-  // Effective rates
-  const effDaily = rental.negotiatedRate ?? vehicle.dailyRentalPrice ?? 0;
-  const effWeekly = rental.negotiatedRate ?? vehicle.weeklyRentalPrice ?? 0;
-  const effClaim = rental.negotiatedRate ?? vehicle.claimRentalPrice ?? 0;
+  // ---------- Display rate (for breakdown table only) ----------
+  const vehicleRate =
+    rental.type === 'daily'
+      ? (vehicle.dailyRentalPrice ?? 0)
+      : rental.type === 'weekly'
+      ? (vehicle.weeklyRentalPrice ?? 0)
+      : (vehicle.claimRentalPrice ?? 0);
+  const fallbackRate = RENTAL_RATES[rental.type] ?? 0;
+  const effectiveRate = (rental.negotiatedRate ?? vehicleRate ?? fallbackRate) || 0;
+  const hireRate = effectiveRate.toFixed(2);
+  const hireUnits = `${baseUnits} ${unit}${baseUnits === 1 ? '' : 's'}`;
 
-  const dailyRate = parseFloat(effDaily.toFixed(2));
-  const weeklyRate = parseFloat(effWeekly.toFixed(2));
-  const perDayForClaim = parseFloat(effClaim.toFixed(2));
-
-  let netHireTotal: number;
-  let hireUnits: string;
-  let hireRate: string;
-  if (rental.type === 'weekly') {
-    const w = Math.ceil(days / 7);
-    netHireTotal = parseFloat((w * weeklyRate).toFixed(2));
-    hireUnits = `${w} week${w > 1 ? 's' : ''}`;
-    hireRate = weeklyRate.toFixed(2);
-  } else if (rental.type === 'claim') {
-    netHireTotal = parseFloat((days * perDayForClaim).toFixed(2));
-    hireUnits = `${days} day${days > 1 ? 's' : ''}`;
-    hireRate = perDayForClaim.toFixed(2);
-  } else {
-    netHireTotal = parseFloat((days * dailyRate).toFixed(2));
-    hireUnits = `${days} day${days > 1 ? 's' : ''}`;
-    hireRate = dailyRate.toFixed(2);
-  }
-
-  // Other net charges
-  const netStorage = parseFloat((rental.storageCost || 0).toFixed(2));
-  const netRecovery = parseFloat((rental.recoveryCost || 0).toFixed(2));
-  const netDelivery = parseFloat((rental.deliveryCharge || 0).toFixed(2));
-  const netCollection = parseFloat((rental.collectionCharge || 0).toFixed(2));
-  const netInsurance = parseFloat((days * (rental.insurancePerDay || 0)).toFixed(2));
-
-  let netOngoing = 0;
-  if (showOverdue) {
-    const raw = calculateOverdueCost(rental, new Date(), vehicle);
-    netOngoing = rental.includeVAT ? raw / 1.2 : raw;
-  }
-  netOngoing = parseFloat(netOngoing.toFixed(2));
-
-  // Return charges
-  const rawReturn = rental.returnCondition?.totalCharges || 0;
-  const netReturn = parseFloat(
-    (
-      rental.includeVAT
-        ? rawReturn / 1.2
-        : rawReturn
-    ).toFixed(2)
-  );
-
-  // Subtotals
-  let subtotalBeforeVAT =
-    netHireTotal +
-    netStorage +
-    netRecovery +
-    netDelivery +
-    netCollection +
-    netInsurance +
-    netOngoing +
-    netReturn;
-  subtotalBeforeVAT = parseFloat(subtotalBeforeVAT.toFixed(2));
-
-  const discountAmount = rental.discountAmount
-    ? parseFloat(rental.discountAmount.toFixed(2))
+  // ---------- Base hire (no extras, no overall VAT) ----------
+  const baseHireTotal = vehicle
+    ? calculateRentalCost(
+        sd,
+        ed,
+        rental.type,
+        vehicle,
+        rental.reason,
+        rental.negotiatedRate ?? undefined,
+        0, 0, 0, 0, 0,
+        false, false, false, false, false
+      )
     : 0;
-  const subtotalAfterDiscount = parseFloat((subtotalBeforeVAT - discountAmount).toFixed(2));
-  const grandTotal = parseFloat((subtotalAfterDiscount * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
-  const vatAmount = parseFloat(
-    (rental.includeVAT ? (grandTotal - subtotalAfterDiscount) : 0).toFixed(2)
+
+  // ---------- Overdue / ongoing (VAT-inclusive via util) ----------
+  const now = new Date();
+  const showOverdue = rental.status === 'active' && isAfter(now, ed);
+  const overdueUnits = showOverdue ? getOverdueUnits(rental, now) : 0;
+  const overdueTotal = showOverdue ? calculateOverdueCost(rental, now, vehicle) : 0; // VAT-inclusive
+
+  // ---------- Extras (use stored values and per-line VAT toggles, matching Details modal) ----------
+  const netStorage = parseFloat((rental.storageCost || 0).toFixed(2)); // already stored with its own VAT toggle
+  const netDelivery = parseFloat((rental.deliveryCharge || 0).toFixed(2)); // already stored VAT-inclusive if flag was set
+  const netCollection = parseFloat((rental.collectionCharge || 0).toFixed(2)); // same
+  const netRecovery = parseFloat(
+    (((rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1))).toFixed(2)
+  );
+  const netInsurance = parseFloat(
+    (safeDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1)).toFixed(2)
   );
 
+  // ---------- Return charges (split) ----------
+  const rc = rental.returnCondition;
+  const returnFuel = parseFloat((rc?.fuelCharge || 0).toFixed(2));
+  const returnDamage = parseFloat((rc?.damageCost || 0).toFixed(2));
+  const returnCleaning = parseFloat((rc?.cleaningCharge || 0).toFixed(2));
+  const returnTotal = parseFloat((returnFuel + returnDamage + returnCleaning).toFixed(2)); // treat as VAT-inclusive
+
+  // ---------- Subtotals & totals (match Details modal flow) ----------
+  // Subtotal BEFORE overall VAT: base hire + extras (NOT including overdue/returns)
+  const subtotalBeforeVAT = parseFloat(
+    (baseHireTotal + netStorage + netRecovery + netDelivery + netCollection + netInsurance).toFixed(2)
+  );
+
+  // Overall VAT applies to the above block as per Details modal
+  const vatAmount = rental.includeVAT ? parseFloat((subtotalBeforeVAT * 0.2).toFixed(2)) : 0;
+  const subtotalWithVAT = parseFloat((subtotalBeforeVAT + vatAmount).toFixed(2));
+
+  // Discount comes off the rental subtotal (with VAT)
+  const discountAmount = rental.discountAmount ? parseFloat(rental.discountAmount.toFixed(2)) : 0;
+  const discountedRentalTotal = parseFloat((subtotalWithVAT - discountAmount).toFixed(2));
+
+  // Final total adds overdue + return (they’re VAT-inclusive already)
+  const grandTotal = parseFloat((discountedRentalTotal + overdueTotal + returnTotal).toFixed(2));
+
+  // Payments / owing
   const paid = parseFloat(
-    ((rental.payments?.reduce((sum, p) => sum + p.amount, 0) || 0) +
+    (
+      (rental.payments?.reduce((s, p) => s + p.amount, 0) || 0) +
       (rental.paidAmount && rental.payments?.length === 0 ? rental.paidAmount : 0)
     ).toFixed(2)
   );
   const owing = parseFloat((grandTotal - paid).toFixed(2));
 
-  // Build breakdown rows
+  // ---------- Breakdown rows ----------
   const rows = [
     {
       desc: 'Hire Charges',
-      details: `£${hireRate} per ${rental.type === 'weekly' ? 'week' : 'day'}`,
+      details: `£${hireRate} per ${unit}`,
       rate: hireRate,
       units: hireUnits,
-      total: netHireTotal.toFixed(2),
+      total: baseHireTotal.toFixed(2),
     },
     ...(netStorage > 0
       ? [{ desc: 'Storage Charges', details: '', rate: '', units: '', total: netStorage.toFixed(2) }]
@@ -150,32 +155,37 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     ...(netInsurance > 0
       ? [{
           desc: 'Insurance',
-          details: `${days} day${days > 1 ? 's' : ''} cover`,
+          details: `${safeDays} day${safeDays === 1 ? '' : 's'} cover`,
           rate: (rental.insurancePerDay || 0).toFixed(2),
-          units: String(days),
+          units: String(safeDays),
           total: netInsurance.toFixed(2),
         }]
       : []),
-    ...(netOngoing > 0
-      ? [{ desc: 'Overdue Charges', details: '', rate: '', units: '', total: netOngoing.toFixed(2) }]
+    ...(overdueTotal > 0
+      ? [{
+          desc: 'Overdue Charges',
+          details: overdueUnits > 0 ? `${overdueUnits} ${unit}${overdueUnits === 1 ? '' : 's'}` : '',
+          rate: '',
+          units: overdueUnits > 0 ? String(overdueUnits) : '',
+          total: overdueTotal.toFixed(2),
+        }]
       : []),
     ...(discountAmount > 0
       ? [{
           desc: 'Discount',
-          details: rental.discountPercentage
-            ? `${rental.discountPercentage.toFixed(2)}%`
-            : 'Fixed Discount',
+          details: rental.discountPercentage ? `${rental.discountPercentage.toFixed(2)}%` : 'Fixed Discount',
           rate: '',
           units: '',
           total: (-discountAmount).toFixed(2),
         }]
       : []),
-    ...(netReturn > 0
-      ? [{ desc: 'Return Charges', details: '', rate: '', units: '', total: netReturn.toFixed(2) }]
-      : []),
+    // Split return charges
+    ...(returnFuel > 0 ? [{ desc: 'Return – Fuel', details: '', rate: '', units: '', total: returnFuel.toFixed(2) }] : []),
+    ...(returnDamage > 0 ? [{ desc: 'Return – Damage', details: '', rate: '', units: '', total: returnDamage.toFixed(2) }] : []),
+    ...(returnCleaning > 0 ? [{ desc: 'Return – Cleaning', details: '', rate: '', units: '', total: returnCleaning.toFixed(2) }] : []),
   ];
 
-  // Split payments into pages of 15
+  // ---------- Payment history pages (15 per page) ----------
   const paymentPages: Rental['payments'][] = [];
   if (rental.payments?.length) {
     for (let i = 0; i < rental.payments.length; i += 15) {
@@ -190,9 +200,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         {/* Header */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {companyDetails.logoUrl && (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            )}
+            {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} />}
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companyDetails.fullName}</Text>
@@ -211,15 +219,11 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <View style={localStyles.infoCard}>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Invoice Number</Text>
-            <Text style={localStyles.infoValue}>
-              AIE-{rental.id.slice(-8).toUpperCase()}
-            </Text>
+            <Text style={localStyles.infoValue}>AIE-{rental.id.slice(-8).toUpperCase()}</Text>
           </View>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Invoice Date</Text>
-            <Text style={localStyles.infoValue}>
-              {fmtDateTime(rental.createdAt || new Date())}
-            </Text>
+            <Text style={localStyles.infoValue}>{fmtDateTime(rental.createdAt || new Date())}</Text>
           </View>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Due Date</Text>
@@ -236,10 +240,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         </View>
 
         {/* Bill To & Vehicle */}
-        <View
-          style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'space-between' }]}
-          wrap={false}
-        >
+        <View style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'space-between' }]} wrap={false}>
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Bill To:</Text>
             <Text>{customer.name}</Text>
@@ -249,14 +250,10 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           </View>
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Vehicle Details:</Text>
-            <Text>
-              {vehicle.make} {vehicle.model}
-            </Text>
+            <Text>{vehicle.make} {vehicle.model}</Text>
             <Text>Reg: {vehicle.registrationNumber}</Text>
             <Text>
-              Mileage:{' '}
-              {(rental.checkOutCondition?.mileage || vehicle.mileage || 0).toLocaleString()}{' '}
-              miles
+              Mileage: {(rental.checkOutCondition?.mileage || vehicle.mileage || 0).toLocaleString()} miles
             </Text>
           </View>
         </View>
@@ -302,28 +299,16 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
             <Text>Account Number: 30513162</Text>
             <Text>Sort Code: 30-99-50</Text>
           </View>
+
+          {/* Summary (no Rate/Period shown) */}
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Summary</Text>
+
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Rate:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>
-                £{subtotalBeforeVAT.toFixed(2)}
-              </Text>
+              <Text style={styles.label}>Net (rental + extras):</Text>
+              <Text style={[styles.value, { textAlign: 'right' }]}>£{subtotalBeforeVAT.toFixed(2)}</Text>
             </View>
-            {discountAmount > 0 && (
-              <View style={styles.spaceBetweenRow}>
-                <Text style={[styles.label, { color: 'red' }]}>Discount:</Text>
-                <Text style={[styles.value, { color: 'red', textAlign: 'right' }]}>
-                  –£{discountAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>NET:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>
-                £{subtotalAfterDiscount.toFixed(2)}
-              </Text>
-            </View>
+
             {rental.includeVAT && (
               <View style={styles.spaceBetweenRow}>
                 <Text style={[styles.label, { color: '#2563EB' }]}>VAT (20%):</Text>
@@ -332,18 +317,40 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
                 </Text>
               </View>
             )}
+
+            {discountAmount > 0 && (
+              <View style={styles.spaceBetweenRow}>
+                <Text style={[styles.label, { color: 'red' }]}>Discount:</Text>
+                <Text style={[styles.value, { color: 'red', textAlign: 'right' }]}>
+                  –£{discountAmount.toFixed(2)}
+                </Text>
+              </View>
+            )}
+
+            {overdueTotal > 0 && (
+              <View style={styles.spaceBetweenRow}>
+                <Text style={styles.label}>Overdue Charges:</Text>
+                <Text style={[styles.value, { textAlign: 'right' }]}>£{overdueTotal.toFixed(2)}</Text>
+              </View>
+            )}
+
+            {returnTotal > 0 && (
+              <View style={styles.spaceBetweenRow}>
+                <Text style={styles.label}>Return Charges:</Text>
+                <Text style={[styles.value, { textAlign: 'right' }]}>£{returnTotal.toFixed(2)}</Text>
+              </View>
+            )}
+
             <View style={styles.spaceBetweenRow}>
               <Text style={styles.label}>Total:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>
-                £{grandTotal.toFixed(2)}
-              </Text>
+              <Text style={[styles.value, { textAlign: 'right' }]}>£{grandTotal.toFixed(2)}</Text>
             </View>
+
             <View style={styles.spaceBetweenRow}>
               <Text style={styles.label}>Paid:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>
-                £{paid.toFixed(2)}
-              </Text>
+              <Text style={[styles.value, { textAlign: 'right' }]}>£{paid.toFixed(2)}</Text>
             </View>
+
             <View style={styles.spaceBetweenRow}>
               <Text
                 style={[
@@ -356,10 +363,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
               <Text
                 style={[
                   styles.value,
-                  {
-                    textAlign: 'right',
-                    color: owing > 0 ? '#DC2626' : '#16A34A',
-                  },
+                  { textAlign: 'right', color: owing > 0 ? '#DC2626' : '#16A34A' },
                 ]}
               >
                 £{owing.toFixed(2)}
@@ -377,9 +381,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           </Text>
           <Text
             style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} of ${totalPages}`
-            }
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
           />
         </View>
       </Page>
@@ -398,14 +400,13 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
             {pagePayments.map((p, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1 }]}>{fmtDateTime(p.date)}</Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {p.method.replace('_', ' ').toUpperCase()}
-                </Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{p.method.replace('_', ' ').toUpperCase()}</Text>
                 <Text style={[styles.tableCell, { flex: 1 }]}>{p.reference || 'N/A'}</Text>
                 <Text style={[styles.tableCell, { flex: 1 }]}>£{(p.amount || 0).toFixed(2)}</Text>
               </View>
             ))}
           </View>
+
           <View style={styles.footer} fixed>
             <Text style={styles.footerText}>
               AIE SKYLINE LIMITED, registered in England and Wales with the company
@@ -414,9 +415,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
             </Text>
             <Text
               style={styles.pageNumber}
-              render={({ pageNumber, totalPages }) =>
-                `Page ${pageNumber} of ${totalPages}`
-              }
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
             />
           </View>
         </Page>

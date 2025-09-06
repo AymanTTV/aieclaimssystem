@@ -51,6 +51,7 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
     totalAmount: record?.totalAmount || 0,
     vatRate: record?.vatPercentage || 0,
     description: record?.description || '',
+    claimReasons: (record?.claimReasons as Array<'VD'|'H'|'S'|'PI'>) || [],   // NEW
     clientRepairPercentage: initialClientRepairPercentage,
     clientRepairAmount: record?.clientRepairAmount || 0,
     salvage: record?.salvage || 0,
@@ -120,6 +121,26 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   useEffect(() => {
     setShowPartSuggestions(new Array(parts.length).fill(false))
   }, [parts.length])
+
+  const CLAIM_REASONS: { code: 'VD'|'H'|'S'|'PI'; label: string }[] = [
+  { code: 'VD', label: 'Vehicle Damage' },
+  { code: 'H',  label: 'Hire' },
+  { code: 'S',  label: 'Storage' },
+  { code: 'PI', label: 'Personal Injury' },
+];
+
+const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
+  setFormData(prev => {
+    const exists = prev.claimReasons.includes(code);
+    return {
+      ...prev,
+      claimReasons: exists
+        ? prev.claimReasons.filter(x => x !== code)
+        : [...prev.claimReasons, code],
+    };
+  });
+};
+
 
   const calculateCosts = () => {
     const round = (n: number) => Math.round(n * 100) / 100
@@ -255,6 +276,7 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
         date: dateObj,
         updatedAt: new Date(),
         createdBy: user.id,
+        claimReasons: formData.claimReasons,
         ...(selectedClaim && { claimId: selectedClaim.id })
       }
       if (record) {
@@ -291,6 +313,27 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
             <span className="text-sm text-gray-600">Manual Entry</span>
           </label>
         </div>
+
+        <div className="space-y-2">
+  <label className="block text-sm font-medium text-gray-700">Claim Reason</label>
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    {CLAIM_REASONS.map(r => (
+      <label key={r.code} className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={formData.claimReasons.includes(r.code)}
+          onChange={() => toggleClaimReason(r.code)}
+          className="rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <span className="text-sm text-gray-700">{r.code}</span>
+      </label>
+    ))}
+  </div>
+  <p className="text-xs text-gray-500">
+    VD = Vehicle Damage, H = Hire, S = Storage, PI = Personal Injury
+  </p>
+</div>
+
         {!manualEntry && (
           <SearchableSelect
             label="Select Claim"
@@ -316,6 +359,7 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
             placeholder="Search claims..."
           />
         )}
+        
       </div>
       <div className="grid grid-cols-2 gap-4">
         <FormField
@@ -368,6 +412,8 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
             placeholder="Enter description..."
           />
         </div>
+
+        
       </div>
       <div>
         <div className="flex justify-between items-center mb-2">

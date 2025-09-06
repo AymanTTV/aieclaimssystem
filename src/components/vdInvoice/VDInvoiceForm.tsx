@@ -19,9 +19,12 @@ interface VDInvoiceFormProps {
   onClose: () => void;
 }
 
+// AFTER
 interface PartSuggestion {
+  id: string;
+  partNumber: string;
   name: string;
-  lastPrice: number;
+  lastPrice: number; // from product.retailPrice (fallback to legacy price)
 }
 
 const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
@@ -86,10 +89,17 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
   const [showPartSuggestions, setShowPartSuggestions] = useState<boolean[]>([]);
 
   useEffect(() => {
-    productService.getAll().then(products => {
-      setPartSuggestions(products.map(p => ({ name: p.name, lastPrice: p.price })));
-    }).catch(console.error);
-  }, []);
+  productService.getAll()
+    .then(products => {
+      setPartSuggestions(products.map(p => ({
+        id: p.id,
+        partNumber: p.partNumber ?? '',
+        name: p.name ?? '',
+        lastPrice: Number(p.retailPrice ?? p.price ?? 0),
+      })));
+    })
+    .catch(console.error);
+}, []);
 
   useEffect(() => {
     setShowPartSuggestions(new Array(formData.parts.length).fill(false));
@@ -465,43 +475,42 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
                   placeholder="Start typing to see product suggestions"
                   inputClassName="w-full"
                 />
-                {showPartSuggestions[index] &&
-                  part.name &&
-                  partSuggestions
-                    .filter(suggestion =>
-                      suggestion.name.toLowerCase().includes(part.name.toLowerCase())
-                    )
-                    .length > 0 && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-                      {partSuggestions
-                        .filter(suggestion =>
-                          suggestion.name.toLowerCase().includes(part.name.toLowerCase())
-                        )
-                        .map((suggestion, i) => (
-                          <li
-                            key={i}
-                            className="px-4 py-2 cursor-pointer hover:bg-gray-100"
-                            onMouseDown={() => {
-                              const newParts = [...formData.parts];
-                              newParts[index] = {
-                                ...part,
-                                name: suggestion.name,
-                                price: suggestion.lastPrice
-                              };
-                              setFormData({ ...formData, parts: newParts });
-                              const arr = [...showPartSuggestions];
-                              arr[index] = false;
-                              setShowPartSuggestions(arr);
-                            }}
-                          >
-                            {suggestion.name}{' '}
-                            <span className="text-gray-500 text-sm">
-                              (Last price: {formatCurrency(suggestion.lastPrice)})
-                            </span>
-                          </li>
-                        ))}
-                    </ul>
-                  )}
+                {showPartSuggestions[index] && part.name && (() => {
+  const q = part.name.toLowerCase();
+  const matches = partSuggestions.filter(s =>
+    s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q)
+  );
+  return matches.length > 0 ? (
+    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+      {matches.map(s => (
+        <li
+          key={s.id}
+          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+          onMouseDown={() => {
+            const newParts = [...formData.parts];
+            newParts[index] = {
+              ...part,
+              name: s.name,
+              price: s.lastPrice,        // ← auto-fill unit price
+            };
+            setFormData({ ...formData, parts: newParts });
+            const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+          }}
+          title={`${s.name} (${s.partNumber})`}
+        >
+          <span className="truncate">
+            {s.name}
+            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+          </span>
+          <span className="text-gray-500 text-sm ml-3">
+            {formatCurrency(s.lastPrice)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  ) : null;
+})()}
+
               </div>
 
               {/* Quantity */}

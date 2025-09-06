@@ -272,7 +272,7 @@ const RentalAgreement: React.FC<{
                         (url): url is string =>
                           typeof url === 'string' && url.startsWith('http')
                       )
-                      .slice(0, 5)
+                      .slice(0, 6)
                       .map((url, idx) => (
                         <View key={idx} style={styles.gridItem}>
                           <View style={styles.imageContainer}>

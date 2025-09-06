@@ -11,6 +11,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import productService from '../../services/product.service';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,6 +20,13 @@ interface InvoiceEditModalProps {
   vehicles: Vehicle[];
   customers: Customer[];
   onClose: () => void;
+}
+
+interface ProductSuggestion {
+  id: string;
+  partNumber: string;
+  name: string;
+  lastPrice: number;
 }
 
 const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
@@ -33,6 +41,9 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(
     invoice.lineItems.map(li => ({ ...li }))
   );
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
+const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
+
   const [formData, setFormData] = useState({
     date: new Date(invoice.date).toISOString().split('T')[0],
     dueDate: new Date(invoice.dueDate).toISOString().split('T')[0],
@@ -53,20 +64,41 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
 
   // Fetch categories
   useEffect(() => {
-    const fetchCats = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'invoiceCategories'));
-        const fetched: string[] = [];
-        snap.forEach(s => fetched.push((s.data() as any).name));
-        fetched.sort((a, b) => a.localeCompare(b));
-        setCategories(fetched);
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load categories');
-      }
-    };
-    fetchCats();
-  }, []);
+  const fetchCats = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'invoiceCategories'));
+      const fetched: string[] = [];
+      snap.forEach(s => fetched.push((s.data() as any).name));
+      fetched.sort((a, b) => a.localeCompare(b));
+      setCategories(fetched);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load categories');
+    }
+  };
+  fetchCats();
+
+  (async () => {
+    try {
+      const prods = await productService.getAll();
+      setProductSuggestions(
+        prods.map(p => ({
+          id: p.id,
+          partNumber: p.partNumber ?? '',
+          name: p.name ?? '',
+          lastPrice: Number(p.retailPrice ?? p.price ?? 0),
+        }))
+      );
+    } catch {
+      console.error('Error fetching products');
+    }
+  })();
+}, []);
+
+useEffect(() => {
+  setShowSuggestions(new Array(lineItems.length).fill(false));
+}, [lineItems.length]);
+
 
   // Compute totals + discount
   const computeTotals = () => {
@@ -100,6 +132,37 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
       }));
     }
   }, [formData.isAddingPayment, invoice.remainingAmount]);
+
+  const filterMatches = (q: string) => {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  return productSuggestions.filter(ps =>
+    ps.name.toLowerCase().includes(s) || ps.partNumber.toLowerCase().includes(s)
+  );
+};
+
+const tryAutofillUnitPrice = (desc: string, idx: number) => {
+  const q = desc.trim().toLowerCase();
+  if (!q) return;
+  const hit = productSuggestions.find(
+    ps => ps.name.toLowerCase() === q || ps.partNumber.toLowerCase() === q
+  );
+  if (hit) {
+    setLineItems(items => {
+      const copy = [...items];
+      copy[idx] = { ...copy[idx], unitPrice: hit.lastPrice };
+      return copy;
+    });
+  }
+};
+
+const showAt = (idx: number, on: boolean) =>
+  setShowSuggestions(arr => {
+    const copy = [...arr];
+    copy[idx] = on;
+    return copy;
+  });
+
 
   const handleLineChange = (
     idx: number,
@@ -412,16 +475,52 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
               key={item.id}
               className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
-              <div className="sm:col-span-2">
-                <FormField
-                  label="Description"
-                  value={item.description}
-                  onChange={e =>
-                    handleLineChange(idx, 'description', e.target.value)
-                  }
-                  required
-                />
-              </div>
+              <div className="sm:col-span-2 relative">
+  <FormField
+    label="Description"
+    value={item.description}
+    onChange={e => {
+      handleLineChange(idx, 'description', e.target.value);
+      showAt(idx, true);
+    }}
+    onFocus={() => showAt(idx, true)}
+    onBlur={() => {
+      setTimeout(() => showAt(idx, false), 120);
+      tryAutofillUnitPrice(item.description, idx);
+    }}
+    required
+  />
+
+  {showSuggestions[idx] && item.description && (
+    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+      {filterMatches(item.description).map(s => (
+        <li
+          key={s.id}
+          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+          onMouseDown={() => {
+            // set description + unit price
+            handleLineChange(idx, 'description', s.name);
+            handleLineChange(idx, 'unitPrice', String(s.lastPrice));
+            showAt(idx, false);
+          }}
+          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+        >
+          <span className="truncate">
+            {s.name}
+            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+          </span>
+          <span className="text-gray-500 text-sm ml-3">
+            £{s.lastPrice.toFixed(2)}
+          </span>
+        </li>
+      ))}
+      {filterMatches(item.description).length === 0 && (
+        <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
+      )}
+    </ul>
+  )}
+</div>
+
               <FormField
                 type="number"
                 label="Quantity"

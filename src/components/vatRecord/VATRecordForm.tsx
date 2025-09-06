@@ -12,11 +12,22 @@ import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import productService from '../../services/product.service'; // Import product service
+import { useVATCategories } from '../../hooks/useVATCategories';
+
 
 interface VATRecordFormProps {
   record?: VATRecord;
   customers: Customer[];
   onClose: () => void;
+}
+
+// Define a type for product suggestions
+interface ProductSuggestion {
+  id: string;
+  partNumber: string;
+  name: string;
+  price: number;
 }
 
 const VATRecordForm: React.FC<VATRecordFormProps> = ({
@@ -31,8 +42,40 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     record?.descriptions || []
   );
 
+  const { categories } = useVATCategories();
+
+
   const { formatCurrency } = useFormattedDisplay();
   const [vatRecievedDisplay, setVatRecievedDisplay] = useState<number | undefined>(record?.vatReceived);
+
+  // State for product suggestions
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
+
+  useEffect(() => {
+    // Fetch products when the component mounts
+    productService.getAll()
+      .then(products => {
+        setProductSuggestions(
+          products.map(p => ({
+            id: p.id,
+            partNumber: p.partNumber ?? '',
+            name: p.name ?? '',
+            price: Number(p.retailPrice ?? 0),
+          }))
+        );
+      })
+      .catch(error => {
+        console.error("Failed to fetch products:", error);
+        toast.error("Could not load product list.");
+      });
+  }, []);
+
+  useEffect(() => {
+    // Ensure the suggestions visibility array matches the number of descriptions
+    setShowSuggestions(new Array(descriptions.length).fill(false));
+  }, [descriptions.length]);
+
   const [formData, setFormData] = useState({
     receiptNo: record?.receiptNo || '',
     accountant: record?.accountant || '',
@@ -40,12 +83,13 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     regNo: record?.regNo || '',
     customerName: record?.customerName || '',
     customerId: record?.customerId || '',
+    categoryId: record?.categoryId || '',
+  categoryName: record?.categoryName || '',
     vatNo: record?.vatNo || '',
     status: record?.status || 'awaiting',
     notes: record?.notes || '',
     date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     vatReceived: record?.vatReceived !== undefined ? record.vatReceived : 0,
-
   });
 
   // Calculate totals
@@ -70,7 +114,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
   };
 
   const updateDescription = (id: string, updates: Partial<VATRecordDescription>) => {
-    setDescriptions(prevDescriptions => 
+    setDescriptions(prevDescriptions =>
       prevDescriptions.map(desc => {
         if (desc.id === id) {
           const updatedDesc = { ...desc, ...updates };
@@ -103,7 +147,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         ...totals,
         date: new Date(formData.date),
         updatedAt: new Date(),
-        vatReceived: formData.vatReceived, // Include vatReceived in the record
+        vatReceived: formData.vatReceived,
       };
 
       if (record) {
@@ -142,19 +186,35 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           onChange={(e) => setFormData({ ...formData, accountant: e.target.value })}
           required
         />
-         <FormField
+        <div>
+  <label className="block text-sm font-medium text-gray-700">Category</label>
+  <select
+    value={formData.categoryId}
+    onChange={(e) => {
+      const id = e.target.value;
+      const name = categories.find(c => c.id === id)?.name || '';
+      setFormData({ ...formData, categoryId: id, categoryName: name });
+    }}
+    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+  >
+    <option value="">Select category</option>
+    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+  </select>
+</div>
+
+        <FormField
           label="VAT No"
           value={formData.vatNo}
           onChange={(e) => setFormData({ ...formData, vatNo: e.target.value })}
         />
-        
+
         <FormField
           label="REG No"
           value={formData.regNo}
           onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
           required
         />
-        
+
         <FormField
           label="Supplier"
           value={formData.supplier}
@@ -177,18 +237,58 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           </button>
         </div>
 
-        
-
-        {descriptions.map((desc) => (
+        {descriptions.map((desc, index) => (
           <div key={desc.id} className="bg-gray-50 p-4 rounded-lg space-y-4 border rounded">
             <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-1">
+              {/* === MODIFIED DESCRIPTION FIELD === */}
+              <div className="relative col-span-1">
                 <FormField
                   label="Description"
                   value={desc.description}
                   onChange={(e) => updateDescription(desc.id, { description: e.target.value })}
+                  onFocus={() => {
+                    const newShow = [...showSuggestions];
+                    newShow[index] = true;
+                    setShowSuggestions(newShow);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      const newShow = [...showSuggestions];
+                      newShow[index] = false;
+                      setShowSuggestions(newShow);
+                    }, 150);
+                  }}
+                  placeholder="Type to search products..."
                   required
                 />
+                {showSuggestions[index] && desc.description && (() => {
+                  const query = desc.description.toLowerCase();
+                  const matches = productSuggestions.filter(p =>
+                    p.name.toLowerCase().includes(query) || p.partNumber.toLowerCase().includes(query)
+                  );
+                  return matches.length > 0 ? (
+                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+                      {matches.map((product) => (
+                        <li
+                          key={product.id}
+                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                          onMouseDown={() => {
+                            updateDescription(desc.id, {
+                              description: product.name,
+                              net: product.price,
+                            });
+                          }}
+                        >
+                          <span className="truncate">
+                            {product.name}
+                            {product.partNumber && <span className="text-gray-500 text-sm"> — {product.partNumber}</span>}
+                          </span>
+                          <span className="font-semibold text-sm">{formatCurrency(product.price)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null;
+                })()}
               </div>
               <FormField
                 type="number"
@@ -270,7 +370,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           <span>Total VAT:</span>
           <span className="font-medium">{formatCurrency(calculateTotals().vat)}</span>
         </div>
-        
+
         {record && (
           <div className="flex justify-between text-sm">
             <span>VAT Received:</span>

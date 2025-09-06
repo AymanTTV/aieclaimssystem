@@ -18,6 +18,7 @@ import { X, Edit2, Trash2, Eye, Box, Download } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { handleProductExport } from '../utils/productHelpers';
+import FormField from '../components/ui/FormField';
 
 // Inline spinner so no external UI import is needed
 const Spinner: React.FC = () => (
@@ -47,7 +48,16 @@ const ProductsPage: React.FC = () => {
   // Product form
   const [showProductModal, setShowProductModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [form, setForm] = useState<Partial<Product>>({ name: '', price: 0, category: '' });
+  const [form, setForm] = useState<Partial<Product>>({
+    partNumber: '',
+    name: '',
+    category: '',
+    binLocation: '',
+    quantity: 0,
+    retailPrice: 0,
+    discount: 0,
+    description: '',
+  });
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Detail modal
@@ -85,37 +95,64 @@ const ProductsPage: React.FC = () => {
     load();
   }, []);
 
-  // Filter logic
-  useEffect(() => {
-    startTransition(() => {
-      let arr = products;
-      if (searchTerm) {
-        arr = arr.filter(p =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      if (filterCat) {
-        arr = arr.filter(p => p.category === filterCat);
-      }
-      setFiltered(arr);
-    });
-  }, [products, searchTerm, filterCat]);
+  // Filter logic — primary search by Part Number
+// Replace your current filter useEffect with this:
+useEffect(() => {
+  startTransition(() => {
+    let arr = products;
+
+    if (searchTerm.trim()) {
+      const norm = (s: any) => (s ?? '').toString().toLowerCase();
+      const terms = norm(searchTerm).split(/\s+/).filter(Boolean);
+
+      arr = arr.filter(p => {
+        const haystack = `${norm(p.partNumber)} ${norm(p.name)}`;
+        // require all words to appear somewhere in partNumber or name
+        return terms.every(t => haystack.includes(t));
+      });
+    }
+
+    if (filterCat) {
+      arr = arr.filter(p => p.category === filterCat);
+    }
+
+    setFiltered(arr);
+  });
+}, [products, searchTerm, filterCat]);
+
 
   // Handlers
   const handleSearch = (e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value);
   const handleFilter = (e: ChangeEvent<HTMLSelectElement>) => setFilterCat(e.target.value);
   const { can } = usePermissions();
   const { user } = useAuth();
-  
 
   const openProductForm = (prod?: Product) => {
     startTransition(() => {
       if (prod) {
         setEditProduct(prod);
-        setForm({ name: prod.name, price: prod.price, category: prod.category });
+        setForm({
+          partNumber: prod.partNumber,
+          name: prod.name,
+          category: prod.category,
+          binLocation: prod.binLocation,
+          quantity: prod.quantity,
+          retailPrice: prod.retailPrice,
+          discount: prod.discount ?? 0,
+          description: prod.description ?? '',
+        });
       } else {
         setEditProduct(null);
-        setForm({ name: '', price: 0, category: '' });
+        setForm({
+          partNumber: '',
+          name: '',
+          category: '',
+          binLocation: '',
+          quantity: 0,
+          retailPrice: 0,
+          discount: 0,
+          description: '',
+        });
       }
       setImageFile(null);
       setShowProductModal(true);
@@ -125,18 +162,32 @@ const ProductsPage: React.FC = () => {
   const handleProductSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
+      if (!form.partNumber?.trim()) {
+        toast.error('Part Number is required');
+        return;
+      }
+      if (!form.name?.trim()) {
+        toast.error('Product Name is required');
+        return;
+      }
+      if (!form.category) {
+        toast.error('Category is required');
+        return;
+      }
+
       if (editProduct) {
         await productService.update(editProduct.id, {
           ...form,
           image: imageFile || undefined,
         });
       } else {
-        await productService.create({ ...form, image: imageFile! });
+        await productService.create({ ...form, image: imageFile ?? null });
       }
       setProducts(await productService.getAll());
       toast.success('Product saved');
       setShowProductModal(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('Failed to save product');
     }
   };
@@ -211,6 +262,18 @@ const ProductsPage: React.FC = () => {
     </div>
   );
 
+  const getCategoryName = (id?: string) =>
+    categories.find(c => c.id === id)?.name || '—';
+
+  const calcTotal = (p: Product) => {
+  const qty = Number(p.quantity ?? 0);
+  const price = Number(p.retailPrice ?? 0);
+  const disc = Number(p.discount ?? 0); // absolute £
+  const val = qty * price - disc;
+  return `£${Math.max(val, 0).toFixed(2)}`;
+};
+
+
   return (
     <div className="space-y-6 p-4">
       {/* Header */}
@@ -218,42 +281,42 @@ const ProductsPage: React.FC = () => {
         <h1 className="text-2xl font-bold">Products</h1>
         <div className="flex space-x-2">
           {user?.role === 'manager' && (
-          <button
-            onClick={() => openCatForm()}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
-          >
-            Manage Categories
-          </button>
+            <button
+              onClick={() => openCatForm()}
+              className="px-4 py-2 border rounded hover:bg-gray-50"
+            >
+              Manage Categories
+            </button>
           )}
           {can('products', 'create') && (
-          <button
-            onClick={() => openProductForm()}
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-600"
-          >
-            + Add Product
-          </button>
+            <button
+              onClick={() => openProductForm()}
+              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-600"
+            >
+              + Add Product
+            </button>
           )}
-          {user?.role === 'manager' && (
-  <button
-          onClick={() => handleProductExport(products, categories)}
-          className="inline-flex items-center px-4 py-2 rounded-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-        >
-          <Download className="h-5 w-5 mr-2" />
-          Export
-        </button>
-)}
-
+          {can('products', 'export') && (
+            <button
+              onClick={() => handleProductExport(products, categories)}
+              className="inline-flex items-center px-4 py-2 rounded-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <input
-          className="flex-1 px-3 py-2 border rounded"
-          placeholder="Search products…"
-          value={searchTerm}
-          onChange={handleSearch}
-        />
+  className="flex-1 px-3 py-2 border rounded"
+  placeholder="Search by Part Number or Product Name…"
+  value={searchTerm}
+  onChange={handleSearch}
+/>
+
         <select
           className="w-48 px-3 py-2 border rounded"
           value={filterCat}
@@ -267,7 +330,7 @@ const ProductsPage: React.FC = () => {
       </div>
 
       {/* DataTable */}
-      <div className="bg-white rounded shadow overflow-hidden">
+      <div className="bg-white rounded shadow overflow-auto">
         <Suspense fallback={<div className="p-8 text-center">{isPending ? 'Updating…' : 'Loading…'}</div>}>
           <LazyDataTable
             data={filtered}
@@ -286,34 +349,68 @@ const ProductsPage: React.FC = () => {
                     <Box className="h-8 w-8 text-gray-400" />
                   ),
               },
-              { header: 'Name', cell: ({ row }) => row.original.name },
-              {
-                header: 'Price',
-                cell: ({ row }) => `£${row.original.price.toFixed(2)}`,
-              },
+              { header: 'Part Number', cell: ({ row }) => row.original.partNumber },
+              { header: 'Product Name', cell: ({ row }) => row.original.name },
               {
                 header: 'Category',
-                cell: ({ row }) =>
-                  categories.find(c => c.id === row.original.category)?.name || '—',
+                cell: ({ row }) => getCategoryName(row.original.category),
               },
+              { header: 'Bin / Location', cell: ({ row }) => row.original.binLocation ?? '—' },
+              { header: 'QTY', cell: ({ row }) => String(row.original.quantity ?? 0) },
+              {
+                header: 'Retail Price',
+                cell: ({ row }) => `£${(row.original.retailPrice ?? 0).toFixed(2)}`,
+              },
+              {
+  header: 'Discount (£)',
+  cell: ({ row }) => `£${Number(row.original.discount ?? 0).toFixed(2)}`,
+},
+{
+  header: 'Total Value',
+  cell: ({ row }) => {
+    const qty = Number(row.original.quantity ?? 0);
+    const price = Number(row.original.retailPrice ?? 0);
+    const disc = Number(row.original.discount ?? 0); // absolute £
+    const total = qty * price - disc;
+    return `£${Math.max(total, 0).toFixed(2)}`;
+  },
+},
               {
                 header: 'Actions',
                 cell: ({ row }) => (
                   <div className="flex space-x-2">
                     {can('products', 'update') && (
-                    <button onClick={() => openProductForm(row.original)}>
-                      <Edit2 className="h-4 w-4" />
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // prevent opening details
+                          openProductForm(row.original);
+                        }}
+                        title="Edit"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
                     )}
                     {can('products', 'delete') && (
-                    <button onClick={() => confirmDeleteProduct(row.original)}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // prevent opening details
+                          confirmDeleteProduct(row.original);
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </button>
                     )}
                     {can('products', 'view') && (
-                    <button onClick={() => openDetail(row.original)}>
-                      <Eye className="h-4 w-4" />
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // keep consistent, though this opens details anyway
+                          openDetail(row.original);
+                        }}
+                        title="View"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
                 ),
@@ -328,43 +425,124 @@ const ProductsPage: React.FC = () => {
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
         title={editProduct ? 'Edit Product' : 'Add Product'}
-        size="md"
+        size="lg"
       >
-        <form onSubmit={handleProductSubmit} className="space-y-4">
-          <input
-            name="name"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="Product name"
-            required
-            className="w-full border rounded p-2"
-          />
-          <input
-            type="number"
-            name="price"
-            value={form.price}
-            onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) }))}
-            placeholder="Price"
-            required
-            className="w-full border rounded p-2"
-          />
-          <select
-            name="category"
-            value={form.category}
-            onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-            required
-            className="w-full border rounded p-2"
-          >
-            <option value="">Select category</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <input
-            type="file"
-            onChange={e => e.target.files && setImageFile(e.target.files[0])}
-            accept="image/*"
-          />
+        <form onSubmit={handleProductSubmit} className="space-y-6">
+          {/* BASIC INFO */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Basic Info</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                label="Part Number"
+                value={form.partNumber ?? ''}
+                onChange={e => setForm(f => ({ ...f, partNumber: e.target.value }))}
+                required
+                placeholder="e.g., PN-000123"
+              />
+              <FormField
+                label="Product Name"
+                value={form.name ?? ''}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+                placeholder="e.g., Fuel Filter"
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Category</label>
+                <select
+                  value={form.category ?? ''}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  required
+                  className="mt-1 block w-full rounded-md border-gray-300 focus:border-primary focus:ring-primary sm:text-sm"
+                >
+                  <option value="">Select category</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <FormField
+                label="Bin / Location"
+                value={form.binLocation ?? ''}
+                onChange={e => setForm(f => ({ ...f, binLocation: e.target.value }))}
+                placeholder="e.g., Aisle 3 / Bin B"
+              />
+            </div>
+          </div>
+
+          {/* STOCK & PRICING */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Stock & Pricing</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormField
+                type="number"
+                min={0}
+                label="Quantity (QTY)"
+                value={String(form.quantity ?? 0)}
+                onChange={e => setForm(f => ({ ...f, quantity: Number(e.target.value || 0) }))}
+                placeholder="0"
+              />
+              <FormField
+  type="number"
+  step="0.01"
+  min={0}
+  label="Retail Price (£)"
+  value={String(form.retailPrice ?? 0)}
+  onChange={e => setForm(f => ({ ...f, retailPrice: parseFloat(e.target.value || '0') }))}
+  placeholder="0.00"
+/>
+              <FormField
+  type="number"
+  step="0.01"
+  min={0}
+  label="Discount (£)"
+  value={String(form.discount ?? 0)}
+  onChange={e => setForm(f => ({ ...f, discount: parseFloat(e.target.value || '0') }))}
+  placeholder="0.00"
+/>
+
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+  Total value = <strong>Retail Price × QTY − Discount</strong>.
+</p>
+
+          </div>
+
+          {/* MEDIA & NOTES */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Media & Notes</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Product Image</label>
+                <input
+                  type="file"
+                  onChange={e => e.target.files && setImageFile(e.target.files[0])}
+                  accept="image/*"
+                  className="mt-1 block w-full rounded-md border-gray-300 text-sm"
+                />
+                {editProduct?.imageUrl && (
+                  <div className="mt-2">
+                    <img
+                      src={editProduct.imageUrl}
+                      alt={editProduct.name}
+                      className="h-20 w-20 object-cover rounded border"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  rows={3}
+                  value={form.description ?? ''}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  placeholder="Optional notes about this product"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
           <div className="flex justify-end space-x-2">
             <button
               type="button"
@@ -466,12 +644,12 @@ const ProductsPage: React.FC = () => {
       >
         {detailProduct && (
           <div className="space-y-6">
-            {/* Close icon */}
             <div className="flex justify-end">
               <button onClick={() => setShowDetailModal(false)}>
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
+
             {/* Product image */}
             <div className="flex justify-center">
               {detailProduct.imageUrl ? (
@@ -487,32 +665,43 @@ const ProductsPage: React.FC = () => {
                 </div>
               )}
             </div>
+
             {/* Key fields */}
             <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
-              <DetailItem label="Name" value={detailProduct.name} />
+              <DetailItem label="Part Number" value={detailProduct.partNumber} />
+              <DetailItem label="Product Name" value={detailProduct.name} />
+              <DetailItem label="Category" value={getCategoryName(detailProduct.category)} />
+              <DetailItem label="Bin / Location" value={detailProduct.binLocation || '—'} />
+              <DetailItem label="QTY" value={detailProduct.quantity} />
+              <DetailItem label="Retail Price" value={`£${(detailProduct.retailPrice ?? 0).toFixed(2)}`} />
+              <DetailItem label="Discount (%)" value={`${detailProduct.discount ?? 0}%`} />
               <DetailItem
-                label="Category"
+                label="Total Value"
                 value={
-                  categories.find(c => c.id === detailProduct.category)?.name ||
-                  '—'
+                  detailProduct.totalValue !== undefined
+                    ? `£${(detailProduct.totalValue ?? 0).toFixed(2)}`
+                    : calcTotal(detailProduct)
                 }
               />
               <DetailItem
-                label="Price"
-                value={`£${detailProduct.price.toFixed(2)}`}
-              />
-              <DetailItem
                 label="Created At"
-                value={new Date(detailProduct.createdAt).toLocaleDateString()}
+                value={
+                  detailProduct.createdAt
+                    ? new Date(detailProduct.createdAt).toLocaleDateString()
+                    : '—'
+                }
               />
             </div>
+
             {/* Description */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">Description</h3>
-              <p className="mt-2 text-gray-600">
-                {detailProduct.description || 'No description.'}
-              </p>
-            </div>
+            {detailProduct.description ? (
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Description</h3>
+                <p className="mt-2 text-gray-600">
+                  {detailProduct.description}
+                </p>
+              </div>
+            ) : null}
           </div>
         )}
       </Modal>

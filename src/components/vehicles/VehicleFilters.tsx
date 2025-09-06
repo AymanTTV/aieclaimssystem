@@ -12,7 +12,7 @@ interface VehicleFiltersProps {
   showSold: boolean;
   onShowSoldChange: (show: boolean) => void;
   showDueSoon: boolean;
- onShowDueSoonChange: (show: boolean) => void;
+  onShowDueSoonChange: (show: boolean) => void;
 }
 
 const VehicleFilters: React.FC<VehicleFiltersProps> = ({
@@ -26,11 +26,12 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   showSold,
   onShowSoldChange,
   showDueSoon,
- onShowDueSoonChange,
+  onShowDueSoonChange,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
-      <div className="relative flex-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Search */}
+      <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
         </div>
@@ -43,25 +44,24 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         />
       </div>
 
+      {/* Status */}
       <select
         value={statusFilter}
         onChange={(e) => onStatusFilterChange(e.target.value)}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
       >
         <option value="all">All Status</option>
         <option value="available">Available</option>
         <option value="hired">Hired</option>
         <option value="scheduled-rental">Scheduled for Hire</option>
         <option value="maintenance">Maintenance</option>
-        {/* <option value="scheduled-maintenance">Scheduled Maintenance</option> */}
-        
-        {/* <option value="unavailable">Unavailable</option> */}
       </select>
 
+      {/* Make */}
       <select
         value={makeFilter}
         onChange={(e) => onMakeFilterChange(e.target.value)}
-        className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
       >
         <option value="all">All Makes</option>
         {makes.map((make) => (
@@ -69,25 +69,28 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         ))}
       </select>
 
-      <label className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          checked={showSold}
-          onChange={(e) => onShowSoldChange(e.target.checked)}
-          className="rounded border-gray-300 text-primary focus:ring-primary"
-        />
-        <span className="text-sm text-gray-700">Show Sold Vehicles</span>
-      </label>
+      {/* Toggles */}
+      <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-1">
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={showSold}
+            onChange={(e) => onShowSoldChange(e.target.checked)}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm text-gray-700">Show Sold</span>
+        </label>
 
-      <label className="flex items-center space-x-2">
-       <input
-         type="checkbox"
-         checked={showDueSoon}
-         onChange={e => onShowDueSoonChange(e.target.checked)}
-         className="rounded border-gray-300 text-primary focus:ring-primary"
-       />
-       <span className="text-sm text-gray-700">Due for service soon</span>
-     </label>
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={showDueSoon}
+            onChange={(e) => onShowDueSoonChange(e.target.checked)}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm text-gray-700">Due Soon</span>
+        </label>
+      </div>
     </div>
   );
 };

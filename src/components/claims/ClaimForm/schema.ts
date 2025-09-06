@@ -1,41 +1,6 @@
 // src/components/claims/ClaimForm/schema.ts
 import { z } from 'zod';
-
-const PROGRESS_OPTIONS = [
-  'Your Claim Has Started',
-  'Report to Legal Team - Pending',
-  'TPI (Third Party Insurer) - Notified and Awaiting Response',
-  'Engineer Report - Pending Completion',
-  'Vehicle Damage Assessment - Scheduled',
-  'Liability Accepted',
-  'Liability Disputed',
-  'TPI Refuses to Deal with Claim',
-  'VD Completed Hire Pack - Awaiting Review',
-  'Claim - Referred to MIB (Motor Insurers\' Bureau)',
-  'MIB Claim - Under Review/In Progress',
-  'Awaiting MIB Response/Decision',
-  'MIB - Completed (Outcome Received)',
-  'Client Documentation - Pending Submission',
-  'Hire Pack - Successfully Submitted',
-  'Accident Circumstances - Under Investigation',
-  'MIB Claim - Initial Review in Progress',
-  'Additional Information - Requested from Client',
-  'Legal Notice - Issued to Third Party',
-  'Court Proceedings - Initiated',
-  'Settlement Offer - Under Review',
-  'Client Approval - Pending for Settlement',
-  'Negotiation with TPI - Ongoing',
-  'Settlement Agreement - Finalized',
-  'Payment Processing - Initiated',
-  'Final Payment - Received and Confirmed',
-  'Client Payment Disbursed',
-  'Claim Completed - Record Archived',
-] as const;
-
-const isValidDateString = (value: string) => {
-  const date = new Date(value);
-  return !isNaN(date.getTime());
-};
+import { PROGRESS_OPTIONS } from '../../../utils/claimProgress';
 
 const gpInformationSchema = z.object({
   visited:         z.boolean(),
@@ -56,6 +21,13 @@ const hospitalInformationSchema = z.object({
   hospitalContactNumber: z.string().optional(),
   hospitalNotes:         z.string().optional(),
 });
+
+// Simple date string validator (YYYY-MM-DD or ISO)
+const isValidDateString = (value: string) => {
+  if (!value) return false;
+  const date = new Date(value);
+  return !isNaN(date.getTime());
+};
 
 export const claimFormSchema = z
   .object({
@@ -159,7 +131,7 @@ export const claimFormSchema = z
         email:   z.string().email('Invalid legal handler email'),
         phone:   z.string().min(1, 'Legal handler phone is required'),
         address: z.string().min(1, 'Legal handler address is required'),
-      }),
+      }).nullable(),
     }),
 
     policeOfficerName:    z.string().optional().nullable(),
@@ -172,7 +144,7 @@ export const claimFormSchema = z
     ambulanceReference: z.string().optional().nullable(),
     ambulanceService:   z.string().optional().nullable(),
 
-    claimType:      z.enum(['Domestic', 'Taxi', 'PI', 'PCO']).default('Domestic'),
+    claimType:         z.enum(['Domestic', 'Taxi', 'PI', 'PCO']).default('Domestic'),
     personalInjuryId:  z.string().optional(),
     personalInjuryRef: z.string().optional(),
 
@@ -180,10 +152,21 @@ export const claimFormSchema = z
       .array(z.enum(['VD', 'H', 'S', 'PI']))
       .min(1, 'At least one claim reason must be selected'),
 
-    caseProgress:     z.enum(['Win', 'Lost', 'Awaiting', '50/50']).default('Awaiting'),
-    progress:         z.enum(PROGRESS_OPTIONS),
-    statusDescription:z.string().optional(),
+    caseProgress: z.enum(['Win', 'Lost', 'Awaiting', '50/50']).default('Awaiting'),
 
+    /**
+     * IMPORTANT:
+     * Accept either a current status from PROGRESS_OPTIONS (new schema)
+     * or any string (legacy), so legacy records remain valid.
+     */
+    progress: z.union([z.enum(PROGRESS_OPTIONS), z.string()]).default(PROGRESS_OPTIONS[0]),
+    statusDescription: z.string().optional(),
+
+    /**
+     * CRITICAL FIX:
+     * Do NOT default to [] here. Leaving it optional prevents overwriting
+     * existing history with an empty array during edits.
+     */
     progressHistory: z
       .array(
         z.object({
@@ -195,47 +178,46 @@ export const claimFormSchema = z
           amount: z.number().optional(),
         })
       )
-      .optional()
-      .default([]),
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // Register Keeper
     if (data.registerKeeper.enabled) {
-      if (!data.registerKeeper.name)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper name is required',     path: ['registerKeeper','name'] });
-      if (!data.registerKeeper.address)     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper address is required',  path: ['registerKeeper','address'] });
-      if (!data.registerKeeper.phone)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper phone is required',    path: ['registerKeeper','phone'] });
-      if (!data.registerKeeper.email)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper email is required',    path: ['registerKeeper','email'] });
+      if (!data.registerKeeper.name)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper name is required',      path: ['registerKeeper','name'] });
+      if (!data.registerKeeper.address)     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper address is required',   path: ['registerKeeper','address'] });
+      if (!data.registerKeeper.phone)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper phone is required',     path: ['registerKeeper','phone'] });
+      if (!data.registerKeeper.email)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper email is required',     path: ['registerKeeper','email'] });
       if (!data.registerKeeper.dateOfBirth) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper dob is required',       path: ['registerKeeper','dateOfBirth'] });
-      if (!data.registerKeeper.signature)   ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper signature is required',path: ['registerKeeper','signature'] });
+      if (!data.registerKeeper.signature)   ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper signature is required', path: ['registerKeeper','signature'] });
     }
 
     // VD-specific
     if (data.claimReason.includes('VD')) {
-      if (!data.clientVehicle?.registration)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Registration is required for VD',     path: ['clientVehicle','registration'] });
-      if (!data.clientVehicle?.motExpiry)      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'MOT expiry is required for VD',      path: ['clientVehicle','motExpiry'] });
-      if (!data.clientVehicle?.roadTaxExpiry)  ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Road tax expiry is required for VD', path: ['clientVehicle','roadTaxExpiry'] });
+      if (!data.clientVehicle?.registration) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Registration is required for VD',  path: ['clientVehicle','registration'] });
+      if (!data.clientVehicle?.motExpiry)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'MOT expiry is required for VD',   path: ['clientVehicle','motExpiry'] });
+      if (!data.clientVehicle?.roadTaxExpiry)ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Road tax expiry is required for VD', path: ['clientVehicle','roadTaxExpiry'] });
     }
 
     // PI-specific
     if (data.claimReason.includes('PI')) {
-      if (!data.clientInfo.occupation)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Occupation is required for PI',        path: ['clientInfo','occupation'] });
-      if (!data.clientInfo.injuryDetails)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Injury details are required for PI',   path: ['clientInfo','injuryDetails'] });
+      if (!data.clientInfo.occupation)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Occupation is required for PI',      path: ['clientInfo','occupation'] });
+      if (!data.clientInfo.injuryDetails) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Injury details are required for PI', path: ['clientInfo','injuryDetails'] });
 
       // GP
       if (data.gpInformation.visited) {
-        if (!data.gpInformation.gpName)           ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP name is required',               path: ['gpInformation','gpName'] });
-        if (!data.gpInformation.gpAddress)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP address is required',            path: ['gpInformation','gpAddress'] });
-        if (!data.gpInformation.gpDoctorName)     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP doctor name is required',       path: ['gpInformation','gpDoctorName'] });
-        if (!data.gpInformation.gpDate)           ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP visit date is required',        path: ['gpInformation','gpDate'] });
-        if (!data.gpInformation.gpContactNumber)  ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP contact number is required',    path: ['gpInformation','gpContactNumber'] });
+        if (!data.gpInformation.gpName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP name is required',          path: ['gpInformation','gpName'] });
+        if (!data.gpInformation.gpAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP address is required',       path: ['gpInformation','gpAddress'] });
+        if (!data.gpInformation.gpDoctorName)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP doctor name is required',   path: ['gpInformation','gpDoctorName'] });
+        if (!data.gpInformation.gpDate)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP visit date is required',    path: ['gpInformation','gpDate'] });
+        if (!data.gpInformation.gpContactNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP contact number is required',path: ['gpInformation','gpContactNumber'] });
       }
 
       // Hospital
       if (data.hospitalInformation.visited) {
-        if (!data.hospitalInformation.hospitalName)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital name is required',           path: ['hospitalInformation','hospitalName'] });
-        if (!data.hospitalInformation.hospitalAddress)     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital address is required',        path: ['hospitalInformation','hospitalAddress'] });
-        if (!data.hospitalInformation.hospitalDoctorName)  ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital doctor name is required',    path: ['hospitalInformation','hospitalDoctorName'] });
-        if (!data.hospitalInformation.hospitalDate)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital visit date is required',     path: ['hospitalInformation','hospitalDate'] });
+        if (!data.hospitalInformation.hospitalName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital name is required',          path: ['hospitalInformation','hospitalName'] });
+        if (!data.hospitalInformation.hospitalAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital address is required',       path: ['hospitalInformation','hospitalAddress'] });
+        if (!data.hospitalInformation.hospitalDoctorName)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital doctor name is required',   path: ['hospitalInformation','hospitalDoctorName'] });
+        if (!data.hospitalInformation.hospitalDate)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital visit date is required',    path: ['hospitalInformation','hospitalDate'] });
         if (!data.hospitalInformation.hospitalContactNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital contact number is required',path: ['hospitalInformation','hospitalContactNumber'] });
       }
     }

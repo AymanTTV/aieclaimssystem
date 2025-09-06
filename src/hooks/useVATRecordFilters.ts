@@ -5,7 +5,9 @@ import { isWithinInterval } from 'date-fns';
 
 export const useVATRecordFilters = (records: VATRecord[]) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'awaiting' | 'processing' | 'paid'>('all');
+  const [categoryIdFilter, setCategoryIdFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] =
+    useState<'all' | 'awaiting' | 'processing' | 'paid'>('all');
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
     start: null,
     end: null,
@@ -16,48 +18,70 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
   });
 
   const filteredRecords = useMemo(() => {
-    return records.filter(rec => {
-      // Search
-      const q = searchQuery.toLowerCase();
+    const q = (searchQuery || '').toLowerCase();
+
+    return records.filter((rec) => {
+      // --- Search (guard undefined fields) ---
+      const receiptNo = (rec.receiptNo ?? '').toLowerCase();
+      const supplier  = (rec.supplier  ?? '').toLowerCase();
+      const customer  = (rec.customerName ?? '').toLowerCase();
+      const regNo     = (rec.regNo ?? '').toLowerCase();
+      const vatNo     = (rec.vatNo ?? '').toLowerCase();
+
       const matchesSearch =
-        rec.receiptNo.toLowerCase().includes(q) ||
-        rec.supplier.toLowerCase().includes(q) ||
-        rec.customerName.toLowerCase().includes(q) ||
-        (rec.vatNo && rec.vatNo.toLowerCase().includes(q)); // Include vatNo in search
+        (!q) ||
+        receiptNo.includes(q) ||
+        supplier.includes(q) ||
+        customer.includes(q) ||
+        regNo.includes(q) ||
+        vatNo.includes(q);
 
       if (!matchesSearch) return false;
 
-      // Status
+      // --- Status ---
       if (statusFilter !== 'all' && rec.status !== statusFilter) return false;
 
-      // Date
+      // --- Category ---
+      if (categoryIdFilter !== 'all' && rec.categoryId !== categoryIdFilter) return false;
+
+      // --- Date (support start-only / end-only / both) ---
       if (dateRange.start && dateRange.end) {
         if (
           !isWithinInterval(rec.date, {
             start: dateRange.start,
             end: dateRange.end,
           })
-        ) {
-          return false;
-        }
+        ) return false;
+      } else if (dateRange.start && rec.date < dateRange.start) {
+        return false;
+      } else if (dateRange.end && rec.date > dateRange.end) {
+        return false;
       }
 
-      // Gross amount
+      // --- Gross amount ---
       const gross = rec.gross ?? 0;
       if (amountRange.min != null && gross < amountRange.min) return false;
       if (amountRange.max != null && gross > amountRange.max) return false;
 
       return true;
     });
-  }, [records, searchQuery, statusFilter, dateRange, amountRange]);
+  }, [
+    records,
+    searchQuery,
+    statusFilter,
+    dateRange.start,
+    dateRange.end,
+    amountRange.min,
+    amountRange.max,
+    categoryIdFilter, // <-- important
+  ]);
 
-  // Summary (optional)
   const summary = useMemo(() => {
     return filteredRecords.reduce(
       (acc, r) => {
-        acc.net += r.net;
-        acc.vat += r.vat;
-        acc.gross += r.gross;
+        acc.net += r.net || 0;
+        acc.vat += r.vat || 0;
+        acc.gross += r.gross || 0;
         acc.vatReceived += r.vatReceived ?? 0;
         return acc;
       },
@@ -66,15 +90,12 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
   }, [filteredRecords]);
 
   return {
-    searchQuery,
-    setSearchQuery,
-    statusFilter,
-    setStatusFilter,
-    dateRange,
-    setDateRange,
-    amountRange,
-    setAmountRange,
+    searchQuery, setSearchQuery,
+    statusFilter, setStatusFilter,
+    dateRange, setDateRange,
+    amountRange, setAmountRange,
     filteredRecords,
+    categoryIdFilter, setCategoryIdFilter,
     summary,
   };
 };

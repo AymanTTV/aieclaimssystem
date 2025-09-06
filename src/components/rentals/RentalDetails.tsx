@@ -1,19 +1,25 @@
-// RentalDetails.tsx
 // src/components/rentals/RentalDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format } from 'date-fns';
+import { format, isAfter, differenceInDays } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Activity, Shield, Truck } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  Car,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar
+} from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { isAfter, differenceInDays } from 'date-fns';
 import VehicleConditionDetails from './VehicleConditionDetails';
-import { calculateRentalCost } from '../../utils/rentalCalculations';
+import { calculateRentalCost, calculateOverdueCost } from '../../utils/rentalCalculations';
 import RentalPaymentHistory from './RentalPaymentHistory';
-import { calculateOverdueCost } from '../../utils/rentalCalculations';
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -37,113 +43,102 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
   // parse start/end into real Date objects:
   const start = ensureValidDate(rental.startDate);
-  const end   = ensureValidDate(rental.endDate);
+  const end = ensureValidDate(rental.endDate);
 
   // 1) Base cost (no extras):
-  const baseCost = calculateRentalCost(
-    start,
-    end,
-    rental.type,
-    vehicle!,
-    rental.reason,
-    rental.negotiatedRate ?? undefined,
-    0, 0, 0, 0, 0,
-    false, false, false, false, false // Base cost display does not include VAT for any extra
-  );
+  const baseCost = vehicle
+    ? calculateRentalCost(
+        start,
+        end,
+        rental.type,
+        vehicle,
+        rental.reason,
+        rental.negotiatedRate ?? undefined,
+        0, 0, 0, 0, 0,
+        false, false, false, false, false // Base display excludes all VAT toggles
+      )
+    : 0;
 
-  // Calculate insurance days
+  // Insurance days (inclusive)
   const insuranceDays = React.useMemo(() => {
     try {
-      const start = ensureValidDate(rental.startDate);
-      const end = ensureValidDate(rental.endDate);
-      if (start && end && !isAfter(start, end)) {
-        // Add 1 for inclusive day counting (charged for start day and end day)
-        return differenceInDays(end, start) + 1;
+      const s = ensureValidDate(rental.startDate);
+      const e = ensureValidDate(rental.endDate);
+      if (s && e && !isAfter(s, e)) {
+        return differenceInDays(e, s) + 1;
       }
-    } catch (e) {
-      console.error("Error calculating insurance days:", e);
-    }
-    return 0; // Return 0 if dates are invalid or calculation fails
+    } catch {}
+    return 0;
   }, [rental.startDate, rental.endDate]);
 
+  // Overdue/ongoing charges (VAT-inclusive from util) — only when active & overdue
   const ongoingCharges = React.useMemo(() => {
     if (!vehicle) return 0;
     const now = new Date();
     if (rental.status === 'active' && isAfter(now, ensureValidDate(rental.endDate))) {
-      return calculateOverdueCost(rental, now, vehicle);
+      return calculateOverdueCost(rental, now, vehicle); // VAT-inclusive now
     }
     return 0;
   }, [rental, vehicle]);
 
-  const returnCharges = rental.returnCondition?.totalCharges || 0;
+  // Return charges (assumed VAT-inclusive if you saved them that way)
+  const returnCharges = rental.returnCondition?.totalCharges ?? 0;
 
-  // Re-calculate claim specific costs with their stored VAT settings for display clarity
-  const displayStorageCost = (rental.storageCost || 0); // Display stored value which includes its VAT if applicable
-  const displayRecoveryCost = (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1); // NEW: Apply VAT for display
-  const displayDeliveryCharge = (rental.deliveryCharge || 0); // Display stored value which includes its VAT if applicable
-  const displayCollectionFee = (rental.collectionCharge || 0); // Display stored value which includes its VAT if applicable
-  const displayInsuranceCost = insuranceDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1); // Calculate for display
+  // Claim / extras – use stored values (already reflect their own VAT toggles)
+  const displayStorageCost = rental.storageCost || 0;
+  const displayRecoveryCost =
+    (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1);
+  const displayDeliveryCharge = rental.deliveryCharge || 0;
+  const displayCollectionFee = rental.collectionCharge || 0;
+  const displayInsuranceCost =
+    insuranceDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1);
 
-  // Subtotal before overall VAT and discount:
+  // ------ Totals (ongoing excluded from VAT multiplier) ------
+  // Subtotal EXCLUDING ongoing (keep VAT logic as-is on this part)
   const subtotalBeforeOverallVAT =
-    baseCost
-    + displayStorageCost
-    + displayRecoveryCost
-    + displayDeliveryCharge
-    + displayCollectionFee
-    + displayInsuranceCost
-    + ongoingCharges
-    + returnCharges;
+    baseCost +
+    displayStorageCost +
+    displayRecoveryCost +
+    displayDeliveryCharge +
+    displayCollectionFee +
+    displayInsuranceCost;
 
-  // Apply overall rental VAT
-  const totalWithOverallVAT = subtotalBeforeOverallVAT * (rental.includeVAT ? 1.2 : 1);
+  // Apply VAT (only to the above block)
+  const subtotalWithOverallVAT =
+    subtotalBeforeOverallVAT * (rental.includeVAT ? 1.2 : 1);
 
-  // Discount & final:
-  const discountAmt = rental.discountAmount || 0;
-  const totalAfterDiscount = totalWithOverallVAT - discountAmt; // This is the final total amount due including all applicable VAT
+  // Apply discount to RENTAL subtotal only
+  const discountedRentalTotal =
+    subtotalWithOverallVAT - (rental.discountAmount ?? 0);
 
-  // Payments:
+  // FINAL total due adds ongoing + return charges outside (already VAT-inclusive)
+  const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
+
+  // Payments
   const paid = rental.paidAmount || 0;
-  const remaining = totalAfterDiscount - paid;
+  const remaining = totalAmountDue - paid;
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
       if (rental.createdBy) {
         try {
           const userDoc = await getDoc(doc(db, 'users', rental.createdBy));
-          if (userDoc.exists()) {
-            setCreatedByName(userDoc.data().name);
-          } else {
-            setCreatedByName('Unknown User');
-          }
-        } catch (error) {
-          console.error('Error fetching user:', error);
+          setCreatedByName(userDoc.exists() ? userDoc.data().name : 'Unknown User');
+        } catch {
           setCreatedByName('Unknown User');
         }
       }
     };
-
     fetchCreatedByName();
   }, [rental.createdBy]);
 
-  const formatDateTime = (date: Date | null | undefined): string => {
+  const formatDateTime = (date: any): string => {
     if (!date) return 'N/A';
     try {
-      // Handle Firestore Timestamp
-      if (date?.toDate) {
-        date = date.toDate();
-      }
-
-      // Ensure we have a valid Date object
-      const dateObj = date instanceof Date ? date : new Date(date);
-
-      if (isNaN(dateObj.getTime())) {
-        return 'N/A';
-      }
-
-      return format(dateObj, 'dd/MM/yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting date:', error);
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return 'N/A';
+      return format(d, 'dd/MM/yyyy HH:mm');
+    } catch {
       return 'N/A';
     }
   };
@@ -177,7 +172,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             Invoice
           </button>
         )}
-
         {rental.documents?.permit && (
           <button
             onClick={() => window.open(rental.documents?.permit, '_blank')}
@@ -227,7 +221,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 Credit Storage & Recovery
               </button>
             )}
-            {/* --- NEW: CreditHireMitigation Button --- */}
             {rental.documents?.creditHireMitigation && (
               <button
                 onClick={() => window.open(rental.documents?.creditHireMitigation, '_blank')}
@@ -237,7 +230,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 Credit Hire Mitigation
               </button>
             )}
-            {/* --- NEW: SatisfactionNotice Button --- */}
             {rental.documents?.satisfactionNotice && (
               <button
                 onClick={() => window.open(rental.documents?.satisfactionNotice, '_blank')}
@@ -328,6 +320,18 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               <StatusBadge status={rental.paymentStatus} />
             </div>
           </div>
+
+          {/* Original Rental Start Date */}
+          {rental.originalStartDate && (
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Original Rental Start Date</p>
+                <p className="font-medium">{formatDateTime(rental.originalStartDate)}</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center">
             <Calendar className="h-5 w-5 text-gray-400 mr-2" />
             <div>
@@ -358,19 +362,13 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
       {rental.checkOutCondition && (
         <Section title="Check-Out Condition">
-          <VehicleConditionDetails
-            condition={rental.checkOutCondition}
-            type="check-out"
-          />
+          <VehicleConditionDetails condition={rental.checkOutCondition} type="check-out" />
         </Section>
       )}
 
       {rental.returnCondition && (
         <Section title="Return Condition">
-          <VehicleConditionDetails
-            condition={rental.returnCondition}
-            type="return"
-          />
+          <VehicleConditionDetails condition={rental.returnCondition} type="return" />
         </Section>
       )}
 
@@ -397,13 +395,11 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       <div className="border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          {/* Base Rental Cost */}
           <div className="flex justify-between text-sm">
             <span>Base Rental Cost:</span>
             <span className="font-medium">{formatCurrency(baseCost)}</span>
           </div>
 
-          {/* Claim-only extras */}
           {rental.type === 'claim' && (
             <>
               <div className="flex justify-between text-sm">
@@ -436,29 +432,29 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
           )}
 
-          {/* Subtotal before overall VAT */}
           <div className="flex justify-between text-sm pt-2 border-t">
             <span>Subtotal (before VAT):</span>
             <span className="font-medium">{formatCurrency(subtotalBeforeOverallVAT)}</span>
           </div>
-          {/* Overall VAT Amount */}
+
           {rental.includeVAT && (
             <div className="flex justify-between text-sm text-blue-600">
               <span>VAT (20%):</span>
-              <span className="font-medium">{formatCurrency(totalWithOverallVAT - subtotalBeforeOverallVAT)}</span>
+              <span className="font-medium">
+                {formatCurrency(subtotalWithOverallVAT - subtotalBeforeOverallVAT)}
+              </span>
             </div>
           )}
-          {/* Subtotal with VAT */}
+
           <div className="flex justify-between text-sm pt-2 border-t">
             <span>Subtotal (with VAT):</span>
-            <span className="font-medium">{formatCurrency(totalWithOverallVAT)}</span>
+            <span className="font-medium">{formatCurrency(subtotalWithOverallVAT)}</span>
           </div>
 
-          {/* Discount */}
-          {discountAmt > 0 && (
+          {(rental.discountAmount || 0) > 0 && (
             <div className="flex justify-between text-sm text-green-600">
-              <span>Discount ({rental.discountPercentage}%):</span>
-              <span>-{formatCurrency(discountAmt)}</span>
+              <span>Discount{rental.discountPercentage ? ` (${rental.discountPercentage}%)` : ''}:</span>
+              <span>-{formatCurrency(rental.discountAmount || 0)}</span>
             </div>
           )}
 
@@ -468,26 +464,22 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
           )}
 
-          { returnCharges > 0 && (
+          {returnCharges > 0 && (
             <div className="flex justify-between text-sm">
               <span>Return Charges:</span>
-              <span>{formatCurrency(returnCharges)}</span>
+              <span className="font-medium">{formatCurrency(returnCharges)}</span>
             </div>
           )}
 
-          {/* Total Due (After Discount, Includes all VAT) */}
           <div className="flex justify-between text-lg font-semibold pt-2 border-t mt-2">
             <span>Total Amount Due:</span>
-            <span className="font-medium">{formatCurrency(totalAfterDiscount)}</span>
+            <span className="font-medium">{formatCurrency(totalAmountDue)}</span>
           </div>
 
-          {/* Paid */}
           <div className="flex justify-between text-sm text-green-600">
             <span>Amount Paid:</span>
             <span>{formatCurrency(paid)}</span>
           </div>
-
-          {/* Remaining */}
           <div className="flex justify-between text-sm font-medium text-red-600">
             <span>Remaining Amount:</span>
             <span>{formatCurrency(remaining)}</span>

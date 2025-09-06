@@ -8,12 +8,12 @@ import TextArea from '../ui/TextArea';
 import SearchableSelect from '../ui/SearchableSelect';
 import { Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ClaimProgress } from '../../types/claim';
+import { PROGRESS_OPTIONS, isLegacyClaimProgress } from '../../utils/claimProgress';
 
 interface ProgressEntry {
   id: string;
   date: Date;
-  status: ClaimProgress;
+  status: string; // allow legacy strings too
   note: string;
   author: string;
 }
@@ -24,85 +24,6 @@ interface ProgressUpdateModalProps {
   onUpdate: () => void;
 }
 
-// full list of ClaimProgress values
-const PROGRESS_OPTIONS = [
-  'Your Claim Has Started',
-  'Client Contacted for Initial Statement',
-  'Accident Details Verified',
-  'Report to Legal Team - Pending',
-  'Legal Team Reviewing Claim',
-  'Client Documentation - Pending Submission',
-  'Additional Information - Requested from Client',
-  'Client Failed to Respond',
-  'TPI (Third Party Insurer) - Notified and Awaiting Response',
-  'TPI Acknowledged Notification',
-  'TPI Refuses to Deal with Claim',
-  'TPI Accepted Liability',
-  'TPI Rejected Liability',
-  'TPI Liability - 50/50 Split Under Review',
-  'TPI Liability - 50/50 Split Agreed',
-  'TPI Liability - Partial Split Under Review',
-  'TPI Liability - Partial Split (Other Ratio Agreed)',
-  'Liability Disputed - Awaiting Evidence from Client',
-  'Liability Disputed - TPI Provided Counter Evidence',
-  'Liability Disputed - Under Legal Review',
-  'Liability Disputed - Witness Statement Requested',
-  'Liability Disputed - Expert Report Required',
-  'Liability Disputed - Negotiation Ongoing',
-  'Liability Disputed - No Agreement Reached',
-  'Liability Disputed - Referred to Court',
-  'Engineer Assigned',
-  'Engineer Report - Pending Completion',
-  'Engineer Report - Completed',
-  'Vehicle Damage Assessment - TPI Scheduled',
-  'Vehicle Inspection - Completed',
-  'Repair Authorisation - Awaiting Approval',
-  'Repair in Progress',
-  'Vehicle Repair - Completed',
-  'Total Loss - Awaiting Valuation',
-  'Total Loss Offer - Made',
-  'Total Loss Offer - Accepted',
-  'Total Loss Offer - Disputed',
-  'Salvage Collected',
-  'Salvage Payment Received',
-  'Hire Vehicle - Arranged',
-  'Hire Period - Ongoing',
-  'Hire Vehicle - Off-Hired',
-  'Hire Invoice - Generated',
-  'Hire Pack - Successfully Submitted',
-  'VD Completed Hire Pack - Awaiting Review',
-  'TPI made VD offer - Ongoing',
-  'VD Negotiation with TPI - Ongoing',
-  'VD payment Received - Prejudice basis',
-  'VD payment Received - with VAT',
-  'VD payment Received - Without VAT',
-  'PI Medical Report - Requested',
-  'PI Medical Report - Received',
-  'PI Negotiation with TPI - Ongoing',
-  'Settlement Offer - Under Review',
-  'Client Approval - Pending for Settlement',
-  'Client Rejected Offer',
-  'Settlement Agreement - Finalized',
-  'Legal Notice - Issued to Third Party',
-  'Court Proceedings - Initiated',
-  'Court Hearing - Awaiting Date',
-  'Court Hearing - Completed',
-  'Judgement in Favour',
-  'Judgement Against',
-  "Claim - Referred to MIB (Motor Insurers' Bureau)",
-  'MIB Claim - Initial Review in Progress',
-  'MIB Claim - Under Review/In Progress',
-  'Awaiting MIB Response/Decision',
-  'MIB - Completed (Outcome Received)',
-  'Payment Processing - Initiated',
-  'Final Payment - Received and Confirmed',
-  'Client Payment Disbursed',
-  'Claim Withdrawn by Client',
-  'Claim Rejected - Insufficient Evidence',
-  'Claim Suspended - Pending Client Action',
-  'Claim Completed - Record Archived',
-] as const;
-
 const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
   claimId,
   onClose,
@@ -112,13 +33,16 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<ProgressEntry[]>([]);
 
-  // latest first
+  // legacy-awareness
+  const [isLegacy, setIsLegacy] = useState(false);
+
+  // latest first (for render)
   const sortedHistory = useMemo(
     () => [...history].sort((a, b) => b.date.getTime() - a.date.getTime()),
     [history]
   );
 
-  const [status, setStatus] = useState<ClaimProgress>(PROGRESS_OPTIONS[0]);
+  const [status, setStatus] = useState<string>(PROGRESS_OPTIONS[0]);
   const [dateValue, setDateValue] = useState<string>('');
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState<ProgressEntry | null>(null);
@@ -128,25 +52,36 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
       if (!claimId) return;
       setLoading(true);
       try {
-        const snap = await getDoc(doc(db, 'claims', claimId));
+        const claimRef = doc(db, 'claims', claimId);
+        const snap = await getDoc(claimRef);
         if (!snap.exists()) return;
         const data = snap.data() as any;
 
-        if (data.progress && PROGRESS_OPTIONS.includes(data.progress)) {
-          setStatus(data.progress as ClaimProgress);
-        }
-
-        const raw: any[] = data.progressHistory || [];
-        const mapped: ProgressEntry[] = raw.map(r => ({
+        // Map history with JS Dates
+        const rawHistory: any[] = data.progressHistory || [];
+        const historyMapped: ProgressEntry[] = rawHistory.map(r => ({
           id: r.id,
-          date: r.date.toDate ? r.date.toDate() : new Date(r.date),
+          date: r.date?.toDate ? r.date.toDate() : new Date(r.date),
           status: r.status,
           note: r.note,
           author: r.author,
         }));
 
-        mapped.sort((a, b) => a.date.getTime() - b.date.getTime());
-        setHistory(mapped);
+        // Determine legacy
+        const legacy = isLegacyClaimProgress({
+          progress: data.progress,
+          progressHistory: historyMapped,
+        });
+        setIsLegacy(legacy);
+
+        // Only preselect status if non-legacy & valid
+        if (!legacy && data.progress && PROGRESS_OPTIONS.includes(data.progress)) {
+          setStatus(data.progress as string);
+        }
+
+        // Keep history sorted oldest->newest internally
+        historyMapped.sort((a, b) => a.date.getTime() - b.date.getTime());
+        setHistory(historyMapped);
 
         setDateValue(new Date().toISOString().substring(0, 16));
       } catch (err: any) {
@@ -178,25 +113,34 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
       const claimRef = doc(db, 'claims', claimId);
 
       if (editing) {
+        // Remove the exact previous entry before re-adding (Firestore array semantics)
         await updateDoc(claimRef, {
           progressHistory: arrayRemove({ ...editing, date: editing.date }),
         });
       }
 
+      // For legacy claims, we still allow selecting a status for the history entry,
+      // but we won't overwrite the main "progress" field in Firestore.
       const entry: ProgressEntry = {
-        id: editing ? editing.id : Date.now().toString(),
+        id: editing ? editing.id : (crypto.randomUUID?.() || Date.now().toString()),
         date: new Date(dateValue),
-        status,
+        status, // always use selected status for history
         note,
         author: user.name,
       };
 
-      await updateDoc(claimRef, {
-        progress: status,
+      const payload: any = {
         progressHistory: arrayUnion(entry),
         updatedAt: new Date(),
         updatedBy: user.id,
-      });
+      };
+
+      // Only write main progress for non-legacy claims
+      if (!isLegacy) {
+        payload.progress = status;
+      }
+
+      await updateDoc(claimRef, payload);
 
       setHistory(prev => {
         const filtered = editing ? prev.filter(h => h.id !== editing.id) : prev;
@@ -293,15 +237,23 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
 
       {/* Form */}
       <form onSubmit={handleAddOrUpdate} className="space-y-4">
+        {/* Legacy banner */}
+        {isLegacy && (
+          <div className="mb-3 rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-800">
+            This is a legacy claim. The main progress field won’t be overwritten,
+            but you can still select a status for this history entry.
+          </div>
+        )}
+
         {/* Status */}
         <SearchableSelect
           options={PROGRESS_OPTIONS.map(p => ({ id: p, label: p }))}
           value={status}
-          onChange={val => setStatus(val as ClaimProgress)}
+          onChange={val => setStatus(val as string)}
           label="Status"
           placeholder="Select status..."
           required
-          disabled={loading}
+          disabled={loading} 
         />
 
         {/* Received Date */}

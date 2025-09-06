@@ -158,119 +158,146 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
   }
 
   return (
-    <div className="space-y-6">
-      {!loading && (
-   <IncomeExpenseSummary
-     entries={filter.filteredEntries}
-     shares={shares}
-     startDate={filter.dateRange.start}
-     endDate={filter.dateRange.end}
-   />
- )}
+  <div className="space-y-6">
+    {!loading && (
+      <IncomeExpenseSummary
+        entries={filter.filteredEntries}
+        shares={shares}
+        startDate={filter.dateRange.start}
+        endDate={filter.dateRange.end}
+      />
+    )}
 
-      <div className="flex justify-end space-x-2">
-        {can('incomeExpense', 'create') && (
-          <button onClick={() => { setShowIncome(true); setRecordBeingEdited(null); }} className="px-4 py-2 bg-primary text-white rounded">
-            + Add Income
-          </button>
-        )}
-        {can('incomeExpense', 'create') && (
-        <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); }} className="px-4 py-2 border rounded">
+    {/* Responsive toolbar (2-per-row on mobile, single row on sm+) */}
+    <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
+      {can('incomeExpense', 'create') && (
+        <button
+          onClick={() => { setShowIncome(true); setRecordBeingEdited(null); }}
+          className="px-4 py-2 bg-primary text-white rounded w-[48%] sm:w-auto"
+        >
+          + Add Income
+        </button>
+      )}
+
+      {can('incomeExpense', 'create') && (
+        <button
+          onClick={() => { setShowExpense(true); setRecordBeingEdited(null); }}
+          className="px-4 py-2 border rounded w-[48%] sm:w-auto"
+        >
           + Add Expense
         </button>
-        )}
-        {/* <button onClick={() => setShowShareHistory(true)} className="px-4 py-2 border rounded">Shares</button> */}
-        
-        <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded">Shares</button>
-        {can('incomeExpense', 'share') && (
-        <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded">Share Profit</button>
-        )}
-        {user?.role === 'manager' && (
-        <button onClick={handleExportBulkPDF} className="px-4 py-2 border rounded">Export PDF</button>
+      )}
 
-        )}
-      </div>
+      <button
+        onClick={() => setShowShares(true)}
+        className="px-4 py-2 border rounded w-[48%] sm:w-auto"
+      >
+        Shares
+      </button>
 
-      <IncomeExpenseFilters
-        search={filter.search}
-        onSearch={filter.setSearch}
-        typeFilter={filter.typeFilter}
-        onType={filter.setTypeFilter}
-        progress={filter.progress}
-        onProgress={filter.setProgress}
-        dateRange={filter.dateRange}
-        onDateRange={filter.setDateRange}
-        permissionScope="incomeExpense"
-      />
+      {can('incomeExpense', 'share') && (
+        <button
+          onClick={() => setShowShare(true)}
+          className="px-4 py-2 border rounded w-[48%] sm:w-auto"
+        >
+          Share Profit
+        </button>
+      )}
 
-      <div className="bg-white rounded-lg shadow">
+      {user?.role === 'manager' && (
+        <button
+          onClick={handleExportBulkPDF}
+          className="px-4 py-2 border rounded w-full sm:w-auto"
+        >
+          Export PDF
+        </button>
+      )}
+    </div>
+
+    <IncomeExpenseFilters
+      search={filter.search}
+      onSearch={filter.setSearch}
+      typeFilter={filter.typeFilter}
+      onType={filter.setTypeFilter}
+      progress={filter.progress}
+      onProgress={filter.setProgress}
+      dateRange={filter.dateRange}
+      onDateRange={filter.setDateRange}
+      permissionScope="incomeExpense"
+    />
+
+    {/* Table wrapper with mobile-friendly scroll */}
+    <div className="bg-white rounded-lg shadow overflow-x-auto">
       <IncomeExpenseTable
         entries={filter.filteredEntries}
         onView={setViewing}
         onEdit={handleEdit}
-        onDelete={setDeletingEntry} // ✅ trigger modal
+        onDelete={setDeletingEntry}
         onGenerateDocument={handleGenerateDocument}
         permissionScope="incomeExpense"
       />
-
-
-      </div>
-
-      <Modal
-  isOpen={!!deletingEntry}
-  onClose={() => setDeletingEntry(null)}
-  title="Delete Entry"
->
-  <div className="space-y-4">
-    <p>Are you sure you want to delete this entry?</p>
-    <div className="flex justify-end space-x-2">
-      <button onClick={() => setDeletingEntry(null)} className="px-4 py-2 border rounded">Cancel</button>
-      <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button>
     </div>
-  </div>
-</Modal>
 
-      <Modal isOpen={!!viewing} onClose={clearModals} title="Record Details" size="xl">
-        {viewing && <IncomeExpenseDetails entry={viewing} />}
-      </Modal>
+    {/* Delete modal */}
+    <Modal
+      isOpen={!!deletingEntry}
+      onClose={() => setDeletingEntry(null)}
+      title="Delete Entry"
+    >
+      <div className="space-y-4">
+        <p>Are you sure you want to delete this entry?</p>
+        <div className="flex justify-end space-x-2">
+          <button onClick={() => setDeletingEntry(null)} className="px-4 py-2 border rounded">Cancel</button>
+          <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button>
+        </div>
+      </div>
+    </Modal>
 
-      {/*  */}
+    {/* Details modal */}
+    <Modal isOpen={!!viewing} onClose={clearModals} title="Record Details" size="xl">
+      {viewing && <IncomeExpenseDetails entry={viewing} />}
+    </Modal>
 
-      <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History" size="xl">
-  <SharesModal
-    shares={shares}
-    onClose={() => setShowShares(false)}
-    onGeneratePDF={handleDownloadProfitSharesPDF}
-    collectionName="profitShares" // ✅ AIE collection
-  />
-</Modal>
+    {/* Shares history */}
+    <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History" size="xl">
+      <SharesModal
+        shares={shares}
+        onClose={() => setShowShares(false)}
+        onGeneratePDF={handleDownloadProfitSharesPDF}
+        collectionName="profitShares"
+      />
+    </Modal>
 
-
-
-<Modal
-        isOpen={showIncome}
+    {/* Add/Edit Income */}
+    <Modal
+      isOpen={showIncome}
+      onClose={clearModals}
+      title={recordBeingEdited ? 'Edit Income' : 'Add Income'}
+      size="xl"
+    >
+      <IncomeForm
         onClose={clearModals}
-        title={recordBeingEdited ? 'Edit Income' : 'Add Income'}
-        size="xl"              // ← add this
-     >
-      <IncomeForm 
-        onClose={clearModals} 
         record={recordBeingEdited?.type === 'income' ? recordBeingEdited : undefined}
         collectionName="incomeExpenses"
-
       />
+    </Modal>
 
-      </Modal>
+    {/* Add/Edit Expense */}
+    <Modal
+      isOpen={showExpense}
+      onClose={clearModals}
+      title={recordBeingEdited ? 'Edit Expense' : 'Add Expense'}
+      size="xl"
+    >
+      <ExpenseForm
+        onClose={clearModals}
+        record={recordBeingEdited?.type === 'expense' ? recordBeingEdited : undefined}
+        collectionName="incomeExpenses"
+      />
+    </Modal>
 
-      <Modal isOpen={showExpense} onClose={clearModals} title={recordBeingEdited ? 'Edit Expense' : 'Add Expense' } size="xl">
-        <ExpenseForm 
-          onClose={clearModals} 
-          record={recordBeingEdited?.type === 'expense' ? recordBeingEdited : undefined}
-          collectionName="incomeExpenses"
-        />
-      </Modal>
-
-      <Modal isOpen={showShare} onClose={clearModals} title="Share Profit" size="xl">
+    {/* Share Profit */}
+    <Modal isOpen={showShare} onClose={clearModals} title="Share Profit" size="xl">
       <ProfitShareForm
         onClose={clearModals}
         shareToEdit={shareToEdit}
@@ -278,9 +305,8 @@ const handleGenerateDocument = async (entry: IncomeExpenseEntry) => {
         collectionName="profitShares"
         records={records}
       />
+    </Modal>
+  </div>
+);
 
-</Modal>
-
-    </div>
-  );
 }

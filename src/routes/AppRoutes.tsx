@@ -5,6 +5,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { lazyLoad } from './lazyLoad';
+import ForgotPassword from '../pages/members/ForgotPassword';
+import ResetPassword from '../pages/members/ResetPassword';
 
 // Spinner for Suspense boundaries
 const spinner = (
@@ -13,54 +15,68 @@ const spinner = (
   </div>
 );
 
-// — Public —
+/* ─────────────────────────────
+   Public (admin/staff)
+────────────────────────────── */
 const Login      = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
 
-// — Members (public) —
+/* ─────────────────────────────
+   Members (public)
+────────────────────────────── */
 const MemberLogin    = lazy(() => import('../pages/members/Login'));
 const MemberRegister = lazy(() => import('../pages/members/Register'));
 
-// — Members (protected) —
-const MembersLayout      = lazy(() => import('../pages/members/MembersLayout'));
-const MemberTransactions = lazy(() => import('../pages/members/Transactions'));
+/* ─────────────────────────────
+   Members (protected)
+────────────────────────────── */
+const MembersLayout   = lazy(() => import('../pages/members/MembersLayout'));
+const MemberDashboard = lazy(() => import('../pages/members/MemberDashboard'));
+const MemberFinance   = lazy(() => import('../pages/members/MemberFinance'));
+const MemberInvoices  = lazy(() => import('../pages/members/MemberInvoices'));
+const MemberRentals   = lazy(() => import('../pages/members/MemberRentals'));
 // reuse the admin Profile component for member profile:
-const MemberProfile      = lazyLoad('Profile');
+const MemberProfile   = lazyLoad('Profile');
 
-// — Admin/Main protected —
-const Dashboard           = lazyLoad('Dashboard');
-const Profile             = lazyLoad('Profile');
-const ProductsPage        = lazyLoad('ProductsPage');
-const Vehicles            = lazyLoad('Vehicles');
-const Maintenance         = lazyLoad('Maintenance');
-const Rentals             = lazyLoad('Rentals');
-const Accidents           = lazyLoad('Accidents');
-const Users               = lazyLoad('Users');
-const Customers           = lazyLoad('Customers');
-const CompanyManagers     = lazyLoad('CompanyManagers');
-const Chat                = lazyLoad('Chat');
-const BulkEmail           = lazyLoad('BulkEmail');
-const Share               = lazyLoad('Share');
-const Claims              = lazyLoad('Claims');
-const VDFinance           = lazyLoad('VDFinance');
-const VDInvoice           = lazyLoad('VDInvoice');
-const PersonalInjury      = lazyLoad('PersonalInjury');
-const Finance             = lazyLoad('Finance');
-const Invoices            = lazyLoad('Invoices');
-const PettyCash           = lazyLoad('PettyCash');
-const VATRecord           = lazyLoad('VATRecord');
-const IncomeExpense       = lazyLoad('IncomeExpense');
-const DriverPay           = lazyLoad('DriverPay');
-const AiePettyCash        = lazyLoad('AiePettyCash');
+/* ─────────────────────────────
+   Admin/Main (protected)
+────────────────────────────── */
+const Dashboard            = lazyLoad('Dashboard');
+const Profile              = lazyLoad('Profile');
+const ProductsPage         = lazyLoad('ProductsPage');
+const Vehicles             = lazyLoad('Vehicles');
+const Maintenance          = lazyLoad('Maintenance');
+const Rentals              = lazyLoad('Rentals');
+const Accidents            = lazyLoad('Accidents');
+const Users                = lazyLoad('Users');
+const Customers            = lazyLoad('Customers');
+const CompanyManagers      = lazyLoad('CompanyManagers');
+const Chat                 = lazyLoad('Chat');
+const BulkEmail            = lazyLoad('BulkEmail');
+const Share                = lazyLoad('Share');
+const Claims               = lazyLoad('Claims');
+const VDFinance            = lazyLoad('VDFinance');
+const VDInvoice            = lazyLoad('VDInvoice');
+const PersonalInjury       = lazyLoad('PersonalInjury');
+const Finance              = lazyLoad('Finance');
+const Invoices             = lazyLoad('Invoices');
+const PettyCash            = lazyLoad('PettyCash');
+const VATRecord            = lazyLoad('VATRecord');
+const IncomeExpense        = lazyLoad('IncomeExpense');
+const DriverPay            = lazyLoad('DriverPay');
+const AiePettyCash         = lazyLoad('AiePettyCash');
 const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense');
 
 export default function AppRoutes() {
   return (
     <Routes>
-
-      {/* Public */}
+      {/* ────────────── Public ────────────── */}
       <Route path="/login"       element={<Login />} />
       <Route path="/admin-setup" element={<AdminSetup />} />
+
+      {/* Member password flows */}
+      <Route path="/members/forgot-password" element={<ForgotPassword />} />
+      <Route path="/members/reset-password"  element={<ResetPassword />} />
 
       {/* Member portal public */}
       <Route
@@ -80,7 +96,7 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Member portal protected */}
+      {/* ─────────── Member portal (protected) ─────────── */}
       <Route
         path="/members/*"
         element={
@@ -93,20 +109,58 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        {/* Default */}
-        <Route index element={<Navigate to="transactions" replace />} />
+        {/* Default → Dashboard (keeps logo/link logic consistent) */}
+        <Route index element={<Navigate to="dashboard" replace />} />
 
-        {/* Transactions */}
+        {/* Dashboard */}
         <Route
-          path="transactions"
+          path="dashboard"
           element={
             <Suspense fallback={spinner}>
-              <MemberTransactions />
+              <MemberDashboard />
             </Suspense>
           }
         />
 
-        {/* Profile */}
+        {/* Transactions/Finance (both paths supported) */}
+        <Route
+          path="transactions"
+          element={
+            <Suspense fallback={spinner}>
+              <MemberFinance />
+            </Suspense>
+          }
+        />
+        <Route
+          path="finance"
+          element={
+            <Suspense fallback={spinner}>
+              <MemberFinance />
+            </Suspense>
+          }
+        />
+
+        {/* Invoices */}
+        <Route
+          path="invoices"
+          element={
+            <Suspense fallback={spinner}>
+              <MemberInvoices />
+            </Suspense>
+          }
+        />
+
+        {/* Rentals */}
+        <Route
+          path="rentals"
+          element={
+            <Suspense fallback={spinner}>
+              <MemberRentals />
+            </Suspense>
+          }
+        />
+
+        {/* Profile (reuses admin Profile component) */}
         <Route
           path="profile"
           element={
@@ -117,10 +171,10 @@ export default function AppRoutes() {
         />
 
         {/* Catch-all for wrong /members/* paths */}
-        <Route path="*" element={<Navigate to="transactions" replace />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Route>
 
-      {/* Admin / Main Protected */}
+      {/* ─────────── Admin / Main (protected) ─────────── */}
       <Route
         path="/"
         element={

@@ -29,18 +29,23 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
 
   const columns = [
     {
-      header: 'Reference Info',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <div className="flex items-center">
-            <div>
-              <div className="font-medium">No: {row.original.refNo}</div>
-              <div className="text-sm text-gray-500">Name: {row.original.referenceName}</div>
-            </div>
+  header: 'Reference Info',
+  cell: ({ row }) => (
+    <div className="space-y-1">
+      <div className="flex items-center">
+        <div>
+          <div className="font-medium">
+            No: {row.original.refNo ?? row.original.referenceNo ?? 'N/A'}
+          </div>
+          <div className="text-sm text-gray-500">
+            Name: {row.original.referenceName || 'N/A'}
           </div>
         </div>
-      ),
-    },
+      </div>
+    </div>
+  ),
+},
+
     {
       header: 'Driver Information',
       cell: ({ row }) => (
@@ -63,16 +68,57 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
       ),
     },
     {
-      header: 'Status',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.status} />
-          {row.original.type && row.original.type !== 'pending' && (
-            <StatusBadge status={row.original.type} />
+  header: 'Status',
+  cell: ({ row }) => {
+    const d = row.original.accidentDate;
+    const t = (row.original.accidentTime || '').toString().trim();
+    const loc = (row.original.accidentLocation || '').toString();
+
+    // robust date handling: Date | Firestore Timestamp | ISO/string
+    const toDate = (val: any): Date | null => {
+      try {
+        if (!val) return null;
+        if (val instanceof Date) return val;
+        // Firestore Timestamp support
+        if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000);
+        const parsed = new Date(val);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      } catch {
+        return null;
+      }
+    };
+
+    const dateObj = toDate(d);
+    const dateText = dateObj ? format(dateObj, 'dd-MM-yyyy') : (typeof d === 'string' ? d : 'N/A');
+
+    // If long and has commas, insert line breaks at commas
+    const locationDisplay =
+      loc.length > 26 && loc.includes(',')
+        ? loc.split(',').map(s => s.trim()).join(',\n')
+        : loc;
+
+    return (
+      <div className="space-y-1">
+        <StatusBadge status={row.original.status} />
+        {row.original.type && row.original.type !== 'pending' && (
+          <StatusBadge status={row.original.type} />
+        )}
+
+        <div className="text-xs text-gray-500">
+          <div>Accident: {dateText}{t ? ` ${t}` : ''}</div>
+          {locationDisplay && (
+            <div>
+              Location:{' '}
+              <span className="whitespace-pre-line">{locationDisplay}</span>
+            </div>
           )}
         </div>
-      ),
-    },
+      </div>
+    );
+  },
+},
+
+
     {
       header: 'Actions',
       cell: ({ row }) => (

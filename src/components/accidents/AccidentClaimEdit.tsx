@@ -30,7 +30,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || []);
 
   const [formData, setFormData] = useState({
-    referenceNo: accident.referenceNo || '',
+    referenceNo: String(accident.refNo ?? accident.referenceNo ?? ''),
     referenceName: accident.referenceName || '',
     driverName: accident.driverName,
     driverAddress: accident.driverAddress,
@@ -161,9 +161,15 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
     const allImages = [...updatedImages, ...newImageUrls];
 
+    // normalize reference number
+    const refNoValueRaw = (formData.referenceNo ?? '').toString().trim();
+    const refNoValue = refNoValueRaw ? Number(refNoValueRaw) : null; // null if empty
+
     const accidentRef = doc(db, 'accidents', accident.id);
     await updateDoc(accidentRef, {
       ...formData,
+      refNo: refNoValue,
+      referenceNo: refNoValue,
       images: allImages,
       updatedAt: new Date(),
       updatedBy: user.id,
@@ -329,13 +335,13 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             label="Insurance Company"
             value={formData.insuranceCompany}
             onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-            required
+            
           />
           <FormField
             label="Policy Number"
             value={formData.policyNumber}
             onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-            required
+            
           />
           <FormField
             type="number"

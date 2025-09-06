@@ -1,7 +1,6 @@
 // src/App.tsx
-
 import React, { useState } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { FormatProvider } from './context/FormatContext';
@@ -11,6 +10,8 @@ import { ToDoModal } from './components/todo/ToDoModal';
 
 function AppInner() {
   const [todoOpen, setTodoOpen] = useState(false);
+  const location = useLocation();
+  const isMemberRoute = location.pathname.startsWith('/members');
 
   return (
     <>
@@ -20,23 +21,21 @@ function AppInner() {
         toastOptions={{
           duration: 4000,
           style: { background: '#363636', color: '#fff' },
-          success: {
-            duration: 3000,
-            iconTheme: { primary: '#16A34A', secondary: '#fff' },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: { primary: '#DC2626', secondary: '#fff' },
-          },
+          success: { duration: 3000, iconTheme: { primary: '#16A34A', secondary: '#fff' } },
+          error: { duration: 4000, iconTheme: { primary: '#DC2626', secondary: '#fff' } },
         }}
       />
 
       {/* All your routes */}
       <AppRoutes />
 
-      {/* Floating todo button + modal */}
-      <ToDoIcon onClick={() => setTodoOpen(true)} />
-      <ToDoModal open={todoOpen} onClose={() => setTodoOpen(false)} />
+      {/* Only show To-Do on non-member routes */}
+      {!isMemberRoute && (
+        <>
+          <ToDoIcon onClick={() => setTodoOpen(true)} />
+          <ToDoModal open={todoOpen} onClose={() => setTodoOpen(false)} />
+        </>
+      )}
     </>
   );
 }

@@ -16,25 +16,39 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-      if (userDoc.exists()) {
-        toast.success('Welcome back!');
-        navigate('/');
-      } else {
-        toast.error('User data not found');
-        auth.signOut();
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      toast.error('Invalid email or password');
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+
+    if (!userDoc.exists()) {
+      toast.error('User profile not found');
+      await auth.signOut();
+      return;
     }
-  };
+
+    const { role } = userDoc.data() as any;
+
+    // HARD STOP: members cannot use the admin login
+    if (role === 'member') {
+      await auth.signOut();
+      toast.error('Please sign in via the Member Portal.');
+      // optional: guide them directly
+      return navigate('/members/login', { replace: true });
+    }
+
+    // Non-member → proceed to admin
+    toast.success('Welcome back!');
+    navigate('/', { replace: true });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    toast.error('Invalid email or password');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (showForgotPassword) {
     return (

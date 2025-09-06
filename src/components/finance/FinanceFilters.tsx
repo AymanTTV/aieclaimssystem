@@ -47,62 +47,56 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   groupFilter,
   onGroupFilterChange,
   groupOptions,
-  categories
+  categories,
+  // search props kept for compatibility; not rendering a search box here
+  // searchQuery,
+  // onSearchChange,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Row 1, Col 1: From */}
+    <div className="space-y-3">
+      {/* 2 columns on mobile; 4 on lg */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* From */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">From</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">From</label>
           <input
             type="date"
-            value={
-              dateRange.start
-                ? dateRange.start.toISOString().split('T')[0]
-                : ''
-            }
-            onChange={e =>
+            value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
+            onChange={(e) =>
               onDateRangeChange({
                 ...dateRange,
-                start: e.target.value ? new Date(e.target.value) : null
+                start: e.target.value ? new Date(e.target.value) : null,
               })
             }
             className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Row 1, Col 2: To */}
+        {/* To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">To</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">To</label>
           <input
             type="date"
-            value={
-              dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''
-            }
-            onChange={e =>
+            value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
+            onChange={(e) =>
               onDateRangeChange({
                 ...dateRange,
-                end: e.target.value ? new Date(e.target.value) : null
+                end: e.target.value ? new Date(e.target.value) : null,
               })
             }
-            min={
-              dateRange.start
-                ? dateRange.start.toISOString().split('T')[0]
-                : undefined
-            }
+            min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
             className="form-input mt-1 w-full"
           />
         </div>
 
-        {/* Row 1, Col 3: Type */}
+        {/* Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Type</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Type</label>
           <select
             value={type}
-            onChange={e => onTypeChange(e.target.value as typeof type)}
+            onChange={(e) => onTypeChange(e.target.value as typeof type)}
             className="form-select mt-1 w-full"
           >
             <option value="all">All Types</option>
@@ -111,14 +105,12 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Row 1, Col 4: Payment Status */}
+        {/* Payment Status */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Payment Status
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Payment Status</label>
           <select
             value={statusFilter}
-            onChange={e => onStatusFilterChange(e.target.value)}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
             className="form-select mt-1 w-full"
           >
             <option value="all">All Status</option>
@@ -128,18 +120,16 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Row 2, Col 1: Category */}
+        {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Category
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Category</label>
           <select
             value={categoryFilter}
-            onChange={e => onCategoryFilterChange(e.target.value)}
+            onChange={(e) => onCategoryFilterChange(e.target.value)}
             className="form-select mt-1 w-full"
           >
             <option value="all">All Categories</option>
-            {categories.map(catName => (
+            {categories.map((catName) => (
               <option key={catName} value={catName}>
                 {catName}
               </option>
@@ -147,18 +137,16 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Row 2, Col 2: Group */}
+        {/* Group */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Group
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Group</label>
           <select
             value={groupFilter}
-            onChange={e => onGroupFilterChange(e.target.value)}
+            onChange={(e) => onGroupFilterChange(e.target.value)}
             className="form-select mt-1 w-full"
           >
             <option value="all">All Groups</option>
-            {groupOptions.map(g => (
+            {groupOptions.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
               </option>
@@ -166,16 +154,16 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Row 2, Col 3: Owner */}
+        {/* Owner */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Owner</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Owner</label>
           <select
             value={owner}
-            onChange={e => onOwnerChange(e.target.value)}
+            onChange={(e) => onOwnerChange(e.target.value)}
             className="form-select mt-1 w-full"
           >
             <option value="all">All Owners</option>
-            {owners.map(ownerName => (
+            {owners.map((ownerName) => (
               <option key={ownerName} value={ownerName}>
                 {ownerName}
               </option>
@@ -183,19 +171,17 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        {/* Row 2, Col 4: Customer */}
+        {/* Customer (optional) */}
         {onCustomerChange && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Customer
-            </label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">Customer</label>
             <select
               value={selectedCustomerId}
-              onChange={e => onCustomerChange(e.target.value)}
+              onChange={(e) => onCustomerChange(e.target.value)}
               className="form-select mt-1 w-full"
             >
               <option value="">All Customers</option>
-              {customers.map(customer => (
+              {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
                 </option>

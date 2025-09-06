@@ -185,7 +185,7 @@ export default function Share() {
           <FileText className="h-5 w-5 mr-2" /> Generate PDF
         </button>
         )}
-        {user?.role === 'manager' && (
+        {can('share', 'export') && (
         <button
           onClick={handleExport}
           className="inline-flex items-center px-4 py-2 border rounded"

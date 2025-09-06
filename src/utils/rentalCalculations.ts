@@ -96,48 +96,55 @@ export const calculateRentalCost = (
   return parseFloat((totalCostBeforeOverallVAT * (includeVAT ? 1.2 : 1)).toFixed(2));
 };
 
-export const calculateOverdueCost = (
+// utils/rentalCalculations.ts
+
+export function calculateOverdueCost(
   rental: Rental,
-  currentDate: Date,
+  now: Date,
   vehicle?: Vehicle
-): number => {
-  if (!isAfter(currentDate, rental.endDate)) return 0;
+): number {
+  if (!rental || !rental.endDate) return 0;
 
-  // --- NEW GUARD: if negotiatedRate is explicitly zero, return 0 immediately ---
-  if (rental.negotiatedRate === 0) {
-    return 0;
+  const end = new Date(rental.endDate);
+  if (now <= end) return 0;
+
+  // Effective base rate (negotiated > vehicle > default)
+  const baseRateFromVehicle =
+    rental.type === 'daily'
+      ? vehicle?.dailyRentalPrice
+      : rental.type === 'weekly'
+      ? vehicle?.weeklyRentalPrice
+      : vehicle?.claimRentalPrice;
+
+  const defaultRate = (RENTAL_RATES as any)?.[rental.type] ?? 0;
+  const rate = rental.negotiatedRate ?? baseRateFromVehicle ?? defaultRate;
+
+  // Units overdue (round UP)
+  const overdueHours = Math.max(0, differenceInHours(now, end));
+  const overdueDays = Math.ceil(overdueHours / 24) || 1;
+
+  const units =
+    rental.type === 'weekly' ? Math.ceil(overdueDays / 7) : overdueDays;
+
+  let cost = units * rate;
+
+  // Make ongoing VAT behavior consistent with saved r.cost (which is VAT-inclusive)
+  if (rental.includeVAT) {
+    cost *= 1.2; // add VAT
   }
 
-  // --- existing logic follows ---
-  const dailyRate = (rental.negotiatedRate ?? vehicle?.dailyRentalPrice) || RENTAL_RATES.daily;
-  const weeklyRate = (rental.negotiatedRate ?? vehicle?.weeklyRentalPrice) || RENTAL_RATES.weekly;
-  const claimRate = (rental.negotiatedRate ?? vehicle?.claimRentalPrice) || RENTAL_RATES.claim;
+  return Math.max(0, cost);
+}
 
-  const overdueDays = Math.ceil(
-    (currentDate.getTime() - rental.endDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
+// Optionally expose units for UI
+export function getOverdueUnits(rental: Rental, now: Date): number {
+  const end = new Date(rental.endDate);
+  if (now <= end) return 0;
+  const overdueHours = Math.max(0, differenceInHours(now, end));
+  const overdueDays = Math.ceil(overdueHours / 24) || 1;
+  return rental.type === 'weekly' ? Math.ceil(overdueDays / 7) : overdueDays;
+}
 
-  if (rental.type === 'claim' || rental.reason === 'claim') {
-    return parseFloat((overdueDays * claimRate * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
-  }
-
-  if (rental.type === 'weekly') {
-    const overdueWeeks = Math.ceil(overdueDays / 7);
-    return parseFloat((overdueWeeks * weeklyRate * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
-  }
-
-  const overdueWeeks = Math.floor(overdueDays / 7);
-  const remainingDays = overdueDays % 7;
-  let overdueBaseCost = (overdueWeeks * weeklyRate) + (remainingDays * dailyRate);
-
-  if (overdueWeeks === 0 && remainingDays > 0 && remainingDays * dailyRate > weeklyRate) {
-    overdueBaseCost = weeklyRate;
-  } else if (overdueWeeks > 0 && remainingDays > 0 && remainingDays * dailyRate > weeklyRate) {
-    overdueBaseCost = (overdueWeeks + 1) * weeklyRate;
-  }
-
-  return parseFloat((overdueBaseCost * (rental.includeVAT ? 1.2 : 1)).toFixed(2));
-};
 
 
 

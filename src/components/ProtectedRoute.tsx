@@ -1,8 +1,9 @@
+// src/components/ProtectedRoute.tsx
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // Assuming AuthContext path
-import { usePermissions } from '../hooks/usePermissions'; // Assuming usePermissions path
-import { RolePermissions } from '../types/roles';
+import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
+import type { RolePermissions } from '../types/roles';
 import { ROUTES } from '../routes';
 
 interface ProtectedRouteProps {
@@ -13,71 +14,63 @@ interface ProtectedRouteProps {
   };
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requiredPermission
-}) => {
-  // Get user and authentication loading state
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
   const { user, loading: authLoading } = useAuth();
 
-  // Get permission check function and permissions loading state
-  // IMPORTANT: If your usePermissions hook does NOT provide a 'loading' state,
-  // remove ': permissionsLoading' from the line below.
-  const { can, loading: permissionsLoading } = usePermissions(); // <-- Focus here
+  // your usePermissions() might not have an explicit loading flag; guard defensively
+  const perms = usePermissions() as any;
+  const can = perms?.can ?? (() => true);
+  const permissionsLoading = Boolean(perms?.loading);
 
   const location = useLocation();
+  const inMemberArea = location.pathname.startsWith('/members');
 
-  // 1. While authentication state is loading, render a loading indicator.
+  // 1) Wait for auth to resolve
   if (authLoading) {
-    // console.log("ProtectedRoute: Auth loading...");
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        {/* Loading indicator while authentication state is determined */}
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
-  // 2. If authentication loading is complete and there is no user, redirect to the login page.
+  // 2) Not signed in → send to correct login
   if (!user) {
-    // console.log("ProtectedRoute: No user, redirecting to login.");
-    return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
+    return (
+      <Navigate
+        to={inMemberArea ? '/members/login' : ROUTES.LOGIN}
+        state={{ from: location }}
+        replace
+      />
+    );
   }
 
-  // At this point, authLoading is false and user is not null (user is authenticated).
+  // 3) Enforce role/area isolation in BOTH directions
+  //    - Members are NOT allowed in admin area
+  if (user.role === 'member' && !inMemberArea) {
+    return <Navigate to="/members/dashboard" replace />;
+  }
+  //    - Non-members (admin/managers/etc.) are NOT allowed in member area
+  if (inMemberArea && user.role !== 'member') {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
 
-  // 3. If a required permission is specified for this route:
+  // 4) If a specific permission is required, check it
   if (requiredPermission) {
-    // IMPORTANT: If your usePermissions hook does NOT provide a 'loading' state,
-    // remove the 'permissionsLoading' check from the line below.
-    // We wait for permissions to load before checking if the user 'can' access the route.
-    if (permissionsLoading) { // <-- This is the key check
-        // console.log(`ProtectedRoute: Permissions loading for ${requiredPermission.module}:${requiredPermission.action}...`);
-         return (
-             <div className="flex justify-center items-center min-h-screen">
-                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div> {/* Use a different color if desired */}
-                 {/* Loading indicator while permissions are being loaded */}
-             </div>
-         );
+    if (permissionsLoading) {
+      return (
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary" />
+        </div>
+      );
     }
-
-    // Once permissions are loaded, check if the user has the required permission.
-    const hasPermission = can( // <-- This check happens AFTER permissionsLoading is false
-      requiredPermission.module,
-      requiredPermission.action
-    );
-
-    // If the user does not have the required permission, redirect to the dashboard.
+    const hasPermission = can(requiredPermission.module, requiredPermission.action);
     if (!hasPermission) {
-      console.warn(`Permission denied for user ${user.id} to access ${location.pathname}. Required: ${requiredPermission.module}:${requiredPermission.action}`);
-      // console.log("ProtectedRoute: User lacks required permission, redirecting to dashboard.");
       return <Navigate to={ROUTES.DASHBOARD} replace />;
     }
   }
 
-  // 4. If user is authenticated and has the necessary permissions (or no permissions required),
-  // render the protected content (`children`).
-  // console.log("ProtectedRoute: User authenticated and has permissions, rendering children.");
+  // 5) Auth OK (+ permission OK if required)
   return <>{children}</>;
 };
 

@@ -48,14 +48,19 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
       ),
     },
     {
-      header: 'Description',
-      cell: ({ row }) => (
-        <div>
-          <div className="text-sm">{row.original.description}</div>
-          {row.original.note && <div className="text-xs text-gray-500">{row.original.note}</div>}
-        </div>
-      ),
-    },
+  header: 'Description',
+  cell: ({ row }) => (
+    <div className="max-w-xs whitespace-normal break-words">
+      <div className="text-sm text-gray-800 break-words">
+        {row.original.description}
+      </div>
+      {row.original.note && (
+        <div className="text-xs text-gray-500 break-words">{row.original.note}</div>
+      )}
+    </div>
+  ),
+},
+
     {
       header: 'In',
       cell: ({ row }) => {

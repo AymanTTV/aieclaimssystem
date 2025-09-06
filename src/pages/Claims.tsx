@@ -281,162 +281,191 @@ const Claims: React.FC = () => {
         <ClaimSummaryCards claims={filteredClaims} />
       
 
-      {/* top bar */}
-      <div className="flex justify-between items-center">
-        <label className="inline-flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={showCompletedOnly}
-            onChange={e => setShowCompletedOnly(e.target.checked)}
-            className="form-checkbox"
-          />
-          <span>Show only completed</span>
-        </label>
+      {/* ── Top Bar (Responsive) ── */}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  {/* Left: Title + Completed toggle */}
+  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Claims</h1>
+    <label className="inline-flex items-center gap-2 select-none">
+      <input
+        type="checkbox"
+        checked={showCompletedOnly}
+        onChange={e => setShowCompletedOnly(e.target.checked)}
+        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+      />
+      <span className="text-sm font-medium text-gray-700">
+        Show only completed
+      </span>
+    </label>
+  </div>
 
-        <div className="flex space-x-2">
-          {user?.role === 'manager' && (
-          <button
-            onClick={handleGenerateBulkPDF}
-            className="inline-flex items-center px-4 py-2 border rounded"
-          >
-            <FileText className="mr-2" /> Bulk PDF
-          </button>
-          )}
-          {user?.role === 'manager' && (
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center px-4 py-2 border rounded"
-          >
-            <Download className="mr-2" /> Export
-          </button>
-          )}
-          {can('claims', 'create') && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-primary text-white rounded"
-            >
-              <Plus className="mr-2" /> Add Claim
-            </button>
-          )}
-        </div>
+  {/* Right: Actions with icon + label (labels stay visible on mobile) */}
+  <div className="flex flex-wrap items-center gap-2">
+    {user?.role === 'manager' && (
+      <button
+        onClick={handleGenerateBulkPDF}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <FileText className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">PDF</span>
+        <span className="hidden sm:inline">&nbsp;Bulk</span>
+      </button>
+    )}
+
+    {can('claims', 'export') && (
+      <button
+        onClick={handleExport}
+        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <Download className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Export</span>
+      </button>
+    )}
+
+    {can('claims', 'create') && (
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+      >
+        <Plus className="h-5 w-5 mr-1 sm:mr-2" />
+        <span className="truncate">Add</span>
+        <span className="hidden sm:inline">&nbsp;Claim</span>
+      </button>
+    )}
+  </div>
+</div>
+
+
+      {/* ── Search + Filters (Responsive Card) ── */}
+<div className="bg-white p-4 rounded-lg shadow-sm">
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-center">
+    {/* Search spans 2 cols on sm+ */}
+    <div className="relative sm:col-span-2">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="h-5 w-5 text-gray-400" />
       </div>
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        placeholder="Search by client, phone, email, reg, TP name/reg…"
+        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+      />
+    </div>
 
-      {/* filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search…"
-            className="w-full pl-10 pr-3 py-2 border rounded"
-          />
-        </div>
-       <select
-  value={statusFilter}
-  onChange={e => setStatusFilter(e.target.value)}
-  className="border rounded px-2"
->
-  <option value="all">All Progress</option>
-  <option value="Your Claim Has Started">Your Claim Has Started</option>
-  <option value="Client Contacted for Initial Statement">Client Contacted for Initial Statement</option>
-  <option value="Accident Details Verified">Accident Details Verified</option>
-  <option value="Report to Legal Team - Pending">Report to Legal Team - Pending</option>
-  <option value="Legal Team Reviewing Claim">Legal Team Reviewing Claim</option>
-  <option value="Client Documentation - Pending Submission">Client Documentation - Pending Submission</option>
-  <option value="Additional Information - Requested from Client">Additional Information - Requested from Client</option>
-  <option value="Client Failed to Respond">Client Failed to Respond</option>
-  <option value="TPI (Third Party Insurer) - Notified and Awaiting Response">TPI (Third Party Insurer) - Notified and Awaiting Response</option>
-  <option value="TPI Acknowledged Notification">TPI Acknowledged Notification</option>
-  <option value="TPI Refuses to Deal with Claim">TPI Refuses to Deal with Claim</option>
-  <option value="TPI Accepted Liability">TPI Accepted Liability</option>
-  <option value="TPI Rejected Liability">TPI Rejected Liability</option>
-  <option value="TPI Liability - 50/50 Split Under Review">TPI Liability - 50/50 Split Under Review</option>
-  <option value="TPI Liability - 50/50 Split Agreed">TPI Liability - 50/50 Split Agreed</option>
-  <option value="TPI Liability - Partial Split Under Review">TPI Liability - Partial Split Under Review</option>
-  <option value="TPI Liability - Partial Split (Other Ratio Agreed)">TPI Liability - Partial Split (Other Ratio Agreed)</option>
-  <option value="Liability Disputed - Awaiting Evidence from Client">Liability Disputed - Awaiting Evidence from Client</option>
-  <option value="Liability Disputed - TPI Provided Counter Evidence">Liability Disputed - TPI Provided Counter Evidence</option>
-  <option value="Liability Disputed - Under Legal Review">Liability Disputed - Under Legal Review</option>
-  <option value="Liability Disputed - Witness Statement Requested">Liability Disputed - Witness Statement Requested</option>
-  <option value="Liability Disputed - Expert Report Required">Liability Disputed - Expert Report Required</option>
-  <option value="Liability Disputed - Negotiation Ongoing">Liability Disputed - Negotiation Ongoing</option>
-  <option value="Liability Disputed - No Agreement Reached">Liability Disputed - No Agreement Reached</option>
-  <option value="Liability Disputed - Referred to Court">Liability Disputed - Referred to Court</option>
-  <option value="Engineer Assigned">Engineer Assigned</option>
-  <option value="Engineer Report - Pending Completion">Engineer Report - Pending Completion</option>
-  <option value="Engineer Report - Completed">Engineer Report - Completed</option>
-  <option value="Vehicle Damage Assessment - TPI Scheduled">Vehicle Damage Assessment - TPI Scheduled</option>
-  <option value="Vehicle Inspection - Completed">Vehicle Inspection - Completed</option>
-  <option value="Repair Authorisation - Awaiting Approval">Repair Authorisation - Awaiting Approval</option>
-  <option value="Repair in Progress">Repair in Progress</option>
-  <option value="Vehicle Repair - Completed">Vehicle Repair - Completed</option>
-  <option value="Total Loss - Awaiting Valuation">Total Loss - Awaiting Valuation</option>
-  <option value="Total Loss Offer - Made">Total Loss Offer - Made</option>
-  <option value="Total Loss Offer - Accepted">Total Loss Offer - Accepted</option>
-  <option value="Total Loss Offer - Disputed">Total Loss Offer - Disputed</option>
-  <option value="Salvage Collected">Salvage Collected</option>
-  <option value="Salvage Payment Received">Salvage Payment Received</option>
-  <option value="Hire Vehicle - Arranged">Hire Vehicle - Arranged</option>
-  <option value="Hire Period - Ongoing">Hire Period - Ongoing</option>
-  <option value="Hire Vehicle - Off-Hired">Hire Vehicle - Off-Hired</option>
-  <option value="Hire Invoice - Generated">Hire Invoice - Generated</option>
-  <option value="Hire Pack - Successfully Submitted">Hire Pack - Successfully Submitted</option>
-  <option value="VD Completed Hire Pack - Awaiting Review">VD Completed Hire Pack - Awaiting Review</option>
-  <option value="TPI made VD offer - Ongoing">TPI made VD offer - Ongoing</option>
-  <option value="VD Negotiation with TPI - Ongoing">VD Negotiation with TPI - Ongoing</option>
-  <option value="VD payment Received - Prejudice basis">VD payment Received - Prejudice basis</option>
-  <option value="VD payment Received - with VAT">VD payment Received - with VAT</option>
-  <option value="VD payment Received - Without VAT">VD payment Received - Without VAT</option>
-  <option value="PI Medical Report - Requested">PI Medical Report - Requested</option>
-  <option value="PI Medical Report - Received">PI Medical Report - Received</option>
-  <option value="PI Negotiation with TPI - Ongoing">PI Negotiation with TPI - Ongoing</option>
-  <option value="Settlement Offer - Under Review">Settlement Offer - Under Review</option>
-  <option value="Client Approval - Pending for Settlement">Client Approval - Pending for Settlement</option>
-  <option value="Client Rejected Offer">Client Rejected Offer</option>
-  <option value="Settlement Agreement - Finalized">Settlement Agreement - Finalized</option>
-  <option value="Legal Notice - Issued to Third Party">Legal Notice - Issued to Third Party</option>
-  <option value="Court Proceedings - Initiated">Court Proceedings - Initiated</option>
-  <option value="Court Hearing - Awaiting Date">Court Hearing - Awaiting Date</option>
-  <option value="Court Hearing - Completed">Court Hearing - Completed</option>
-  <option value="Judgement in Favour">Judgement in Favour</option>
-  <option value="Judgement Against">Judgement Against</option>
-  <option value="Claim - Referred to MIB (Motor Insurers' Bureau)">Claim - Referred to MIB (Motor Insurers' Bureau)</option>
-  <option value="MIB Claim - Initial Review in Progress">MIB Claim - Initial Review in Progress</option>
-  <option value="MIB Claim - Under Review/In Progress">MIB Claim - Under Review/In Progress</option>
-  <option value="Awaiting MIB Response/Decision">Awaiting MIB Response/Decision</option>
-  <option value="MIB - Completed (Outcome Received)">MIB - Completed (Outcome Received)</option>
-  <option value="Payment Processing - Initiated">Payment Processing - Initiated</option>
-  <option value="Final Payment - Received and Confirmed">Final Payment - Received and Confirmed</option>
-  <option value="Client Payment Disbursed">Client Payment Disbursed</option>
-  <option value="Claim Withdrawn by Client">Claim Withdrawn by Client</option>
-  <option value="Claim Rejected - Insufficient Evidence">Claim Rejected - Insufficient Evidence</option>
-  <option value="Claim Suspended - Pending Client Action">Claim Suspended - Pending Client Action</option>
-  <option value="Claim Completed - Record Archived">Claim Completed - Record Archived</option>
-</select>
+    {/* Progress (Status) */}
+    <div className="flex sm:justify-end">
+      <select
+        value={statusFilter}
+        onChange={e => setStatusFilter(e.target.value)}
+        className="block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+      >
+        <option value="all">All Progress</option>
+        <option value="Your Claim Has Started">Your Claim Has Started</option>
+        <option value="Client Contacted for Initial Statement">Client Contacted for Initial Statement</option>
+        <option value="Accident Details Verified">Accident Details Verified</option>
+        <option value="Report to Legal Team - Pending">Report to Legal Team - Pending</option>
+        <option value="Legal Team Reviewing Claim">Legal Team Reviewing Claim</option>
+        <option value="Client Documentation - Pending Submission">Client Documentation - Pending Submission</option>
+        <option value="Additional Information - Requested from Client">Additional Information - Requested from Client</option>
+        <option value="Client Failed to Respond">Client Failed to Respond</option>
+        <option value="TPI (Third Party Insurer) - Notified and Awaiting Response">TPI (Third Party Insurer) - Notified and Awaiting Response</option>
+        <option value="TPI Acknowledged Notification">TPI Acknowledged Notification</option>
+        <option value="TPI Refuses to Deal with Claim">TPI Refuses to Deal with Claim</option>
+        <option value="TPI Accepted Liability">TPI Accepted Liability</option>
+        <option value="TPI Rejected Liability">TPI Rejected Liability</option>
+        <option value="TPI Liability - 50/50 Split Under Review">TPI Liability - 50/50 Split Under Review</option>
+        <option value="TPI Liability - 50/50 Split Agreed">TPI Liability - 50/50 Split Agreed</option>
+        <option value="TPI Liability - Partial Split Under Review">TPI Liability - Partial Split Under Review</option>
+        <option value="TPI Liability - Partial Split (Other Ratio Agreed)">TPI Liability - Partial Split (Other Ratio Agreed)</option>
+        <option value="Liability Disputed - Awaiting Evidence from Client">Liability Disputed - Awaiting Evidence from Client</option>
+        <option value="Liability Disputed - TPI Provided Counter Evidence">Liability Disputed - TPI Provided Counter Evidence</option>
+        <option value="Liability Disputed - Under Legal Review">Liability Disputed - Under Legal Review</option>
+        <option value="Liability Disputed - Witness Statement Requested">Liability Disputed - Witness Statement Requested</option>
+        <option value="Liability Disputed - Expert Report Required">Liability Disputed - Expert Report Required</option>
+        <option value="Liability Disputed - Negotiation Ongoing">Liability Disputed - Negotiation Ongoing</option>
+        <option value="Liability Disputed - No Agreement Reached">Liability Disputed - No Agreement Reached</option>
+        <option value="Liability Disputed - Referred to Court">Liability Disputed - Referred to Court</option>
+        <option value="Engineer Assigned">Engineer Assigned</option>
+        <option value="Engineer Report - Pending Completion">Engineer Report - Pending Completion</option>
+        <option value="Engineer Report - Completed">Engineer Report - Completed</option>
+        <option value="Vehicle Damage Assessment - TPI Scheduled">Vehicle Damage Assessment - TPI Scheduled</option>
+        <option value="Vehicle Inspection - Completed">Vehicle Inspection - Completed</option>
+        <option value="Repair Authorisation - Awaiting Approval">Repair Authorisation - Awaiting Approval</option>
+        <option value="Repair in Progress">Repair in Progress</option>
+        <option value="Vehicle Repair - Completed">Vehicle Repair - Completed</option>
+        <option value="Total Loss - Awaiting Valuation">Total Loss - Awaiting Valuation</option>
+        <option value="Total Loss Offer - Made">Total Loss Offer - Made</option>
+        <option value="Total Loss Offer - Accepted">Total Loss Offer - Accepted</option>
+        <option value="Total Loss Offer - Disputed">Total Loss Offer - Disputed</option>
+        <option value="Salvage Collected">Salvage Collected</option>
+        <option value="Salvage Payment Received">Salvage Payment Received</option>
+        <option value="Hire Vehicle - Arranged">Hire Vehicle - Arranged</option>
+        <option value="Hire Period - Ongoing">Hire Period - Ongoing</option>
+        <option value="Hire Vehicle - Off-Hired">Hire Vehicle - Off-Hired</option>
+        <option value="Hire Invoice - Generated">Hire Invoice - Generated</option>
+        <option value="Hire Pack - Successfully Submitted">Hire Pack - Successfully Submitted</option>
+        <option value="VD Completed Hire Pack - Awaiting Review">VD Completed Hire Pack - Awaiting Review</option>
+        <option value="TPI made VD offer - Ongoing">TPI made VD offer - Ongoing</option>
+        <option value="VD Negotiation with TPI - Ongoing">VD Negotiation with TPI - Ongoing</option>
+        <option value="VD payment Received - Prejudice basis">VD payment Received - Prejudice basis</option>
+        <option value="VD payment Received - with VAT">VD payment Received - with VAT</option>
+        <option value="VD payment Received - Without VAT">VD payment Received - Without VAT</option>
+        <option value="PI Medical Report - Requested">PI Medical Report - Requested</option>
+        <option value="PI Medical Report - Received">PI Medical Report - Received</option>
+        <option value="PI Negotiation with TPI - Ongoing">PI Negotiation with TPI - Ongoing</option>
+        <option value="Settlement Offer - Under Review">Settlement Offer - Under Review</option>
+        <option value="Client Approval - Pending for Settlement">Client Approval - Pending for Settlement</option>
+        <option value="Client Rejected Offer">Client Rejected Offer</option>
+        <option value="Settlement Agreement - Finalized">Settlement Agreement - Finalized</option>
+        <option value="Legal Notice - Issued to Third Party">Legal Notice - Issued to Third Party</option>
+        <option value="Court Proceedings - Initiated">Court Proceedings - Initiated</option>
+        <option value="Court Hearing - Awaiting Date">Court Hearing - Awaiting Date</option>
+        <option value="Court Hearing - Completed">Court Hearing - Completed</option>
+        <option value="Judgement in Favour">Judgement in Favour</option>
+        <option value="Judgement Against">Judgement Against</option>
+        <option value="Claim - Referred to MIB (Motor Insurers' Bureau)">Claim - Referred to MIB (Motor Insurers' Bureau)</option>
+        <option value="MIB Claim - Initial Review in Progress">MIB Claim - Initial Review in Progress</option>
+        <option value="MIB Claim - Under Review/In Progress">MIB Claim - Under Review/In Progress</option>
+        <option value="Awaiting MIB Response/Decision">Awaiting MIB Response/Decision</option>
+        <option value="MIB - Completed (Outcome Received)">MIB - Completed (Outcome Received)</option>
+        <option value="Payment Processing - Initiated">Payment Processing - Initiated</option>
+        <option value="Final Payment - Received and Confirmed">Final Payment - Received and Confirmed</option>
+        <option value="Client Payment Disbursed">Client Payment Disbursed</option>
+        <option value="Claim Withdrawn by Client">Claim Withdrawn by Client</option>
+        <option value="Claim Rejected - Insufficient Evidence">Claim Rejected - Insufficient Evidence</option>
+        <option value="Claim Suspended - Pending Client Action">Claim Suspended - Pending Client Action</option>
+        <option value="Claim Completed - Record Archived">Claim Completed - Record Archived</option>
+      </select>
+    </div>
+  </div>
 
-        <select
-          value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
-          className="border rounded px-2"
-        >
-          <option value="all">All Types</option>
-          <option value="Domestic">Domestic</option>
-          <option value="Taxi">Taxi</option>
-          <option value="PI">PI</option>
-          <option value="PCO">PCO</option>
-        </select>
-        <select
-          value={submitterFilter}
-          onChange={e => setSubmitterFilter(e.target.value)}
-          className="border rounded px-2"
-        >
-          <option value="all">All Submitters</option>
-          <option value="company">Company</option>
-          <option value="client">Client</option>
-        </select>
-      </div>
+  {/* Second row: Type + Submitter (responsive stacking) */}
+  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+    <select
+      value={typeFilter}
+      onChange={e => setTypeFilter(e.target.value)}
+      className="form-select w-full"
+    >
+      <option value="all">All Types</option>
+      <option value="Domestic">Domestic</option>
+      <option value="Taxi">Taxi</option>
+      <option value="PI">PI</option>
+      <option value="PCO">PCO</option>
+    </select>
+
+    <select
+      value={submitterFilter}
+      onChange={e => setSubmitterFilter(e.target.value)}
+      className="form-select w-full"
+    >
+      <option value="all">All Submitters</option>
+      <option value="company">Company</option>
+      <option value="client">Client</option>
+    </select>
+  </div>
+</div>
+
 
       {/* table */}
       <ClaimTable

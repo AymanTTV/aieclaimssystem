@@ -2,10 +2,10 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { Eye, Edit, Trash2, FileText, DollarSign } from 'lucide-react';
+import { Eye, Edit as EditIcon, Trash2, FileText, DollarSign } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
+import { format, differenceInCalendarDays } from 'date-fns'; // 👈 ADD differenceInCalendarDays
 import { usePermissions } from '../../hooks/usePermissions';
-import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 interface MaintenanceTableProps {
@@ -58,7 +58,37 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
     {
       header: 'Date',
-      cell: ({ row }) => format(row.original.date, 'dd/MM/yyyy'),
+      cell: ({ row }) => {
+        const d = row.original.date;
+        const isScheduled = row.original.status === 'scheduled';
+        const days = differenceInCalendarDays(d, new Date());
+
+        let badge: React.ReactNode = null;
+        if (isScheduled) {
+          if (days < 0 || days === 0) {
+            // Overdue or Today => red
+            badge = (
+              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
+                {days < 0 ? `${Math.abs(days)}d overdue` : 'Today'}
+              </span>
+            );
+          } else if (days === 1 || days === 2) {
+            // Near ones => yellow
+            badge = (
+              <span className="ml-2 inline-flex items-center rounded-full bg-yellow-100 text-yellow-800 px-2 py-0.5 text-xs">
+                {days === 1 ? 'Tomorrow' : 'In 2 days'}
+              </span>
+            );
+          }
+        }
+
+        return (
+          <div className="flex items-center">
+            <span>{format(d, 'dd/MM/yyyy')}</span>
+            {badge}
+          </div>
+        );
+      },
     },
     {
       header: 'Status',
@@ -81,46 +111,46 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     {
       header: 'Cost',
       cell: ({ row }) => {
-  const {
-    netAmount,
-    vatAmount,
-    totalDiscount = 0,
-    cost,
-    paidAmount = 0,
-    remainingAmount,
-  } = row.original;
+        const {
+          netAmount,
+          vatAmount,
+          totalDiscount = 0,
+          cost,
+          paidAmount = 0,
+          remainingAmount,
+        } = row.original;
 
-  return (
-    <div className="space-y-1 text-sm">
-      <div className="flex justify-between">
-        <span>NET:</span>
-        <span>{formatCurrency(netAmount!)}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>VAT:</span>
-        <span>{formatCurrency(vatAmount!)}</span>
-      </div>
-      {totalDiscount > 0 && (
-        <div className="flex justify-between text-red-600">
-          <span>Discount:</span>
-          <span>–{formatCurrency(totalDiscount)}</span>
-        </div>
-      )}
-      <div className="flex justify-between font-medium">
-        <span>Total:</span>
-        <span>{formatCurrency(cost)}</span>
-      </div>
-      <div className="flex justify-between text-green-600">
-        <span>Paid:</span>
-        <span>{formatCurrency(paidAmount)}</span>
-      </div>
-      <div className="flex justify-between text-amber-600">
-        <span>Owing:</span>
-        <span>{formatCurrency(remainingAmount)}</span>
-      </div>
-    </div>
-  );
-},
+        return (
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span>NET:</span>
+              <span>{formatCurrency(netAmount!)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>VAT:</span>
+              <span>{formatCurrency(vatAmount!)}</span>
+            </div>
+            {totalDiscount > 0 && (
+              <div className="flex justify-between text-red-600">
+                <span>Discount:</span>
+                <span>–{formatCurrency(totalDiscount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-medium">
+              <span>Total:</span>
+              <span>{formatCurrency(cost)}</span>
+            </div>
+            <div className="flex justify-between text-green-600">
+              <span>Paid:</span>
+              <span>{formatCurrency(paidAmount)}</span>
+            </div>
+            <div className="flex justify-between text-amber-600">
+              <span>Owing:</span>
+              <span>{formatCurrency(remainingAmount)}</span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: 'Actions',
@@ -147,7 +177,6 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               <DollarSign className="h-4 w-4" />
             </button>
           )}
-
           {can('maintenance', 'update') && (
             <button
               onClick={e => {
@@ -157,7 +186,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               className="text-blue-600 hover:text-blue-800"
               title="Edit"
             >
-              <Edit className="h-4 w-4" />
+              <EditIcon className="h-4 w-4" />
             </button>
           )}
           {can('maintenance', 'delete') && (

@@ -5,13 +5,32 @@ import {
   Link,
   useNavigate,
   useLocation,
-  Navigate
 } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+
+const mapError = (code: string) => {
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'The email address is not valid.';
+    case 'auth/user-disabled':
+      return 'This user account has been disabled.';
+    case 'auth/user-not-found':
+      return 'No account found with that email.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Incorrect email or password.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please try again later.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    default:
+      return 'Could not sign you in. Please try again.';
+  }
+};
 
 const MemberLogin: React.FC = () => {
   const { user: authUser } = useAuth();
@@ -35,24 +54,29 @@ const MemberLogin: React.FC = () => {
             navigate('/', { replace: true });
           }
         } else {
-          auth.signOut();
+          // No user profile, sign out to show login screen
+          await auth.signOut();
         }
       } catch {
-        auth.signOut();
+        await auth.signOut();
       }
     })();
   }, [authUser, navigate]);
 
-  // While we’re redirecting, don’t show the login form
+  // While we’re redirecting, don’t show the login form (keep UI minimal)
   if (authUser) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full text-center text-gray-600">Redirecting…</div>
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       // Fetch their role
       const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
       if (userDoc.exists()) {
@@ -65,10 +89,11 @@ const MemberLogin: React.FC = () => {
         }
       } else {
         toast.error('No user profile found.');
-        auth.signOut();
+        await auth.signOut();
       }
     } catch (err: any) {
-      toast.error(err.message || 'Login failed');
+      const msg = mapError(err?.code || '');
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -151,6 +176,12 @@ const MemberLogin: React.FC = () => {
             Admin Portal
           </Link>
         </div>
+
+        <p className="mt-3 text-sm text-right">
+          <Link to="/members/forgot-password" className="text-blue-600 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
       </div>
     </div>
   );

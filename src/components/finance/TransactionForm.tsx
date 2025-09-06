@@ -14,6 +14,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 /** ────── UPDATE ────── **/
 import financeCategoryService from '../../services/financeCategory.service';
+import financeGroupService from '../../services/financeGroup.service';
 /** ───────────────────── **/
 
 interface TransactionFormProps {
@@ -39,7 +40,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
 
-  // ── New: Load financeCategories from Firestore ──
+  // ── Load finance categories ──
   const [financeCategories, setFinanceCategories] = useState<string[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
 
@@ -62,6 +63,29 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  // ── Load finance groups (for assigning during create/edit) ──
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setGroupsLoading(true);
+    financeGroupService
+      .getAll()
+      .then((docs) => {
+        if (!alive) return;
+        setGroups(docs.map(g => ({ id: g.id, name: g.name })));
+      })
+      .catch((err) => {
+        console.error('Error loading groups:', err);
+        toast.error('Could not load groups');
+      })
+      .finally(() => {
+        if (alive) setGroupsLoading(false);
+      });
+    return () => { alive = false; };
   }, []);
 
   // ── Original “editing” state logic ──
@@ -89,6 +113,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     customerName: transaction?.customerName || '',
     vehicleId: transaction?.vehicleId || '',
     vehicleName: transaction?.vehicleName || '',
+    /** NEW **/
+    groupId: (transaction as any)?.groupId || '',
   });
 
   useEffect(() => {
@@ -146,6 +172,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})`
             : null,
           vehicleOwner: vehicleOwner,
+          /** NEW: persist group assignment **/
+          groupId: formData.groupId || null,
           createdAt:
             originalCreatedAt instanceof Timestamp
               ? originalCreatedAt
@@ -181,6 +209,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})`
             : null,
           vehicleOwner: vehicleOwner,
+          /** NEW: persist group assignment **/
+          groupId: formData.groupId || null,
           createdAt: new Date(),
           createdBy: user.name || user.email || '',
         };
@@ -192,7 +222,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      toast.error(`Failed to ${transaction ? 'update' : 'add'} transaction. ${error instanceof Error ? error.message : ''}`);
+      toast.error(
+        `Failed to ${transaction ? 'update' : 'add'} transaction. ${
+          error instanceof Error ? error.message : ''
+        }`
+      );
     } finally {
       setLoading(false);
     }
@@ -222,7 +256,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         placeholder="Enter positive amount"
       />
 
-      {/* ── Category (DYNAMIC from financeCategories) ── */}
+      {/* Category (dynamic) */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">Category</label>
         {catsLoading ? (
@@ -241,6 +275,22 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         )}
       </div>
 
+      {/* Group (NEW) */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">Group (Optional)</label>
+        {groupsLoading ? (
+          <div className="text-gray-500 text-sm">Loading…</div>
+        ) : (
+          <SearchableSelect
+            options={groups.map((g) => ({ id: g.id, label: g.name }))}
+            value={formData.groupId}
+            onChange={(id) => setFormData({ ...formData, groupId: id })}
+            isClearable
+            placeholder="Select a group…"
+          />
+        )}
+      </div>
+
       {/* Vehicle Selection */}
       <SearchableSelect
         label="Related Vehicle (Optional)"
@@ -255,7 +305,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           setFormData({
             ...formData,
             vehicleId: id || '',
-            vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : '',
+            vehicleName: vehicle
+              ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
+              : '',
           });
         }}
         placeholder="Search vehicles..."
