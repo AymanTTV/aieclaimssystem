@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePettyCash } from '../hooks/usePettyCash';
 import { usePettyCashFilters } from '../hooks/usePettyCashFilters';
 import PettyCashHeader from '../components/pettyCash/PettyCashHeader';
@@ -16,6 +16,8 @@ import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { PettyCashDocument } from '../components/pdf/documents';
 import { useAuth } from '../context/AuthContext';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
+import ManagePettyCashCategoriesModal from '../components/pettyCash/ManagePettyCashCategoriesModal';
+import ManagePettyCashGroupsModal from '../components/pettyCash/ManagePettyCashGroupsModal';
 
 const PettyCash = () => {
   const { transactions, loading } = usePettyCash();
@@ -35,13 +37,28 @@ const PettyCash = () => {
     filteredTransactions,
   } = usePettyCashFilters(transactions);
 
+  // NEW: local category/group filters (so we don't touch your hook)
+  const [categoryIdFilter, setCategoryIdFilter] = useState<string>('all');
+  const [groupIdFilter, setGroupIdFilter] = useState<string>('all');
+
+  const listToShow = useMemo(() => {
+    return filteredTransactions.filter(t => {
+      const catOk = categoryIdFilter === 'all' ? true : (t as any).categoryId === categoryIdFilter;
+      const grpOk = groupIdFilter === 'all' ? true : (t as any).groupId === groupIdFilter;
+      return catOk && grpOk;
+    });
+  }, [filteredTransactions, categoryIdFilter, groupIdFilter]);
+
   const [showForm, setShowForm] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PettyCashTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<PettyCashTransaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
 
-  const totalIn = filteredTransactions.reduce((sum, t) => sum + Number(t.amountIn || 0), 0);
-  const totalOut = filteredTransactions.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
+  const [showManageCategories, setShowManageCategories] = useState(false);
+  const [showManageGroups, setShowManageGroups] = useState(false);
+
+  const totalIn = listToShow.reduce((sum, t) => sum + Number(t.amountIn || 0), 0);
+  const totalOut = listToShow.reduce((sum, t) => sum + Number(t.amountOut || 0), 0);
   const netIncome = totalIn - totalOut;
   const profitMargin = totalIn > 0 ? (netIncome / totalIn) * 100 : 0;
 
@@ -82,55 +99,74 @@ const PettyCash = () => {
     <div className="space-y-6">
 
       {can('pettyCash', 'cards') && (
-  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total In</h3>
-      <p className="mt-2 text-lg sm:text-3xl font-semibold text-green-600">
-        {formatCurrency(totalIn)}
-      </p>
-    </div>
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total Out</h3>
-      <p className="mt-2 text-lg sm:text-3xl font-semibold text-red-600">
-        {formatCurrency(totalOut)}
-      </p>
-    </div>
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Balance</h3>
-      <p className="mt-2 text-lg sm:text-3xl font-semibold text-blue-600">
-        {formatCurrency(netIncome)}
-      </p>
-    </div>
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-      <h3 className="text-xs sm:text-sm font-medium text-gray-500">Profit Margin</h3>
-      <p className="mt-2 text-lg sm:text-3xl font-semibold text-purple-600">
-        {profitMargin.toFixed(1)}%
-      </p>
-    </div>
-  </div>
-)}
-
+        <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total In</h3>
+            <p className="mt-2 text-lg sm:text-3xl font-semibold text-green-600">
+              {formatCurrency(totalIn)}
+            </p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total Out</h3>
+            <p className="mt-2 text-lg sm:text-3xl font-semibold text-red-600">
+              {formatCurrency(totalOut)}
+            </p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Balance</h3>
+            <p className="mt-2 text-lg sm:text-3xl font-semibold text-blue-600">
+              {formatCurrency(netIncome)}
+            </p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Profit Margin</h3>
+            <p className="mt-2 text-lg sm:text-3xl font-semibold text-purple-600">
+              {profitMargin.toFixed(1)}%
+            </p>
+          </div>
+        </div>
+      )}
 
       <PettyCashHeader
-  title="Petty Cash"
-  onSearch={setSearchQuery}
-  onAdd={() => setShowForm(true)}
-  transactions={filteredTransactions}
-/>
+        moduleKey="pettyCash"
+        title="Petty Cash"
+        onSearch={setSearchQuery}
+        onAdd={() => setShowForm(true)}
+        transactions={listToShow}
+      />
 
-
+      <div className="flex flex-wrap gap-2 justify-end">
+        <button
+          onClick={() => setShowManageCategories(true)}
+          className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
+        >
+          Manage Categories
+        </button>
+        <button
+          onClick={() => setShowManageGroups(true)}
+          className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
+        >
+          Manage Groups
+        </button>
+      </div>
 
       <PettyCashFilters
+        moduleKey="pettyCash"
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         amountRange={amountRange}
         onAmountRangeChange={setAmountRange}
+        categoryIdFilter={categoryIdFilter}
+        onCategoryIdFilterChange={setCategoryIdFilter}
+        groupIdFilter={groupIdFilter}
+        onGroupIdFilterChange={setGroupIdFilter}
       />
 
       <PettyCashTable
-        transactions={filteredTransactions}
+        moduleKey="pettyCash"
+        transactions={listToShow}
         onView={setSelectedTransaction}
         onEdit={setEditingTransaction}
         onDelete={setDeletingTransaction}
@@ -140,7 +176,7 @@ const PettyCash = () => {
 
       {can('pettyCash', 'create') && (
         <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="New Transaction" size="xl">
-          <PettyCashForm onClose={() => setShowForm(false)} />
+          <PettyCashForm onClose={() => setShowForm(false)} collectionName="pettyCash" />
         </Modal>
       )}
 
@@ -150,7 +186,11 @@ const PettyCash = () => {
 
       <Modal isOpen={!!editingTransaction} onClose={() => setEditingTransaction(null)} title="Edit Transaction" size="xl">
         {editingTransaction && (
-          <PettyCashForm transaction={editingTransaction} onClose={() => setEditingTransaction(null)} />
+          <PettyCashForm
+            transaction={editingTransaction}
+            onClose={() => setEditingTransaction(null)}
+            collectionName="pettyCash"
+          />
         )}
       </Modal>
 
@@ -173,6 +213,17 @@ const PettyCash = () => {
           </div>
         </div>
       </Modal>
+
+      <ManagePettyCashCategoriesModal
+        isOpen={showManageCategories}
+        onClose={() => setShowManageCategories(false)}
+        moduleKey="pettyCash"
+      />
+      <ManagePettyCashGroupsModal
+        isOpen={showManageGroups}
+        onClose={() => setShowManageGroups(false)}
+        moduleKey="pettyCash"
+      />
     </div>
   );
 };

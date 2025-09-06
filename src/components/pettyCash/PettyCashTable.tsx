@@ -5,8 +5,10 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { DataTable } from '../DataTable/DataTable';
+import type { RolePermissions } from '../../types/roles';
 
 interface PettyCashTableProps {
+  moduleKey?: keyof RolePermissions;
   transactions: PettyCashTransaction[];
   onView: (transaction: PettyCashTransaction) => void;
   onEdit: (transaction: PettyCashTransaction) => void;
@@ -17,6 +19,7 @@ interface PettyCashTableProps {
 }
 
 const PettyCashTable: React.FC<PettyCashTableProps> = ({
+  moduleKey = 'pettyCash',
   transactions,
   onView,
   onEdit,
@@ -48,19 +51,27 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
       ),
     },
     {
-  header: 'Description',
-  cell: ({ row }) => (
-    <div className="max-w-xs whitespace-normal break-words">
-      <div className="text-sm text-gray-800 break-words">
-        {row.original.description}
-      </div>
-      {row.original.note && (
-        <div className="text-xs text-gray-500 break-words">{row.original.note}</div>
-      )}
-    </div>
-  ),
-},
-
+      header: 'Description',
+      cell: ({ row }) => (
+        <div className="max-w-xs whitespace-normal break-words">
+          <div className="text-sm text-gray-800 break-words">
+            {row.original.description}
+          </div>
+          {row.original.note && (
+            <div className="text-xs text-gray-500 break-words">{row.original.note}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Category / Group',
+      cell: ({ row }) => (
+        <div className="text-sm">
+          <div className="font-medium">{(row.original as any).categoryName || '-'}</div>
+          <div className="text-gray-500">{(row.original as any).groupName || '-'}</div>
+        </div>
+      ),
+    },
     {
       header: 'In',
       cell: ({ row }) => {
@@ -103,12 +114,12 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          {can('pettyCash', 'view') && (
+          {can(moduleKey, 'view') && (
             <button onClick={(e) => { e.stopPropagation(); onView(row.original); }} title="View">
               <Eye className="h-4 w-4 text-blue-600 hover:text-blue-800" />
             </button>
           )}
-          {can('pettyCash', 'update') && (
+          {can(moduleKey, 'update') && (
             <>
               <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} title="Edit">
                 <Edit className="h-4 w-4 text-blue-600 hover:text-blue-800" />
@@ -118,7 +129,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
               </button>
             </>
           )}
-          {can('pettyCash', 'delete') && (
+          {can(moduleKey, 'delete') && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} title="Delete">
               <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
             </button>
@@ -137,7 +148,7 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     <DataTable
       data={transactionsWithBalance}
       columns={columns}
-      onRowClick={(transaction) => can('pettyCash', 'view') && onView(transaction)}
+      onRowClick={(transaction) => can(moduleKey, 'view') && onView(transaction)}
     />
   );
 };

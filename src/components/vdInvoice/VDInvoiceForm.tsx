@@ -78,6 +78,9 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
     // Paint/Materials
     paintMaterials: invoice?.paintMaterials || 0,
 
+    // Notes
+    notes: invoice?.notes || '',
+
     // Payment
     paymentMethod: invoice?.paymentMethod || 'CASH' as const,
     paidAmount: invoice?.paidAmount || 0,
@@ -201,6 +204,7 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
         })),
         paintMaterials: formData.paintMaterials,
         paintMaterialsVAT: includeVATOnPaintMaterials,
+        notes: formData.notes,
         partsTotal,
         laborCost,
         vatAmount,
@@ -612,6 +616,18 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
             <span className="text-sm text-gray-600">Include VAT on Paint/Materials</span>
           </label>
         </div>
+      </div>
+
+      {/* Notes */}
+      <div className="space-y-2">
+          <FormField
+            type="textarea"
+            label="Notes"
+            value={formData.notes}
+            onChange={e => setFormData({ ...formData, notes: e.target.value })}
+            placeholder="Add any relevant notes for this invoice..."
+            rows={3}
+          />
       </div>
 
       {/* Payment Details */}

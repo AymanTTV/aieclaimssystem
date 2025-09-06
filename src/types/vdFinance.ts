@@ -25,6 +25,10 @@ export interface VDFinanceRecord {
   salvage: number; // New field
   clientReferralFee: number; // New field
   clientRepairAmount: number; // New field
+  categoryId?: string;
+categoryName?: string;
+groupId?: string;
+groupName?: string;
   claimReasons?: Array<'VD' | 'H' | 'S' | 'PI'>;
   originalProfit?: number;
   vatDetails: {

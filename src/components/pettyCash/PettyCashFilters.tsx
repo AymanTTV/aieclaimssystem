@@ -1,32 +1,44 @@
 import React from 'react';
+import { usePettyCashCategories } from '../../hooks/usePettyCashCategories';
+import { usePettyCashGroups } from '../../hooks/usePettyCashGroups';
 
 interface PettyCashFiltersProps {
+  moduleKey?: 'pettyCash' | 'aiePettyCash';
   dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
   amountRange: { min: number | null; max: number | null };
   onAmountRangeChange: (range: { min: number | null; max: number | null }) => void;
+  categoryIdFilter: string;
+  onCategoryIdFilterChange: (id: string) => void;
+  groupIdFilter: string;
+  onGroupIdFilterChange: (id: string) => void;
 }
 
 const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
+  moduleKey = 'pettyCash',
   dateRange,
   onDateRangeChange,
   statusFilter,
   onStatusFilterChange,
   amountRange,
   onAmountRangeChange,
+  categoryIdFilter,
+  onCategoryIdFilterChange,
+  groupIdFilter,
+  onGroupIdFilterChange,
 }) => {
   const startStr = dateRange.start ? dateRange.start.toISOString().split('T')[0] : '';
   const endStr   = dateRange.end ? dateRange.end.toISOString().split('T')[0] : '';
   const minStr   = amountRange.min ?? '';
   const maxStr   = amountRange.max ?? '';
+  const { categories } = usePettyCashCategories(moduleKey);
+  const { groups } = usePettyCashGroups(moduleKey);
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
-      {/* Dates + Status */}
-      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* From */}
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input
@@ -43,7 +55,6 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
           />
         </div>
 
-        {/* To */}
         <div>
           <label className="block text-sm font-medium text-gray-700">To</label>
           <input
@@ -60,7 +71,6 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
           />
         </div>
 
-        {/* Status */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Status</label>
           <select
@@ -75,7 +85,6 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
           </select>
         </div>
 
-        {/* Amount Min */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Min Amount</label>
           <input
@@ -93,9 +102,32 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
             className="form-input mt-1 w-full"
           />
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={categoryIdFilter}
+            onChange={(e) => onCategoryIdFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+          >
+            <option value="all">All</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Group</label>
+          <select
+            value={groupIdFilter}
+            onChange={(e) => onGroupIdFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+          >
+            <option value="all">All</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
       </div>
 
-      {/* Amount Max — full width on mobile, pairs with Min on ≥380px */}
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
         <div className="min-[380px]:col-start-2">
           <label className="block text-sm font-medium text-gray-700">Max Amount</label>

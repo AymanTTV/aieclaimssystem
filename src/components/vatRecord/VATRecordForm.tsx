@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import productService from '../../services/product.service'; // Import product service
 import { useVATCategories } from '../../hooks/useVATCategories';
-
+import { useVATGroups } from '../../hooks/useVATGroups'; // NEW
 
 interface VATRecordFormProps {
   record?: VATRecord;
@@ -43,7 +43,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
   );
 
   const { categories } = useVATCategories();
-
+  const { groups } = useVATGroups(); // NEW
 
   const { formatCurrency } = useFormattedDisplay();
   const [vatRecievedDisplay, setVatRecievedDisplay] = useState<number | undefined>(record?.vatReceived);
@@ -84,7 +84,11 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     customerName: record?.customerName || '',
     customerId: record?.customerId || '',
     categoryId: record?.categoryId || '',
-  categoryName: record?.categoryName || '',
+    categoryName: record?.categoryName || '',
+    // NEW:
+    groupId: record?.groupId || '',
+    groupName: record?.groupName || '',
+
     vatNo: record?.vatNo || '',
     status: record?.status || 'awaiting',
     notes: record?.notes || '',
@@ -141,13 +145,21 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
 
     try {
       const totals = calculateTotals();
-      const vatRecord = {
+      const vatRecord: VATRecord = {
+        // include ID if editing
+        ...(record || {} as VATRecord),
         ...formData,
         descriptions,
         ...totals,
         date: new Date(formData.date),
         updatedAt: new Date(),
         vatReceived: formData.vatReceived,
+
+        // ensure these are present
+        categoryId: formData.categoryId || '',
+        categoryName: formData.categoryName || '',
+        groupId: formData.groupId || '',
+        groupName: formData.groupName || '',
       };
 
       if (record) {
@@ -186,21 +198,40 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
           onChange={(e) => setFormData({ ...formData, accountant: e.target.value })}
           required
         />
+
+        {/* Category */}
         <div>
-  <label className="block text-sm font-medium text-gray-700">Category</label>
-  <select
-    value={formData.categoryId}
-    onChange={(e) => {
-      const id = e.target.value;
-      const name = categories.find(c => c.id === id)?.name || '';
-      setFormData({ ...formData, categoryId: id, categoryName: name });
-    }}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-  >
-    <option value="">Select category</option>
-    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-  </select>
-</div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={formData.categoryId}
+            onChange={(e) => {
+              const id = e.target.value;
+              const name = categories.find(c => c.id === id)?.name || '';
+              setFormData({ ...formData, categoryId: id, categoryName: name });
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {/* Group (NEW) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Group</label>
+          <select
+            value={formData.groupId}
+            onChange={(e) => {
+              const id = e.target.value;
+              const name = groups.find(g => g.id === id)?.name || '';
+              setFormData({ ...formData, groupId: id, groupName: name });
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select group</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
 
         <FormField
           label="VAT No"
@@ -223,7 +254,6 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         />
       </div>
 
-
       {/* Descriptions Section */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -240,7 +270,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         {descriptions.map((desc, index) => (
           <div key={desc.id} className="bg-gray-50 p-4 rounded-lg space-y-4 border rounded">
             <div className="grid grid-cols-3 gap-4">
-              {/* === MODIFIED DESCRIPTION FIELD === */}
+              {/* Description with product suggestions */}
               <div className="relative col-span-1">
                 <FormField
                   label="Description"
@@ -290,6 +320,7 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
                   ) : null;
                 })()}
               </div>
+
               <FormField
                 type="number"
                 label="NET"

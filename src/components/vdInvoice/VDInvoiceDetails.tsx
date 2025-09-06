@@ -135,6 +135,16 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
         </div>
       </div>
 
+      {/* Notes */}
+      {invoice.notes && (
+        <div>
+          <h3 className="text-lg font-medium mb-2">Notes</h3>
+          <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md whitespace-pre-wrap">
+            {invoice.notes}
+          </p>
+        </div>
+      )}
+
       {/* Payment History */}
       {payments.length > 0 && (
         <div>

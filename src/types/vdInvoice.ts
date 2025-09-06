@@ -62,6 +62,9 @@ export interface VDInvoice {
   paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE';
   payments: VDInvoicePayment[];
   
+  // Add notes field
+  notes?: string;
+
   // System fields
   createdAt: Date;
   updatedAt: Date;

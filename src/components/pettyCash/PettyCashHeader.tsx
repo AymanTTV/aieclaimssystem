@@ -3,12 +3,12 @@ import { Plus, Download, Search } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
 import { PettyCashTransaction } from '../../types/pettyCash';
-import { exportToExcel } from '../../utils/excel';
-import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
-
+import toast from 'react-hot-toast';
+import type { RolePermissions } from '../../types/roles';
 
 interface PettyCashHeaderProps {
+  moduleKey?: keyof RolePermissions;         // NEW: which permission module to check
   title?: string;
   onSearch: (query: string) => void;
   onAdd: () => void;
@@ -16,6 +16,7 @@ interface PettyCashHeaderProps {
 }
 
 const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
+  moduleKey = 'pettyCash',                    // NEW: default stays pettyCash
   title = 'Petty Cash',
   onSearch,
   onAdd,
@@ -25,48 +26,47 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
   const { user } = useAuth();
 
   const handleExport = () => {
-  try {
-    let runningBalance = 0;
+    try {
+      let runningBalance = 0;
 
-    const rows = transactions.map((t) => {
-      const amountIn = Number(t.amountIn || 0);
-      const amountOut = Number(t.amountOut || 0);
-      runningBalance += amountIn - amountOut;
+      const rows = transactions.map((t) => {
+        const amountIn = Number(t.amountIn || 0);
+        const amountOut = Number(t.amountOut || 0);
+        runningBalance += amountIn - amountOut;
 
-      return {
-        'Date & Time': t.date ? new Date(t.date).toLocaleString() : '',
-        Name: t.name,
-        Telephone: t.telephone,
-        Description: t.description,
-        Note: t.note || '',
-        In: amountIn > 0 ? amountIn.toFixed(2) : '',
-        Out: amountOut > 0 ? amountOut.toFixed(2) : '',
-        Balance: runningBalance.toFixed(2),
-        Status: t.status,
-      };
-    });
+        return {
+          'Date & Time': t.date ? new Date(t.date).toLocaleString() : '',
+          Name: t.name,
+          Telephone: t.telephone,
+          Description: t.description,
+          Note: t.note || '',
+          In: amountIn > 0 ? amountIn.toFixed(2) : '',
+          Out: amountOut > 0 ? amountOut.toFixed(2) : '',
+          Balance: runningBalance.toFixed(2),
+          Status: t.status,
+        };
+      });
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
 
-    const filename = `${title.replace(/\s+/g, '_')}_Transactions.xlsx`;
-    XLSX.writeFile(workbook, filename);
+      const filename = `${title.replace(/\s+/g, '_')}_Transactions.xlsx`;
+      XLSX.writeFile(workbook, filename);
 
-    toast.success('Transactions exported successfully');
-  } catch (error) {
-    console.error('Error exporting transactions:', error);
-    toast.error('Failed to export transactions');
-  }
-};
-
+      toast.success('Transactions exported successfully');
+    } catch (error) {
+      console.error('Error exporting transactions:', error);
+      toast.error('Failed to export transactions');
+    }
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <div className="flex space-x-2">
-          {can('pettyCash', 'export') && (
+          {can(moduleKey, 'export') && (
             <button
               onClick={handleExport}
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -75,7 +75,7 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
               Export
             </button>
           )}
-          {can('pettyCash', 'create') && (
+          {can(moduleKey, 'create') && (
             <button
               onClick={onAdd}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"

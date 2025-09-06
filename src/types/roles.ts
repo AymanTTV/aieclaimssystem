@@ -237,6 +237,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance:       { view: false } as any,
     invoices:      { view: false } as any,
     pettyCash:     { view: false } as any,
+    aiePettyCash:     { view: false } as any,
     share:         { view: false } as any,
     driverPay:     { view: false } as any,
     vdFinance:     { view: false } as any,

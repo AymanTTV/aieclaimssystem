@@ -27,6 +27,7 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
+
   const columns = [
     {
       header: 'Receipt Details',
@@ -45,7 +46,7 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
         <div>
           <div className="font-medium">{row.original.supplier}</div>
           <div className="text-sm text-gray-500">REG: {row.original.regNo}</div>
-          {row.original.vatNo && <div className="text-sm text-gray-500">VAT No: {row.original.vatNo}</div>} {/* Display VAT No */}
+          {row.original.vatNo && <div className="text-sm text-gray-500">VAT No: {row.original.vatNo}</div>}
         </div>
       ),
     },
@@ -67,10 +68,14 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
       ),
     },
     {
-  header: 'Category',
-  accessorKey: 'categoryName',
-},
-
+      header: 'Category / Group',
+      cell: ({ row }) => (
+        <div className="text-sm">
+          <div className="font-medium">{row.original.categoryName || '-'}</div>
+          <div className="text-gray-500">{row.original.groupName || '-'}</div>
+        </div>
+      ),
+    },
     {
       header: 'Status',
       cell: ({ row }) => (
@@ -124,11 +129,11 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
             </>
           )}
 
-            {can('vatRecord', 'update') && (
+          {can('vatRecord', 'update') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onUpdateStatus(row.original); // Call the update status handler
+                onUpdateStatus(row.original);
               }}
               className="text-blue-600 hover:text-blue-800"
               title="Update Status"

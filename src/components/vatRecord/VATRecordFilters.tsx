@@ -2,6 +2,7 @@
 import React from 'react'
 import { Search } from 'lucide-react'
 import { useVATCategories } from '../../hooks/useVATCategories'
+import { useVATGroups } from '../../hooks/useVATGroups'
 
 interface VATRecordFiltersProps {
   searchQuery: string
@@ -12,19 +13,27 @@ interface VATRecordFiltersProps {
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void
   amountRange: { min: number | null; max: number | null }
   onAmountRangeChange: (range: { min: number | null; max: number | null }) => void
+
   categoryIdFilter: string
   onCategoryIdFilterChange: (id: string) => void
+
+  // NEW:
+  groupIdFilter: string
+  onGroupIdFilterChange: (id: string) => void
 }
 
 const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
   const { categories } = useVATCategories();
+  const { groups } = useVATGroups();
   const {
     searchQuery, onSearchChange,
     statusFilter, onStatusFilterChange,
     dateRange, onDateRangeChange,
     amountRange, onAmountRangeChange,
-    categoryIdFilter, onCategoryIdFilterChange
+    categoryIdFilter, onCategoryIdFilterChange,
+    groupIdFilter, onGroupIdFilterChange,
   } = props;
+
   return (
     <div className="space-y-3">
       {/* Search Bar (full width) */}
@@ -58,20 +67,6 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
           </select>
         </div>
 
-        <div>
-    <label className="block text-xs sm:text-sm font-medium text-gray-700">Category</label>
-    <select
-      value={categoryIdFilter}
-      onChange={(e) => onCategoryIdFilterChange(e.target.value)}
-      className="form-select mt-1 w-full"
-    >
-      <option value="all">All</option>
-      {categories.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-    </select>
-  </div>
-
-        
-
         {/* Date From */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700">From</label>
@@ -104,7 +99,32 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
             className="form-input mt-1 w-full"
           />
         </div>
-        
+
+        {/* Category */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={categoryIdFilter}
+            onChange={(e) => onCategoryIdFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+          >
+            <option value="all">All</option>
+            {categories.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
+          </select>
+        </div>
+
+        {/* Group */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Group</label>
+          <select
+            value={groupIdFilter}
+            onChange={(e) => onGroupIdFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+          >
+            <option value="all">All</option>
+            {groups.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
+          </select>
+        </div>
 
         {/* Min Gross */}
         <div>
@@ -145,4 +165,4 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
   )
 }
 
-export default VATRecordFilters;
+export default VATRecordFilters

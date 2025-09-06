@@ -33,7 +33,6 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const { user } = useAuth();
 
-  // Profit column always visible
   const profitColumn = {
     header: 'Profit',
     cell: ({ row }: any) => {
@@ -59,6 +58,18 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
       ),
     },
     { header: 'Registration', accessorKey: 'registration' },
+
+    // NEW: Category / Group
+    {
+      header: 'Category / Group',
+      cell: ({ row }: any) => (
+        <div className="text-sm">
+          <div className="font-medium">{row.original.categoryName || '-'}</div>
+          <div className="text-gray-500">{row.original.groupName || '-'}</div>
+        </div>
+      ),
+    },
+
     {
       header: 'Amount Details',
       cell: ({ row }: any) => {
@@ -69,9 +80,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
             <div>Total: {formatCurrency(rec.totalAmount)}</div>
             <div>NET: {formatCurrency(rec.netAmount)}</div>
             <div>VAT IN: {formatCurrency(rec.vatIn)}</div>
-            {discount > 0 && (
-              <div className="text-red-600">Discount: –{formatCurrency(discount)}</div>
-            )}
+            {discount > 0 && (<div className="text-red-600">Discount: –{formatCurrency(discount)}</div>)}
           </div>
         );
       },
@@ -87,13 +96,10 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
       ),
     },
 
-    // Profit column is now unconditional
     profitColumn,
 
-    {
-      header: 'Date',
-      cell: ({ row }: any) => format(row.original.date, 'dd/MM/yyyy HH:mm'),
-    },
+    { header: 'Date', cell: ({ row }: any) => format(row.original.date, 'dd/MM/yyyy HH:mm') },
+
     {
       header: 'Actions',
       cell: ({ row }: any) => {
@@ -101,68 +107,39 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
         return (
           <div className="flex space-x-2">
             {can('claims', 'view') && (
-              <button
-                onClick={e => { e.stopPropagation(); onView(rec); }}
-                className="text-blue-600 hover:text-blue-800"
-                title="View Details"
-              >
+              <button onClick={e => { e.stopPropagation(); onView(rec); }} className="text-blue-600 hover:text-blue-800" title="View Details">
                 <Eye className="h-4 w-4" />
               </button>
             )}
             {can('claims', 'update') && (
               <>
-                <button
-                  onClick={e => { e.stopPropagation(); onEdit(rec); }}
-                  className="text-blue-600 hover:text-blue-800"
-                  title="Edit"
-                >
+                <button onClick={e => { e.stopPropagation(); onEdit(rec); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                   <Edit className="h-4 w-4" />
                 </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onGenerateDocument(rec); }}
-                  className="text-green-600 hover:text-green-800"
-                  title="Generate Document"
-                >
+                <button onClick={e => { e.stopPropagation(); onGenerateDocument(rec); }} className="text-green-600 hover:text-green-800" title="Generate Document">
                   <FileText className="h-4 w-4" />
                 </button>
               </>
             )}
             {can('claims', 'delete') && (
-              <button
-                onClick={e => { e.stopPropagation(); onDelete(rec); }}
-                className="text-red-600 hover:text-red-800"
-                title="Delete"
-              >
+              <button onClick={e => { e.stopPropagation(); onDelete(rec); }} className="text-red-600 hover:text-red-800" title="Delete">
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
 
-            {/* Profit toggle buttons remain manager-only */}
             {user?.role === 'manager' && rec.profit > 0 && (
-              <button
-                onClick={e => { e.stopPropagation(); onClearProfit(rec); }}
-                className="px-2 py-1 text-xs bg-green-500 text-white rounded"
-                title="Mark Profit Paid"
-              >
+              <button onClick={e => { e.stopPropagation(); onClearProfit(rec); }} className="px-2 py-1 text-xs bg-green-500 text-white rounded" title="Mark Profit Paid">
                 Profit Paid
               </button>
             )}
             {user?.role === 'manager' && rec.profit === 0 && rec.originalProfit != null && (
-              <button
-                onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }}
-                className="px-2 py-1 text-xs bg-yellow-500 text-white rounded"
-                title="Unclear Profit"
-              >
+              <button onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded" title="Unclear Profit">
                 Unclear
               </button>
             )}
 
             {rec.documentUrl && (
-              <button
-                onClick={e => { e.stopPropagation(); onViewDocument(rec.documentUrl!); }}
-                className="text-blue-600 hover:text-blue-800"
-                title="View Document"
-              >
+              <button onClick={e => { e.stopPropagation(); onViewDocument(rec.documentUrl!); }} className="text-blue-600 hover:text-blue-800" title="View Document">
                 <Eye className="h-4 w-4" />
               </button>
             )}
@@ -172,13 +149,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     },
   ];
 
-  return (
-    <DataTable
-      data={records}
-      columns={columns}
-      onRowClick={rec => can('claims', 'view') && onView(rec)}
-    />
-  );
+  return <DataTable data={records} columns={columns} onRowClick={rec => can('claims', 'view') && onView(rec)} />;
 };
 
 export default VDFinanceTable;

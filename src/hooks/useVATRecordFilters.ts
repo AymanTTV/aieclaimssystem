@@ -6,6 +6,7 @@ import { isWithinInterval } from 'date-fns';
 export const useVATRecordFilters = (records: VATRecord[]) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryIdFilter, setCategoryIdFilter] = useState<string>('all');
+  const [groupIdFilter, setGroupIdFilter] = useState<string>('all'); // NEW
   const [statusFilter, setStatusFilter] =
     useState<'all' | 'awaiting' | 'processing' | 'paid'>('all');
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
@@ -21,9 +22,9 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
     const q = (searchQuery || '').toLowerCase();
 
     return records.filter((rec) => {
-      // --- Search (guard undefined fields) ---
+      // --- Search (guards) ---
       const receiptNo = (rec.receiptNo ?? '').toLowerCase();
-      const supplier  = (rec.supplier  ?? '').toLowerCase();
+      const supplier  = (rec.supplier ?? '').toLowerCase();
       const customer  = (rec.customerName ?? '').toLowerCase();
       const regNo     = (rec.regNo ?? '').toLowerCase();
       const vatNo     = (rec.vatNo ?? '').toLowerCase();
@@ -41,8 +42,9 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
       // --- Status ---
       if (statusFilter !== 'all' && rec.status !== statusFilter) return false;
 
-      // --- Category ---
+      // --- Category & Group ---
       if (categoryIdFilter !== 'all' && rec.categoryId !== categoryIdFilter) return false;
+      if (groupIdFilter !== 'all' && rec.groupId !== groupIdFilter) return false;
 
       // --- Date (support start-only / end-only / both) ---
       if (dateRange.start && dateRange.end) {
@@ -73,7 +75,8 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
     dateRange.end,
     amountRange.min,
     amountRange.max,
-    categoryIdFilter, // <-- important
+    categoryIdFilter,
+    groupIdFilter, // NEW
   ]);
 
   const summary = useMemo(() => {
@@ -96,6 +99,7 @@ export const useVATRecordFilters = (records: VATRecord[]) => {
     amountRange, setAmountRange,
     filteredRecords,
     categoryIdFilter, setCategoryIdFilter,
+    groupIdFilter, setGroupIdFilter, // NEW
     summary,
   };
 };

@@ -1,18 +1,19 @@
 // src/components/pettyCash/PettyCashForm.tsx
-
 import React, { useState } from 'react';
-import { addDoc, collection, updateDoc, doc, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import toast from 'react-hot-toast';
+import { usePettyCashCategories } from '../../hooks/usePettyCashCategories';
+import { usePettyCashGroups } from '../../hooks/usePettyCashGroups';
 
 interface PettyCashFormProps {
   transaction?: PettyCashTransaction;
   onClose: () => void;
-  collectionName?: string;
+  collectionName?: 'pettyCash' | 'aiePettyCash';
 }
 
 const PettyCashForm: React.FC<PettyCashFormProps> = ({
@@ -23,9 +24,15 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // Initialize form data with current date and time
+  const { categories } = usePettyCashCategories(collectionName);
+  const { groups } = usePettyCashGroups(collectionName);
+
   const now = new Date();
   const [formData, setFormData] = useState({
+    categoryId: (transaction as any)?.categoryId || '',
+    categoryName: (transaction as any)?.categoryName || '',
+    groupId: (transaction as any)?.groupId || '',
+    groupName: (transaction as any)?.groupName || '',
     name: transaction?.name || '',
     telephone: transaction?.telephone || '',
     description: transaction?.description || '',
@@ -33,51 +40,51 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({
     amountOut: transaction?.amountOut?.toString() || '',
     note: transaction?.note || '',
     status: transaction?.status || 'pending',
-    date: transaction?.date ?
-      new Date(transaction.date).toISOString().split('T')[0] :
-      now.toISOString().split('T')[0],
-    time: transaction?.date ?
-      new Date(transaction.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) :
-      now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    date: transaction?.date ? new Date(transaction.date).toISOString().split('T')[0] : now.toISOString().split('T')[0],
+    time: transaction?.date ? new Date(transaction.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
-  
+
     try {
       const [hours, minutes] = formData.time.split(':');
       const dateTime = new Date(formData.date);
       dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-  
+
       const amountIn = formData.amountIn ? parseFloat(formData.amountIn) : 0;
       const amountOut = formData.amountOut ? parseFloat(formData.amountOut) : 0;
-  
-      const transactionData = {
+
+      const payload: any = {
+        categoryId: formData.categoryId || null,
+        categoryName: formData.categoryName || null,
+        groupId: formData.groupId || null,
+        groupName: formData.groupName || null,
         name: formData.name,
         telephone: formData.telephone,
         description: formData.description,
-        amountIn: amountIn,
-        amountOut: amountOut,
+        amountIn,
+        amountOut,
         note: formData.note || null,
         status: formData.status,
         date: dateTime,
         updatedAt: new Date(),
       };
-  
+
       if (transaction) {
-        await updateDoc(doc(db, collectionName, transaction.id), transactionData);
+        await updateDoc(doc(db, collectionName, transaction.id), payload);
         toast.success('Transaction updated successfully');
       } else {
         await addDoc(collection(db, collectionName), {
-          ...transactionData,
+          ...payload,
           createdAt: new Date(),
           createdBy: user.id,
         });
         toast.success('Transaction created successfully');
       }
-  
+
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -89,7 +96,40 @@ const PettyCashForm: React.FC<PettyCashFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Category & Group */}
       <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={formData.categoryId}
+            onChange={(e) => {
+              const id = e.target.value;
+              const name = categories.find(c => c.id === id)?.name || '';
+              setFormData(prev => ({ ...prev, categoryId: id, categoryName: name }));
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Group</label>
+          <select
+            value={formData.groupId}
+            onChange={(e) => {
+              const id = e.target.value;
+              const name = groups.find(g => g.id === id)?.name || '';
+              setFormData(prev => ({ ...prev, groupId: id, groupName: name }));
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select group</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+
         <FormField
           label="Name"
           value={formData.name}

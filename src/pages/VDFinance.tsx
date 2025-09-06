@@ -6,7 +6,7 @@ import VDFinanceTable from '../components/vdFinance/VDFinanceTable';
 import VDFinanceForm from '../components/vdFinance/VDFinanceForm';
 import VDFinanceSummary from '../components/vdFinance/VDFinanceSummary';
 import VDFinanceDetails from '../components/vdFinance/VDFinanceDetails';
-import VDFinanceFilters from '../components/vdFinance/VDFinanceFilters';
+import VDFinanceFilters, { ProfitStatusFilter } from '../components/vdFinance/VDFinanceFilters';
 import Modal from '../components/ui/Modal';
 import { Plus, Download, FileText } from 'lucide-react';
 import { VDFinanceRecord } from '../types/vdFinance';
@@ -19,6 +19,10 @@ import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
 import { VDFinanceDocument, VDFinanceBulkDocument } from '../components/pdf/documents';
 
+// NEW: Manage modals
+import ManageVDFinanceCategoriesModal from '../components/vdFinance/ManageVDFinanceCategoriesModal';
+import ManageVDFinanceGroupsModal from '../components/vdFinance/ManageVDFinanceGroupsModal';
+
 const VDFinance: React.FC = () => {
   const { records, loading } = useVDFinance();
   const { vehicles } = useVehicles();
@@ -26,15 +30,23 @@ const VDFinance: React.FC = () => {
   const { user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [statusFilter, setStatusFilter] = useState<ProfitStatusFilter>('all');
+
+  // NEW: extra filters
+  const [categoryIdFilter, setCategoryIdFilter] = useState<string>('all');
+  const [groupIdFilter, setGroupIdFilter] = useState<string>('all');
+  const [amountRange, setAmountRange] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
+  const [claimReason, setClaimReason] = useState<'any'|'VD'|'H'|'S'|'PI'>('any');
+
   const [showForm, setShowForm] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<VDFinanceRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<VDFinanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<VDFinanceRecord | null>(null);
+
+  // NEW: manage modals
+  const [showManageCategories, setShowManageCategories] = useState(false);
+  const [showManageGroups, setShowManageGroups] = useState(false);
 
   const handleClearProfit = async (rec: VDFinanceRecord) => {
     try {
@@ -68,6 +80,8 @@ const VDFinance: React.FC = () => {
         'Name': r.name,
         'Reference': r.reference,
         'Registration': r.registration,
+        'Category': r.categoryName || '',
+        'Group': r.groupName || '',
         'Total Amount': r.totalAmount.toFixed(2),
         'NET': r.netAmount.toFixed(2),
         'VAT IN': r.vatIn.toFixed(2),
@@ -114,20 +128,14 @@ const VDFinance: React.FC = () => {
     }
   };
 
-  const handleViewDocument = (url: string) => {
-    window.open(url, '_blank');
-  };
+  const handleViewDocument = (url: string) => window.open(url, '_blank');
 
   const handleGeneratePDF = async () => {
     try {
       const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
       if (!companyDoc.exists()) throw new Error('Company details not found');
       const companyDetails = companyDoc.data();
-      const pdfBlob = await generateBulkDocuments(
-        VDFinanceBulkDocument,
-        filteredRecords,
-        companyDetails
-      );
+      const pdfBlob = await generateBulkDocuments(VDFinanceBulkDocument, filteredRecords, companyDetails);
       const pdfUrl = URL.createObjectURL(pdfBlob);
       window.open(pdfUrl, '_blank');
       toast.success('VDFinance summary PDF generated successfully');
@@ -137,29 +145,41 @@ const VDFinance: React.FC = () => {
     }
   };
 
-   const filteredRecords = records
+  const filteredRecords = records
     .filter(record => {
       const mq = searchQuery.toLowerCase();
       const matchesSearch =
         record.name.toLowerCase().includes(mq) ||
         record.reference.toLowerCase().includes(mq) ||
         record.registration.toLowerCase().includes(mq);
+
       let matchesDate = true;
       if (dateRange.start && dateRange.end) {
         matchesDate = record.date >= dateRange.start && record.date <= dateRange.end;
       }
-      return matchesSearch && matchesDate;
+
+      // NEW: category & group filter
+      const matchesCategory = categoryIdFilter === 'all' || record.categoryId === categoryIdFilter;
+      const matchesGroup = groupIdFilter === 'all' || record.groupId === groupIdFilter;
+
+      // NEW: amount range filter (on totalAmount)
+      const amt = record.totalAmount ?? 0;
+      const matchesAmount =
+        (amountRange.min == null || amt >= amountRange.min) &&
+        (amountRange.max == null || amt <= amountRange.max);
+
+      // NEW: claim reason (record.claimReasons?: string[])
+      const matchesClaim =
+        claimReason === 'any' ||
+        (Array.isArray(record.claimReasons) && record.claimReasons.includes(claimReason));
+
+      return matchesSearch && matchesDate && matchesCategory && matchesGroup && matchesAmount && matchesClaim;
     })
     .filter(record => {
       if (statusFilter === 'all') return true;
-      if (statusFilter === 'unpaid') {
-        return record.profit > 0;
-      }
-      if (statusFilter === 'paid') {
-        return record.profit === 0 && record.originalProfit != null;
-      }
-      // 'cleared'
-      return record.profit === 0 && record.originalProfit == null;
+      if (statusFilter === 'unpaid')   return record.profit > 0;
+      if (statusFilter === 'paid')     return record.profit === 0 && record.originalProfit != null;
+      /* cleared */                     return record.profit === 0 && record.originalProfit == null;
     });
 
   if (loading) {
@@ -174,43 +194,40 @@ const VDFinance: React.FC = () => {
     <div className="space-y-6">
       <VDFinanceSummary records={filteredRecords} />
 
-      {/* ── Top Bar (Responsive, handlers unchanged) ── */}
-<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">VD Finance</h1>
+      {/* Top Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">VD Finance</h1>
 
-  <div className="flex flex-wrap items-center gap-2">
-    {user?.role === 'manager' && (
-      <button
-        onClick={handleGeneratePDF}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <FileText className="h-5 w-5 mr-2" />
-        Generate PDF
-      </button>
-    )}
+        <div className="flex flex-wrap items-center gap-2">
+          {user?.role === 'manager' && (
+            <>
+              <button onClick={handleGeneratePDF} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <FileText className="h-5 w-5 mr-2" /> Generate PDF
+              </button>
 
-    {can('claims', 'export') && (
-      <button
-        onClick={handleExport}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <Download className="h-5 w-5 mr-2" />
-        Export
-      </button>
-    )}
+              {/* NEW: manage buttons */}
+              <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
+                Manage Categories
+              </button>
+              <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
+                Manage Groups
+              </button>
+            </>
+          )}
 
-    {can('claims', 'create') && (
-      <button
-        onClick={() => setShowForm(true)}
-        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-      >
-        <Plus className="h-5 w-5 mr-2" />
-        Add Record
-      </button>
-    )}
-  </div>
-</div>
+          {can('claims', 'export') && (
+            <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+              <Download className="h-5 w-5 mr-2" /> Export
+            </button>
+          )}
 
+          {can('claims', 'create') && (
+            <button onClick={() => setShowForm(true)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600">
+              <Plus className="h-5 w-5 mr-2" /> Add Record
+            </button>
+          )}
+        </div>
+      </div>
 
       <VDFinanceFilters
         searchQuery={searchQuery}
@@ -219,6 +236,16 @@ const VDFinance: React.FC = () => {
         onDateRangeChange={setDateRange}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+
+        // NEW props
+        categoryIdFilter={categoryIdFilter}
+        onCategoryIdFilterChange={setCategoryIdFilter}
+        groupIdFilter={groupIdFilter}
+        onGroupIdFilterChange={setGroupIdFilter}
+        amountRange={amountRange}
+        onAmountRangeChange={setAmountRange}
+        claimReason={claimReason}
+        onClaimReasonChange={setClaimReason}
       />
 
       <VDFinanceTable
@@ -234,54 +261,31 @@ const VDFinance: React.FC = () => {
 
       <Modal
         isOpen={showForm || !!editingRecord}
-        onClose={() => {
-          setShowForm(false);
-          setEditingRecord(null);
-        }}
+        onClose={() => { setShowForm(false); setEditingRecord(null); }}
         title={editingRecord ? 'Edit Record' : 'Add Record'}
         size="xl"
       >
         <VDFinanceForm
           record={editingRecord}
           vehicles={vehicles}
-          onClose={() => {
-            setShowForm(false);
-            setEditingRecord(null);
-          }}
+          onClose={() => { setShowForm(false); setEditingRecord(null); }}
         />
       </Modal>
 
-      <Modal
-        isOpen={!!selectedRecord}
-        onClose={() => setSelectedRecord(null)}
-        title="VD Finance Details"
-        size="lg"
-      >
+      <Modal isOpen={!!selectedRecord} onClose={() => setSelectedRecord(null)} title="VD Finance Details" size="lg">
         {selectedRecord && <VDFinanceDetails record={selectedRecord} />}
       </Modal>
 
-      <Modal
-        isOpen={!!deletingRecord}
-        onClose={() => setDeletingRecord(null)}
-        title="Delete Record"
-      >
+      {/* NEW: manage modals */}
+      <ManageVDFinanceCategoriesModal isOpen={showManageCategories} onClose={() => setShowManageCategories(false)} />
+      <ManageVDFinanceGroupsModal isOpen={showManageGroups} onClose={() => setShowManageGroups(false)} />
+
+      <Modal isOpen={!!deletingRecord} onClose={() => setDeletingRecord(null)} title="Delete Record">
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete this record? This action cannot be undone.
-          </p>
+          <p className="text-sm text-gray-500">Are you sure you want to delete this record? This action cannot be undone.</p>
           <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => setDeletingRecord(null)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => deletingRecord && handleDelete(deletingRecord)}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
-            >
-              Delete Record
-            </button>
+            <button onClick={() => setDeletingRecord(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
+            <button onClick={() => deletingRecord && handleDelete(deletingRecord)} className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700">Delete Record</button>
           </div>
         </div>
       </Modal>

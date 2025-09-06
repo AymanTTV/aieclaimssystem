@@ -11,6 +11,8 @@ import toast from 'react-hot-toast'
 import { Vehicle, Claim } from '../../types'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
 import productService from '../../services/product.service'
+import { useVDFinanceCategories } from '../../hooks/useVDFinanceCategories'
+import { useVDFinanceGroups } from '../../hooks/useVDFinanceGroups'
 
 interface VDFinanceFormProps {
   record?: VDFinanceRecord
@@ -40,18 +42,24 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   const [includeVATOnLabor, setIncludeVATOnLabor] = useState(record?.vatDetails?.laborVAT || false)
   const [partSuggestions, setPartSuggestions] = useState<PartSuggestion[]>([])
   const [showPartSuggestions, setShowPartSuggestions] = useState<boolean[]>([])
+  const { categories } = useVDFinanceCategories()
+  const { groups } = useVDFinanceGroups()
 
   const initialClientRepairPercentage =
     record?.clientRepairPercentage ?? (record?.clientRepairAmount ? 0 : 20)
 
   const [formData, setFormData] = useState({
+    categoryId: record?.categoryId || '',
+    categoryName: record?.categoryName || '',
+    groupId: record?.groupId || '',
+    groupName: record?.groupName || '',
     name: record?.name || '',
     reference: record?.ref || '',
     registration: record?.reg || '',
     totalAmount: record?.totalAmount || 0,
     vatRate: record?.vatPercentage || 0,
     description: record?.description || '',
-    claimReasons: (record?.claimReasons as Array<'VD'|'H'|'S'|'PI'>) || [],   // NEW
+    claimReasons: (record?.claimReasons as Array<'VD'|'H'|'S'|'PI'>) || [],
     clientRepairPercentage: initialClientRepairPercentage,
     clientRepairAmount: record?.clientRepairAmount || 0,
     salvage: record?.salvage || 0,
@@ -123,24 +131,23 @@ const VDFinanceForm: React.FC<VDFinanceFormProps> = ({ record, vehicles, onClose
   }, [parts.length])
 
   const CLAIM_REASONS: { code: 'VD'|'H'|'S'|'PI'; label: string }[] = [
-  { code: 'VD', label: 'Vehicle Damage' },
-  { code: 'H',  label: 'Hire' },
-  { code: 'S',  label: 'Storage' },
-  { code: 'PI', label: 'Personal Injury' },
-];
+    { code: 'VD', label: 'Vehicle Damage' },
+    { code: 'H',  label: 'Hire' },
+    { code: 'S',  label: 'Storage' },
+    { code: 'PI', label: 'Personal Injury' },
+  ]
 
-const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
-  setFormData(prev => {
-    const exists = prev.claimReasons.includes(code);
-    return {
-      ...prev,
-      claimReasons: exists
-        ? prev.claimReasons.filter(x => x !== code)
-        : [...prev.claimReasons, code],
-    };
-  });
-};
-
+  const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
+    setFormData(prev => {
+      const exists = prev.claimReasons.includes(code)
+      return {
+        ...prev,
+        claimReasons: exists
+          ? prev.claimReasons.filter(x => x !== code)
+          : [...prev.claimReasons, code],
+      }
+    })
+  }
 
   const calculateCosts = () => {
     const round = (n: number) => Math.round(n * 100) / 100
@@ -157,9 +164,12 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
     const partsTotal = round(
       parts.reduce((sum, p) => {
         const lineGross = round(p.price * p.quantity)
-        const discAmt = round((p.discount / 100) * lineGross)
-        totalDiscountAcc = round(totalDiscountAcc + discAmt)
-        const afterDisc = round(lineGross - discAmt)
+        if (!isNaN(p.discount) && p.discount > 0) {
+          const discAmt = round((p.discount / 100) * lineGross)
+          totalDiscountAcc = round(totalDiscountAcc + discAmt)
+        }
+        const discAmt2 = round((p.discount / 100) * lineGross)
+        const afterDisc = round(lineGross - discAmt2)
         const vatAmt = p.includeVAT ? round(afterDisc * 0.2) : 0
         return round(sum + afterDisc + vatAmt)
       }, 0)
@@ -276,8 +286,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
         date: dateObj,
         updatedAt: new Date(),
         createdBy: user.id,
-        claimReasons: formData.claimReasons,
-        ...(selectedClaim && { claimId: selectedClaim.id })
+        claimReasons: formData.claimReasons
       }
       if (record) {
         if (record.originalProfit != null) {
@@ -315,24 +324,24 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
         </div>
 
         <div className="space-y-2">
-  <label className="block text-sm font-medium text-gray-700">Claim Reason</label>
-  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-    {CLAIM_REASONS.map(r => (
-      <label key={r.code} className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          checked={formData.claimReasons.includes(r.code)}
-          onChange={() => toggleClaimReason(r.code)}
-          className="rounded border-gray-300 text-primary focus:ring-primary"
-        />
-        <span className="text-sm text-gray-700">{r.code}</span>
-      </label>
-    ))}
-  </div>
-  <p className="text-xs text-gray-500">
-    VD = Vehicle Damage, H = Hire, S = Storage, PI = Personal Injury
-  </p>
-</div>
+          <label className="block text-sm font-medium text-gray-700">Claim Reason</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {CLAIM_REASONS.map(r => (
+              <label key={r.code} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={formData.claimReasons.includes(r.code)}
+                  onChange={() => toggleClaimReason(r.code)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700">{r.code}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            VD = Vehicle Damage, H = Hire, S = Storage, PI = Personal Injury
+          </p>
+        </div>
 
         {!manualEntry && (
           <SearchableSelect
@@ -359,9 +368,41 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
             placeholder="Search claims..."
           />
         )}
-        
       </div>
+
       <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            value={formData.categoryId}
+            onChange={(e) => {
+              const id = e.target.value
+              const name = categories.find(c => c.id === id)?.name || ''
+              setFormData(prev => ({ ...prev, categoryId: id, categoryName: name }))
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Group</label>
+          <select
+            value={formData.groupId}
+            onChange={(e) => {
+              const id = e.target.value
+              const name = groups.find(g => g.id === id)?.name || ''
+              setFormData(prev => ({ ...prev, groupId: id, groupName: name }))
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select group</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+
         <FormField
           label="Name"
           value={formData.name}
@@ -412,9 +453,8 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
             placeholder="Enter description..."
           />
         </div>
-
-        
       </div>
+
       <div>
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-medium text-gray-900">Parts</h3>
@@ -528,6 +568,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
           ))}
         </div>
       </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Labor</label>
         <div className="flex items-center space-x-2 mt-1">
@@ -564,6 +605,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
           </span>
         </div>
       </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Service Center</label>
         <ServiceCenterDropdown
@@ -572,10 +614,12 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
           onInputChange={(val) => setFormData((prev) => ({ ...prev, serviceCenter: val }))}
         />
       </div>
+
       <div className="grid grid-cols-2 gap-4">
         <FormField type="date" label="Date" value={formData.date} onChange={(e) => handleFormChange('date', e.target.value)} required />
         <FormField type="time" label="Time" value={formData.time} onChange={(e) => handleFormChange('time', e.target.value)} required />
       </div>
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">Client Repair Percentage</label>
         <div className="flex items-center space-x-2">
@@ -597,6 +641,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
           onChange={(e) => handleFormChange('clientRepairAmount', parseFloat(e.target.value))}
         />
       </div>
+
       <FormField
         type="number"
         label="Salvage (£)"
@@ -617,6 +662,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
           onChange={(e) => handleFormChange('solicitorFee', parseFloat(e.target.value))}
         />
       </div>
+
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm"><span>Net Amount:</span><span className="font-medium">{formatCurrency(netAmount)}</span></div>
         <div className="flex justify-between text-sm"><span>VAT In:</span><span>{formatCurrency(vatIn)}</span></div>
@@ -629,6 +675,7 @@ const toggleClaimReason = (code: 'VD'|'H'|'S'|'PI') => {
         <div className="flex justify-between text-sm text-red-600"><span>Total Discount:</span><span>- {formatCurrency(totalDiscount)}</span></div>
         <div className="flex justify-between text-sm"><span>Profit:</span><span>{formatCurrency(profit)}</span></div>
       </div>
+
       <div className="flex justify-end space-x-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
         <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600">{loading ? 'Saving...' : record ? 'Update Record' : 'Create Record'}</button>
