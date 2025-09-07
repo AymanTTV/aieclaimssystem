@@ -448,7 +448,7 @@ if (images.length > 0) {
       const checkOutCondition: VehicleCondition = {
   id: `cond_${Date.now()}`,
   type: 'check-out',
-  date: new Date(),
+  date: startDateTime,
   mileage: Number(conditionData.mileage) || 0,
   fuelLevel: (conditionData.fuelLevel as VehicleCondition['fuelLevel']) || '100',
   isClean: conditionData.isClean ?? true,

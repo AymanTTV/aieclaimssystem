@@ -603,7 +603,7 @@ setFormData((prev) => ({
     // --- Build updated “checkOutCondition” object ---
     const updatedCondition: VehicleCondition = {
       type: "check-out",
-      date: rental.checkOutCondition?.date || new Date(),
+      date: rental.checkOutCondition?.date || submitStartDT,
       mileage: conditionData.mileage || 0,
       fuelLevel: conditionData.fuelLevel || "100",
       isClean: conditionData.isClean === undefined ? true : conditionData.isClean,
