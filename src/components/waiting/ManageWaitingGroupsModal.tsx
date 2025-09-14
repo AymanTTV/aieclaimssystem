@@ -1,19 +1,25 @@
-// src/components/vatRecord/ManageVATGroupsModal.tsx
+// src/components/waiting/ManageWaitingGroupsModal.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
+import Modal from '../ui/Modal';
 import { db } from '../../lib/firebase';
+import {
+  collection, getDocs, addDoc, deleteDoc, doc, updateDoc,
+  serverTimestamp, orderBy, query
+} from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { Trash2, Edit2, Check, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface Props {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
 }
 
-type Group = { id: string; name: string };
+type Item = { id: string; name: string };
 
-const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const [groups, setGroups] = useState<Group[]>([]);
+const ManageWaitingGroupsModal: React.FC<Props> = ({ open, onClose }) => {
+  const { user } = useAuth();
+  const [items, setItems] = useState<Item[]>([]);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -23,12 +29,11 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const load = async () => {
     try {
-      // Sort by creation date to show the newest first
-      const q = query(collection(db, 'vatGroups'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'waiting_groups'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
-      const list: Group[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Group, 'id'>) }));
-      setGroups(list);
+      const list: Item[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Item, 'id'>) }));
+      setItems(list);
     } catch (e) {
       console.error(e);
       toast.error('Failed to load groups');
@@ -36,24 +41,28 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   useEffect(() => {
-    if (isOpen) {
-      load();
-      // Reset state when modal opens
-      setSearchTerm('');
-      setShowAll(false);
-    }
-  }, [isOpen]);
+    if (!open) return;
+    setSearchTerm('');
+    setShowAll(false);
+    setEditingId(null);
+    setEditingName('');
+    setNewName('');
+    load();
+  }, [open]);
 
-  const addGroup = async () => {
+  const addOne = async () => {
     const name = newName.trim();
     if (!name) return;
     setLoading(true);
     try {
-      // Add createdAt timestamp for sorting
-      await addDoc(collection(db, 'vatGroups'), { name, createdAt: serverTimestamp() });
+      await addDoc(collection(db, 'waiting_groups'), {
+        name,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid || ''
+      });
       setNewName('');
       await load();
-      toast.success(`Added "${name}"`);
+      toast.success(`Added “${name}”`);
     } catch (e) {
       console.error(e);
       toast.error('Failed to add');
@@ -62,9 +71,9 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   };
 
-  const startEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditingName(name);
+  const startEdit = (it: Item) => {
+    setEditingId(it.id);
+    setEditingName(it.name);
   };
 
   const saveEdit = async () => {
@@ -73,7 +82,7 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     if (!name) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'vatGroups', editingId), { name });
+      await updateDoc(doc(db, 'waiting_groups', editingId), { name });
       setEditingId(null);
       setEditingName('');
       await load();
@@ -86,11 +95,11 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   };
 
-  const remove = async (id: string, name: string) => {
-    if (!confirm(`Delete group "${name}"?`)) return;
+  const removeOne = async (it: Item) => {
+    if (!confirm(`Delete group “${it.name}”?`)) return;
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'vatGroups', id));
+      await deleteDoc(doc(db, 'waiting_groups', it.id));
       await load();
       toast.success('Deleted');
     } catch (e) {
@@ -101,39 +110,32 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   };
 
-  const filteredGroups = useMemo(() =>
-    groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase())),
-    [groups, searchTerm]
+  const filtered = useMemo(
+    () => items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    [items, searchTerm]
+  );
+  const displayed = useMemo(
+    () => (showAll ? filtered : filtered.slice(0, 5)),
+    [filtered, showAll]
   );
 
-  const displayedGroups = useMemo(() =>
-    showAll ? filteredGroups : filteredGroups.slice(0, 5),
-    [filteredGroups, showAll]
-  );
-
-
-  if (!isOpen) return null;
+  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Manage VAT Groups</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-md">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex gap-2 mb-4">
+    <Modal isOpen={open} onClose={onClose} title="Manage Waiting Groups" size="lg">
+      <div className="space-y-4">
+        {/* Add bar */}
+        <div className="flex gap-2">
           <input
             type="text"
             placeholder="New group name"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addOne()}
             className="flex-1 form-input"
           />
           <button
-            onClick={addGroup}
+            onClick={addOne}
             disabled={loading}
             className="px-3 py-2 bg-primary text-white rounded-md disabled:opacity-50"
           >
@@ -141,64 +143,81 @@ const ManageVATGroupsModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div className="mb-4">
+        {/* Search */}
+        <div>
           <input
             type="text"
-            placeholder="Search groups..."
+            placeholder="Search groups…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full form-input"
           />
         </div>
 
+        {/* List */}
         <div className="divide-y border rounded-md max-h-[50vh] overflow-y-auto">
-          {displayedGroups.map((g) => (
-            <div key={g.id} className="flex items-center justify-between p-2">
-              {editingId === g.id ? (
+          {displayed.map((it) => (
+            <div key={it.id} className="flex items-center justify-between p-2">
+              {editingId === it.id ? (
                 <input
                   className="flex-1 form-input mr-2"
                   value={editingName}
                   onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                  autoFocus
                 />
               ) : (
-                <span className="flex-1">{g.name}</span>
+                <span className="flex-1">{it.name}</span>
               )}
               <div className="flex items-center gap-2">
-                {editingId === g.id ? (
-                  <button onClick={saveEdit} className="p-2 rounded hover:bg-green-50 text-green-700">
+                {editingId === it.id ? (
+                  <button
+                    onClick={saveEdit}
+                    className="p-2 rounded hover:bg-green-50 text-green-700"
+                    title="Save"
+                  >
                     <Check className="h-4 w-4" />
                   </button>
                 ) : (
-                  <button onClick={() => startEdit(g.id, g.name)} className="p-2 rounded hover:bg-blue-50 text-blue-700">
+                  <button
+                    onClick={() => startEdit(it)}
+                    className="p-2 rounded hover:bg-blue-50 text-blue-700"
+                    title="Edit"
+                  >
                     <Edit2 className="h-4 w-4" />
                   </button>
                 )}
-                <button onClick={() => remove(g.id, g.name)} className="p-2 rounded hover:bg-red-50 text-red-700">
+                <button
+                  onClick={() => removeOne(it)}
+                  className="p-2 rounded hover:bg-red-50 text-red-700"
+                  title="Delete"
+                >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
           ))}
-          {displayedGroups.length === 0 && (
+          {displayed.length === 0 && (
             <div className="p-3 text-sm text-gray-500">
               {searchTerm ? 'No matching groups found.' : 'No groups yet.'}
             </div>
           )}
         </div>
-        
-        {filteredGroups.length > 5 && (
-          <div className="mt-4 text-center">
+
+        {/* Show all toggle */}
+        {filtered.length > 5 && (
+          <div className="mt-2 text-center">
             <button
               onClick={() => setShowAll(!showAll)}
               className="text-sm font-medium text-primary hover:underline"
             >
-              {showAll ? 'Show Less' : `Show All (${filteredGroups.length})`}
+              {showAll ? 'Show Less' : `Show All (${filtered.length})`}
             </button>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 
-export default ManageVATGroupsModal;
+export default ManageWaitingGroupsModal;

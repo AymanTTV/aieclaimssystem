@@ -1,5 +1,3 @@
-// src/components/share/SplitForm.tsx
-
 import React, { useState, useEffect } from 'react'
 import {
   collection,
@@ -17,6 +15,7 @@ import { useShares } from '../../hooks/useShares'
 import FormField from '../ui/FormField'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
 import { Trash2 } from 'lucide-react'
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface Props {
   onClose(): void
@@ -190,12 +189,16 @@ export default function SplitForm({
                     (£{formatCurrency(sp.totalSplitAmount)})
                   </span>
                 </div>
-                <button
-                  onClick={() => handleDelete(sp.id)}
-                  className="text-red-600 hover:text-red-800 p-1"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {/* --- MODIFICATION START --- */}
+                {user?.role === 'manager' && (
+                  <button
+                    onClick={() => handleDelete(sp.id)}
+                    className="text-red-600 hover:text-red-800 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                {/* --- MODIFICATION END --- */}
               </div>
             ))
           }

@@ -1,4 +1,5 @@
 // src/components/Layout.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -22,11 +23,15 @@ import {
   Box,
   Home,
   Car,
+  Clock,
 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import MobileMenu from './navigation/MobileMenu';
+
 // IMPORTANT: import from constants-only file to avoid circular import issues
 import { ROUTES, ROUTE_METADATA, ROUTE_PERMISSIONS } from '../routes';
+
 import {
   collection,
   query,
@@ -104,6 +109,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.BULK_EMAIL]: Mail,
     [ROUTES.COMPANY_MANAGERS]: Users,
 
+    [ROUTES.WAITING]: Clock,
+
     // Chat
     [ROUTES.CHAT]: MessageSquare,
 
@@ -126,7 +133,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.USERS]: 'Users',
     [ROUTES.CHAT]: 'Chat',
     [ROUTES.PROFILE]: 'Profile',
-
+    [ROUTES.WAITING]: 'Waiting List',
     // Members area
     '/members/dashboard': 'Dashboard',
     '/members/transactions': 'Transactions',
@@ -227,8 +234,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         submenu: [
           { name: resolveLabel(ROUTES.CLAIMS), href: ROUTES.CLAIMS, icon: resolveIcon(ROUTES.CLAIMS), permission: resolvePerm(ROUTES.CLAIMS) },
           { name: resolveLabel(ROUTES.VD_FINANCE), href: ROUTES.VD_FINANCE, icon: resolveIcon(ROUTES.VD_FINANCE), permission: resolvePerm(ROUTES.VD_FINANCE) },
-          { name: 'VD Invoice', href: ROUTES.VD_INVOICE, icon: resolveIcon(ROUTES.VD_INVOICE), permission: resolvePerm(ROUTES.CLAIMS) },
-          { name: resolveLabel(ROUTES.SHARE), href: ROUTES.SHARE, icon: resolveIcon(ROUTES.SHARE), permission: { module: 'share', action: 'view' } },
+          // FIX: was resolvePerm(ROUTES.CLAIMS); now use the correct permission for VD_INVOICE
+          { name: resolveLabel(ROUTES.VD_INVOICE) || 'VD Invoice', href: ROUTES.VD_INVOICE, icon: resolveIcon(ROUTES.VD_INVOICE), permission: resolvePerm(ROUTES.VD_INVOICE) },
+          { name: resolveLabel(ROUTES.SHARE), href: ROUTES.SHARE, icon: resolveIcon(ROUTES.SHARE), permission: resolvePerm(ROUTES.SHARE) ?? { module: 'share', action: 'view' } },
         ],
       },
 
@@ -236,11 +244,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         name: 'Skyline Cabs',
         href: ROUTES.DRIVER_PAY,
         icon: resolveIcon(ROUTES.DRIVER_PAY),
-        permission: { module: 'driverPay', action: 'view' },
+        permission: resolvePerm(ROUTES.DRIVER_PAY) ?? { module: 'driverPay', action: 'view' },
         submenu: [
-          { name: resolveLabel(ROUTES.DRIVER_PAY), href: ROUTES.DRIVER_PAY, icon: resolveIcon(ROUTES.DRIVER_PAY), permission: { module: 'driverPay', action: 'view' } },
-          { name: 'Petty Cash', href: ROUTES.SKYLINE_PETTY_CASH, icon: resolveIcon(ROUTES.SKYLINE_PETTY_CASH), permission: { module: 'driverPay', action: 'view' } },
-          { name: 'Income & Expense', href: ROUTES.SKYLINE_INCOME_EXPENSE, icon: resolveIcon(ROUTES.SKYLINE_INCOME_EXPENSE), permission: { module: 'driverPay', action: 'view' } },
+          { name: resolveLabel(ROUTES.DRIVER_PAY), href: ROUTES.DRIVER_PAY, icon: resolveIcon(ROUTES.DRIVER_PAY), permission: resolvePerm(ROUTES.DRIVER_PAY) ?? { module: 'driverPay', action: 'view' } },
+          // Use each route's own permission so visibility matches aiePettyCash / skylineIncomeExpense view flags
+          { name: 'Skyline Petty Cash', href: ROUTES.SKYLINE_PETTY_CASH, icon: resolveIcon(ROUTES.SKYLINE_PETTY_CASH), permission: resolvePerm(ROUTES.SKYLINE_PETTY_CASH) ?? { module: 'aiePettyCash', action: 'view' } },
+          { name: 'Income & Expense', href: ROUTES.SKYLINE_INCOME_EXPENSE, icon: resolveIcon(ROUTES.SKYLINE_INCOME_EXPENSE), permission: resolvePerm(ROUTES.SKYLINE_INCOME_EXPENSE) ?? { module: 'skylineIncomeExpense', action: 'view' } },
         ],
       },
 
@@ -253,7 +262,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           { name: resolveLabel(ROUTES.FINANCE), href: ROUTES.FINANCE, icon: resolveIcon(ROUTES.FINANCE), permission: resolvePerm(ROUTES.FINANCE) },
           { name: resolveLabel(ROUTES.PETTY_CASH), href: ROUTES.PETTY_CASH, icon: resolveIcon(ROUTES.PETTY_CASH), permission: resolvePerm(ROUTES.PETTY_CASH) },
           { name: resolveLabel(ROUTES.INVOICES), href: ROUTES.INVOICES, icon: resolveIcon(ROUTES.INVOICES), permission: resolvePerm(ROUTES.INVOICES) },
-          { name: 'VAT Records', href: ROUTES.VAT_RECORD, icon: resolveIcon(ROUTES.VAT_RECORD), permission: { module: 'vatRecord', action: 'view' } },
+          { name: 'VAT Records', href: ROUTES.VAT_RECORD, icon: resolveIcon(ROUTES.VAT_RECORD), permission: resolvePerm(ROUTES.VAT_RECORD) ?? { module: 'vatRecord', action: 'view' } },
           { name: resolveLabel(ROUTES.INCOME_EXPENSE), href: ROUTES.INCOME_EXPENSE, icon: resolveIcon(ROUTES.INCOME_EXPENSE), permission: resolvePerm(ROUTES.INCOME_EXPENSE) },
         ],
       },
@@ -271,6 +280,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           { name: 'Company Managers', href: ROUTES.COMPANY_MANAGERS, icon: resolveIcon(ROUTES.COMPANY_MANAGERS), permission: resolvePerm(ROUTES.USERS) },
         ],
       },
+
+     { 
+  name: resolveLabel(ROUTES.WAITING),
+  href: ROUTES.WAITING,
+  icon: resolveIcon(ROUTES.WAITING),
+  permission: resolvePerm(ROUTES.WAITING) ?? { module: 'waiting', action: 'view' },
+},
+
 
       { name: resolveLabel(ROUTES.CHAT), href: ROUTES.CHAT, icon: resolveIcon(ROUTES.CHAT), permission: resolvePerm(ROUTES.CHAT) },
     ].filter(Boolean) as NavItem[];

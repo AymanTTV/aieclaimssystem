@@ -13,6 +13,7 @@ import {
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, differenceInDays } from 'date-fns';
+import { deriveDisplayStatus } from '../../utils/claimProgress'; // Import the new helper
 
 interface ClaimTableProps {
   claims: Claim[];
@@ -65,7 +66,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       cell: ({ row }) => (
         <div>
           <div className="text-sm">
-            {format(row.original.incidentDetails.date, 'dd/MM/yyyy')}
+            {format(new Date(row.original.incidentDetails.date), 'dd/MM/yyyy')}
           </div>
           <div className="text-sm text-gray-500">{row.original.incidentDetails.time}</div>
           <div className="text-sm text-gray-500 truncate max-w-xs">
@@ -87,28 +88,34 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     {
       header: 'Type & Progress',
       cell: ({ row }) => {
-        const { updatedAt, progress } = row.original;
-        const daysSinceUpdate = differenceInDays(new Date(), updatedAt);
-        const showWarning = progress !== 'Claim Complete';
+        const claim = row.original;
+        const { updatedAt } = claim;
+        
+        const displayStatus = deriveDisplayStatus(claim);
+        const daysSinceUpdate = differenceInDays(new Date(), new Date(updatedAt));
+        const showWarning = displayStatus !== 'Claim Completed - Record Archived';
         const isYellow = showWarning && daysSinceUpdate > 0 && daysSinceUpdate < 7;
         const isRed = showWarning && daysSinceUpdate >= 7;
 
         return (
           <div
             className={[
-              'space-y-1 p-2 rounded',
+              'p-2 rounded max-w-xs', // Constrain width
               isYellow ? 'bg-yellow-50' : '',
               isRed ? 'bg-red-50' : ''
             ].join(' ')}
           >
-            <StatusBadge status={row.original.claimType} />
-            <StatusBadge status={row.original.claimReason} />
-            <StatusBadge status={row.original.caseProgress} />
-            <StatusBadge status={row.original.progress} />
+            {/* Use flex-wrap to arrange badges efficiently */}
+            <div className="flex flex-wrap gap-1">
+              <StatusBadge status={claim.claimType} />
+              <StatusBadge status={claim.claimReason} />
+              <StatusBadge status={claim.caseProgress} />
+              <StatusBadge status={displayStatus} />
+            </div>
 
             {showWarning && daysSinceUpdate > 0 && (
               <div
-                className={`text-xs font-medium ${
+                className={`mt-1 text-xs font-medium ${ // Add margin-top for spacing
                   isRed ? 'text-red-800' : 'text-yellow-800'
                 }`}
               >
@@ -133,6 +140,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             >
               <MessageSquare className="h-4 w-4" />
             </button>
+            {can('claims', 'update') && (
             <button
               onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }}
               className="text-blue-600 hover:text-blue-800"
@@ -140,6 +148,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             >
               <Clock className="h-4 w-4" />
             </button>
+            )}
 
             {can('claims', 'view') && (
               <button

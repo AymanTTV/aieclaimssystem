@@ -134,7 +134,7 @@ const PettyCash = () => {
         onAdd={() => setShowForm(true)}
         transactions={listToShow}
       />
-
+      {user?.role === 'manager' && (
       <div className="flex flex-wrap gap-2 justify-end">
         <button
           onClick={() => setShowManageCategories(true)}
@@ -149,6 +149,8 @@ const PettyCash = () => {
           Manage Groups
         </button>
       </div>
+
+      )}
 
       <PettyCashFilters
         moduleKey="pettyCash"

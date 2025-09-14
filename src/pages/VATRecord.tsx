@@ -1,6 +1,6 @@
 // src/pages/VATRecord.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react'; // Import useMemo
 import { useVATRecords } from '../hooks/useVATRecords';
 import { useVATRecordFilters } from '../hooks/useVATRecordFilters';
 import { useCustomers } from '../hooks/useCustomers';
@@ -48,9 +48,7 @@ const VATRecordPage = () => {
     setAmountRange,
     filteredRecords,
     categoryIdFilter, setCategoryIdFilter,
-    // NEW:
     groupIdFilter, setGroupIdFilter,
-    summary
   } = useVATRecordFilters(records);
 
   const [showForm, setShowForm] = useState(false);
@@ -58,31 +56,79 @@ const VATRecordPage = () => {
   const [editingRecord, setEditingRecord] = useState<VATRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<VATRecord | null>(null);
   const [updatingRecord, setUpdatingRecord] = useState<VATRecord | null>(null);
-  const { categories } = useVATCategories(); // (optional, if you want local use)
+  const { categories } = useVATCategories();
   const [showManageCategories, setShowManageCategories] = useState(false);
-  const [showManageGroups, setShowManageGroups] = useState(false); // NEW
+  const [showManageGroups, setShowManageGroups] = useState(false);
+  
+  const [dueDateFilter, setDueDateFilter] = useState('');
 
-  // optional subscription (not required for UI to work):
+  const finalFilteredRecords = useMemo(() => 
+    filteredRecords.filter(record => {
+      if (!dueDateFilter) return true;
+      if (!record.dueDate) return false;
+      return record.dueDate.toISOString().split('T')[0] === dueDateFilter;
+    }), 
+    [filteredRecords, dueDateFilter]
+  );
+
+  const summary = useMemo(() => {
+    const newSummary = finalFilteredRecords.reduce(
+      (acc, record) => {
+        acc.net += record.net || 0;
+        acc.vat += record.vat || 0;
+        acc.gross += record.gross || 0;
+        acc.vatReceived += record.vatReceived || 0;
+        return acc;
+      },
+      { net: 0, vat: 0, gross: 0, vatReceived: 0 }
+    );
+    const balance = newSummary.vat - newSummary.vatReceived;
+    return { ...newSummary, balance };
+  }, [finalFilteredRecords]);
+
+
   useVATGroups();
 
   const handleExport = () => {
     try {
-      const exportData = records.map(record => ({
-        'Receipt No': record.receiptNo,
-        'Accountant': record.accountant,
-        'Supplier': record.supplier,
-        'REG No': record.regNo,
-        'Category': record.categoryName || '',
-        'Group': record.groupName || '',
-        'GROSS': record.gross !== undefined ? record.gross.toFixed(2) : '0.00',
-        'VAT': record.vat !== undefined ? record.vat.toFixed(2) : '0.00',
-        'NET': record.net.toFixed(2),
-        'Customer': record.customerName,
-        'Status': record.status,
-        'Date': record.date.toLocaleDateString(),
+      const exportData = finalFilteredRecords.map(record => ({
+        'Date': record.date.toLocaleDateString(), //
+        'Due Date': record.dueDate ? record.dueDate.toLocaleDateString() : '', //
+        'Receipt/Invoice No': record.receiptNo, //
+        'Inquiry/Order No': record.accountant, //
+        'Supplier': record.supplier, //
+        'REG No': record.regNo, //
+        'Account No': record.accountNo || '', //
+        'Customer': record.customerName, //
+        'Category': record.categoryName || '', //
+        'Group': record.groupName || '', //
+        'NET': record.net.toFixed(2), //
+        'VAT': record.vat !== undefined ? record.vat.toFixed(2) : '0.00', //
+        'GROSS': record.gross !== undefined ? record.gross.toFixed(2) : '0.00', //
+        'VAT Received': record.vatReceived !== undefined ? record.vatReceived.toFixed(2) : '0.00',
+        'Status': record.status, //
       }));
 
-      exportToExcel(exportData, 'vat_records');
+      // Add a summary row at the end
+      const summaryRow = {
+        'Date': 'TOTALS',
+        'Due Date': '',
+        'Receipt/Invoice No': '',
+        'Inquiry/Order No': '',
+        'Supplier': '',
+        'REG No': '',
+        'Account No': '',
+        'Customer': '',
+        'Category': '',
+        'Group': '',
+        'NET': summary.net.toFixed(2),
+        'VAT': summary.vat.toFixed(2),
+        'GROSS': summary.gross.toFixed(2),
+        'VAT Received': summary.vatReceived.toFixed(2),
+        'Status': '',
+      };
+
+      exportToExcel([...exportData, summaryRow], 'vat_records');
       toast.success('VAT records exported successfully');
     } catch (error) {
       console.error('Error exporting records:', error);
@@ -132,7 +178,7 @@ const VATRecordPage = () => {
   
       const pdfBlob = await generateBulkDocuments(
         VATRecordBulkDocument,
-        filteredRecords,
+        finalFilteredRecords,
         companyDetails
       );
   
@@ -163,7 +209,7 @@ const VATRecordPage = () => {
 
       {/* Summary Cards */}
       {can('vatRecord', 'cards') && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
             <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total NET</h3>
             <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-green-600">
@@ -191,6 +237,13 @@ const VATRecordPage = () => {
               {formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}
             </p>
           </div>
+          
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
+            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Balance</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-orange-600">
+              {formatCurrency(isNaN(summary.balance) ? 0 : summary.balance)}
+            </p>
+          </div>
         </div>
       )}
 
@@ -198,7 +251,6 @@ const VATRecordPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
 
-        {/* Responsive actions: wrap on mobile */}
         <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
           {user?.role === 'manager' && (
             <button
@@ -219,7 +271,7 @@ const VATRecordPage = () => {
                 Manage Categories
               </button>
               <button
-                onClick={() => setShowManageGroups(true)} // NEW
+                onClick={() => setShowManageGroups(true)}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
               >
                 Manage Groups
@@ -261,14 +313,15 @@ const VATRecordPage = () => {
         onAmountRangeChange={setAmountRange}
         categoryIdFilter={categoryIdFilter}
         onCategoryIdFilterChange={setCategoryIdFilter}
-        // NEW:
         groupIdFilter={groupIdFilter}
         onGroupIdFilterChange={setGroupIdFilter}
+        dueDateFilter={dueDateFilter}
+        onDueDateFilterChange={setDueDateFilter}
       />
 
       {/* Records Table */}
       <VATRecordTable
-        records={filteredRecords}
+        records={finalFilteredRecords}
         onView={setSelectedRecord}
         onEdit={setEditingRecord}
         onDelete={setDeletingRecord}

@@ -33,11 +33,12 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
       {/* Basic Information */}
       <Section title="Record Details">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Receipt No" value={record.receiptNo} />
-          <Field label="Accountant" value={record.accountant} />
+          <Field label="Receipt/Invoice No" value={record.receiptNo} />
+          <Field label="Inquiry/Order No" value={record.accountant} />
           <Field label="Supplier" value={record.supplier} />
+          {record.accountNo && <Field label="Account No" value={record.accountNo} />}
           <Field label="REG No" value={record.regNo} />
-          {record.vatNo && <Field label="VAT No" value={record.vatNo} />} {/* Display VAT No */}
+          {record.vatNo && <Field label="VAT No" value={record.vatNo} />}
         </div>
       </Section>
 
@@ -100,6 +101,7 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
           </div>
           {record.notes && <Field label="Notes" value={record.notes} />}
           <Field label="Date" value={format(record.date, 'dd/MM/yyyy')} />
+          {record.dueDate && <Field label="Due Date" value={format(record.dueDate, 'dd/MM/yyyy')} />}
         </div>
       </Section>
 

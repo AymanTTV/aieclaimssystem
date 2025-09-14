@@ -202,7 +202,7 @@ const Vehicles: React.FC = () => {
 <div className="space-y-3 sm:space-y-4">
   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
     <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-      Fleet Management
+      AIE Vehicles
     </h1>
 
     {/* Actions: grid on mobile (2-up), flex-wrap on >= sm */}
@@ -214,7 +214,7 @@ const Vehicles: React.FC = () => {
       "
     >
       
-        
+          {can('vehicles', 'export') && (
           <button
             onClick={handleGeneratePDF}
             className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
@@ -222,6 +222,8 @@ const Vehicles: React.FC = () => {
             <FileText className="h-5 w-5 mr-2" />
             Generate PDF
           </button>
+
+          )}
           {can('vehicles', 'export') && (
           <button
             onClick={handleExport}

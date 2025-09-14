@@ -133,7 +133,7 @@ const AiePettyCash = () => {
         onAdd={() => setShowForm(true)}
         transactions={listToShow}
       />
-
+      {user?.role === 'manager' && (
       <div className="flex flex-wrap gap-2 justify-end">
         <button
           onClick={() => setShowManageCategories(true)}
@@ -148,6 +148,8 @@ const AiePettyCash = () => {
           Manage Groups
         </button>
       </div>
+
+      )}
 
       <PettyCashFilters
         moduleKey="aiePettyCash"

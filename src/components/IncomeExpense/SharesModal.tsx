@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { ProfitShare } from '../../types/incomeExpense';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { useAuth } from '../../context/AuthContext'
 
 interface Props {
   shares: ProfitShare[];
@@ -18,6 +19,7 @@ export default function SharesModal({ shares, onClose,  onGeneratePDF }: Props) 
 
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState({ start: '', end: '' });
+  const { user } = useAuth()
 
   const filtered = useMemo(() => {
     return shares.filter(sp => {

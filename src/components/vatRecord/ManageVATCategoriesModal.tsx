@@ -1,5 +1,5 @@
 // src/components/vatRecord/ManageVATCategoriesModal.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -18,10 +18,13 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
   const load = async () => {
     try {
-      const q = query(collection(db, 'vatCategories'), orderBy('name', 'asc'));
+      // Sort by creation date to show the newest first
+      const q = query(collection(db, 'vatCategories'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       const list: Cat[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Cat, 'id'>) }));
@@ -33,7 +36,12 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   useEffect(() => {
-    if (isOpen) load();
+    if (isOpen) {
+      load();
+      // Reset state when modal opens
+      setSearchTerm('');
+      setShowAll(false);
+    }
   }, [isOpen]);
 
   const addCategory = async () => {
@@ -41,6 +49,7 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
     if (!name) return;
     setLoading(true);
     try {
+      // Add createdAt timestamp for sorting
       await addDoc(collection(db, 'vatCategories'), { name, createdAt: serverTimestamp() });
       setNewName('');
       await load();
@@ -91,6 +100,16 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setLoading(false);
     }
   };
+  
+  const filteredCategories = useMemo(() =>
+    categories.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    [categories, searchTerm]
+  );
+
+  const displayedCategories = useMemo(() =>
+    showAll ? filteredCategories : filteredCategories.slice(0, 5),
+    [filteredCategories, showAll]
+  );
 
   if (!isOpen) return null;
 
@@ -120,9 +139,19 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
             Add
           </button>
         </div>
+        
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search categories..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full form-input"
+          />
+        </div>
 
-        <div className="divide-y border rounded-md">
-          {categories.map((c) => (
+        <div className="divide-y border rounded-md max-h-[50vh] overflow-y-auto">
+          {displayedCategories.map((c) => (
             <div key={c.id} className="flex items-center justify-between p-2">
               {editingId === c.id ? (
                 <input
@@ -149,8 +178,23 @@ const ManageVATCategoriesModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             </div>
           ))}
-          {categories.length === 0 && <div className="p-3 text-sm text-gray-500">No categories yet.</div>}
+          {displayedCategories.length === 0 && (
+            <div className="p-3 text-sm text-gray-500">
+              {searchTerm ? 'No matching categories found.' : 'No categories yet.'}
+            </div>
+          )}
         </div>
+        
+        {filteredCategories.length > 5 && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              {showAll ? 'Show Less' : `Show All (${filteredCategories.length})`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

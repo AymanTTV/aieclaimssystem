@@ -163,12 +163,14 @@ export default function Share() {
             <Plus className="h-5 w-5 mr-2" /> Add Income
           </button>
         )}
+        {can('share', 'create') && (
         <button
           onClick={() => setShowExp(true)}
           className="inline-flex items-center px-4 py-2 border rounded"
         >
           <FileText className="h-5 w-5 mr-2" /> Record Expense
         </button>
+        )}
         {can('share', 'share') && (
         <button
           onClick={() => setShowSplit(true)}
@@ -255,7 +257,7 @@ export default function Share() {
         isOpen={showExp}
         onClose={() => setShowExp(false)}
         title="Record Expense"
-        size="lg"
+        size="xl"
       >
         <ExpenseForm onClose={() => setShowExp(false)} />
       </Modal>

@@ -13,13 +13,13 @@ interface VATRecordFiltersProps {
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void
   amountRange: { min: number | null; max: number | null }
   onAmountRangeChange: (range: { min: number | null; max: number | null }) => void
-
   categoryIdFilter: string
   onCategoryIdFilterChange: (id: string) => void
-
-  // NEW:
   groupIdFilter: string
   onGroupIdFilterChange: (id: string) => void
+  // New props for Due Date filter
+  dueDateFilter: string;
+  onDueDateFilterChange: (date: string) => void;
 }
 
 const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
@@ -32,6 +32,7 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
     amountRange, onAmountRangeChange,
     categoryIdFilter, onCategoryIdFilterChange,
     groupIdFilter, onGroupIdFilterChange,
+    dueDateFilter, onDueDateFilterChange,
   } = props;
 
   return (
@@ -96,6 +97,17 @@ const VATRecordFilters: React.FC<VATRecordFiltersProps> = (props) => {
               })
             }
             min={dateRange.start?.toISOString().slice(0, 10)}
+            className="form-input mt-1 w-full"
+          />
+        </div>
+        
+        {/* Due Date Filter */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700">Due Date</label>
+          <input
+            type="date"
+            value={dueDateFilter}
+            onChange={(e) => onDueDateFilterChange(e.target.value)}
             className="form-input mt-1 w-full"
           />
         </div>

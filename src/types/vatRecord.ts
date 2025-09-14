@@ -31,6 +31,9 @@ export interface VATRecord {
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
-  vatReceived?: number; // Add this line
-  documentUrl?: string; //Add if not already present
+  vatReceived?: number;
+  documentUrl?: string;
+  // New Fields
+  accountNo?: string;
+  dueDate?: Date;
 }

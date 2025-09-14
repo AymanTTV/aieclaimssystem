@@ -74,14 +74,18 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
         });
         setIsLegacy(legacy);
 
-        // Only preselect status if non-legacy & valid
-        if (!legacy && data.progress && PROGRESS_OPTIONS.includes(data.progress)) {
-          setStatus(data.progress as string);
-        }
-
         // Keep history sorted oldest->newest internally
         historyMapped.sort((a, b) => a.date.getTime() - b.date.getTime());
         setHistory(historyMapped);
+
+        // Pre-select the status from the latest history entry
+        if (historyMapped.length > 0) {
+          const latestStatus = historyMapped[historyMapped.length - 1].status;
+          setStatus(latestStatus);
+        } else if (!legacy && data.progress && PROGRESS_OPTIONS.includes(data.progress)) {
+          // Fallback for non-legacy claims with no history but a top-level progress field
+          setStatus(data.progress as string);
+        }
 
         setDateValue(new Date().toISOString().substring(0, 16));
       } catch (err: any) {
@@ -218,6 +222,7 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
               >
                 <Edit className="h-4 w-4 text-gray-600" />
               </button>
+              {user?.role === 'manager' && (
               <button
                 type="button"
                 onClick={() => handleDelete(entry)}
@@ -227,6 +232,7 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
               >
                 <Trash2 className="h-4 w-4 text-red-600" />
               </button>
+              )}
             </div>
           </div>
         ))}

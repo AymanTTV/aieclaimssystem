@@ -24,6 +24,7 @@ export const useVATRecords = () => {
             date: data.date.toDate(),
             createdAt: data.createdAt.toDate(),
             updatedAt: data.updatedAt.toDate(),
+            dueDate: data.dueDate ? data.dueDate.toDate() : undefined, // Handle optional dueDate
           } as VATRecord);
         });
         setRecords(recordData);

@@ -7,7 +7,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import { lazyLoad } from './lazyLoad';
 import ForgotPassword from '../pages/members/ForgotPassword';
 import ResetPassword from '../pages/members/ResetPassword';
-
+import { ROUTES } from '.';
 // Spinner for Suspense boundaries
 const spinner = (
   <div className="flex items-center justify-center min-h-screen">
@@ -37,7 +37,7 @@ const MemberInvoices  = lazy(() => import('../pages/members/MemberInvoices'));
 const MemberRentals   = lazy(() => import('../pages/members/MemberRentals'));
 // reuse the admin Profile component for member profile:
 const MemberProfile   = lazyLoad('Profile');
-
+const Waiting = lazyLoad('WaitingPage');
 /* ─────────────────────────────
    Admin/Main (protected)
 ────────────────────────────── */
@@ -96,6 +96,18 @@ export default function AppRoutes() {
         }
       />
 
+     <Route
+  path="/waiting"
+  element={
+    <ProtectedRoute requiredPermission={{ module: 'waiting', action: 'view' }}>
+      <Layout>
+        <Waiting />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+
+
       {/* ─────────── Member portal (protected) ─────────── */}
       <Route
         path="/members/*"
@@ -109,7 +121,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        {/* Default → Dashboard (keeps logo/link logic consistent) */}
+        {/* Default → Dashboard */}
         <Route index element={<Navigate to="dashboard" replace />} />
 
         {/* Dashboard */}
@@ -266,7 +278,7 @@ export default function AppRoutes() {
       <Route
         path="/skyline-caps/aie-petty-cash"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'driverPay', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'aiePettyCash', action: 'view' }}>
             <Layout>
               <AiePettyCash />
             </Layout>
@@ -351,10 +363,11 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Claims sub-pages must use their OWN modules, not 'claims' */}
       <Route
         path="/claims/vd-finance"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'vdFinance', action: 'view' }}>
             <Layout>
               <VDFinance />
             </Layout>
@@ -365,7 +378,7 @@ export default function AppRoutes() {
       <Route
         path="/claims/vd-invoice"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'claims', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'vdInvoice', action: 'view' }}>
             <Layout>
               <VDInvoice />
             </Layout>
@@ -384,10 +397,11 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Use the correct module for the finance sub-pages */}
       <Route
         path="/finance/invoices"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'invoices', action: 'view' }}>
             <Layout>
               <Invoices />
             </Layout>
@@ -398,7 +412,7 @@ export default function AppRoutes() {
       <Route
         path="/finance/petty-cash"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'finance', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'pettyCash', action: 'view' }}>
             <Layout>
               <PettyCash />
             </Layout>

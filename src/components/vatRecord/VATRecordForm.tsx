@@ -85,15 +85,16 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
     customerId: record?.customerId || '',
     categoryId: record?.categoryId || '',
     categoryName: record?.categoryName || '',
-    // NEW:
     groupId: record?.groupId || '',
     groupName: record?.groupName || '',
-
     vatNo: record?.vatNo || '',
     status: record?.status || 'awaiting',
     notes: record?.notes || '',
     date: record?.date ? new Date(record.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     vatReceived: record?.vatReceived !== undefined ? record.vatReceived : 0,
+    // New fields
+    accountNo: record?.accountNo || '',
+    dueDate: record?.dueDate ? new Date(record.dueDate).toISOString().split('T')[0] : '',
   });
 
   // Calculate totals
@@ -145,17 +146,13 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
 
     try {
       const totals = calculateTotals();
-      const vatRecord: VATRecord = {
-        // include ID if editing
-        ...(record || {} as VATRecord),
+      const vatRecord: Omit<VATRecord, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> & { id?: string } = {
         ...formData,
         descriptions,
         ...totals,
         date: new Date(formData.date),
-        updatedAt: new Date(),
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
         vatReceived: formData.vatReceived,
-
-        // ensure these are present
         categoryId: formData.categoryId || '',
         categoryName: formData.categoryName || '',
         groupId: formData.groupId || '',
@@ -163,12 +160,16 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
       };
 
       if (record) {
-        await updateDoc(doc(db, 'vatRecords', record.id), vatRecord);
+        await updateDoc(doc(db, 'vatRecords', record.id), {
+            ...vatRecord,
+            updatedAt: new Date(),
+        });
         toast.success('VAT record updated successfully');
       } else {
         await addDoc(collection(db, 'vatRecords'), {
           ...vatRecord,
           createdAt: new Date(),
+          updatedAt: new Date(),
           createdBy: user.id
         });
         toast.success('VAT record created successfully');
@@ -185,21 +186,43 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField
-          label="Receipt No"
+          label="Receipt/Invoice No"
           value={formData.receiptNo}
           onChange={(e) => setFormData({ ...formData, receiptNo: e.target.value })}
           required
         />
         <FormField
-          label="Accountant"
+          label="Inquiry/Order No"
           value={formData.accountant}
           onChange={(e) => setFormData({ ...formData, accountant: e.target.value })}
           required
         />
-
-        {/* Category */}
+        <FormField
+          label="VAT No"
+          value={formData.vatNo}
+          onChange={(e) => setFormData({ ...formData, vatNo: e.target.value })}
+        />
+        
+        <FormField
+          label="Account No"
+          value={formData.accountNo}
+          onChange={(e) => setFormData({ ...formData, accountNo: e.target.value })}
+        />
+        <FormField
+          label="Supplier"
+          value={formData.supplier}
+          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+          required
+        />
+        <FormField
+          label="REG No"
+          value={formData.regNo}
+          onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
+          required
+        />
+        
         <div>
           <label className="block text-sm font-medium text-gray-700">Category</label>
           <select
@@ -215,8 +238,6 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-
-        {/* Group (NEW) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Group</label>
           <select
@@ -232,26 +253,6 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
-
-        <FormField
-          label="VAT No"
-          value={formData.vatNo}
-          onChange={(e) => setFormData({ ...formData, vatNo: e.target.value })}
-        />
-
-        <FormField
-          label="REG No"
-          value={formData.regNo}
-          onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
-          required
-        />
-
-        <FormField
-          label="Supplier"
-          value={formData.supplier}
-          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-          required
-        />
       </div>
 
       {/* Descriptions Section */}
@@ -479,13 +480,21 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
       />
 
-      <FormField
-        type="date"
-        label="Date"
-        value={formData.date}
-        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-        required
-      />
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          type="date"
+          label="Date"
+          value={formData.date}
+          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+          required
+        />
+        <FormField
+          type="date"
+          label="Due Date"
+          value={formData.dueDate}
+          onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+        />
+      </div>
 
       <div className="flex justify-end space-x-3">
         <button

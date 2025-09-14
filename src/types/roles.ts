@@ -53,7 +53,7 @@ export interface RolePermissions {
 
   // Admin actions on Members (e.g., delete/remove/suspend, edit)
   members: Permission;
-
+  waiting: Permission; // <-- NEW MODULE
   // MEMBER-PORTAL MODULES (visible/used only when role === 'member')
   memberProfile: Permission;
   memberRentals: Permission;
@@ -81,7 +81,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     aiePettyCash:     { view: true,  create: true,  update: true,  delete: true,  cards: true, export: true } as any,
     share:         { view: true,  create: true,  update: true,  delete: true,  cards: true, share: true, export: true } as any,
     driverPay:     { view: true,  create: true,  update: true,  delete: true,  recordPayment: true, cards: true, export: true } as any,
-
+    waiting: { view: true, create: true, update: true, delete: true, export: true } as any,
     vdFinance:     { view: true,  create: true,  update: true,  delete: true,  cards: true, export: true } as any,
     vdInvoice:     { view: true,  create: true,  update: true,  delete: true,  cards: true } as any, // no import/export
 
@@ -107,7 +107,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- ADMIN ----------------
   admin: {
     dashboard:     { view: true } as any,
-
+    waiting: { view: true, create: true, update: true, delete: true, export: true } as any,
     vehicles:      { view: true,  create: false, update: true,  delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: true,  create: false, update: true,  delete: false, cards: true, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: false, update: true,  delete: false, cards: true, daily: true, weekly: true, claim: true, recordPayment: false, export: true } as any,
@@ -147,7 +147,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- FINANCE ----------------
   finance: {
     dashboard:     { view: true } as any,
-
+   waiting: { view: false } as any,
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: false, recordPayment: false, export: true } as any,
@@ -187,7 +187,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- CLAIMS ----------------
   claims: {
     dashboard:     { view: true } as any,
-
+    waiting: { view: false } as any,
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: true, recordPayment: false, export: true } as any,
@@ -227,6 +227,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- MEMBER (portal user) ----------------
   member: {
     // Admin-side modules — all OFF for members
+    waiting: { view: false } as any,
     dashboard:     { view: false } as any,
     vehicles:      { view: false } as any,
     maintenance:   { view: false } as any,

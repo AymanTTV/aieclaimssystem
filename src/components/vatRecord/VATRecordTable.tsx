@@ -35,8 +35,13 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
         <div>
           <div className="font-medium">{row.original.receiptNo}</div>
           <div className="text-sm text-gray-500">
-            {format(row.original.date, 'dd/MM/yyyy')}
+            Date: {format(row.original.date, 'dd/MM/yyyy')}
           </div>
+          {row.original.dueDate && (
+            <div className="text-sm text-red-500">
+              Due: {format(row.original.dueDate, 'dd/MM/yyyy')}
+            </div>
+          )}
         </div>
       ),
     },
