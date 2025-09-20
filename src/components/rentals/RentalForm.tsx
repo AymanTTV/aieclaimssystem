@@ -1129,26 +1129,14 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               type="number"
               label="Number of Weeks"
               value={formData.numberOfWeeks}
+              // THIS IS THE PROBLEMATIC ONCHANGE HANDLER
               onChange={(e) => {
-                const weeks = parseInt(e.target.value);
-                setFormData(prev => {
-                  const startDateTime = new Date(`${prev.startDate}T${prev.startTime}`);
-                  if (isValid(startDateTime)) {
-                    const endDateTime = addWeeks(startDateTime, weeks);
-                    return {
-                      ...prev,
-                      numberOfWeeks: weeks,
-                      endDate: endDateTime.toISOString().split('T')[0],
-                      endTime: prev.startTime
-                    };
-                  }
-                  return {
-                    ...prev,
-                    numberOfWeeks: weeks,
-                    endDate: '',
-                    endTime: ''
-                  };
-                });
+                // Use a logical OR to default to 1 if the input is empty or invalid
+                const weeks = parseInt(e.target.value) || 1;
+                setFormData(prev => ({
+                  ...prev,
+                  numberOfWeeks: weeks,
+                }));
               }}
               min="1"
               required

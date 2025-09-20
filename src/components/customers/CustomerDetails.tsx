@@ -30,11 +30,19 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Mobile</h3>
-          <p className="mt-1">{customer.mobile}</p>
+          <p className="mt-1">
+            <a href={`tel:${customer.mobile}`} className="text-blue-600 hover:underline">
+              {customer.mobile}
+            </a>
+          </p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Email</h3>
-          <p className="mt-1">{customer.email}</p>
+          <p className="mt-1">
+            <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">
+              {customer.email}
+            </a>
+          </p>
         </div>
         <div className="col-span-2">
           <h3 className="text-sm font-medium text-gray-500">Address</h3>

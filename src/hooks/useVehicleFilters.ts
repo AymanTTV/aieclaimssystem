@@ -1,71 +1,56 @@
-import { useState, useMemo } from 'react';
+// src/hooks/useVehicleFilters.ts
+import { useMemo, useState } from 'react';
 import { Vehicle } from '../types';
+
+const norm = (v: unknown) => String(v ?? '').toLowerCase().trim();
 
 export const useVehicleFilters = (vehicles: Vehicle[]) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [makeFilter, setMakeFilter] = useState('all');
-  const [showSold, setShowSold] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | Vehicle['status']>('all');
+  const [makeFilter, setMakeFilter] = useState<string>('all');
+  const [showSold, setShowSold] = useState<boolean>(false);
 
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((vehicle) => {
-      // Don't show sold vehicles unless explicitly requested
-      
-      if (showSold) {
-        if (vehicle.status !== 'sold') {
-          return false;
-        }
-      } else {
-        // If showSold is false, hide sold vehicles
-        if (vehicle.status === 'sold') {
-          return false;
-        }
-      }
+    const q = norm(searchQuery);
 
-      // Search filter
-      // Search filter
-const searchLower = searchQuery.toLowerCase();
-const matchesSearch =
-  vehicle.registrationNumber.toLowerCase().includes(searchLower) ||
-  vehicle.make.toLowerCase().includes(searchLower) ||
-  vehicle.model.toLowerCase().includes(searchLower) ||
-  vehicle.vin.toLowerCase().includes(searchLower) ||
-  // Safely access owner.name using optional chaining and provide a default empty string if owner or owner.name is undefined
-  ((vehicle.owner?.name ?? '')).toLowerCase().includes(searchLower); // MODIFIED LINE - changed || to ?? for nullish coalescing
+    return (vehicles || []).filter((v) => {
+      // 1) Sold toggle: hide sold unless explicitly shown
+      if (!showSold && norm(v?.status) === 'sold') return false;
 
-      // Status filter
-      let matchesStatus = true;
-      if (statusFilter !== 'all') {
-        switch (statusFilter) {
-          case 'hired':
-            matchesStatus = vehicle.status === 'rented' || vehicle.status === 'scheduled-rental';
-            break;
-          case 'maintenance':
-            matchesStatus = vehicle.status === 'maintenance' || vehicle.status === 'scheduled-maintenance';
-            break;
-          case 'claims':
-            matchesStatus = vehicle.status === 'claim';
-            break;
-          case 'available':
-            matchesStatus = vehicle.status === 'available';
-            break;
-          default:
-            matchesStatus = vehicle.status === statusFilter;
-        }
-      }
+      // 2) Status filter (when not "all")
+      if (statusFilter !== 'all' && norm(v?.status) !== norm(statusFilter)) return false;
 
-      // Make filter
-      const matchesMake = makeFilter === 'all' || vehicle.make === makeFilter;
+      // 3) Make filter (when not "all")
+      if (makeFilter !== 'all' && norm(v?.make) !== norm(makeFilter)) return false;
 
-      return matchesSearch && matchesStatus && matchesMake;
+      // 4) Search (null-safe across common fields)
+      if (!q) return true;
+      const haystack = [
+        v?.registrationNumber, // <--- CORRECTED THIS LINE
+        v?.make,
+        v?.model,
+        v?.vin,
+        (v as any)?.colour,
+        (v as any)?.engineNumber,
+        (v as any)?.ownerName,
+      ]
+        .map(norm)
+        .join(' ');
+      return haystack.includes(q);
     });
   }, [vehicles, searchQuery, statusFilter, makeFilter, showSold]);
 
   const uniqueMakes = useMemo(() => {
-    return Array.from(new Set(vehicles.map(vehicle => vehicle.make))).sort();
+    const s = new Set<string>();
+    for (const v of vehicles || []) {
+      const mk = (v?.make ?? '').toString().trim();
+      if (mk) s.add(mk);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [vehicles]);
 
   return {
+    // state
     searchQuery,
     setSearchQuery,
     statusFilter,
@@ -74,6 +59,7 @@ const matchesSearch =
     setMakeFilter,
     showSold,
     setShowSold,
+    // derived
     filteredVehicles,
     uniqueMakes,
   };

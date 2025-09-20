@@ -40,6 +40,15 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
     {
       header: 'Mobile',
       accessorKey: 'mobile',
+      cell: ({ row }) => (
+        <a
+          href={`tel:${row.original.mobile}`}
+          className="text-blue-600 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.original.mobile}
+        </a>
+      ),
     },
     {
       header: 'Age',

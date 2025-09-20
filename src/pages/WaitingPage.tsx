@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions'; // ✨ ADD THIS
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import WaitingDeleteModal from '../components/waiting/WaitingDeleteModal'; //
@@ -52,6 +53,7 @@ const STATUS_FLOW: WaitingStatus[] = [
 
 const WaitingPage: React.FC = () => {
   const { user } = useAuth();
+  const { can } = usePermissions(); // ✨ ADD THIS
 
   // ─────────────────── Data ───────────────────
   const [entries, setEntries] = useState<WaitingEntry[]>([]);
@@ -246,12 +248,16 @@ const WaitingPage: React.FC = () => {
         <h1 className="text-2xl font-semibold">Waiting List</h1>
 
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-primary" onClick={openCreate}>
-            New Entry
-          </button>
-          <button className="btn" onClick={exportExcel}>
-            Export
-          </button>
+          {can('waiting', 'create') && ( // ✨ MODIFIED
+            <button className="btn btn-primary" onClick={openCreate}>
+              New Entry
+            </button>
+          )}
+          {can('waiting', 'export') && ( // ✨ MODIFIED
+            <button className="btn" onClick={exportExcel}>
+              Export
+            </button>
+          )}
           <button className="btn" onClick={() => setShowCats(true)}>
             Manage Categories
           </button>
@@ -326,6 +332,8 @@ const WaitingPage: React.FC = () => {
       <WaitingTable
         entries={filtered}
         categoriesById={categoriesById}
+        canUpdate={can('waiting', 'update')} // ✨ ADDED
+        canDelete={can('waiting', 'delete')} // ✨ ADDED
         onView={(e) => setViewing(e)}
         onEdit={(e) => {
           setViewing(null);
@@ -335,7 +343,7 @@ const WaitingPage: React.FC = () => {
         onQuickContact={(e) => quickContact(e)}
         onReminder={(e) => setViewing(e)}
         onStatusChange={(e, status) => onStatusChange(e, status)}
-        onDelete={(e) => setDeleting(e)} // ➕ NEW
+        onDelete={(e) => setDeleting(e)}
       />
 
       {/* CREATE / EDIT FORM (single modal for both) */}

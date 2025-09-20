@@ -1,4 +1,3 @@
-// src/components/rentals/RentalTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
@@ -110,7 +109,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
     {
       header: 'Type',
       cell: ({ row }) => (
-        <div className="space-y-1">
+        <div className="flex flex-col items-start space-y-1">
           <StatusBadge status={row.original.type} />
           <StatusBadge status={row.original.reason} />
         </div>
@@ -151,7 +150,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
     {
       header: 'Status',
       cell: ({ row }) => (
-        <div className="space-y-1">
+        <div className="flex flex-col items-start space-y-1">
           <StatusBadge status={row.original.status} />
           <StatusBadge status={row.original.paymentStatus} />
         </div>

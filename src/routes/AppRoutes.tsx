@@ -38,6 +38,7 @@ const MemberRentals   = lazy(() => import('../pages/members/MemberRentals'));
 // reuse the admin Profile component for member profile:
 const MemberProfile   = lazyLoad('Profile');
 const Waiting = lazyLoad('WaitingPage');
+const WhatsappCommunication = lazyLoad('WhatsappCommunication');
 /* ─────────────────────────────
    Admin/Main (protected)
 ────────────────────────────── */
@@ -212,13 +213,25 @@ export default function AppRoutes() {
       <Route
         path="/bulk-email"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'users', action: 'view' }}>
+          <ProtectedRoute requiredPermission={{ module: 'bulkEmail', action: 'view' }}> // ✨ MODIFIED
             <Layout>
               <BulkEmail />
             </Layout>
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path={ROUTES.WHATSAPP}  // '/whatsapp-communication'
+        element={
+          <ProtectedRoute requiredPermission={{ module: 'whatsapp', action: 'view' }}>
+            <Layout>
+              <WhatsappCommunication />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
 
       <Route
         path="/products"

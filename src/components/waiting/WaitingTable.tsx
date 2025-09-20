@@ -12,8 +12,9 @@ type Props = {
   onQuickContact: (e: WaitingEntry) => void;
   onReminder: (e: WaitingEntry) => void;
   onStatusChange: (e: WaitingEntry, status: WaitingStatus) => void;
-  /** ➕ NEW: Delete hook */
   onDelete?: (e: WaitingEntry) => void;
+  canUpdate?: boolean; // ✨ ADDED
+  canDelete?: boolean; // ✨ ADDED
 };
 
 const WaitingTable: React.FC<Props> = ({
@@ -24,10 +25,10 @@ const WaitingTable: React.FC<Props> = ({
   onQuickContact,
   onReminder,
   onStatusChange,
-  onDelete, // new
+  onDelete,
+  canUpdate, // ✨ ADDED
+  canDelete, // ✨ ADDED
 }) => {
-  // … your existing table code / DataTable wrapper …
-
   return (
     <div className="bg-white border rounded">
       <table className="w-full text-sm">
@@ -81,13 +82,15 @@ const WaitingTable: React.FC<Props> = ({
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  <button
-                    className="p-1.5 rounded hover:bg-gray-100"
-                    title="Edit"
-                    onClick={() => onEdit(e)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  {canUpdate && ( // ✨ MODIFIED
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100"
+                      title="Edit"
+                      onClick={() => onEdit(e)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     className="p-1.5 rounded hover:bg-gray-100"
                     title="Reminder"
@@ -102,9 +105,7 @@ const WaitingTable: React.FC<Props> = ({
                   >
                     <Phone className="h-4 w-4" />
                   </button>
-
-                  {/* ➕ NEW: Delete icon (only if provided) */}
-                  {onDelete && (
+                  {onDelete && canDelete && ( // ✨ MODIFIED
                     <button
                       className="p-1.5 rounded hover:bg-red-50 text-red-600"
                       title="Delete"

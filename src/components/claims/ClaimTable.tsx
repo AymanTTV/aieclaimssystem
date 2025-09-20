@@ -48,8 +48,28 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             </div>
           )}
           <div className="font-medium">{row.original.clientInfo.name}</div>
-          <div className="text-sm text-gray-500">{row.original.clientInfo.phone}</div>
-          <div className="text-sm text-gray-500">{row.original.clientInfo.email}</div>
+          <div className="text-sm text-gray-500">
+            {row.original.clientInfo.phone && (
+              <a 
+                href={`tel:${row.original.clientInfo.phone}`}
+                className="text-blue-600 hover:underline"
+                onClick={e => e.stopPropagation()}
+              >
+                {row.original.clientInfo.phone}
+              </a>
+            )}
+          </div>
+          <div className="text-sm text-gray-500">
+            {row.original.clientInfo.email && (
+              <a 
+                href={`mailto:${row.original.clientInfo.email}`}
+                className="text-blue-600 hover:underline"
+                onClick={e => e.stopPropagation()}
+              >
+                {row.original.clientInfo.email}
+              </a>
+            )}
+          </div>
         </div>
       ),
     },
@@ -81,7 +101,17 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
         <div>
           <div className="font-medium">{row.original.thirdParty.name}</div>
           <div className="text-sm text-gray-500">{row.original.thirdParty.registration}</div>
-          <div className="text-sm text-gray-500">{row.original.thirdParty.phone}</div>
+          <div className="text-sm text-gray-500">
+            {row.original.thirdParty.phone && (
+              <a 
+                href={`tel:${row.original.thirdParty.phone}`}
+                className="text-blue-600 hover:underline"
+                onClick={e => e.stopPropagation()}
+              >
+                {row.original.thirdParty.phone}
+              </a>
+            )}
+          </div>
         </div>
       ),
     },

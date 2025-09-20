@@ -1,7 +1,9 @@
+// src/lib/firebase.ts
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, deleteField } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,9 +23,13 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Configure storage settings
+// IMPORTANT: must match your deployed Cloud Functions region
+// You deployed in europe-west2 earlier, so use that here:
+export const functions = getFunctions(app, 'europe-west2');
+
+// Configure storage settings (optional)
 storage.maxOperationRetryTime = 120000; // 2 minutes
-storage.maxUploadRetryTime = 120000; // 2 minutes
+storage.maxUploadRetryTime = 120000;    // 2 minutes
 
 // Storage metadata with CORS headers
 export const storageMetadata = {

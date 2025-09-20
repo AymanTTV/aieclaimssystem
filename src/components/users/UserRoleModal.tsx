@@ -7,7 +7,7 @@ import { User } from '../../types';
 import {
   DEFAULT_PERMISSIONS,
   type RolePermissions,
-  type Permission, // for keyof below
+  type Permission,
 } from '../../types/roles';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -60,8 +60,8 @@ const ACTION_ORDER: PermissionAction[] = [
   'import',
 ];
 
-// Map every module key to a friendly section title
-const SECTION_TITLE_MAP: Record<keyof RolePermissions, string> = {
+// Make this Partial to avoid future crashes if new keys are added elsewhere
+const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
   dashboard: 'Dashboard',
   vehicles: 'Vehicles',
   maintenance: 'Maintenance',
@@ -72,6 +72,7 @@ const SECTION_TITLE_MAP: Record<keyof RolePermissions, string> = {
   finance: 'Finance',
   invoices: 'Invoices',
   pettyCash: 'Petty Cash',
+  aiePettyCash: 'AIE Petty Cash',
   share: 'Share',
   driverPay: 'Driver Pay',
   vdFinance: 'VD Finance',
@@ -86,6 +87,8 @@ const SECTION_TITLE_MAP: Record<keyof RolePermissions, string> = {
 
   // Admin actions on members
   members: 'Members (Admin Actions)',
+  waiting: 'Waiting List',
+  whatsapp: 'WhatsApp',
 
   // Member-portal modules
   memberProfile: 'Member — Profile',
@@ -93,6 +96,41 @@ const SECTION_TITLE_MAP: Record<keyof RolePermissions, string> = {
   memberTransactions: 'Member — Transactions',
   memberInvoices: 'Member — Invoices',
 };
+
+// NEW: Define the master order for modules to match your app's flow
+const MODULE_ORDER: Array<keyof RolePermissions> = [
+  'dashboard',
+  'vehicles',
+  'maintenance',
+  'rentals',
+  'customers', // Or 'members' depending on preference
+  'finance',
+  'invoices',
+  'claims',
+  'users',
+  // Add other modules in your preferred order
+  'accidents',
+  'personalInjury',
+  'pettyCash',
+  'aiePettyCash',
+  'share',
+  'driverPay',
+  'vdFinance',
+  'vdInvoice',
+  'vatRecord',
+  'company',
+  'products',
+  'incomeExpense',
+  'skylineIncomeExpense',
+  'members',
+  'waiting',
+  'whatsapp',
+  // Member portal modules last
+  'memberProfile',
+  'memberRentals',
+  'memberTransactions',
+  'memberInvoices',
+];
 
 // Keys used by the member portal area
 const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = [
@@ -104,6 +142,20 @@ const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = [
 
 const isMemberPortalKey = (k: keyof RolePermissions) => MEMBER_PORTAL_KEYS.includes(k);
 
+// Safe label generator (prevents undefined.title.toLowerCase() crashes)
+const labelFor = (k: keyof RolePermissions) =>
+  SECTION_TITLE_MAP[k] ??
+  String(k)
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (s) => s.toUpperCase())
+    .trim();
+
+// Sorting guard for any action not listed in ACTION_ORDER
+const orderIndex = (k: PermissionAction) => {
+  const i = ACTION_ORDER.indexOf(k);
+  return i === -1 ? 999 : i;
+};
+
 const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   const { user: currentUser } = useAuth();
   const isManager = currentUser?.role === 'manager' || currentUser?.role === 'admin';
@@ -111,35 +163,39 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<User['role']>(user.role);
 
-  // SAFE initial permissions: if user.permissions is missing, fall back to defaults for their role
   const safeInitial: RolePermissions = useMemo(
-    () => (user.permissions || DEFAULT_PERMISSIONS[user.role]),
+    () => user.permissions || DEFAULT_PERMISSIONS[user.role],
     [user.permissions, user.role]
   );
 
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(safeInitial);
 
-  // UI niceties
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({}); // remember which sections are expanded
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // Decide which modules to render based on selected role & query
-  const filteredEntries = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const entries = Object.entries(customPermissions) as [keyof RolePermissions, any][];
+  const filteredAndSortedEntries = useMemo(() => {
+    const q = (query ?? '').trim().toLowerCase();
+    const entries = Object.entries(customPermissions || {}) as [keyof RolePermissions, any][];
 
-    // Show only relevant set for the selected role:
-    // - If editing a MEMBER, only show member-portal modules
-    // - If editing a non-member, show all except the member-portal modules (but DO include 'members' admin action)
     const roleFiltered = entries.filter(([key]) => {
       if (role === 'member') return isMemberPortalKey(key);
-      // non-member roles → hide member-portal modules
       return !isMemberPortalKey(key) || key === 'members';
     });
+    
+    const searchFiltered = !q
+      ? roleFiltered
+      : roleFiltered.filter(([key]) => labelFor(key).toLowerCase().includes(q));
 
-    if (!q) return roleFiltered;
+    // UPDATED: Sort the final list based on our master order
+    return searchFiltered.sort(([moduleA], [moduleB]) => {
+        const indexA = MODULE_ORDER.indexOf(moduleA);
+        const indexB = MODULE_ORDER.indexOf(moduleB);
+        // If module not in our list, push to bottom
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
 
-    return roleFiltered.filter(([key]) => SECTION_TITLE_MAP[key].toLowerCase().includes(q));
   }, [customPermissions, role, query]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -205,14 +261,16 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="sm:col-span-1">
           <label className="block text-sm font-medium text-gray-700">Role</label>
-          <div className={`mt-1 relative`}>
+          <div className="mt-1 relative">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
               <ShieldCheck className="h-4 w-4 text-gray-400" />
             </span>
             <select
               value={role}
               onChange={(e) => resetToRole(e.target.value as User['role'])}
-              className={`block w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-primary ${!isManager ? 'bg-gray-100 ' + disabledClass : ''}`}
+              className={`block w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-primary ${
+                !isManager ? 'bg-gray-100 ' + disabledClass : ''
+              }`}
               disabled={!isManager}
             >
               <option value="manager">Manager</option>
@@ -243,20 +301,17 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
 
       {/* Permissions sections */}
       <div className="space-y-3">
-        {filteredEntries.map(([module, permissions]) => {
-          const title = SECTION_TITLE_MAP[module];
-          const isOpen = expanded[module] ?? true; // default open
+        {filteredAndSortedEntries.map(([module, permissions]) => {
+          const title = labelFor(module);
+          const isOpen = expanded[module as string] ?? true;
           const toggleOpen = () =>
-            setExpanded((prev) => ({ ...prev, [module]: !isOpen }));
+            setExpanded((prev) => ({ ...prev, [module as string]: !isOpen }));
 
-          // Build ordered action list for this module
           const entries = Object.entries(permissions || {}) as [PermissionAction, boolean][];
-          const ordered = entries.sort(
-            (a, b) => ACTION_ORDER.indexOf(a[0]) - ACTION_ORDER.indexOf(b[0])
-          );
+          const ordered = entries.sort((a, b) => orderIndex(a[0]) - orderIndex(b[0]));
 
           return (
-            <div key={module} className="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div key={String(module)} className="rounded-xl border border-gray-200 bg-white shadow-sm">
               <button
                 type="button"
                 onClick={toggleOpen}
@@ -264,7 +319,6 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-gray-900">{title}</span>
-                  {/* quick glance chips */}
                   {permissions?.view ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       <CheckCircle2 className="h-3.5 w-3.5" /> View
@@ -291,7 +345,6 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
                 <div className="border-t border-gray-100 px-4 py-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                     {ordered.map(([action, enabled]) => {
-                      // hide rental-type flags except inside rentals
                       if (
                         module !== 'rentals' &&
                         (action === 'daily' || action === 'weekly' || action === 'claim')
@@ -306,15 +359,17 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
                       return (
                         <label
                           key={action}
-                          className={`group relative flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition hover:bg-white hover:shadow-sm ${!isManager ? 'opacity-60' : ''}`}
+                          className={`group relative flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition hover:bg-white hover:shadow-sm ${
+                            !isManager ? 'opacity-60' : ''
+                          }`}
                         >
                           <input
                             type="checkbox"
-                            className={`h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary ${!isManager ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            className={`h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary ${
+                              !isManager ? 'cursor-not-allowed' : 'cursor-pointer'
+                            }`}
                             checked={!!enabled}
-                            onChange={() =>
-                              toggleAction(module as keyof RolePermissions, action)
-                            }
+                            onChange={() => toggleAction(module as keyof RolePermissions, action)}
                             disabled={!isManager}
                           />
                           <span className="text-gray-800">{label}</span>
@@ -328,7 +383,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
           );
         })}
 
-        {filteredEntries.length === 0 && (
+        {filteredAndSortedEntries.length === 0 && (
           <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
             No modules match “{query}”.
           </div>
@@ -345,7 +400,7 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
           >
             Cancel
           </button>
-          <button
+        <button
             type="submit"
             disabled={loading || !isManager}
             className={`inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition ${

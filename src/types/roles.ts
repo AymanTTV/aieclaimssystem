@@ -22,6 +22,7 @@ export interface Permission {
   // Extra data I/O permissions
   export?: boolean; // enable data export when true
   import?: boolean; // (not used now) leave undefined unless you decide to allow it
+  send?: boolean;
 }
 
 // ▶ All modules used across the app (admin + member portal)
@@ -54,6 +55,8 @@ export interface RolePermissions {
   // Admin actions on Members (e.g., delete/remove/suspend, edit)
   members: Permission;
   waiting: Permission; // <-- NEW MODULE
+  bulkEmail: Permission;
+  whatsapp: Permission;
   // MEMBER-PORTAL MODULES (visible/used only when role === 'member')
   memberProfile: Permission;
   memberRentals: Permission;
@@ -67,7 +70,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- MANAGER ----------------
   manager: {
     dashboard:     { view: true } as any,
-
+    whatsapp: { view: true, send: true } as any, 
+    bulkEmail: { view: true, send: true } as any, // ✨ ADDED
     vehicles:      { view: true,  create: true,  update: true,  delete: true,  cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: true,  create: true,  update: true,  delete: true,  cards: true, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: true,  update: true,  delete: true,  cards: true, daily: true, weekly: true, claim: true, recordPayment: false, export: true } as any,
@@ -107,6 +111,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- ADMIN ----------------
   admin: {
     dashboard:     { view: true } as any,
+    whatsapp: { view: true, send: true } as any,
+    bulkEmail: { view: false, send: false } as any, // ✨ ADDED
     waiting: { view: true, create: true, update: true, delete: true, export: true } as any,
     vehicles:      { view: true,  create: false, update: true,  delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: true,  create: false, update: true,  delete: false, cards: true, recordPayment: false, export: true } as any,
@@ -148,6 +154,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   finance: {
     dashboard:     { view: true } as any,
    waiting: { view: false } as any,
+   whatsapp: { view: true, send: true } as any,
+    bulkEmail: { view: false, send: false } as any, // ✨ ADDED
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: false, recordPayment: false, export: true } as any,
@@ -187,7 +195,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- CLAIMS ----------------
   claims: {
     dashboard:     { view: true } as any,
+    bulkEmail: { view: false, send: false } as any, // ✨ ADDED
     waiting: { view: false } as any,
+    whatsapp: { view: true, send: true } as any,
     vehicles:      { view: true,  create: false, update: false, delete: false, cards: true, mileage: true,  recordPayment: false, export: true } as any,
     maintenance:   { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: true } as any,
     rentals:       { view: true,  create: false, update: false, delete: false, cards: true, daily: false, weekly: false, claim: true, recordPayment: false, export: true } as any,
@@ -227,7 +237,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- MEMBER (portal user) ----------------
   member: {
     // Admin-side modules — all OFF for members
+    bulkEmail: { view: false } as any, // ✨ ADDED
     waiting: { view: false } as any,
+    whatsapp: { view: false } as any, 
     dashboard:     { view: false } as any,
     vehicles:      { view: false } as any,
     maintenance:   { view: false } as any,

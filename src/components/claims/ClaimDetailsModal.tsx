@@ -194,11 +194,23 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
           <div className="flex items-center">
             <Phone className="h-5 w-5 text-gray-400 mr-2" />
-            <div>{claim.clientInfo.phone ?? 'N/A'}</div> {/* Use ?? 'N/A' */}
+            <div>
+              {claim.clientInfo.phone ? (
+                <a href={`tel:${claim.clientInfo.phone}`} className="text-blue-600 hover:underline">
+                  {claim.clientInfo.phone}
+                </a>
+              ) : 'N/A'}
+            </div>
           </div>
           <div className="flex items-center">
             <Mail className="h-5 w-5 text-gray-400 mr-2" />
-            <div>{claim.clientInfo.email ?? 'N/A'}</div> {/* Use ?? 'N/A' */}
+            <div>
+              {claim.clientInfo.email ? (
+                <a href={`mailto:${claim.clientInfo.email}`} className="text-blue-600 hover:underline">
+                  {claim.clientInfo.email}
+                </a>
+              ) : 'N/A'}
+            </div>
           </div>
           <div className="flex items-center">
             <MapPin className="h-5 w-5 text-gray-400 mr-2" />
@@ -284,8 +296,26 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Name" value={claim.registerKeeper.name} />
             <Field label="Address" value={claim.registerKeeper.address} />
-            <Field label="Phone" value={claim.registerKeeper.phone} />
-            <Field label="Email" value={claim.registerKeeper.email} />
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Phone</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {claim.registerKeeper.phone ? (
+                  <a href={`tel:${claim.registerKeeper.phone}`} className="text-blue-600 hover:underline">
+                    {claim.registerKeeper.phone}
+                  </a>
+                ) : 'N/A'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Email</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {claim.registerKeeper.email ? (
+                  <a href={`mailto:${claim.registerKeeper.email}`} className="text-blue-600 hover:underline">
+                    {claim.registerKeeper.email}
+                  </a>
+                ) : 'N/A'}
+              </dd>
+            </div>
             <Field label="DOB / Est. Date" value={formatDate(claim.registerKeeper.dateOfBirth)} />
           </div>
           {claim.registerKeeper.signature && (
@@ -336,11 +366,23 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
           <div>
             <p className="text-sm text-gray-500">Phone</p>
-            <p className="font-medium">{claim.thirdParty.phone ?? 'N/A'}</p>
+            <p className="font-medium">
+              {claim.thirdParty.phone ? (
+                <a href={`tel:${claim.thirdParty.phone}`} className="text-blue-600 hover:underline">
+                  {claim.thirdParty.phone}
+                </a>
+              ) : 'N/A'}
+            </p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Email</p>
-            <p className="font-medium">{claim.thirdParty.email ?? 'N/A'}</p>
+            <p className="font-medium">
+              {claim.thirdParty.email ? (
+                <a href={`mailto:${claim.thirdParty.email}`} className="text-blue-600 hover:underline">
+                  {claim.thirdParty.email}
+                </a>
+              ) : 'N/A'}
+            </p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Registration</p>
@@ -487,7 +529,13 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                 {claim.gpInformation.gpContactNumber && (
                   <div>
                     <p className="text-sm text-gray-500">Contact Number</p>
-                    <p className="font-medium">{claim.gpInformation.gpContactNumber}</p>
+                    <p className="font-medium">
+                      {claim.gpInformation.gpContactNumber ? (
+                        <a href={`tel:${claim.gpInformation.gpContactNumber}`} className="text-blue-600 hover:underline">
+                          {claim.gpInformation.gpContactNumber}
+                        </a>
+                      ) : 'N/A'}
+                    </p>
                   </div>
                 )}
                 {claim.gpInformation.gpNotes && (
@@ -545,7 +593,13 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                 {claim.hospitalInformation.hospitalContactNumber && (
                   <div>
                     <p className="text-sm text-gray-500">Contact Number</p>
-                    <p className="font-medium">{claim.hospitalInformation.hospitalContactNumber}</p>
+                    <p className="font-medium">
+                      {claim.hospitalInformation.hospitalContactNumber ? (
+                        <a href={`tel:${claim.hospitalInformation.hospitalContactNumber}`} className="text-blue-600 hover:underline">
+                          {claim.hospitalInformation.hospitalContactNumber}
+                        </a>
+                      ) : 'N/A'}
+                    </p>
                   </div>
                 )}
                 {claim.hospitalInformation.hospitalNotes && (
@@ -750,10 +804,18 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                   {claim.fileHandlers.legalHandler.name}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Email: {claim.fileHandlers.legalHandler.email}
+                  Email: {claim.fileHandlers.legalHandler.email ? (
+                    <a href={`mailto:${claim.fileHandlers.legalHandler.email}`} className="text-blue-600 hover:underline">
+                      {claim.fileHandlers.legalHandler.email}
+                    </a>
+                  ) : 'N/A'}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Phone: {claim.fileHandlers.legalHandler.phone}
+                  Phone: {claim.fileHandlers.legalHandler.phone ? (
+                    <a href={`tel:${claim.fileHandlers.legalHandler.phone}`} className="text-blue-600 hover:underline">
+                      {claim.fileHandlers.legalHandler.phone}
+                    </a>
+                  ) : 'N/A'}
                 </div>
                 <div className="text-sm text-gray-500">
                   Address: {claim.fileHandlers.legalHandler.address}

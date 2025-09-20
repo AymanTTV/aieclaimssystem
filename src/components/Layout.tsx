@@ -107,6 +107,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.CUSTOMERS]: Users,
     [ROUTES.USERS]: Users,
     [ROUTES.BULK_EMAIL]: Mail,
+    [ROUTES.WHATSAPP]: MessageSquare,
     [ROUTES.COMPANY_MANAGERS]: Users,
 
     [ROUTES.WAITING]: Clock,
@@ -275,7 +276,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         icon: resolveIcon(ROUTES.USERS),
         permission: resolvePerm(ROUTES.USERS),
         submenu: [
-          { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.USERS) },
+          { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.BULK_EMAIL) }, // ✨ MODIFIED
+          { name: 'Whatsapp Communication', href: ROUTES.WHATSAPP, icon: resolveIcon(ROUTES.WHATSAPP), permission: resolvePerm(ROUTES.WHATSAPP) ?? { module: 'whatsapp', action: 'view' } },
           { name: 'Users', href: ROUTES.USERS, icon: resolveIcon(ROUTES.USERS), permission: resolvePerm(ROUTES.USERS) },
           { name: 'Company Managers', href: ROUTES.COMPANY_MANAGERS, icon: resolveIcon(ROUTES.COMPANY_MANAGERS), permission: resolvePerm(ROUTES.USERS) },
         ],

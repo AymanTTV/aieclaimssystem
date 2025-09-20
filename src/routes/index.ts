@@ -30,6 +30,7 @@ export const ROUTES = {
   USERS: '/users',
   CUSTOMERS: '/customers',
   CHAT: '/chat',
+  WHATSAPP: '/whatsapp-communication',
 
   SKYLINE_INCOME_EXPENSE: '/skyline-caps/income-expense',
   SKYLINE_PETTY_CASH: '/skyline-caps/aie-petty-cash',
@@ -52,6 +53,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.CLAIMS]: { module: 'claims', action: 'view' },
   [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' },
   [ROUTES.PRODUCTS]: { module: 'products', action: 'view' },
+  [ROUTES.WHATSAPP]: { module: 'whatsapp', action: 'view' },
 
   // ✅ Fixed: use dedicated modules, not umbrella ones
   [ROUTES.VD_FINANCE]: { module: 'vdFinance', action: 'view' },
@@ -71,7 +73,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.DRIVER_PAY]: { module: 'driverPay', action: 'view' },
   [ROUTES.WAITING]: { module: 'waiting', action: 'view' },
   [ROUTES.VAT_RECORD]: { module: 'vatRecord', action: 'view' },
-  [ROUTES.BULK_EMAIL]: { module: 'users', action: 'view' },
+  [ROUTES.BULK_EMAIL]: { module: 'bulkEmail', action: 'view' },
   [ROUTES.COMPANY_MANAGERS]: { module: 'users', action: 'view' },
   [ROUTES.SHARE]: { module: 'share', action: 'view' },
 } as const;
@@ -87,7 +89,7 @@ export const ROUTE_METADATA = {
   [ROUTES.ACCIDENTS]: { title: 'Accidents', icon: 'AlertTriangle' },
   [ROUTES.CLAIMS]: { title: 'Claims', icon: 'FileText' },
   // [ROUTES.PERSONAL_INJURY]: { title: 'Personal Injury', icon: 'Activity' },
-
+  [ROUTES.WHATSAPP]: { title: 'Whatsapp Communication' },
   [ROUTES.VD_FINANCE]: { title: 'VD Finance', icon: 'DollarSign' },
   [ROUTES.VD_INVOICE]: { title: 'VD Invoice', icon: 'FileText' },
 
@@ -97,6 +99,7 @@ export const ROUTE_METADATA = {
   [ROUTES.INVOICES]: { title: 'Invoices', icon: 'FileText' },
   [ROUTES.PETTY_CASH]: { title: 'Petty Cash', icon: 'DollarSign' },
   [ROUTES.VAT_RECORD]: { title: 'VAT Records', icon: 'Calculator' },
+  
 
   [ROUTES.USERS]: { title: 'Users', icon: 'Users' },
   [ROUTES.CUSTOMERS]: { title: 'Customers', icon: 'UserPlus' },
