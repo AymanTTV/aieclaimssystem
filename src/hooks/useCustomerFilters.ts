@@ -1,5 +1,6 @@
+// src/hooks/useCustomerFilters.ts
 import { useState, useMemo } from 'react';
-import { Customer, Gender, isExpired } from '../types/customer';
+import { Customer, Gender, CustomerType, isExpired } from '../types/customer';
 import { addDays } from 'date-fns';
 
 export const useCustomerFilters = (customers: Customer[]) => {
@@ -8,6 +9,7 @@ export const useCustomerFilters = (customers: Customer[]) => {
   const [filterSoonExpiring, setFilterSoonExpiring] = useState(false);
   const [selectedGender, setSelectedGender] = useState<Gender | 'all'>('all');
   const [ageRange, setAgeRange] = useState<{ min: number; max: number } | null>(null);
+  const [selectedType, setSelectedType] = useState<CustomerType | 'all'>('all');
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
@@ -17,40 +19,48 @@ export const useCustomerFilters = (customers: Customer[]) => {
         customer.name.toLowerCase().includes(searchLower) ||
         customer.email.toLowerCase().includes(searchLower) ||
         customer.mobile.includes(searchLower) ||
-        customer.badgeNumber.includes(searchLower) ||
-        customer.driverLicenseNumber.includes(searchLower) ||
-        customer.nationalInsuranceNumber.includes(searchLower);
+        (customer.badgeNumber && customer.badgeNumber.includes(searchLower)) ||
+        (customer.driverLicenseNumber && customer.driverLicenseNumber.includes(searchLower)) ||
+        (customer.nationalInsuranceNumber && customer.nationalInsuranceNumber.includes(searchLower));
 
       // Document expiry filter
       const now = new Date();
       const warningDate = addDays(now, 30);
       
-      // Check for expired documents
       const hasExpiredDocuments = 
-        isExpired(customer.licenseExpiry) || 
-        isExpired(customer.billExpiry);
+        (customer.licenseExpiry && isExpired(customer.licenseExpiry)) || 
+        (customer.billExpiry && isExpired(customer.billExpiry));
 
-      // Check for soon expiring documents
       const hasSoonExpiringDocuments = 
-        (!isExpired(customer.licenseExpiry) && customer.licenseExpiry <= warningDate) ||
-        (!isExpired(customer.billExpiry) && customer.billExpiry <= warningDate);
+        (customer.licenseExpiry && !isExpired(customer.licenseExpiry) && customer.licenseExpiry <= warningDate) ||
+        (customer.billExpiry && !isExpired(customer.billExpiry) && customer.billExpiry <= warningDate);
 
       // Apply filters
       const passesExpiryFilter = !filterExpired || !hasExpiredDocuments;
       const passesSoonExpiringFilter = !filterSoonExpiring || hasSoonExpiringDocuments;
-
-      // Gender filter
       const passesGenderFilter = selectedGender === 'all' || customer.gender === selectedGender;
-
-      // Age filter
       const passesAgeFilter = !ageRange || 
-        (customer.age >= ageRange.min && customer.age <= ageRange.max);
+        (customer.age !== undefined && customer.age >= ageRange.min && customer.age <= ageRange.max);
+
+      // Type filter (Updated Logic)
+      const passesTypeFilter = (() => {
+        if (selectedType === 'all') {
+          return true;
+        }
+        if (selectedType === 'customer') {
+          // Show if type is 'customer' or if type is missing (for older records)
+          return customer.type === 'customer' || !customer.type;
+        }
+        // For other specific types like 'claim' or 'company'
+        return customer.type === selectedType;
+      })();
 
       return matchesSearch && 
              passesExpiryFilter && 
              passesSoonExpiringFilter && 
              passesGenderFilter && 
-             passesAgeFilter;
+             passesAgeFilter &&
+             passesTypeFilter;
     });
   }, [
     customers, 
@@ -58,7 +68,8 @@ export const useCustomerFilters = (customers: Customer[]) => {
     filterExpired,
     filterSoonExpiring,
     selectedGender,
-    ageRange
+    ageRange,
+    selectedType
   ]);
 
   return {
@@ -72,6 +83,8 @@ export const useCustomerFilters = (customers: Customer[]) => {
     setSelectedGender,
     ageRange,
     setAgeRange,
+    selectedType,
+    setSelectedType,
     filteredCustomers
   };
 };

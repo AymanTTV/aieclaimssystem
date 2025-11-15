@@ -199,23 +199,22 @@ export interface Claim {
     statement: string;
   }>;
 
+  // --- NEW POLICE & PARAMEDIC STRUCTURE ---
+  // (Replaces the old 'policeInvolvement' and 'paramedicInvolvement' objects)
+
   // Police Details
-  policeInvolvement: {
-    attended: boolean;
-    officerName?: string;
-    station?: string;
-    reportNumber?: string;
-    contactNumber?: string;
-  };
+  policeOfficerName?:    string | null;
+  policeBadgeNumber?:    string | null;
+  policeStation?:        string | null;
+  policeIncidentNumber?: string | null;
+  policeContactInfo?:    string | null;
 
   // Paramedic Details
-  paramedicInvolvement: {
-    attended: boolean;
-    serviceName?: string;
-    paramedicName?: string;
-    contactNumber?: string;
-    reportNumber?: string;
-  };
+  paramedicNames?:     string | null;
+  ambulanceReference?: string | null;
+  ambulanceService?:   string | null;
+
+  // --- END OF NEW STRUCTURE ---
 
   // Medical Information
   gpInformation: GPInformation;
@@ -267,7 +266,7 @@ export interface Claim {
   // Status and Progress
   claimType: 'Domestic' | 'Taxi' | 'PI' | 'PCO';
   claimReason: Array<'VD' | 'H' | 'S' | 'PI'>;
-  caseProgress: 'Win' | 'Lost' | 'Awaiting' | '50/50';
+  caseProgress: 'Win' | 'Lost' | 'Awaiting' | '50/55';
   progress: ClaimProgress;
   statusDescription?: string;
 

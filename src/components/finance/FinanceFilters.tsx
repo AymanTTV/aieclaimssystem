@@ -21,12 +21,19 @@ interface FinanceFiltersProps {
   customers?: Customer[];
   selectedCustomerId?: string;
   onCustomerChange?: (customerId: string) => void;
-
-  // new props
+  accountFilter: string;
+  onAccountFilterChange: (accountId: string) => void;
+  accounts: { id: string, name: string }[];
+  accountSummary: { income: number, expense: number, balance: number } | null;
   categories: string[];
   groupFilter: string;
   onGroupFilterChange: (groupId: string) => void;
   groupOptions: { id: string; name: string }[];
+  
+  // --- ADDED ---
+  showLinked: 'all' | 'linked' | 'unlinked';
+  onShowLinkedChange: (value: 'all' | 'linked' | 'unlinked') => void;
+  // ---
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
@@ -44,19 +51,20 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   customers = [],
   selectedCustomerId,
   onCustomerChange,
+  accountFilter,
+  onAccountFilterChange,
+  accounts,
   groupFilter,
   onGroupFilterChange,
   groupOptions,
   categories,
-  // search props kept for compatibility; not rendering a search box here
-  // searchQuery,
-  // onSearchChange,
+  showLinked, // <-- ADDED
+  onShowLinkedChange, // <-- ADDED
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
   return (
     <div className="space-y-3">
-      {/* 2 columns on mobile; 4 on lg */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* From */}
         <div>
@@ -129,6 +137,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1 w-full"
           >
             <option value="all">All Categories</option>
+            
             {categories.map((catName) => (
               <option key={catName} value={catName}>
                 {catName}
@@ -146,6 +155,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1 w-full"
           >
             <option value="all">All Groups</option>
+            <option value="none">No Group Assigned</option>
             {groupOptions.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -163,6 +173,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             className="form-select mt-1 w-full"
           >
             <option value="all">All Owners</option>
+            <option value="no_owner_assigned">No Vehicle Assigned</option>
             {owners.map((ownerName) => (
               <option key={ownerName} value={ownerName}>
                 {ownerName}
@@ -189,6 +200,38 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </select>
           </div>
         )}
+        {/* Account Filter */}
+        <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">Account</label>
+            <select
+                value={accountFilter}
+                onChange={(e) => onAccountFilterChange(e.target.value)}
+                className="form-select mt-1 w-full"
+            >
+                <option value="all">All Accounts</option>
+                <option value="no_account_assigned">No Account Assigned</option>
+                {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                        {acc.name}
+                    </option>
+                ))}
+            </select>
+        </div>
+
+        {/* --- ADDED: Linked Status Filter --- */}
+        <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">Linked Status</label>
+            <select
+                value={showLinked}
+                onChange={(e) => onShowLinkedChange(e.target.value as 'all' | 'linked' | 'unlinked')}
+                className="form-select mt-1 w-full"
+            >
+                <option value="all">All Transactions</option>
+                <option value="linked">Show Linked Only</option>
+                <option value="unlinked">Show Unlinked Only</option>
+            </select>
+        </div>
+        {/* --- End Update --- */}
       </div>
     </div>
   );

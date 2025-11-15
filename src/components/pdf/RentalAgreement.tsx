@@ -1,7 +1,7 @@
 // src/components/pdf/documents/RentalAgreement.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types';
+import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types/rental';
 import { format, addDays } from 'date-fns';
 import logo from '../../assets/logo.png';
 import { formatDate } from '../../utils/dateHelpers';
@@ -66,6 +66,20 @@ const RentalAgreement: React.FC<{
         90
       )
     : null;
+
+    // --- MODIFIED: Helper for Service Type ---
+  const getServiceType = (type: Rental['type']): string => {
+    switch (type) {
+      case 'claim':
+        return 'Credit Hire';
+      case 'daily':
+        return 'Daily Hire';
+      case 'weekly':
+        return 'Weekly Hire';
+      default:
+        return type.toUpperCase(); // Fallback for any other types
+    }
+  };
 
   return (
     <Document>
@@ -150,11 +164,14 @@ const RentalAgreement: React.FC<{
                 {vehicle.mileage?.toLocaleString() ?? 'N/A'} miles
               </Text>
             </View>
+            
+            {/* --- HIRE SUBSTITUTION DETAILS REMOVED FROM HERE --- */}
+
           </View>
         </View>
 
-        {/* RENTAL + PAYMENT DETAILS (kept together) */}
-        <View wrap={false}>
+        {/* --- WRAP={FALSE} REMOVED FROM THIS VIEW --- */}
+        <View>
           {/* RENTAL DETAILS */}
           <View style={{ marginBottom: 15 }} wrap={false}>
             <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
@@ -175,11 +192,15 @@ const RentalAgreement: React.FC<{
                 <Text style={[styles.tableCell, { flex: 1 }]}>
                   {formatDateTime(rental.startDate)}
                 </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
+                {/* <Text style={[styles.tableCell, { flex: 1 }]}>
                   {rental.status === 'completed' && rental.endDate
                     ? formatDateTime(rental.endDate)
                     : formatDateTime(defaultEndDate)}
-                </Text>
+                </Text> */}
+                <Text style={[styles.tableCell, { flex: 1 }]}>
+  {formatDateTime(rental.endDate ?? defaultEndDate)}
+</Text>
+
               </View>
             </View>
           </View>
@@ -190,16 +211,16 @@ const RentalAgreement: React.FC<{
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Payment Type
+                  Service Type {/* MODIFIED */}
                 </Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rate</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Payment Due
+                  Billing Cycle {/* MODIFIED */}
                 </Text>
               </View>
               <View style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {rental.type.toUpperCase()}
+                  {getServiceType(rental.type)} {/* MODIFIED */}
                 </Text>
                 <Text style={[styles.tableCell, { flex: 1 }]}>
                   £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
@@ -210,7 +231,45 @@ const RentalAgreement: React.FC<{
               </View>
             </View>
           </View>
+
+          {/* --- NEW: HIRE SUBSTITUTION VEHICLES TABLE --- */}
+          {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 && (
+            <View style={{ marginBottom: 15 }} wrap={false}>
+              <Text style={styles.sectionTitle}>Hire Substitution Vehicles</Text>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Vehicle</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Registration</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Loaner (Provider)</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Date & Time Given</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Date & Time Expected Return</Text>
+                </View>
+                {rental.hireSubstitutionDetails.map((sub, index) => (
+                  <View style={styles.tableRow} key={index}>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>
+                      Vehicle {index + 1}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                      {sub.registration}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                      {sub.loaner}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                      {formatDateTime(sub.givenAt)}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                      {formatDateTime(sub.expectedReturnAt)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+          {/* --- END: HIRE SUBSTITUTION VEHICLES TABLE --- */}
+
         </View>
+        {/* --- END OF UNWRAPPED VIEW --- */}
 
         <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
 

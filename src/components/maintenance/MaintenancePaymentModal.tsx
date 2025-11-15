@@ -81,6 +81,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         category: log.type,
         amount: paymentAmount,
         description: formData.notes || log.description,
+        customerName: log.serviceProvider, // Pass service provider as customer name
         referenceId: log.id,
         vehicleId: log.vehicleId,
         vehicleName: `${vehicle!.make} ${vehicle!.model} (${vehicle!.registrationNumber})`,

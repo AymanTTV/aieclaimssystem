@@ -64,6 +64,7 @@ const Invoices             = lazyLoad('Invoices');
 const PettyCash            = lazyLoad('PettyCash');
 const VATRecord            = lazyLoad('VATRecord');
 const IncomeExpense        = lazyLoad('IncomeExpense');
+const Todo = lazyLoad('Todo');
 const DriverPay            = lazyLoad('DriverPay');
 const AiePettyCash         = lazyLoad('AiePettyCash');
 const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense');
@@ -211,9 +212,21 @@ export default function AppRoutes() {
       />
 
       <Route
+  path={ROUTES.TODO}
+  element={
+    <ProtectedRoute requiredPermission={{ module: 'todo', action: 'view' }}>
+      <Layout>
+        <Todo />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+
+
+      <Route
         path="/bulk-email"
         element={
-          <ProtectedRoute requiredPermission={{ module: 'bulkEmail', action: 'view' }}> // ✨ MODIFIED
+          <ProtectedRoute requiredPermission={{ module: 'bulkEmail', action: 'view' }}> 
             <Layout>
               <BulkEmail />
             </Layout>

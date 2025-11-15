@@ -1,3 +1,5 @@
+// src/hooks/useMaintenanceLogs.ts
+
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -21,10 +23,25 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
         const logsData: MaintenanceLog[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+          
+          // Ensure all Timestamp fields are converted to JS Date objects
+          const date = data.date ? data.date.toDate() : undefined;
+          const nextServiceDate = data.nextServiceDate ? data.nextServiceDate.toDate() : undefined;
+          
+          // Handle potential missing dates during conversion
+          if (!date) {
+            console.warn(`Maintenance log ${doc.id} missing 'date' field.`);
+            return; // Skip this log if the primary date is missing
+          }
+
           logsData.push({
             id: doc.id,
             ...data,
-            date: data.date.toDate(),
+            date: date,
+            nextServiceDate: nextServiceDate,
+            // Also convert any other date fields like createdAt/updatedAt if they exist
+            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+            updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
           } as MaintenanceLog);
         });
         setLogs(logsData);

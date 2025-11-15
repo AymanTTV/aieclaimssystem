@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, or, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Claim } from '../../types';
+import { Claim, LegalHandler } from '../../types';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -39,9 +39,130 @@ interface ClaimEditModalProps {
 const formatDate = (d?: Date | null) =>
   d ? ensureValidDate(d).toISOString().slice(0, 10) : '';
 
-const convertOldReason = (old: string | string[]) => {
-  return Array.isArray(old) ? old : old.split(',').map((r) => r.trim());
+// **FIX 1: Make claimReason conversion safer**
+// This now handles null, undefined, string, and array formats from Firestore.
+const convertOldReason = (old: unknown): Array<'VD' | 'H' | 'S' | 'PI'> => {
+  if (Array.isArray(old)) {
+    // Already in the correct format, just return it.
+    return old.filter(val => ['VD', 'H', 'S', 'PI'].includes(val));
+  }
+  if (typeof old === 'string' && old.trim() !== '') {
+    const trimmed = old.trim().toUpperCase();
+    // Handle comma-separated values like "VD, PI"
+    if (trimmed.includes(',')) {
+      return trimmed.split(',').map(r => r.trim()) as Array<'VD' | 'H' | 'S' | 'PI'>;
+    }
+    // Handle legacy single-string values like "VD Only" or "Personal Injury"
+    const reasons: Array<'VD' | 'H' | 'S' | 'PI'> = [];
+    if (trimmed.includes('VD')) reasons.push('VD');
+    if (trimmed.includes('H')) reasons.push('H');
+    if (trimmed.includes('S')) reasons.push('S');
+    if (trimmed.includes('PI')) reasons.push('PI');
+    return reasons;
+  }
+  return []; // Return an empty array for null, undefined, or other types
 };
+
+// **FIX 2: Normalize fileHandlers data**
+// This function converts old string data into the new object format.
+const normalizeFileHandlers = (
+  handlers: any
+): { aieHandler: string; legalHandler: LegalHandler | null } => {
+  // Fallback for null, undefined, or unexpected data types
+  if (!handlers) {
+    return { aieHandler: '', legalHandler: null };
+  }
+
+  // Case 1: The data is a string (very old legacy format)
+  if (typeof handlers === 'string') {
+    return {
+      aieHandler: handlers, // Assume the string is the AIE handler's name
+      legalHandler: null,
+    };
+  }
+
+  // Case 2: The data is an object (most common case)
+  if (typeof handlers === 'object') {
+    const aieHandler = handlers.aieHandler || '';
+    let legalHandler = handlers.legalHandler || null;
+
+    // CRITICAL FIX: If legalHandler is a string, convert it to null.
+    // The schema expects an object or null, not a string.
+    if (typeof legalHandler === 'string') {
+      legalHandler = null;
+    }
+
+    return { aieHandler, legalHandler };
+  }
+  
+  // Default fallback
+  return { aieHandler: '', legalHandler: null };
+};
+
+/**
+ * Checks if a customer exists based on email or phone. If not, creates one.
+ * @param clientInfo - The client details from the form.
+ */
+const upsertCustomerFromClaimData = async (clientInfo: ClaimFormData['clientInfo']) => {
+  if (!clientInfo.email && !clientInfo.phone) {
+    console.log('No email or phone provided, skipping customer creation.');
+    return;
+  }
+
+  const customersRef = collection(db, 'customers');
+  const q = query(
+    customersRef,
+    or(where('email', '==', clientInfo.email), where('mobile', '==', clientInfo.phone))
+  );
+
+  const existingCustomerSnapshot = await getDocs(q);
+
+  if (existingCustomerSnapshot.empty) {
+    // No customer found, so create a new one
+    try {
+      await addDoc(customersRef, {
+        type: 'claim', // Set type to 'claim'
+        name: clientInfo.name,
+        mobile: clientInfo.phone,
+        email: clientInfo.email,
+        address: clientInfo.address,
+        dateOfBirth: new Date(clientInfo.dateOfBirth),
+        nationalInsuranceNumber: clientInfo.nationalInsuranceNumber,
+        signature: clientInfo.signature || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      toast.success('New customer profile created from claim.');
+    } catch (error) {
+      console.error('Failed to create new customer from claim:', error);
+      toast.error('Could not create customer profile.');
+    }
+  } else {
+    console.log('Existing customer found. No new customer created.');
+  }
+};
+
+/**
+ * Helper function to safely extract serializable error messages,
+ * avoiding circular references from the 'ref' property in react-hook-form errors.
+ */
+const getSanitizedErrors = (errors: any) => {
+  const sanitized: Record<string, any> = {};
+  for (const key in errors) {
+    if (Object.prototype.hasOwnProperty.call(errors, key)) {
+      const error = errors[key];
+      if (error && typeof error === 'object' && !error.message) {
+        // Handle nested error objects (e.g., clientInfo.name)
+        sanitized[key] = getSanitizedErrors(error);
+      } else if (error) {
+        // Keep only the message property
+        sanitized[key] = { message: error.message };
+      }
+    }
+  }
+  return sanitized;
+};
+
 
 const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   const { user } = useAuth();
@@ -49,62 +170,67 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const methods = useForm<ClaimFormData>({
-    resolver: zodResolver(claimFormSchema),
-    defaultValues: {
-      submitterType: claim.submitterType,
-      claimReason: convertOldReason(claim.claimReason),
-      clientRef: claim.clientRef || '',
-      clientInfo: {
-        ...claim.clientInfo,
-        dateOfBirth: formatDate(claim.clientInfo.dateOfBirth)
-      },
-      registerKeeper: {
-        enabled: !!claim.registerKeeper?.enabled,
-        name: claim.registerKeeper?.name || '',
-        address: claim.registerKeeper?.address || '',
-        phone: claim.registerKeeper?.phone || '',
-        email: claim.registerKeeper?.email || '',
-        dateOfBirth: formatDate(claim.registerKeeper?.dateOfBirth),
-        signature: claim.registerKeeper?.signature || ''
-      },
-      clientVehicle: {
-        ...claim.clientVehicle,
-        documents: claim.clientVehicle.documents || {},
-        motExpiry: claim.clientVehicle.motExpiry
-          ? formatDate(claim.clientVehicle.motExpiry)
-          : '',
-        roadTaxExpiry: claim.clientVehicle.roadTaxExpiry
-          ? formatDate(claim.clientVehicle.roadTaxExpiry)
-          : ''
-      },
-      incidentDetails: {
-        ...claim.incidentDetails,
-        date: formatDate(claim.incidentDetails.date)
-      },
-      thirdParty: claim.thirdParty,
-      passengers: claim.passengers || [],
-      witnesses: claim.witnesses || [],
-      evidence: claim.evidence,
-      fileHandlers: {
-        aieHandler: claim.fileHandlers.aieHandler || '',
-        legalHandler: claim.fileHandlers.legalHandler ?? {
-          id: '',
-          name: '',
-          email: '',
-          phone: '',
-          address: ''
-        }
-      },
-      claimType: claim.claimType,
-      caseProgress: claim.caseProgress,
-      progress: claim.progress,
-      gpInformation: claim.gpInformation,
-      hospitalInformation: claim.hospitalInformation,
-      hireDetails: claim.hireDetails || { enabled: false },
-      storage: claim.storage || { enabled: false },
-      recovery: claim.recovery || { enabled: false }
-    }
-  });
+  resolver: zodResolver(claimFormSchema),
+  defaultValues: {
+    submitterType: claim.submitterType,
+    claimReason: convertOldReason(claim.claimReason), // Use safer function
+    clientRef: claim.clientRef || '',
+    clientInfo: {
+      ...claim.clientInfo,
+      dateOfBirth: formatDate(claim.clientInfo.dateOfBirth)
+    },
+    registerKeeper: {
+      enabled: !!claim.registerKeeper?.enabled,
+      name: claim.registerKeeper?.name || '',
+      address: claim.registerKeeper?.address || '',
+      phone: claim.registerKeeper?.phone || '',
+      email: claim.registerKeeper?.email || '',
+      dateOfBirth: formatDate(claim.registerKeeper?.dateOfBirth),
+      signature: claim.registerKeeper?.signature || ''
+    },
+    clientVehicle: {
+      ...claim.clientVehicle,
+      documents: claim.clientVehicle.documents || {},
+      motExpiry: claim.clientVehicle.motExpiry
+        ? formatDate(claim.clientVehicle.motExpiry)
+        : '',
+      roadTaxExpiry: claim.clientVehicle.roadTaxExpiry
+        ? formatDate(claim.clientVehicle.roadTaxExpiry)
+        : ''
+    },
+    incidentDetails: {
+      ...claim.incidentDetails,
+      date: formatDate(claim.incidentDetails.date)
+    },
+    thirdParty: claim.thirdParty,
+    passengers: claim.passengers || [],
+    witnesses: claim.witnesses || [],
+    evidence: claim.evidence || { images: [], videos: [], clientVehiclePhotos: [], engineerReport: [], bankStatement: [], adminDocuments: [] },
+    fileHandlers: normalizeFileHandlers(claim.fileHandlers), // Use the normalizer function
+    claimType: claim.claimType,
+    caseProgress: claim.caseProgress,
+    progress: claim.progress,
+    gpInformation: claim.gpInformation || { visited: false },
+    hospitalInformation: claim.hospitalInformation || { visited: false },
+    hireDetails: claim.hireDetails || { enabled: false },
+    storage: claim.storage || { enabled: false },
+    recovery: claim.recovery || { enabled: false },
+
+    // --- UPDATED POLICE & PARAMEDIC FIELDS (Using 'claim.' as requested) ---
+
+    // Police: Uses 'claim.' for new fields, and (claim as any) only for the old fallback
+    policeOfficerName:    claim.policeOfficerName    || (claim as any).policeInvolvement?.officerName || '',
+    policeBadgeNumber:    claim.policeBadgeNumber    || '', // No old equivalent
+    policeStation:        claim.policeStation        || (claim as any).policeInvolvement?.station || '',
+    policeIncidentNumber: claim.policeIncidentNumber || (claim as any).policeInvolvement?.reportNumber || '',
+    policeContactInfo:    claim.policeContactInfo    || (claim as any).policeInvolvement?.contactNumber || '',
+
+    // Paramedics: Uses 'claim.' for new fields, and (claim as any) only for the old fallback
+    paramedicNames:       claim.paramedicNames       || (claim as any).paramedicInvolvement?.paramedicName || '',
+    ambulanceReference:   claim.ambulanceReference   || (claim as any).paramedicInvolvement?.reportNumber || '',
+    ambulanceService:     claim.ambulanceService     || (claim as any).paramedicInvolvement?.serviceName || '',
+  }
+});
 
   const {
     handleSubmit,
@@ -115,15 +241,18 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   } = methods;
 
   // Show/hide sections based on claimReason and registerKeeper
-  const showHireDetails = watch('claimReason').includes('H');
-  const showStorageDetails = watch('claimReason').includes('S');
-  const showVehicleDetails = watch('claimReason').includes('VD');
-  const showGPInformation = watch('claimReason').includes('PI');
-  const showHospitalInformation = watch('claimReason').includes('PI');
+  const showHireDetails = watch('claimReason')?.includes('H');
+  const showStorageDetails = watch('claimReason')?.includes('S');
+  const showVehicleDetails = watch('claimReason')?.includes('VD');
+  const showGPInformation = watch('claimReason')?.includes('PI');
+  const showHospitalInformation = watch('claimReason')?.includes('PI');
   const showRK = watch('registerKeeper.enabled');
 
   useEffect(() => {
-    console.log('⚠️ ClaimEditModal validation errors:', errors);
+    if (Object.keys(errors).length > 0) {
+      // Use console.log for full object inspection in the browser console
+      console.log('⚠️ ClaimEditModal validation errors:', errors);
+    }
   }, [errors]);
 
   const onSubmit = async (data: ClaimFormData) => {
@@ -135,6 +264,9 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
     setSubmitError(null);
 
     try {
+      // Check for and create the customer if they don't exist
+      await upsertCustomerFromClaimData(data.clientInfo);
+
       // Upload new documents for clientVehicle
       const vehicleDocUrls: Record<string, string> = {};
       for (const [key, file] of Object.entries(
@@ -148,48 +280,50 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         }
       }
 
+      const evidenceData = data.evidence || { images: [], videos: [], clientVehiclePhotos: [], engineerReport: [], bankStatement: [], adminDocuments: [] };
+
       // Upload evidence files
       const newUploads = {
         images: await uploadAllFiles(
-          data.evidence.images.filter((f) => f instanceof File) as File[],
+          evidenceData.images.filter((f) => f instanceof File) as File[],
           'claims/images'
         ),
         videos: await uploadAllFiles(
-          data.evidence.videos.filter((f) => f instanceof File) as File[],
+          evidenceData.videos.filter((f) => f instanceof File) as File[],
           'claims/videos'
         ),
         clientVehiclePhotos: await uploadAllFiles(
-          data.evidence.clientVehiclePhotos.filter((f) => f instanceof File) as File[],
+          evidenceData.clientVehiclePhotos.filter((f) => f instanceof File) as File[],
           'claims/vehicle-photos'
         ),
         engineerReport: await uploadAllFiles(
-          data.evidence.engineerReport.filter((f) => f instanceof File) as File[],
+          evidenceData.engineerReport.filter((f) => f instanceof File) as File[],
           'claims/engineer-reports'
         ),
         bankStatement: await uploadAllFiles(
-          data.evidence.bankStatement.filter((f) => f instanceof File) as File[],
+          evidenceData.bankStatement.filter((f) => f instanceof File) as File[],
           'claims/bank-statements'
         ),
         adminDocuments: await uploadAllFiles(
-          data.evidence.adminDocuments.filter((f) => f instanceof File) as File[],
+          evidenceData.adminDocuments.filter((f) => f instanceof File) as File[],
           'claims/admin-documents'
         )
       };
 
       // Existing URLs (strings only)
       const existing = {
-        images: data.evidence.images.filter((f) => typeof f === 'string') as string[],
-        videos: data.evidence.videos.filter((f) => typeof f === 'string') as string[],
-        clientVehiclePhotos: data.evidence.clientVehiclePhotos.filter(
+        images: evidenceData.images.filter((f) => typeof f === 'string') as string[],
+        videos: evidenceData.videos.filter((f) => typeof f === 'string') as string[],
+        clientVehiclePhotos: evidenceData.clientVehiclePhotos.filter(
           (f) => typeof f === 'string'
         ) as string[],
-        engineerReport: data.evidence.engineerReport.filter(
+        engineerReport: evidenceData.engineerReport.filter(
           (f) => typeof f === 'string'
         ) as string[],
-        bankStatement: data.evidence.bankStatement.filter(
+        bankStatement: evidenceData.bankStatement.filter(
           (f) => typeof f === 'string'
         ) as string[],
-        adminDocuments: data.evidence.adminDocuments.filter(
+        adminDocuments: evidenceData.adminDocuments.filter(
           (f) => typeof f === 'string'
         ) as string[]
       };
@@ -207,29 +341,27 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
       };
 
       // EXCLUDE progressHistory from the form payload to preserve it in Firestore
-      // ⛔️ do NOT send progressHistory from the form back to Firestore
-    const { progressHistory: _ignoreProgressHistory, ...dataWithoutHistory } = data;
+      const { progressHistory: _ignoreProgressHistory, ...dataWithoutHistory } = data;
 
 
       const payload: any = {
-  ...dataWithoutHistory, // <-- use this instead of ...data
-  clientVehicle: {
-    ...dataWithoutHistory.clientVehicle!,
-    documents: { ...claim.clientVehicle.documents, ...vehicleDocUrls }
-  },
-  evidence,
-  clientInfo: {
-    ...dataWithoutHistory.clientInfo,
-    dateOfBirth: new Date(dataWithoutHistory.clientInfo.dateOfBirth)
-  },
-  incidentDetails: {
-    ...dataWithoutHistory.incidentDetails,
-    date: new Date(dataWithoutHistory.incidentDetails.date)
-  },
-  updatedAt: new Date(),
-  updatedBy: user.id,
-};
-
+        ...dataWithoutHistory,
+        clientVehicle: {
+          ...dataWithoutHistory.clientVehicle!,
+          documents: { ...claim.clientVehicle.documents, ...vehicleDocUrls }
+        },
+        evidence,
+        clientInfo: {
+          ...dataWithoutHistory.clientInfo,
+          dateOfBirth: new Date(dataWithoutHistory.clientInfo.dateOfBirth)
+        },
+        incidentDetails: {
+          ...dataWithoutHistory.incidentDetails,
+          date: new Date(dataWithoutHistory.incidentDetails.date)
+        },
+        updatedAt: new Date(),
+        updatedBy: user.id,
+      };
 
       // Only include enabled sections
       payload.hireDetails =
@@ -267,17 +399,12 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           </div>
         )}
 
-        {/* Error summary */}
         {Object.keys(errors).length > 0 && (
           <div className="p-3 bg-red-50 border border-red-200 rounded mb-4">
-            <strong className="block text-red-700 mb-2">Please fix:</strong>
-            <ul className="list-disc list-inside text-red-600">
-              {Object.entries(errors).map(([path, err]) => (
-                <li key={path}>
-                  <code>{path}</code>: {err?.message}
-                </li>
-              ))}
-            </ul>
+            <strong className="block text-red-700 mb-2">Please fix these issues:</strong>
+            <pre className="text-xs text-red-600 whitespace-pre-wrap">
+              {JSON.stringify(getSanitizedErrors(errors), null, 2)}
+            </pre>
           </div>
         )}
 
@@ -292,12 +419,10 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
           <div className="bg-white rounded-lg p-6">
             <DriverDetails />
           </div>
-
-          {showRK && (
-            <div className="bg-white rounded-lg p-6">
-              <RegisterKeeperDetails />
-            </div>
-          )}
+          
+          <div className="bg-white rounded-lg p-6">
+            <RegisterKeeperDetails />
+          </div>
 
           <div className="bg-white rounded-lg p-6">
             <AccidentDetails />
@@ -330,7 +455,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
 
           <div className="bg-white rounded-lg p-6">
             <PassengerDetails
-              count={watch('passengers').length}
+              count={watch('passengers')?.length || 0}
               onCountChange={(count) => {
                 const curr = getValues('passengers') || [];
                 const arr = Array(count)
@@ -343,7 +468,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
 
           <div className="bg-white rounded-lg p-6">
             <WitnessDetails
-              count={watch('witnesses').length}
+              count={watch('witnesses')?.length || 0}
               onCountChange={(count) => {
                 const curr = getValues('witnesses') || [];
                 const arr = Array(count)

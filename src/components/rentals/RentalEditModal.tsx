@@ -1,4 +1,4 @@
-// RentalEditModal.tsx
+// src/components/rentals/RentalEditModal.tsx
 import React, { useState, useEffect } from 'react';
 import {
   doc,
@@ -19,18 +19,29 @@ import {
   Customer,
   VehicleCondition,
   Claim,
-  RentalPayment
+  RentalPayment,
+  HireSubstitutionDetails // Added
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 
 import { calculateRentalCost } from '../../utils/rentalCalculations';
+// --- CORRECTED IMPORTS ---
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
-import { uploadRentalDocuments } from '../../utils/documentUpload';
+//
+// -----------------  THE FIX IS HERE  -----------------
+//
+// This import is now correct. It points to the file that MERGES
+// agreements instead of overwriting them.
+//
+import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments'; // <-- THIS IS THE CORRECT PATH
+//
+// -----------------  END OF FIX  -----------------
+//
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
-import { X, Search, Car, User } from 'lucide-react';
+import { X, Search, Car, User, Plus } from 'lucide-react'; // Added Plus
 import {
   addWeeks,
   format,
@@ -42,6 +53,17 @@ import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
+
+// --- NEW: Empty state for a substitution vehicle ---
+const newSubDetail = (): Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & { givenAt: string; expectedReturnAt: string } => ({
+  make: '',
+  model: '',
+  registration: '',
+  loaner: '',
+  givenAt: '',
+  expectedReturnAt: '',
+  notes: '',
+});
 
 
 interface RentalEditModalProps {
@@ -152,7 +174,15 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     amountToAdd: 0,
     paymentMethod: 'cash' as const,
     paymentReference: '',
-    paymentNotes: ''
+    paymentNotes: '',
+    
+    // --- MODIFIED: Initialize as array and format dates ---
+    hireSubstitutionDetails:
+      (rental.hireSubstitutionDetails || []).map(sub => ({
+        ...sub,
+        givenAt: safeFormatDate(sub.givenAt, "yyyy-MM-dd'T'HH:mm"),
+        expectedReturnAt: safeFormatDate(sub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm"),
+      })),
   });
 
   // --- Find selected vehicle/customer ---
@@ -245,7 +275,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       : undefined,
     formData.endDate && formData.endTime
       ? new Date(`${formData.endDate}T${formData.endTime}`)
-      : undefined
+      : undefined,
+    rental.id // Pass current rental ID to exclude it from conflict checks
   );
 
   const filteredVehicles = availableVehicles.filter((vehicle) => {
@@ -458,6 +489,40 @@ setFormData((prev) => ({
     );
   };
 
+  // --- NEW: Handlers for H Substitute array ---
+  const handleSubChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    const newSubs = [...formData.hireSubstitutionDetails];
+    newSubs[index] = { ...newSubs[index], [name]: value };
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: newSubs,
+    }));
+  };
+
+  const addSubstitutionVehicle = () => {
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: [
+        ...prev.hireSubstitutionDetails,
+        newSubDetail() // Add a new empty object
+      ],
+    }));
+  };
+
+  const removeSubstitutionVehicle = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: prev.hireSubstitutionDetails.filter(
+        (_, i) => i !== index
+      ),
+    }));
+  };
+  // --- END NEW HANDLERS ---
+
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   const submitVehicle  = vehicles.find((v) => v.id === formData.vehicleId);
@@ -619,12 +684,23 @@ setFormData((prev) => ({
     };
 
     // NEW: parse original start (datetime-local is local time)
-// NEW: parse original start (datetime-local is local time)
-let submitOriginalStartDate: Date | undefined = undefined;
-if (formData.originalStartDate) {
-  const osd = new Date(formData.originalStartDate);
-  if (isValid(osd)) submitOriginalStartDate = osd;
-}
+    let submitOriginalStartDate: Date | undefined = undefined;
+    if (formData.originalStartDate) {
+      const osd = new Date(formData.originalStartDate);
+      if (isValid(osd)) submitOriginalStartDate = osd;
+    }
+
+    // --- MODIFIED: H Substitute logic for array ---
+    const submitHireSubstitutionDetails =
+      formData.reason === 'h-substitute' && formData.hireSubstitutionDetails.length > 0
+        ? formData.hireSubstitutionDetails
+            .filter(sub => sub.make || sub.loaner) // Only save non-empty entries
+            .map(sub => ({
+              ...sub,
+              givenAt: new Date(sub.givenAt || Date.now()),
+              expectedReturnAt: new Date(sub.expectedReturnAt || Date.now()),
+            }))
+        : null;
 
 
     // --- Compile the updated Rental fields for Firestore ---
@@ -692,7 +768,10 @@ if (formData.originalStartDate) {
 
       checkOutCondition: updatedCondition,
       // NEW: only include if defined (avoids TS error and Firestore undefined issue)
-  ...(submitOriginalStartDate !== undefined ? { originalStartDate: submitOriginalStartDate } : {}),
+      ...(submitOriginalStartDate !== undefined ? { originalStartDate: submitOriginalStartDate } : {}),
+
+      // --- MODIFIED: Add H-Substitute details array ---
+      hireSubstitutionDetails: submitHireSubstitutionDetails,
 
       updatedAt: new Date(),
       updatedBy: user.id,
@@ -702,6 +781,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
   // 1) Must have a return condition before completing
   if (!rental.returnCondition) {
     toast.error('You must fill the Return Condition before completing the rental.');
+    setLoading(false); // Stop submission
     return;
   }
 
@@ -727,6 +807,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
 
   if (!rcDate || isNaN(rcDate.getTime())) {
     toast.error('Return Condition date is missing or invalid. Please set it before completing.');
+    setLoading(false); // Stop submission
     return;
   }
 
@@ -738,6 +819,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
     toast.error(
       `Rental end date (${fmt(submitEndDT)}) and the return condition date (${fmt(rcDate)}) are not the same.`
     );
+    setLoading(false); // Stop submission
     return;
   }
 }
@@ -761,27 +843,97 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
     setTimeout(async () => {
       try {
         const completeUpdatedRental = {
-          ...rental,
-          ...rentalUpdateData,
+          ...rental, // This is the original prop with correct dates from useRentals
+          ...rentalUpdateData, // This overlays our new data
         } as Rental;
+        
         const documents = await generateRentalDocuments(
           completeUpdatedRental,
           submitVehicle,
           submitCustomer
         );
-        await uploadRentalDocuments(rental.id, documents);
+
+        // --- FIXED 90-DAY AGREEMENT LOGIC ---
+        
+        // Get existing agreements from the *original* rental prop
+        // We use the 'rental' prop because it has the state *before* our update
+        const existingAgreements = rental.documents?.agreements || {};
+        const agreementKeys = Object.keys(existingAgreements).sort(
+            (a, b) =>
+              parseInt(a.split('_')[1] || '0') -
+              parseInt(b.split('_')[1] || '0')
+          );
+        const latestAgreementKey =
+          agreementKeys.length > 0
+            ? agreementKeys[agreementKeys.length - 1]
+            : null;
+
+        let newAgreementKey: string;
+        const agreementsToUpload: Record<string, Blob> = {};
+        
+        // Use the 'rental' prop's originalStartDate, which is now a valid Date or null
+        const originalStartDate = rental.originalStartDate ?? rental.startDate; 
+        
+        if (!originalStartDate || !isValid(originalStartDate)) {
+          // This should not happen if useRentals is correct, but as a fallback:
+          toast.error("Original start date is invalid. Cannot version agreement.");
+          throw new Error("Invalid originalStartDate for agreement versioning.");
+        }
+
+        if (latestAgreementKey) {
+          // --- We HAVE an existing agreement, check if it's > 90 days old ---
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+          // We use the timestamp from the KEY, not the rental's date
+          const latestAgreementTimestamp = parseInt(latestAgreementKey.split('_')[1] || '0');
+          const latestAgreementDate = new Date(latestAgreementTimestamp);
+
+          if (latestAgreementDate < ninetyDaysAgo) {
+            // It's older than 90 days. Generate a NEW document.
+            newAgreementKey = `agreement_${new Date().getTime()}`;
+            console.log('Generating new agreement (older than 90 days):', newAgreementKey);
+          } else {
+            // It's within 90 days. OVERWRITE the latest document.
+            newAgreementKey = latestAgreementKey; // Use old key
+            console.log('Overwriting existing agreement (within 90 days):', newAgreementKey);
+          }
+        } else {
+          // --- This is the FIRST agreement. Create it based on original start date ---
+          const originalTimestamp = originalStartDate.getTime();
+          if (isNaN(originalTimestamp)) {
+             throw new Error("Original start date resulted in NaN timestamp.");
+          }
+          newAgreementKey = `agreement_${originalTimestamp}`;
+          console.log('Generating first-time agreement:', newAgreementKey);
+        }
+
+        agreementsToUpload[newAgreementKey] = documents.agreement;
+
+        // Pass to uploadRentalDocuments (which will merge)
+        // THIS NOW USES THE CORRECT IMPORT
+        await uploadRentalDocuments(rental.id, {
+          agreements: agreementsToUpload, // Only upload the new/overwritten one
+          invoice: documents.invoice,
+          permit: documents.permit,
+          claimDocuments: documents.claimDocuments
+        });
+        // --- END FIXED 90-DAY LOGIC ---
+
         toast.success("PDF documents regenerated!");
-      } catch (err) {
+      } catch (err: any) {
         console.error("Background PDF regen failed:", err);
-        toast.error("Rental updated, but failed to regenerate documents.");
+        toast.error(`Rental updated, but failed to regenerate documents: ${err.message}`);
       }
     }, 0);
+    
     const initialPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
     submitRemainingAmount <= 0.001
       ? 'paid'
       : (updatedTotalPaid || 0) > 0
         ? 'partially_paid'
         : 'unpaid';
+        
     // 3) If a new payment was added, record it in the background:
     if (newPayment > 0) {
       setTimeout(async () => {
@@ -848,13 +1000,13 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
               setShowVehicleResults(true);
             }}
             onFocus={() => setShowVehicleResults(true)}
-            onBlur={() => setTimeout(() => setShowVehicleResults(false), 100)}
+            onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
             placeholder="Search vehicles..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
             aria-autocomplete="list"
             aria-controls="vehicle-results"
           />
-          {vehicleSearchQuery && (
+          {vehicleSearchQuery && !showVehicleResults && (
             <button
               type="button"
               className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
@@ -893,6 +1045,8 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
                       `${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`
                     );
                     setShowVehicleResults(false);
+                    // Set mileage
+                    setConditionData(prev => ({ ...prev, mileage: vehicle.mileage || 0 }));
                   }}
                   role="option"
                   aria-selected={formData.vehicleId === vehicle.id}
@@ -966,13 +1120,13 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
               setShowCustomerResults(true);
             }}
             onFocus={() => setShowCustomerResults(true)}
-            onBlur={() => setTimeout(() => setShowCustomerResults(false), 100)}
+            onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
             placeholder="Search customers..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
             aria-autocomplete="list"
             aria-controls="customer-results"
           />
-          {customerSearchQuery && (
+          {customerSearchQuery && !showCustomerResults && (
             <button
               type="button"
               className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
@@ -1001,7 +1155,8 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
                     e.preventDefault();
                     setFormData((prev) => ({
                       ...prev,
-                      customerId: customer.id
+                      customerId: customer.id,
+                      signature: customer.signature || '' // Load signature
                     }));
                     setCustomerSearchQuery(
                       `${customer.name} - ${customer.mobile}`
@@ -1125,6 +1280,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
                       setShowClaimResults(true);
                     }}
                     onFocus={() => setShowClaimResults(true)}
+                    onBlur={() => setTimeout(() => setShowClaimResults(false), 200)}
                     placeholder="Search claims..."
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   />
@@ -1136,7 +1292,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
                         <div
                           key={claim.id}
                           className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                          onClick={() => {
+                          onMouseDown={() => {
                             const refStr =
                               claim.clientRef ||
                               claim.id
@@ -1260,7 +1416,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
 
 
         {/* Include overall VAT */}
-        <div className="border-t pt-6">
+        <div className="border-t pt-6 col-span-2">
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -1691,6 +1847,87 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
         )}
       </div>
 
+      {/* --- MODIFIED: HIRE SUBSTITUTION DETAILS (ARRAY) --- */}
+      {formData.reason === 'h-substitute' && (
+        <div className="col-span-2 border-t pt-4 mt-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Hire Substitution Details (Optional)</h3>
+          
+          {formData.hireSubstitutionDetails.map((sub, index) => (
+            <div key={index} className="grid grid-cols-2 gap-4 border p-4 rounded-lg mb-4 relative">
+              <div className="col-span-2 flex justify-between items-center">
+                <h4 className="font-medium text-gray-800">Substitution Vehicle {index + 1}</h4>
+                <button
+                  type="button"
+                  onClick={() => removeSubstitutionVehicle(index)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Remove"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <FormField
+                label="Vehicle Make"
+                name="make"
+                value={sub.make}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Vehicle Model"
+                name="model"
+                value={sub.model}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Vehicle Registration"
+                name="registration"
+                value={sub.registration}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Loaner (Provider)"
+                name="loaner"
+                value={sub.loaner}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Date & Time Given"
+                type="datetime-local"
+                name="givenAt"
+                value={sub.givenAt}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Date & Time Expected Return"
+                type="datetime-local"
+                name="expectedReturnAt"
+                value={sub.expectedReturnAt}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <div className="col-span-2">
+                <TextArea
+                  label="Notes (Reason)"
+                  name="notes"
+                  value={sub.notes}
+                  onChange={(e) => handleSubChange(index, e)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addSubstitutionVehicle}
+            className="mt-2 flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Another Substitution Vehicle
+          </button>
+        </div>
+      )}
+      {/* --- END: HIRE SUBSTITUTION DETAILS --- */}
+
       {/* Negotiation Section */}
       <div className="border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -1987,18 +2224,18 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
             <span>Payment Status:</span>
             <span
               className={`capitalize font-semibold ${
-                (rental.paidAmount || 0) >=
+                (rental.paidAmount || 0) + (formData.amountToAdd || 0) >=
                 currentFinalCostAfterDiscount - 0.001
                   ? 'text-green-600'
-                  : (rental.paidAmount || 0) > 0
+                  : (rental.paidAmount || 0) + (formData.amountToAdd || 0) > 0
                   ? 'text-orange-600'
                   : 'text-red-600'
               }`}
             >
-              {(rental.paidAmount || 0) >=
+              {(rental.paidAmount || 0) + (formData.amountToAdd || 0) >=
               currentFinalCostAfterDiscount - 0.001
                 ? 'Paid'
-                : (rental.paidAmount || 0) > 0
+                : (rental.paidAmount || 0) + (formData.amountToAdd || 0) > 0
                 ? 'Partially Paid'
                 : 'Pending'}
             </span>
@@ -2022,7 +2259,7 @@ if (rental.status !== 'completed' && formData.status === 'completed') {
       mileage: Number(e.target.value) || 0
     }))
   }
-  min={rental.checkOutCondition?.mileage ?? 0}
+  min={rental.checkOutCondition?.mileage ?? selectedVehicle?.mileage ?? 0}
   required
 />
 

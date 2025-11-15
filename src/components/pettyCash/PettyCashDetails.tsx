@@ -5,7 +5,8 @@ import { doc, getDoc, Timestamp } from 'firebase/firestore'; // Import Timestamp
 import { db } from '../../lib/firebase';
 
 interface PettyCashDetailsProps {
-  transaction: PettyCashTransaction;
+  // UPDATED: Accept the calculatedBalance property from the table
+  transaction: PettyCashTransaction & { calculatedBalance?: number };
 }
 
 const PettyCashDetails: React.FC<PettyCashDetailsProps> = ({ transaction }) => {
@@ -75,7 +76,10 @@ const PettyCashDetails: React.FC<PettyCashDetailsProps> = ({ transaction }) => {
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Balance</h3>
-          <p className="mt-1 font-medium">£{Number(transaction.balance || 0).toFixed(2)}</p>
+          {/* UPDATED: Use the calculatedBalance passed from the table */}
+          <p className="mt-1 font-medium">
+            £{Number(transaction.calculatedBalance || 0).toFixed(2)}
+          </p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Status</h3>

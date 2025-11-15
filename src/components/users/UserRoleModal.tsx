@@ -71,8 +71,11 @@ const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
   personalInjury: 'Personal Injury',
   finance: 'Finance',
   invoices: 'Invoices',
-  pettyCash: 'Petty Cash',
-  aiePettyCash: 'AIE Petty Cash',
+
+  // ✅ Updated display names only (keys unchanged)
+  pettyCash: 'AiePettyCash',
+  aiePettyCash: 'SkylinePettyCash',
+
   share: 'Share',
   driverPay: 'Driver Pay',
   vdFinance: 'VD Finance',

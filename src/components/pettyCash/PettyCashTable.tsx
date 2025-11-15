@@ -10,7 +10,7 @@ import type { RolePermissions } from '../../types/roles';
 interface PettyCashTableProps {
   moduleKey?: keyof RolePermissions;
   transactions: PettyCashTransaction[];
-  onView: (transaction: PettyCashTransaction) => void;
+  onView: (transaction: PettyCashTransaction & { calculatedBalance?: number }) => void;
   onEdit: (transaction: PettyCashTransaction) => void;
   onDelete: (transaction: PettyCashTransaction) => void;
   onGenerateDocument: (transaction: PettyCashTransaction) => void;
@@ -30,11 +30,18 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
 
+  // UPDATED: Correctly calculate running balance
   let runningBalance = 0;
-  const transactionsWithBalance = transactions.map((t) => {
-    runningBalance += (t.amountIn || 0) - (t.amountOut || 0);
-    return { ...t, calculatedBalance: runningBalance };
-  });
+  const transactionsWithBalance = transactions
+    .slice() // Create a shallow copy to not mutate the original array
+    .reverse() // Reverse to get chronological order (oldest first)
+    .map((t) => {
+      // Calculate the running balance
+      runningBalance += (t.amountIn || 0) - (t.amountOut || 0);
+      // Return a new object with the calculated balance
+      return { ...t, calculatedBalance: runningBalance };
+    })
+    .reverse(); // Reverse back to show newest first in the table
 
   const columns = [
     {
@@ -89,7 +96,8 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
     {
       header: 'Balance',
       cell: ({ row }) => {
-        const balance = row.original.calculatedBalance || 0;
+        // Use the new calculatedBalance property
+        const balance = (row.original as any).calculatedBalance || 0;
         return (
           <span className={balance >= 0 ? 'text-green-600' : 'text-red-600'}>
             {formatCurrency(Math.abs(balance))}

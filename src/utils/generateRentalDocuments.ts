@@ -7,6 +7,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createElement } from 'react';
 import toast from 'react-hot-toast';
+
+// Claims bundle (your existing set)
 import {
   ConditionOfHire,
   CreditHireMitigation,
@@ -16,12 +18,17 @@ import {
   SatisfactionNotice
 } from '../components/pdf/claims';
 
+// Permit (your existing letter)
 import { ParkingPermitLetter } from '../components/pdf/ParkingPermitLetter';
+
+type PeriodOverride = { start: Date; end: Date };
+type Options = { periodOverride?: PeriodOverride };
 
 export const generateRentalDocuments = async (
   rental: Rental,
   vehicle: Vehicle,
-  customer: Customer
+  customer: Customer,
+  options?: Options
 ): Promise<{ agreement: Blob; invoice: Blob; permit: Blob; claimDocuments?: Record<string, Blob> }> => {
   try {
     // Validate required data
@@ -34,16 +41,15 @@ export const generateRentalDocuments = async (
     if (!companyDoc.exists()) {
       throw new Error('Company details not found');
     }
-
     const companyDetails = companyDoc.data();
 
-    // Validate company details
+    // Validate company details (mirror your checks)
     if (!companyDetails.fullName || !companyDetails.officialAddress) {
       throw new Error('Incomplete company details');
     }
 
-    // Ensure dates are valid Date objects
-    const validatedRental = {
+    // Ensure dates are valid Date objects (keep your normalization)
+    const validatedRental: Rental = {
       ...rental,
       startDate: new Date(rental.startDate),
       endDate: new Date(rental.endDate),
@@ -51,16 +57,33 @@ export const generateRentalDocuments = async (
       updatedAt: new Date(rental.updatedAt)
     };
 
-    // Generate agreement PDF
+    // ---- Key addition: build an "effective rental" for the Agreement only ----
+    // We DO NOT mutate Firestore; this is just for PDF rendering.
+    const effectiveAgreementRental: Rental =
+      options?.periodOverride
+        ? {
+            ...validatedRental,
+            startDate: new Date(options.periodOverride.start),
+            endDate: new Date(options.periodOverride.end),
+          }
+        : validatedRental;
+
+    // Generate Hire Agreement PDF (uses possibly overridden dates)
     const agreementBlob = await pdf(createElement(RentalAgreement, {
-      rental: validatedRental,
+      rental: effectiveAgreementRental,
       vehicle,
       customer,
-      companyDetails
+      companyDetails,
+      // Optional hint props, safe if your component ignores them:
+      agreementPeriod: options?.periodOverride
+        ? { start: new Date(options.periodOverride.start), end: new Date(options.periodOverride.end) }
+        : undefined,
+      periodOverride: options?.periodOverride
+        ? { start: new Date(options.periodOverride.start), end: new Date(options.periodOverride.end) }
+        : undefined
     })).toBlob();
 
-
-    // parking permit
+    // Parking Permit (kept on original period)
     const permitBlob = await pdf(createElement(ParkingPermitLetter, {
       rental: validatedRental,
       vehicle,
@@ -68,24 +91,23 @@ export const generateRentalDocuments = async (
       companyDetails
     })).toBlob();
 
-
-
-
-    // Generate invoice PDF
+    // Invoice (kept on original period; add optional meta if your template wants it)
     const invoiceBlob = await pdf(createElement(RentalInvoice, {
       rental: validatedRental,
       vehicle,
       customer,
-      companyDetails
+      companyDetails,
+      invoiceMeta: options?.periodOverride
+        ? { periodStart: new Date(options.periodOverride.start), periodEnd: new Date(options.periodOverride.end) }
+        : undefined
     })).toBlob();
 
     if (!agreementBlob || !invoiceBlob) {
       throw new Error('Failed to generate PDF documents');
     }
 
-    // For claim rentals, generate additional claim documents
+    // Claims bundle (unchanged, uses full rental period)
     if (rental.type === 'claim' || rental.reason === 'claim') {
-      console.log("Generating claim documents for rental:", rental.id);
       const claimDocuments: Record<string, Blob> = {};
 
       // Calculate days of hire
@@ -93,7 +115,7 @@ export const generateRentalDocuments = async (
       const endDate = new Date(rental.endDate);
       const daysOfHire = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Create a claim-like object from rental data
+      // Assemble claimData like your current flow
       const claimData = {
         id: rental.id,
         clientRef: rental.claimRef || rental.id.slice(-8).toUpperCase(),
@@ -110,8 +132,8 @@ export const generateRentalDocuments = async (
         clientVehicle: {
           registration: vehicle.registrationNumber,
           documents: {},
-          motExpiry: vehicle.motExpiry,
-          roadTaxExpiry: vehicle.roadTaxExpiry,
+          motExpiry: (vehicle as any).motExpiry,
+          roadTaxExpiry: (vehicle as any).roadTaxExpiry,
         },
         incidentDetails: {
           date: new Date(),
@@ -133,24 +155,24 @@ export const generateRentalDocuments = async (
           startTime: new Date(rental.startDate).toTimeString().slice(0, 5),
           endDate: rental.endDate,
           endTime: new Date(rental.endDate).toTimeString().slice(0, 5),
-          daysOfHire: daysOfHire,
-          claimRate: vehicle.claimRentalPrice || 340,
+          daysOfHire,
+          claimRate: (vehicle as any).claimRentalPrice || 340,
           deliveryCharge: rental.deliveryCharge || 0,
           collectionCharge: rental.collectionCharge || 0,
           insurancePerDay: rental.insurancePerDay || 0,
-          totalCost: rental.cost,
+          totalCost: (rental as any).cost,
           vehicle: {
             make: vehicle.make,
             model: vehicle.model,
             registration: vehicle.registrationNumber,
-            claimRate: vehicle.claimRentalPrice || 340,
+            claimRate: (vehicle as any).claimRentalPrice || 340,
           },
         },
         storage: rental.storageCost ? {
           enabled: true,
-          startDate: rental.storageStartDate,
-          endDate: rental.storageEndDate,
-          costPerDay: rental.storageCostPerDay || 0,
+          startDate: (rental as any).storageStartDate,
+          endDate: (rental as any).storageEndDate,
+          costPerDay: (rental as any).storageCostPerDay || 0,
           totalCost: rental.storageCost,
         } : null,
         recovery: rental.recoveryCost ? {
@@ -174,19 +196,15 @@ export const generateRentalDocuments = async (
         },
         claimType: 'Domestic',
         claimReason: ['H'],
-        // Correctly set caseProgress based on rental.status or a dedicated claim progress field
-        // Assuming rental.status 'completed' means claim is completed, otherwise 'Awaiting'
         caseProgress: rental.status === 'completed' ? 'Completed' : 'Awaiting',
         progress: 'Your Claim Has Started',
         progressHistory: [],
         createdBy: rental.createdBy,
         submittedAt: rental.createdAt,
         updatedAt: rental.updatedAt,
-        // Determine completion status based on rental.status
         completionStatus: rental.status === 'completed' ? 'completed' : 'in-progress',
       };
 
-      // Generate claim documents
       try {
         claimDocuments.conditionOfHire = await pdf(createElement(ConditionOfHire, {
           claim: claimData,
@@ -210,28 +228,21 @@ export const generateRentalDocuments = async (
           })).toBlob();
         }
 
-        // --- ADDED: CreditHireMitigation Generation ---
-        // Generates CreditHireMitigation for all claim rentals.
-        // Add a condition here if it's only for specific claim types/statuses.
+        // Always generate mitigation
         claimDocuments.creditHireMitigation = await pdf(createElement(CreditHireMitigation, {
           claim: claimData,
           companyDetails
         })).toBlob();
-        console.log("Credit Hire Mitigation generated.");
 
-        // --- ADDED: SatisfactionNotice Generation (Conditional) ---
-        // This will now generate if rental.status is 'completed'.
+        // Generate satisfaction when completed
         if (claimData.completionStatus === 'completed') {
           claimDocuments.satisfactionNotice = await pdf(createElement(SatisfactionNotice, {
             claim: claimData,
             companyDetails
           })).toBlob();
-          console.log("Satisfaction Notice generated.");
         }
-
-        console.log("Successfully generated claim documents:", Object.keys(claimDocuments));
-      } catch (error) {
-        console.error("Error generating claim documents:", error);
+      } catch (error: any) {
+        console.error('Error generating claim documents:', error);
         toast.error(`Failed to generate one or more claim documents: ${error.message}`);
         throw new Error(`Failed to generate claim documents: ${error.message}`);
       }
@@ -239,6 +250,7 @@ export const generateRentalDocuments = async (
       return { agreement: agreementBlob, invoice: invoiceBlob, permit: permitBlob, claimDocuments };
     }
 
+    // Non-claim path
     return { agreement: agreementBlob, invoice: invoiceBlob, permit: permitBlob };
   } catch (error) {
     console.error('Error generating rental documents:', error);

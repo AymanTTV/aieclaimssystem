@@ -25,7 +25,6 @@ interface RentalDetailsProps {
   rental: Rental;
   vehicle: Vehicle | null;
   customer: Customer | null;
-  onDownloadAgreement: () => void;
   onDownloadInvoice: () => void;
   onDownloadPermit: () => void;
 }
@@ -34,7 +33,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   rental,
   vehicle,
   customer,
-  onDownloadAgreement,
   onDownloadInvoice,
   onDownloadPermit
 }) => {
@@ -143,6 +141,32 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     }
   };
 
+  // --- Helper to label older agreements by their key timestamp ---
+  const formatAgreementKey = (key: string): string => {
+    try {
+      const timestamp = parseInt(key.split('_')[1] || '0', 10);
+      if (timestamp === 0) return 'Hire Agreement';
+      // ----------------- ✅ FIX 3: Update label for clarity -----------------
+      return `Hire Agreement (Generated ${format(new Date(timestamp), 'dd/MM/yyyy')})`;
+      // ----------------- END OF FIX 3 -----------------
+    } catch {
+      return 'Hire Agreement';
+    }
+  };
+
+  // --- NEW: Helper to label the Latest agreement using the rental's own dates ---
+  const formatLatestAgreementLabel = (r: Rental) => {
+    try {
+      const s = ensureValidDate(r.startDate);
+      const e = ensureValidDate(r.endDate);
+      const sStr = format(s, 'dd/MM/yyyy HH:mm');
+      const eStr = e ? format(e, 'dd/MM/yyyy HH:mm') : '—';
+      return `Hire Agreement (${sStr} → ${eStr})`;
+    } catch {
+      return 'Hire Agreement (Latest)';
+    }
+  };
+
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
@@ -150,19 +174,52 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     </div>
   );
 
+  // Agreements list (sorted oldest → newest)
+  const agreementKeys = rental.documents?.agreements
+    ? Object.keys(rental.documents.agreements).sort(
+        (a, b) =>
+          parseInt(a.split('_')[1] || '0', 10) -
+          parseInt(b.split('_')[1] || '0', 10)
+      )
+    : [];
+
+  const latestAgreementKey =
+    agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
+
   return (
     <div className="space-y-6">
       {/* Documents Section */}
       <div className="flex flex-wrap gap-2">
-        {rental.documents?.agreement && (
+        {/* Latest agreement first (uses rental start→end in label) */}
+        {latestAgreementKey && (
           <button
-            onClick={onDownloadAgreement}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            key={`latest_${latestAgreementKey}`}
+            onClick={() => window.open(rental.documents!.agreements![latestAgreementKey], '_blank')}
+            className="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50"
+            title="Open the main hire agreement"
           >
             <FileText className="h-4 w-4 mr-2" />
-            Hire Agreement (Main)
+            {/* ----------------- ✅ FIX 4: Update label to (Main) ----------------- */}
+            {formatLatestAgreementLabel(rental)} (Main)
+            {/* ----------------- END OF FIX 4 ----------------- */}
           </button>
         )}
+
+        {/* Older versions (if any), labeled by their key timestamp */}
+        {agreementKeys
+          .filter((k) => k !== latestAgreementKey)
+          .map((key) => (
+            <button
+              key={key}
+              onClick={() => window.open(rental.documents!.agreements![key], '_blank')}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              title="Open an older hire agreement version"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              {formatAgreementKey(key)}
+            </button>
+          ))}
+
         {rental.documents?.invoice && (
           <button
             onClick={onDownloadInvoice}
@@ -172,6 +229,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             Invoice
           </button>
         )}
+
         {rental.documents?.permit && (
           <button
             onClick={() => window.open(rental.documents?.permit, '_blank')}
@@ -359,6 +417,46 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
           </div>
         </div>
       )}
+
+      {/* --- HIRE SUBSTITUTION DETAILS (ARRAY) --- */}
+      {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 && (
+        <Section title="Hire Substitution Details">
+          {rental.hireSubstitutionDetails.map((sub, index) => (
+            <div key={index} className="grid grid-cols-2 gap-4 border-b pb-4 mb-4 last:border-b-0 last:pb-0 last:mb-0">
+              <h4 className="font-medium col-span-2 text-gray-700">Substitution Vehicle {index + 1}</h4>
+              <div>
+                <p className="text-sm text-gray-500">Vehicle</p>
+                <p className="font-medium">
+                  {sub.make} {sub.model} ({sub.registration})
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Loaner (Provider)</p>
+                <p className="font-medium">{sub.loaner}</p>
+              </div>
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                <div>
+                  <p className="text-sm text-gray-500">Date & Time Given</p>
+                  <p className="font-medium">{formatDateTime(sub.givenAt)}</p>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                <div>
+                  <p className="text-sm text-gray-500">Date & Time Expected Return</p>
+                  <p className="font-medium">{formatDateTime(sub.expectedReturnAt)}</p>
+                </div>
+              </div>
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500">Notes (Reason)</p>
+                <p className="font-medium whitespace-pre-wrap">{sub.notes || 'N/A'}</p>
+              </div>
+            </div>
+          ))}
+        </Section>
+      )}
+      {/* --- END: HIRE SUBSTITUTION DETAILS --- */}
 
       {rental.checkOutCondition && (
         <Section title="Check-Out Condition">

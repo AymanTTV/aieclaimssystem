@@ -1,3 +1,4 @@
+// src/hooks/useRentals.ts
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -31,11 +32,41 @@ export const useRentals = (vehicleId?: string) => {
               endDate: ensureValidDate(data.endDate) || new Date(),
               createdAt: ensureValidDate(data.createdAt) || new Date(),
               updatedAt: ensureValidDate(data.updatedAt) || new Date(),
-              // Handle optional dates
+
+              // --- THIS IS THE UPDATED MAPPING LOGIC ---
+              checkOutCondition: data.checkOutCondition ? {
+                ...data.checkOutCondition,
+                date: ensureValidDate(data.checkOutCondition.date),
+                createdAt: ensureValidDate(data.checkOutCondition.createdAt),
+              } : undefined,
+              returnCondition: data.returnCondition ? {
+                ...data.returnCondition,
+                date: ensureValidDate(data.returnCondition.date),
+                createdAt: ensureValidDate(data.returnCondition.createdAt),
+              } : undefined,
+              payments: data.payments ? data.payments.map((p: any) => ({
+                ...p,
+                date: ensureValidDate(p.date),
+                createdAt: ensureValidDate(p.createdAt),
+              })) : [],
+              
+              // Handle optional dates safely (returns null if invalid)
+              originalStartDate: ensureValidDate(data.originalStartDate),
+              storageStartDate: ensureValidDate(data.storageStartDate),
+              storageEndDate: ensureValidDate(data.storageEndDate),
+  
+              // Handle hireSubstitutionDetails (array)
+              hireSubstitutionDetails: data.hireSubstitutionDetails ? data.hireSubstitutionDetails.map((sub: any) => ({
+                ...sub,
+                givenAt: ensureValidDate(sub.givenAt),
+                expectedReturnAt: ensureValidDate(sub.expectedReturnAt),
+              })) : [],
+              // --- END UPDATED MAPPING LOGIC ---
+
               extensionHistory: data.extensionHistory?.map((ext: any) => ({
                 ...ext,
                 date: ensureValidDate(ext.date) || new Date(),
-                originalEndDate: ensureValidDate(ext.originalEndDate) || new Date(),
+                previousEndDate: ensureValidDate(ext.previousEndDate) || new Date(),
                 newEndDate: ensureValidDate(ext.newEndDate) || new Date(),
               })) || []
             };

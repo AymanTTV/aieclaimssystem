@@ -1,7 +1,7 @@
 // src/components/finance/InvoiceEditModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { InvoiceLineItem, Invoice } from '../../types/finance';
 import { Vehicle, Customer } from '../../types';
@@ -29,6 +29,27 @@ interface ProductSuggestion {
   lastPrice: number;
 }
 
+const getNextInvoiceNumber = async (): Promise<string> => {
+    const invoicesRef = collection(db, 'invoices');
+    const q = query(invoicesRef, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+  
+    let maxNum = 0;
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as Invoice;
+      if (data.invoiceNumber && data.invoiceNumber.startsWith('INV')) {
+        const numPart = data.invoiceNumber.substring(3);
+        const num = parseInt(numPart, 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    });
+  
+    const nextNum = maxNum + 1;
+    return `INV${String(nextNum).padStart(4, '0')}`;
+};
+
 const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
   invoice,
   vehicles,
@@ -42,7 +63,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({
     invoice.lineItems.map(li => ({ ...li }))
   );
   const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
-const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
 
   const [formData, setFormData] = useState({
     date: new Date(invoice.date).toISOString().split('T')[0],
@@ -50,6 +71,7 @@ const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
     category: invoice.category,
     customCategory: invoice.customCategory || '',
     vehicleId: invoice.vehicleId || '',
+    vehicleName: invoice.vehicleName || '', // <-- ADDED
     useCustomCustomer: !!invoice.customerName && !invoice.customerId,
     customerId: invoice.customerId || '',
     customerName: invoice.customerName || '',
@@ -59,6 +81,7 @@ const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
+    isLoan: invoice.isLoan || false,
     uploadedDocument: null as File | null
   });
 
@@ -196,6 +219,16 @@ const showAt = (idx: number, on: boolean) =>
     if (!user) return;
     setLoading(true);
     try {
+      // NEW: Customer validation
+      if (
+        (!formData.useCustomCustomer && !formData.customerId) ||
+        (formData.useCustomCustomer && !formData.customerName.trim())
+      ) {
+        toast.error('A customer is required. Please select one or enter their details manually.');
+        setLoading(false);
+        return;
+      }
+
       if (
         lineItems.length === 0 ||
         lineItems.every(
@@ -205,27 +238,33 @@ const showAt = (idx: number, on: boolean) =>
             0
         )
       ) {
-        toast.error('Add at least one line item with nonzero net.');
+        toast.error('Add at least one line item with a non-zero value.');
         setLoading(false);
         return;
       }
 
       const payNow = parseFloat(formData.amountToPay) || 0;
-      if (formData.isAddingPayment && payNow > invoice.remainingAmount) {
-        toast.error('Payment cannot exceed remaining.');
+      if (formData.isAddingPayment && payNow > invoice.remainingAmount + 0.01) { // Allow for floating point rounding
+        toast.error('Payment cannot exceed the remaining amount.');
         setLoading(false);
         return;
       }
 
+      // If invoice doesn't have a number, generate one
+      let invoiceNumberToSave = invoice.invoiceNumber;
+      if (!invoiceNumberToSave) {
+          invoiceNumberToSave = await getNextInvoiceNumber();
+      }
+
       const paidSoFar = invoice.paidAmount;
       const totalPaid = paidSoFar + (formData.isAddingPayment ? payNow : 0);
-      const newRemaining = total - totalPaid;
-      const newStatus =
-        totalPaid === 0
-          ? 'unpaid'
-          : totalPaid >= total
-          ? 'paid'
-          : 'partially_paid';
+      const newRemaining = parseFloat((total - totalPaid).toFixed(2));
+      let newStatus =
+        newRemaining <= 0.001
+        ? 'paid'
+        : (totalPaid > 0 ? 'partially_paid' : 'unpaid');
+        
+      if (newRemaining <= 0.001) newStatus = 'paid'; // Floating point safety
 
       const updatedPayments = [...invoice.payments];
       if (formData.isAddingPayment && payNow > 0) {
@@ -243,6 +282,7 @@ const showAt = (idx: number, on: boolean) =>
       }
 
       const payload: Partial<Invoice> = {
+        invoiceNumber: invoiceNumberToSave,
         date: new Date(formData.date),
         dueDate: new Date(formData.dueDate),
         lineItems: lineItems.map(li => ({ ...li })),
@@ -257,8 +297,8 @@ const showAt = (idx: number, on: boolean) =>
         customCategory:
           formData.category === 'Other' ? formData.customCategory : null,
         vehicleId: formData.vehicleId || null,
-        useCustomCustomer: formData.useCustomCustomer,
-        customerId: formData.useCustomCustomer ? null : formData.customerId,
+        vehicleName: formData.vehicleName || null, // <-- ADDED
+        customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
         customerName: formData.useCustomCustomer
           ? formData.customerName
           : customers.find(c => c.id === formData.customerId)?.name || '',
@@ -266,6 +306,7 @@ const showAt = (idx: number, on: boolean) =>
           ? formData.customerPhone
           : customers.find(c => c.id === formData.customerId)?.mobile || '',
         payments: updatedPayments,
+        isLoan: formData.isLoan,
         updatedAt: new Date()
       };
 
@@ -273,7 +314,7 @@ const showAt = (idx: number, on: boolean) =>
       await updateDoc(doc(db, 'invoices', invoice.id), payload);
 
       // regenerate PDF
-      const fullInv = { id: invoice.id, ...payload } as any;
+      const fullInv = { id: invoice.id, ...invoice, ...payload } as any;
       const blob = await generateInvoicePDF(
         fullInv,
         vehicles.find(v => v.id === formData.vehicleId)!
@@ -284,37 +325,35 @@ const showAt = (idx: number, on: boolean) =>
       await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: url });
 
       if (formData.isAddingPayment && payNow > 0) {
-  const vehicle = vehicles.find(v => v.id === formData.vehicleId);
-  const custName = formData.useCustomCustomer
-    ? formData.customerName
-    : customers.find(c => c.id === formData.customerId)?.name;
-  const lookup = vehicles.find(v => v.id === formData.vehicleId);
-  const vehicleOwner = lookup?.owner
-    ? {
-        name: lookup.owner.name,
-        isDefault: lookup.owner.isDefault ?? false,
-      }
-    : undefined;
-  await createFinanceTransaction({
-    type: 'income',
-    category: formData.category,
-    amount: payNow,
-    description: formData.paymentNotes,
-    referenceId: invoice.id,
-    vehicleId: formData.vehicleId || undefined,
-    vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
-    vehicleOwner,          // ← new
-    customerId: formData.useCustomCustomer ? undefined : formData.customerId,
-    customerName: custName,
-    paymentMethod: formData.paymentMethod,
-    paymentReference: formData.paymentReference,
-    paymentStatus: newStatus
-  });
-}
+          const vehicle = vehicles.find(v => v.id === formData.vehicleId);
+          const custName = formData.useCustomCustomer
+            ? formData.customerName
+            : customers.find(c => c.id === formData.customerId)?.name;
+          const lookup = vehicles.find(v => v.id === formData.vehicleId);
+          const vehicleOwner = lookup?.owner
+            ? {
+                name: lookup.owner.name,
+                isDefault: lookup.owner.isDefault ?? false,
+              }
+            : undefined;
+          await createFinanceTransaction({
+            type: 'income',
+            category: formData.category,
+            amount: payNow,
+            description: formData.paymentNotes,
+            referenceId: invoice.id,
+            vehicleId: formData.vehicleId || null,
+            vehicleName: formData.vehicleName || undefined, // <-- UPDATED
+            vehicleOwner,
+            customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
+            customerName: custName,
+            paymentMethod: formData.paymentMethod,
+            paymentReference: formData.paymentReference,
+            paymentStatus: newStatus
+          });
+        }
 
-
-
-      toast.success('Invoice updated successfully');
+      toast.success(`Invoice ${invoiceNumberToSave} updated successfully`);
       onClose();
     } catch (err) {
       console.error(err);
@@ -326,6 +365,24 @@ const showAt = (idx: number, on: boolean) =>
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-medium text-gray-900">
+          Edit Invoice {invoice.invoiceNumber && <span className="text-primary font-bold">{invoice.invoiceNumber}</span>}
+        </h2>
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.isLoan}
+            onChange={e =>
+              setFormData(fd => ({ ...fd, isLoan: e.target.checked }))
+            }
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+          />
+          <span className="text-sm font-medium text-gray-700">Is it a Loan?</span>
+        </label>
+      </div>
+
+
       {/* Customer */}
       <div className="space-y-4">
         <label className="flex items-center space-x-2">
@@ -453,7 +510,14 @@ const showAt = (idx: number, on: boolean) =>
           subLabel: v.registrationNumber
         }))}
         value={formData.vehicleId}
-        onChange={id => setFormData(fd => ({ ...fd, vehicleId: id }))}
+        onChange={id => { // <-- UPDATED
+          const v = vehicles.find(vh => vh.id === id);
+          setFormData(fd => ({
+            ...fd,
+            vehicleId: id || '',
+            vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+          }));
+        }}
         placeholder="Search…"
       />
 
@@ -476,50 +540,48 @@ const showAt = (idx: number, on: boolean) =>
               className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
               <div className="sm:col-span-2 relative">
-  <FormField
-    label="Description"
-    value={item.description}
-    onChange={e => {
-      handleLineChange(idx, 'description', e.target.value);
-      showAt(idx, true);
-    }}
-    onFocus={() => showAt(idx, true)}
-    onBlur={() => {
-      setTimeout(() => showAt(idx, false), 120);
-      tryAutofillUnitPrice(item.description, idx);
-    }}
-    required
-  />
-
-  {showSuggestions[idx] && item.description && (
-    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
-      {filterMatches(item.description).map(s => (
-        <li
-          key={s.id}
-          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-          onMouseDown={() => {
-            // set description + unit price
-            handleLineChange(idx, 'description', s.name);
-            handleLineChange(idx, 'unitPrice', String(s.lastPrice));
-            showAt(idx, false);
-          }}
-          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
-        >
-          <span className="truncate">
-            {s.name}
-            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-          </span>
-          <span className="text-gray-500 text-sm ml-3">
-            £{s.lastPrice.toFixed(2)}
-          </span>
-        </li>
-      ))}
-      {filterMatches(item.description).length === 0 && (
-        <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
-      )}
-    </ul>
-  )}
-</div>
+                <FormField
+                  label="Description"
+                  value={item.description}
+                  onChange={e => {
+                    handleLineChange(idx, 'description', e.target.value);
+                    showAt(idx, true);
+                  }}
+                  onFocus={() => showAt(idx, true)}
+                  onBlur={() => {
+                    setTimeout(() => showAt(idx, false), 120);
+                    tryAutofillUnitPrice(item.description, idx);
+                  }}
+                  required
+                />
+                {showSuggestions[idx] && item.description && (
+                  <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+                    {filterMatches(item.description).map(s => (
+                      <li
+                        key={s.id}
+                        className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                        onMouseDown={() => {
+                          handleLineChange(idx, 'description', s.name);
+                          handleLineChange(idx, 'unitPrice', String(s.lastPrice));
+                          showAt(idx, false);
+                        }}
+                        title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+                      >
+                        <span className="truncate">
+                          {s.name}
+                          {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+                        </span>
+                        <span className="text-gray-500 text-sm ml-3">
+                          £{s.lastPrice.toFixed(2)}
+                        </span>
+                      </li>
+                    ))}
+                    {filterMatches(item.description).length === 0 && (
+                      <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
+                    )}
+                  </ul>
+                )}
+              </div>
 
               <FormField
                 type="number"
@@ -621,7 +683,7 @@ const showAt = (idx: number, on: boolean) =>
                 ...fd,
                 isAddingPayment: e.target.checked,
                 amountToPay: e.target.checked
-                  ? invoice.remainingAmount.toFixed(2)
+                  ? (total - invoice.paidAmount).toFixed(2)
                   : '0'
               }))
             }
@@ -639,12 +701,12 @@ const showAt = (idx: number, on: boolean) =>
           setFormData(fd => ({ ...fd, amountToPay: e.target.value }))
         }
         min="0"
-        max={invoice.remainingAmount}
+        max={total - invoice.paidAmount}
         step="0.01"
         disabled={!formData.isAddingPayment}
       />
 
-      {parseFloat(formData.amountToPay) > 0 && (
+      {parseFloat(formData.amountToPay) > 0 && formData.isAddingPayment && (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -691,34 +753,8 @@ const showAt = (idx: number, on: boolean) =>
         </div>
       )}
 
-      {/* Upload Document */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Upload Document
-        </label>
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          <div className="space-y-1 text-center">
-            <p className="text-gray-500 text-sm">
-              Drag & drop or click to upload
-            </p>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={e =>
-                setFormData(fd => ({
-                  ...fd,
-                  uploadedDocument: e.target.files?.[0] || null
-                }))
-              }
-              className="sr-only"
-            />
-            <p className="text-xs text-gray-500">PDF/image up to 10MB</p>
-          </div>
-        </div>
-      </div>
-
       {/* Actions */}
-      <div className="flex justify-end space-x-3">
+      <div className="flex justify-end space-x-3 mt-6">
         <button
           type="button"
           onClick={onClose}

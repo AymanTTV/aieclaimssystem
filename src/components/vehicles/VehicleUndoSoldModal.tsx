@@ -1,3 +1,4 @@
+// src/components/vehicles/VehicleUndoSoldModal.tsx
 import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -14,12 +15,13 @@ const VehicleUndoSoldModal: React.FC<VehicleUndoSoldModalProps> = ({ vehicle, on
 
   const handleUndo = async () => {
     setLoading(true);
-
     try {
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
-        status: 'active',
+        status: 'available',       // ← was 'active'
+        activeStatuses: [],        // ← ensure no leftover statuses
         soldDate: null,
         salePrice: null,
+        updatedAt: new Date(),
       });
 
       toast.success('Vehicle sale status undone successfully');
@@ -37,20 +39,11 @@ const VehicleUndoSoldModal: React.FC<VehicleUndoSoldModalProps> = ({ vehicle, on
       <p className="text-sm text-gray-500">
         Are you sure you want to undo the sold status for this vehicle? This will remove the sale price and date information.
       </p>
-
       <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
+        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
           Cancel
         </button>
-        <button
-          onClick={handleUndo}
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700"
-        >
+        <button onClick={handleUndo} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700">
           {loading ? 'Processing...' : 'Undo Sold Status'}
         </button>
       </div>

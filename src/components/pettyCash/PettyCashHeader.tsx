@@ -1,49 +1,53 @@
+// src/components/pettyCash/PettyCashHeader.tsx
+
 import React from 'react';
-import { Plus, Download, Search } from 'lucide-react';
+import { Plus, Download, Search, Upload } from 'lucide-react'; // Added Upload
 import { usePermissions } from '../../hooks/usePermissions';
-import { useAuth } from '../../context/AuthContext';
 import { PettyCashTransaction } from '../../types/pettyCash';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import type { RolePermissions } from '../../types/roles';
+import { format } from 'date-fns'; // Import format for ISO date
 
 interface PettyCashHeaderProps {
-  moduleKey?: keyof RolePermissions;         // NEW: which permission module to check
+  moduleKey?: keyof RolePermissions;
   title?: string;
   onSearch: (query: string) => void;
   onAdd: () => void;
+  onImport: () => void; // NEW: Prop to trigger import modal
   transactions: PettyCashTransaction[];
 }
 
 const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
-  moduleKey = 'pettyCash',                    // NEW: default stays pettyCash
+  moduleKey = 'pettyCash',
   title = 'Petty Cash',
   onSearch,
   onAdd,
+  onImport, // NEW
   transactions,
 }) => {
   const { can } = usePermissions();
-  const { user } = useAuth();
 
   const handleExport = () => {
     try {
-      let runningBalance = 0;
+      // Export chronologically (oldest first)
+      const sortedTransactions = [...transactions].reverse();
 
-      const rows = transactions.map((t) => {
-        const amountIn = Number(t.amountIn || 0);
-        const amountOut = Number(t.amountOut || 0);
-        runningBalance += amountIn - amountOut;
-
+      const rows = sortedTransactions.map((t) => {
+        // Use a single, standard DateTime format for easy import
+        const dateTime = t.date ? format(new Date(t.date), "yyyy-MM-dd'T'HH:mm:ss") : '';
+        
         return {
-          'Date & Time': t.date ? new Date(t.date).toLocaleString() : '',
+          DateTime: dateTime,
           Name: t.name,
           Telephone: t.telephone,
           Description: t.description,
-          Note: t.note || '',
-          In: amountIn > 0 ? amountIn.toFixed(2) : '',
-          Out: amountOut > 0 ? amountOut.toFixed(2) : '',
-          Balance: runningBalance.toFixed(2),
+          Category: t.categoryName || '',
+          Group: t.groupName || '',
+          AmountIn: Number(t.amountIn || 0).toFixed(2),
+          AmountOut: Number(t.amountOut || 0).toFixed(2),
           Status: t.status,
+          Note: t.note || '',
         };
       });
 
@@ -51,7 +55,21 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
 
-      const filename = `${title.replace(/\s+/g, '_')}_Transactions.xlsx`;
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 20 }, // DateTime
+        { wch: 25 }, // Name
+        { wch: 15 }, // Telephone
+        { wch: 40 }, // Description
+        { wch: 20 }, // Category
+        { wch: 20 }, // Group
+        { wch: 10 }, // AmountIn
+        { wch: 10 }, // AmountOut
+        { wch: 10 }, // Status
+        { wch: 30 }, // Note
+      ];
+
+      const filename = `${title.replace(/\s+/g, '_')}_Export.xlsx`;
       XLSX.writeFile(workbook, filename);
 
       toast.success('Transactions exported successfully');
@@ -65,7 +83,17 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2"> {/* Added flex-wrap */}
+          {/* NEW: Import Button */}
+          {can(moduleKey, 'create') && (
+            <button
+              onClick={onImport}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Upload className="h-5 w-5 mr-2" />
+              Import
+            </button>
+          )}
           {can(moduleKey, 'export') && (
             <button
               onClick={handleExport}

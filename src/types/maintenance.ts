@@ -1,6 +1,11 @@
 export interface MaintenanceLog {
   id: string;
-  vehicleId: string;
+  vehicleId?: string;
+  vehicleDetails?: {
+    make: string;
+    model: string;
+    registrationNumber: string;
+  };
   customerId?: string;
   type :
   | 'yearly-service'

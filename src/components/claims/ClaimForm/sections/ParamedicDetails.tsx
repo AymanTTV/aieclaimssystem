@@ -1,11 +1,24 @@
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
-import TextArea from '../../../ui/TextArea';
 
 const ParamedicDetails = () => {
-  const { register, formState: { errors } } = useFormContext();
-  const [paramedicInvolved, setParamedicInvolved] = React.useState(false);
+  // 1. Get 'getValues' from the form context
+  const { register, formState: { errors }, getValues } = useFormContext();
+
+  // 2. Check if any paramedic data exists when the component first loads
+  const hasInitialParamedicData = React.useMemo(() => {
+    const values = getValues();
+    return !!(
+      values.paramedicNames ||
+      values.ambulanceReference ||
+      values.ambulanceService
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getValues]); 
+
+  // 3. Use this check to set the *initial* state
+  const [paramedicInvolved, setParamedicInvolved] = React.useState(hasInitialParamedicData);
 
   return (
     <div className="space-y-4">
@@ -15,6 +28,8 @@ const ParamedicDetails = () => {
         <label className="block text-sm font-medium text-gray-700">Were paramedics involved?</label>
         <select
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          // 4. Control the dropdown's value with state
+          value={paramedicInvolved ? 'yes' : 'no'}
           onChange={(e) => setParamedicInvolved(e.target.value === 'yes')}
         >
           <option value="no">No</option>

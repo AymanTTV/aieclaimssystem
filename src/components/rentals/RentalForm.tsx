@@ -5,16 +5,16 @@ import { db } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../lib/firebase';
 
-import { Vehicle, Customer, Claim, RentalPayment, VehicleCondition, Rental } from '../../types';
+import { Vehicle, Customer, Claim, RentalPayment, VehicleCondition, Rental, HireSubstitutionDetails } from '../../types'; // Added HireSubstitutionDetails
 import { useAuth } from '../../context/AuthContext';
 import { calculateRentalCost } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
-import { uploadRentalDocuments } from '../../utils/documentUpload';
+import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments'; // <-- *** THIS LINE IS FIXED ***
 import FormField from '../ui/FormField';
 import SignaturePad from '../ui/SignaturePad';
 import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Search, Car } from 'lucide-react';
+import { Search, Car, X, Plus } from 'lucide-react'; // Added X and Plus
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -26,6 +26,18 @@ interface RentalFormProps {
   customers: Customer[];
   onClose: () => void;
 }
+
+// --- NEW: Empty state for a substitution vehicle ---
+const newSubDetail = (): Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & { givenAt: string; expectedReturnAt: string } => ({
+  make: '',
+  model: '',
+  registration: '',
+  loaner: '',
+  givenAt: '',
+  expectedReturnAt: '',
+  notes: '',
+});
+
 
 const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose }) => {
   const { user } = useAuth();
@@ -77,6 +89,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     deliveryChargeIncludeVAT: false,
     collectionChargeIncludeVAT: false,
     insurancePerDayIncludeVAT: false,
+    // --- MODIFIED: Now an array ---
+    hireSubstitutionDetails: [] as (Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & { givenAt: string; expectedReturnAt: string })[],
   });
 
   // Fetch claims when component mounts
@@ -326,6 +340,19 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         });
       }
 
+      // --- NEW: Process substitution details array ---
+      const submitHireSubstitutionDetails =
+        formData.reason === 'h-substitute' && formData.hireSubstitutionDetails.length > 0
+          ? formData.hireSubstitutionDetails
+              .filter(sub => sub.make || sub.loaner) // Only save non-empty entries
+              .map(sub => ({
+                ...sub,
+                givenAt: new Date(sub.givenAt || Date.now()),
+                expectedReturnAt: new Date(sub.expectedReturnAt || Date.now()),
+              }))
+          : null;
+
+
       const rentalData: Omit<Rental, 'id' | 'checkOutCondition' | 'checkInCondition' | 'returnCondition'> = {
         vehicleId: formData.vehicleId,
         customerId: formData.customerId,
@@ -345,7 +372,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             ? 'partially_paid'
             : 'pending',
         payments,
-        signature: formData.signature || undefined,
+        signature: formData.signature || null,
 
         ...(formData.claimRef && { claimRef: formData.claimRef }),
 
@@ -408,6 +435,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               discountNotes: null,
             }),
 
+        // --- MODIFIED: Save the array ---
+        hireSubstitutionDetails: submitHireSubstitutionDetails,
+
         ...(formData.type === 'weekly' && {
           numberOfWeeks: formData.numberOfWeeks || 1,
         }),
@@ -429,36 +459,36 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
       // Upload condition images (if any)
       let conditionImageUrls: string[] = [];
-if (images.length > 0) {
-  const uploadPromises = images.map(async (file) => {
-    const ts = Date.now();
-    const storageRef = ref(storage, `vehicle-conditions/${docRef.id}/${ts}_${file.name}`);
-    const snap = await uploadBytes(storageRef, file);
-    return getDownloadURL(snap.ref);
-  });
+		if (images.length > 0) {
+		  const uploadPromises = images.map(async (file) => {
+			const ts = Date.now();
+			const storageRef = ref(storage, `vehicle-conditions/${docRef.id}/${ts}_${file.name}`);
+			const snap = await uploadBytes(storageRef, file);
+			return getDownloadURL(snap.ref);
+		  });
 
-  try {
-    conditionImageUrls = await Promise.all(uploadPromises);
-  } catch (imgErr) {
-    console.error('Failed to upload condition images:', imgErr);
-    toast.error('Rental created, but failed to upload condition images.');
-  }
-}
+		  try {
+			conditionImageUrls = await Promise.all(uploadPromises);
+		  } catch (imgErr) {
+			console.error('Failed to upload condition images:', imgErr);
+			toast.error('Rental created, but failed to upload condition images.');
+		  }
+		}
 
       const checkOutCondition: VehicleCondition = {
-  id: `cond_${Date.now()}`,
-  type: 'check-out',
-  date: startDateTime,
-  mileage: Number(conditionData.mileage) || 0,
-  fuelLevel: (conditionData.fuelLevel as VehicleCondition['fuelLevel']) || '100',
-  isClean: conditionData.isClean ?? true,
-  hasDamage: !!conditionData.hasDamage,
-  damageDescription: conditionData.hasDamage ? (conditionData.damageDescription || '') : '',
-  images: conditionImageUrls, // may be []
-  createdAt: new Date(),
-  createdBy: user.id,
-};
-await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
+	  id: `cond_${Date.now()}`,
+	  type: 'check-out',
+	  date: startDateTime,
+	  mileage: Number(conditionData.mileage) || 0,
+	  fuelLevel: (conditionData.fuelLevel as VehicleCondition['fuelLevel']) || '100',
+	  isClean: conditionData.isClean ?? true,
+	  hasDamage: !!conditionData.hasDamage,
+	  damageDescription: conditionData.hasDamage ? (conditionData.damageDescription || '') : '',
+	  images: conditionImageUrls, // may be []
+	  createdAt: new Date(),
+	  createdBy: user.id,
+	};
+	await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
 
       // Close & toast immediately
       setLoading(false);
@@ -474,7 +504,23 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
             selectedVehicle,
             selectedCustomer
           );
-          await uploadRentalDocuments(docRef.id, documents);
+
+          // --- NEW 90-DAY AGREEMENT LOGIC ---
+          const agreementTimestamp = fullRental.originalStartDate
+            ? new Date(fullRental.originalStartDate).getTime()
+            : new Date(fullRental.startDate).getTime();
+          const agreementKey = `agreement_${agreementTimestamp}`;
+          const agreementsMap = { [agreementKey]: documents.agreement };
+
+          // Pass the new structure to uploadRentalDocuments
+          await uploadRentalDocuments(docRef.id, {
+            agreements: agreementsMap,
+            invoice: documents.invoice,
+            permit: documents.permit,
+            claimDocuments: documents.claimDocuments
+          });
+          // --- END NEW 90-DAY LOGIC ---
+          
           toast.success('Agreement & Invoice uploaded!');
         } catch (err) {
           console.error('Background PDF gen/upload failed:', err);
@@ -552,12 +598,13 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
         }));
       }
     } else if (formData.type !== 'weekly') {
-      setFormData(prev => ({
-        ...prev,
-        endDate: '',
-        endTime: '',
-        numberOfWeeks: 1
-      }));
+      // Don't clear dates if type changes, user might be switching
+      // setFormData(prev => ({
+      //   ...prev,
+      //   endDate: '',
+      //   endTime: '',
+      //   numberOfWeeks: 1
+      // }));
     }
   }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
 
@@ -577,6 +624,41 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
     }
   }, [formData.storageStartDate, formData.storageEndDate]);
 
+  // --- NEW: Handlers for H Substitute array ---
+  const handleSubChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    const newSubs = [...formData.hireSubstitutionDetails];
+    newSubs[index] = { ...newSubs[index], [name]: value };
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: newSubs,
+    }));
+  };
+
+  const addSubstitutionVehicle = () => {
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: [
+        ...prev.hireSubstitutionDetails,
+        newSubDetail() // Add a new empty object
+      ],
+    }));
+  };
+
+  const removeSubstitutionVehicle = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      hireSubstitutionDetails: prev.hireSubstitutionDetails.filter(
+        (_, i) => i !== index
+      ),
+    }));
+  };
+  // --- END NEW HANDLERS ---
+
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Vehicle Search */}
@@ -594,6 +676,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               setShowVehicleResults(true);
             }}
             onFocus={() => setShowVehicleResults(true)}
+            onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)} // Added delay
             placeholder="Search vehicles..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           />
@@ -609,7 +692,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
                 <div
                   key={vehicle.id}
                   className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                  onClick={() => {
+                  onMouseDown={() => { // Changed to onMouseDown
                     setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
                     setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
                     setShowVehicleResults(false);
@@ -650,6 +733,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               setShowCustomerResults(true);
             }}
             onFocus={() => setShowCustomerResults(true)}
+            onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)} // Added delay
             placeholder="Search customers..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           />
@@ -658,31 +742,35 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
         {/* Customer Search Results */}
         {showCustomerResults && (
           <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-            {filteredCustomers.map(customer => (
-              <div
-                key={customer.id}
-                className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                onClick={() => {
-                  setFormData(prev => ({
-                    ...prev,
-                    customerId: customer.id,
-                    signature: customer.signature || ''
-                  }));
-                  setCustomerSearchQuery(customer.name);
-                  setShowCustomerResults(false);
-                }}
-              >
-                <div className="font-medium">{customer.name}</div>
-                <div className="text-sm text-gray-500">
-                  {customer.mobile} - {customer.email}
+            {filteredCustomers.length > 0 ? (
+              filteredCustomers.map(customer => (
+                <div
+                  key={customer.id}
+                  className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+                  onMouseDown={() => { // Changed to onMouseDown
+                    setFormData(prev => ({
+                      ...prev,
+                      customerId: customer.id,
+                      signature: customer.signature || ''
+                    }));
+                    setCustomerSearchQuery(customer.name);
+                    setShowCustomerResults(false);
+                  }}
+                >
+                  <div className="font-medium">{customer.name}</div>
+                  <div className="text-sm text-gray-500">
+                    {customer.mobile} - {customer.email}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+               <div className="px-4 py-2 text-sm text-gray-500">No customers found</div>
+            )}
           </div>
         )}
 
         {/* Selected Customer Details */}
-        {selectedCustomer && (
+        {selectedCustomer && !showCustomerResults && (
           <div className="mt-2 p-4 bg-gray-50 rounded-lg">
             <h4 className="text-sm font-medium text-gray-900">Selected Customer</h4>
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
@@ -701,7 +789,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               {selectedCustomer.licenseExpiry && (
                 <div>
                   <span className="text-gray-500">License Expiry:</span>
-                  <span className="ml-2">{format(selectedCustomer.licenseExpiry, 'dd/MM/yyyy')}</span>
+                  <span className="ml-2">{format(new Date(selectedCustomer.licenseExpiry), 'dd/MM/yyyy')}</span>
                 </div>
               )}
             </div>
@@ -726,18 +814,18 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
         </div>
 
         <div className="border-t pt-4">
-  <h3 className="text-lg font-medium text-gray-900 mb-2">System</h3>
-  <div className="grid grid-cols-2 gap-4">
-    <FormField
-      label="Original Rental Start Date"
-      type="datetime-local"
-      value={`${formData.startDate}T${formData.startTime}`}
-      onChange={() => {}}
-      readOnly
-      disabled
-    />
-  </div>
-</div>
+		  <h3 className="text-lg font-medium text-gray-900 mb-2">System</h3>
+		  <div className="grid grid-cols-2 gap-4">
+			<FormField
+			  label="Original Rental Start Date"
+			  type="datetime-local"
+			  value={`${formData.startDate}T${formData.startTime}`}
+			  onChange={() => {}}
+			  readOnly
+			  disabled
+			/>
+		  </div>
+		</div>
 
 
         {/* Claim Reference */}
@@ -777,6 +865,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
                       setShowClaimResults(true);
                     }}
                     onFocus={() => setShowClaimResults(true)}
+                    onBlur={() => setTimeout(() => setShowClaimResults(false), 200)}
                     placeholder="Search claims..."
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   />
@@ -789,7 +878,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
                         <div
                           key={claim.id}
                           className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                          onClick={() => {
+                          onMouseDown={() => { // Changed to onMouseDown
                             const claimRef = claim.clientRef || claim.id.slice(-8).toUpperCase();
                             setFormData(prev => ({ ...prev, claimRef }));
                             setClaimSearchQuery(claimRef);
@@ -996,7 +1085,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               </label>
             </div>
 
-            <div className="border-t pt-4 mt-4">
+            <div className="border-t pt-4 mt-4 col-span-2">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Storage Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -1129,9 +1218,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
               type="number"
               label="Number of Weeks"
               value={formData.numberOfWeeks}
-              // THIS IS THE PROBLEMATIC ONCHANGE HANDLER
               onChange={(e) => {
-                // Use a logical OR to default to 1 if the input is empty or invalid
                 const weeks = parseInt(e.target.value) || 1;
                 setFormData(prev => ({
                   ...prev,
@@ -1178,6 +1265,88 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
           </>
         )}
       </div>
+
+      {/* --- MODIFIED: HIRE SUBSTITUTION DETAILS (ARRAY) --- */}
+      {formData.reason === 'h-substitute' && (
+        <div className="col-span-2 border-t pt-4 mt-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Hire Substitution Details (Optional)</h3>
+          
+          {formData.hireSubstitutionDetails.map((sub, index) => (
+            <div key={index} className="grid grid-cols-2 gap-4 border p-4 rounded-lg mb-4 relative">
+              <div className="col-span-2 flex justify-between items-center">
+                <h4 className="font-medium text-gray-800">Substitution Vehicle {index + 1}</h4>
+                <button
+                  type="button"
+                  onClick={() => removeSubstitutionVehicle(index)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Remove"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <FormField
+                label="Vehicle Make"
+                name="make"
+                value={sub.make}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Vehicle Model"
+                name="model"
+                value={sub.model}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Vehicle Registration"
+                name="registration"
+                value={sub.registration}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Loaner (Provider)"
+                name="loaner"
+                value={sub.loaner}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Date & Time Given"
+                type="datetime-local"
+                name="givenAt"
+                value={sub.givenAt}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <FormField
+                label="Date & Time Expected Return"
+                type="datetime-local"
+                name="expectedReturnAt"
+                value={sub.expectedReturnAt}
+                onChange={(e) => handleSubChange(index, e)}
+              />
+              <div className="col-span-2">
+                <TextArea
+                  label="Notes (Reason)"
+                  name="notes"
+                  value={sub.notes}
+                  onChange={(e) => handleSubChange(index, e)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addSubstitutionVehicle}
+            className="mt-2 flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Another Substitution Vehicle
+          </button>
+        </div>
+      )}
+      {/* --- END: HIRE SUBSTITUTION DETAILS --- */}
+
 
       {/* Negotiation Section */}
       <div className="border-t pt-4">
@@ -1441,7 +1610,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
             value={formData.paidAmount}
             onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })}
             min="0"
-            max={finalCostAfterDiscount}
+            max={finalCostAfterDiscount > 0 ? finalCostAfterDiscount : undefined}
             step="0.01"
           />
 
@@ -1500,7 +1669,7 @@ await updateDoc(doc(db, 'rentals', docRef.id), { checkOutCondition });
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:bg-gray-400"
         >
           {loading ? 'Creating...' : 'Create Rental'}
         </button>

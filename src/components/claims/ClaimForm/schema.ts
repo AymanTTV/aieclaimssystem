@@ -120,8 +120,8 @@ export const claimFormSchema = z
 
     // we no longer include hireDetails, storage, or recovery here
 
-    gpInformation:       gpInformationSchema,
-    hospitalInformation: hospitalInformationSchema,
+    gpInformation:       gpInformationSchema.optional(),
+    hospitalInformation: hospitalInformationSchema.optional(),
 
     fileHandlers: z.object({
       aieHandler: z.string().min(1, 'AIE handler is required'),
@@ -132,7 +132,7 @@ export const claimFormSchema = z
         phone:   z.string().min(1, 'Legal handler phone is required'),
         address: z.string().min(1, 'Legal handler address is required'),
       }).nullable(),
-    }),
+    }).optional(),
 
     policeOfficerName:    z.string().optional().nullable(),
     policeBadgeNumber:    z.string().optional().nullable(),
@@ -149,8 +149,7 @@ export const claimFormSchema = z
     personalInjuryRef: z.string().optional(),
 
     claimReason: z
-      .array(z.enum(['VD', 'H', 'S', 'PI']))
-      .min(1, 'At least one claim reason must be selected'),
+      .array(z.enum(['VD', 'H', 'S', 'PI'])),
 
     caseProgress: z.enum(['Win', 'Lost', 'Awaiting', '50/50']).default('Awaiting'),
 
@@ -181,6 +180,15 @@ export const claimFormSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
+    // New check for claimReason
+    if (!data.claimReason || data.claimReason.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one claim reason must be selected',
+        path: ['claimReason'],
+      });
+    }
+
     // Register Keeper
     if (data.registerKeeper.enabled) {
       if (!data.registerKeeper.name)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper name is required',      path: ['registerKeeper','name'] });
@@ -192,19 +200,22 @@ export const claimFormSchema = z
     }
 
     // VD-specific
-    if (data.claimReason.includes('VD')) {
+    // Safely access claimReason with optional chaining in case it's undefined
+    if (data.claimReason?.includes('VD')) {
       if (!data.clientVehicle?.registration) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Registration is required for VD',  path: ['clientVehicle','registration'] });
       if (!data.clientVehicle?.motExpiry)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'MOT expiry is required for VD',   path: ['clientVehicle','motExpiry'] });
       if (!data.clientVehicle?.roadTaxExpiry)ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Road tax expiry is required for VD', path: ['clientVehicle','roadTaxExpiry'] });
     }
 
     // PI-specific
-    if (data.claimReason.includes('PI')) {
+    // Safely access claimReason with optional chaining
+    if (data.claimReason?.includes('PI')) {
       if (!data.clientInfo.occupation)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Occupation is required for PI',      path: ['clientInfo','occupation'] });
       if (!data.clientInfo.injuryDetails) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Injury details are required for PI', path: ['clientInfo','injuryDetails'] });
 
       // GP
-      if (data.gpInformation.visited) {
+      // Safely access gpInformation
+      if (data.gpInformation?.visited) {
         if (!data.gpInformation.gpName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP name is required',          path: ['gpInformation','gpName'] });
         if (!data.gpInformation.gpAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP address is required',       path: ['gpInformation','gpAddress'] });
         if (!data.gpInformation.gpDoctorName)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP doctor name is required',   path: ['gpInformation','gpDoctorName'] });
@@ -213,7 +224,8 @@ export const claimFormSchema = z
       }
 
       // Hospital
-      if (data.hospitalInformation.visited) {
+      // Safely access hospitalInformation
+      if (data.hospitalInformation?.visited) {
         if (!data.hospitalInformation.hospitalName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital name is required',          path: ['hospitalInformation','hospitalName'] });
         if (!data.hospitalInformation.hospitalAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital address is required',       path: ['hospitalInformation','hospitalAddress'] });
         if (!data.hospitalInformation.hospitalDoctorName)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital doctor name is required',   path: ['hospitalInformation','hospitalDoctorName'] });

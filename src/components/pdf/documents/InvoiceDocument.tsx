@@ -8,8 +8,8 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer';
-import { Invoice, Vehicle } from '../../../types/finance';
-import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict
+import { Invoice, Vehicle } from '../../../types/';
+import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
 
 interface InvoiceDocumentProps {
@@ -18,11 +18,11 @@ interface InvoiceDocumentProps {
   companyDetails: any;
 }
 
-// LOCAL STYLES for the horizontal info card (matching RentalInvoice style)
+// LOCAL STYLES for the horizontal info card
 const localStyles = StyleSheet.create({
   infoCard: {
     borderWidth: 1,
-    borderColor: '#3B82F6',   // same blue‐500 as in RentalInvoice
+    borderColor: '#3B82F6',
     borderRadius: 6,
     padding: 8,
     flexDirection: 'row',
@@ -37,12 +37,12 @@ const localStyles = StyleSheet.create({
   infoLabel: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#1E40AF',         // blue‐800
+    color: '#1E40AF',
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 10,
-    color: '#1F2937',         // gray‐800
+    color: '#1F2937',
   },
 });
 
@@ -55,16 +55,32 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   const formatDateValue = (date: Date | any): string => {
     if (!date) return 'N/A';
     try {
-      if (date?.toDate) {
-        date = date.toDate();
-      }
-      const dObj = date instanceof Date ? date : new Date(date);
+      const dObj = date?.toDate ? date.toDate() : new Date(date);
       if (isNaN(dObj.getTime())) return 'N/A';
       return format(dObj, 'dd/MM/yyyy');
     } catch {
       return 'N/A';
     }
   };
+  
+  // Use the invoice number from the database record, or 'N/A' if it doesn't exist.
+  const invoiceNumber = data.invoiceNumber || 'N/A';
+
+  // --- ADDED: Extract Registration Number ---
+  let registrationNumber = 'N/A';
+  if (vehicle?.registrationNumber) {
+    registrationNumber = vehicle.registrationNumber;
+  } else if (data.vehicleName) {
+    // Extracts text from the last parentheses, e.g., "Ford Focus (AB12 CDE)" -> "AB12 CDE"
+    const regMatch = data.vehicleName.match(/\(([^)]+)\)$/);
+    if (regMatch) {
+      registrationNumber = regMatch[1];
+    } else if (data.vehicleId) {
+      // Fallback if name exists but parsing fails
+      registrationNumber = 'See Vehicle';
+    }
+  }
+  // --- END ADDED ---
 
   // Calculate total discount from line items
   const totalDiscount = data.lineItems.reduce((sum, li) => {
@@ -72,33 +88,23 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
     return sum + (li.discount / 100) * gross;
   }, 0);
 
-  // Derive header details from companyDetails, splitting the address
-  const headerDetails = {
-    logoUrl: companyDetails?.logoUrl || '',
-    fullName: companyDetails?.fullName || 'AIE Skyline Limited',
-    addressLine1: 'United House, 39-41 North Road,',
-    addressLine2: 'London, N7 9DP.',
-    phone: companyDetails?.phone || 'N/A',
-    email: companyDetails?.email || 'N/A',
-  };
-
   return (
     <Document>
       <Page size="A4" style={globalStyles.page}>
 
-        {/* ── HEADER (logo + company info) ── Updated to consistent design */}
+        {/* --- HEADER (logo + company info) --- Improved Design --- */}
         <View style={globalStyles.header} fixed>
           <View style={globalStyles.headerLeft}>
-            {headerDetails.logoUrl && (
-              <Image src={headerDetails.logoUrl} style={globalStyles.logo} />
+            {companyDetails.logoUrl && (
+              <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
             )}
           </View>
           <View style={globalStyles.headerRight}>
-            <Text style={globalStyles.companyName}>{headerDetails.fullName}</Text>
-            <Text style={globalStyles.companyDetail}>{headerDetails.addressLine1}</Text>
-            <Text style={globalStyles.companyDetail}>{headerDetails.addressLine2}</Text>
-            <Text style={globalStyles.companyDetail}>Tel: {headerDetails.phone}</Text>
-            <Text style={globalStyles.companyDetail}>Email: {headerDetails.email}</Text>
+            <Text style={globalStyles.companyName}>{companyDetails.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={globalStyles.companyDetail}>United House, 39-41 North Road,</Text>
+            <Text style={globalStyles.companyDetail}>London, N7 9DP.</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {companyDetails.phone || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {companyDetails.email || 'N/A'}</Text>
             {companyDetails.vatNumber && (
               <Text style={globalStyles.companyDetail}>
                 VAT No: {companyDetails.vatNumber}
@@ -127,12 +133,12 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           </Text>
         </View>
 
-        {/* ── Horizontal Card: Invoice Number / Date / Due Date / Status ── */}
+        {/* --- UPDATED: Horizontal Card (5 items) --- */}
         <View style={localStyles.infoCard} wrap={false}>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Invoice Number</Text>
             <Text style={localStyles.infoValue}>
-              AIE-INV-{data.id.slice(-8).toUpperCase()}
+              {invoiceNumber}
             </Text>
           </View>
           <View style={localStyles.infoItem}>
@@ -143,6 +149,12 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
             <Text style={localStyles.infoLabel}>Due Date</Text>
             <Text style={localStyles.infoValue}>{formatDateValue(data.dueDate)}</Text>
           </View>
+          {/* --- ADDED: Vehicle Reg --- */}
+          <View style={localStyles.infoItem}>
+            <Text style={localStyles.infoLabel}>Vehicle Reg</Text>
+            <Text style={localStyles.infoValue}>{registrationNumber}</Text>
+          </View>
+          {/* --- END ADDED --- */}
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Payment Status</Text>
             <Text style={localStyles.infoValue}>
@@ -265,7 +277,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
             <View style={globalStyles.spaceBetweenRow}>
               <Text style={globalStyles.label}>Reference:</Text>
               <Text style={globalStyles.value}>
-                AIE-INV-{data.id.slice(-8).toUpperCase()}
+                {invoiceNumber}
               </Text>
             </View>
           </View>
@@ -317,12 +329,12 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
               ]}
             >
               <Text
-                style={data.remainingAmount === 0 ? globalStyles.summaryTextGreen : globalStyles.summaryTextRed}
+                style={data.remainingAmount <= 0.001 ? globalStyles.summaryTextGreen : globalStyles.summaryTextRed}
               >
                 Total:
               </Text>
               <Text
-                style={data.remainingAmount === 0 ? globalStyles.summaryValueGreen : globalStyles.summaryValueRed}
+                style={data.remainingAmount <= 0.001 ? globalStyles.summaryValueGreen : globalStyles.summaryValueRed}
               >
                 £{data.total.toFixed(2)}
               </Text>

@@ -4,8 +4,26 @@ import FormField from '../../../ui/FormField';
 import TextArea from '../../../ui/TextArea';
 
 const PoliceDetails = () => {
-  const { register, formState: { errors } } = useFormContext();
-  const [policeInvolved, setPoliceInvolved] = React.useState(false);
+  // 1. Get 'getValues' from the form context
+  const { register, formState: { errors }, getValues } = useFormContext();
+
+  // 2. Check if any police data exists *when the component first loads*
+  //    This logic now reads the form state, which ClaimEditModal has correctly populated.
+  const hasInitialPoliceData = React.useMemo(() => {
+    const values = getValues();
+    return !!(
+      values.policeOfficerName ||
+      values.policeBadgeNumber ||
+      values.policeStation ||
+      values.policeIncidentNumber ||
+      values.policeContactInfo
+    );
+    // We only want this to run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getValues]); 
+
+  // 3. Use this check to set the *initial* state
+  const [policeInvolved, setPoliceInvolved] = React.useState(hasInitialPoliceData);
 
   return (
     <div className="space-y-4">
@@ -15,6 +33,9 @@ const PoliceDetails = () => {
         <label className="block text-sm font-medium text-gray-700">Were the police involved?</label>
         <select
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          // 4. Control the dropdown's value *with state*
+          value={policeInvolved ? 'yes' : 'no'}
+          // 5. When it changes, update both the local state and the form
           onChange={(e) => setPoliceInvolved(e.target.value === 'yes')}
         >
           <option value="no">No</option>

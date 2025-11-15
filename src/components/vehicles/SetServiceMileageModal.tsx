@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import FormField from '../ui/FormField';
-import { doc, updateDoc } from 'firebase/firestore';
+// NEW: Import addDoc and collection to create history records
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle } from '../../types';
 import toast from 'react-hot-toast';
+// NEW: Import useAuth to get the current user
+import { useAuth } from '../../context/AuthContext';
 
 interface SetServiceMileageModalProps {
   vehicle: Vehicle;
@@ -12,6 +15,8 @@ interface SetServiceMileageModalProps {
 }
 
 const SetServiceMileageModal: React.FC<SetServiceMileageModalProps> = ({ vehicle, onClose }) => {
+  // NEW: Get the current user
+  const { user } = useAuth();
   const [mileage, setMileage] = useState<string>(
     vehicle.mileage.toString()
   );
@@ -19,22 +24,40 @@ const SetServiceMileageModal: React.FC<SetServiceMileageModalProps> = ({ vehicle
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseInt(mileage, 10);
-    if (isNaN(val) || val < vehicle.mileage) {
-      toast.error('Enter a number ≥ current mileage');
+    if (!user) {
+      toast.error('You must be logged in to perform this action.');
       return;
     }
+
+    const newMileageValue = parseInt(mileage, 10);
+    if (isNaN(newMileageValue) || newMileageValue < vehicle.mileage) {
+      toast.error('Please enter a valid number that is greater than or equal to the current mileage.');
+      return;
+    }
+
     setLoading(true);
     try {
+      // Step 1: Update the main mileage on the vehicle document
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
-        mileage: val,
-        updatedAt: new Date()
+        mileage: newMileageValue,
+        updatedAt: new Date(),
       });
-      toast.success('Mileage updated');
+
+      // Step 2: Create a new record in the 'mileageHistory' collection
+      await addDoc(collection(db, 'mileageHistory'), {
+        vehicleId: vehicle.id,
+        previousMileage: vehicle.mileage,
+        newMileage: newMileageValue,
+        date: new Date(),
+        recordedBy: user.name, // Use the logged-in user's name
+        notes: 'Mileage updated via service modal.', // Add a default note
+      });
+
+      toast.success('Mileage updated and history recorded successfully');
       onClose();
     } catch (err) {
-      console.error(err);
-      toast.error('Update failed');
+      console.error('Error updating mileage:', err);
+      toast.error('Failed to update mileage. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -47,9 +70,12 @@ const SetServiceMileageModal: React.FC<SetServiceMileageModalProps> = ({ vehicle
       title={`Update Mileage for ${vehicle.registrationNumber}`}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Current mileage: {vehicle.mileage.toLocaleString()}
+        </p>
         <FormField
           type="number"
-          label="Current Mileage"
+          label="New Mileage"
           value={mileage}
           onChange={e => setMileage(e.target.value)}
           min={vehicle.mileage}

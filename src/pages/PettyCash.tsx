@@ -1,3 +1,5 @@
+// src/pages/PettyCash.tsx
+
 import React, { useMemo, useState } from 'react';
 import { usePettyCash } from '../hooks/usePettyCash';
 import { usePettyCashFilters } from '../hooks/usePettyCashFilters';
@@ -18,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 import ManagePettyCashCategoriesModal from '../components/pettyCash/ManagePettyCashCategoriesModal';
 import ManagePettyCashGroupsModal from '../components/pettyCash/ManagePettyCashGroupsModal';
+import PettyCashImportModal from '../components/pettyCash/PettyCashImportModal'; // NEW: Import
 
 const PettyCash = () => {
   const { transactions, loading } = usePettyCash();
@@ -37,19 +40,19 @@ const PettyCash = () => {
     filteredTransactions,
   } = usePettyCashFilters(transactions);
 
-  // NEW: local category/group filters (so we don't touch your hook)
   const [categoryIdFilter, setCategoryIdFilter] = useState<string>('all');
   const [groupIdFilter, setGroupIdFilter] = useState<string>('all');
 
   const listToShow = useMemo(() => {
     return filteredTransactions.filter(t => {
-      const catOk = categoryIdFilter === 'all' ? true : (t as any).categoryId === categoryIdFilter;
-      const grpOk = groupIdFilter === 'all' ? true : (t as any).groupId === groupIdFilter;
+      const catOk = categoryIdFilter === 'all' ? true : t.categoryId === categoryIdFilter;
+      const grpOk = groupIdFilter === 'all' ? true : t.groupId === groupIdFilter;
       return catOk && grpOk;
     });
   }, [filteredTransactions, categoryIdFilter, groupIdFilter]);
 
   const [showForm, setShowForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false); // NEW: State for import modal
   const [selectedTransaction, setSelectedTransaction] = useState<PettyCashTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<PettyCashTransaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
@@ -129,9 +132,10 @@ const PettyCash = () => {
 
       <PettyCashHeader
         moduleKey="pettyCash"
-        title="Petty Cash"
+        title="AIE Petty Cash"
         onSearch={setSearchQuery}
         onAdd={() => setShowForm(true)}
+        onImport={() => setShowImportModal(true)} // NEW: Wire up import button
         transactions={listToShow}
       />
       {user?.role === 'manager' && (
@@ -175,6 +179,16 @@ const PettyCash = () => {
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={handleViewDocument}
       />
+
+      {/* NEW: Render Import Modal */}
+      {can('pettyCash', 'create') && (
+        <Modal isOpen={showImportModal} onClose={() => setShowImportModal(false)} title="Import Transactions">
+          <PettyCashImportModal
+            onClose={() => setShowImportModal(false)}
+            collectionName="pettyCash"
+          />
+        </Modal>
+      )}
 
       {can('pettyCash', 'create') && (
         <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="New Transaction" size="xl">

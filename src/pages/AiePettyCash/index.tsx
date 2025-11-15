@@ -1,3 +1,5 @@
+// src/pages/aie-petty-cash/index.tsx
+
 import React, { useMemo, useState } from 'react';
 import { useAiePettyCash } from '../../hooks/useAiePettyCash';
 import { usePettyCashFilters } from '../../hooks/usePettyCashFilters';
@@ -18,6 +20,7 @@ import { PettyCashDocument } from '../../components/pdf/documents';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ManagePettyCashCategoriesModal from '../../components/pettyCash/ManagePettyCashCategoriesModal';
 import ManagePettyCashGroupsModal from '../../components/pettyCash/ManagePettyCashGroupsModal';
+import PettyCashImportModal from '../../components/pettyCash/PettyCashImportModal';
 
 const AiePettyCash = () => {
   const { transactions, loading } = useAiePettyCash();
@@ -42,13 +45,14 @@ const AiePettyCash = () => {
 
   const listToShow = useMemo(() => {
     return filteredTransactions.filter(t => {
-      const catOk = categoryIdFilter === 'all' ? true : (t as any).categoryId === categoryIdFilter;
-      const grpOk = groupIdFilter === 'all' ? true : (t as any).groupId === groupIdFilter;
+      const catOk = categoryIdFilter === 'all' ? true : t.categoryId === categoryIdFilter;
+      const grpOk = groupIdFilter === 'all' ? true : t.groupId === groupIdFilter;
       return catOk && grpOk;
     });
   }, [filteredTransactions, categoryIdFilter, groupIdFilter]);
 
   const [showForm, setShowForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PettyCashTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<PettyCashTransaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<PettyCashTransaction | null>(null);
@@ -128,9 +132,10 @@ const AiePettyCash = () => {
 
       <PettyCashHeader
         moduleKey="aiePettyCash"
-        title="AIE Petty Cash"
+        title="Skyline Petty Cash"
         onSearch={setSearchQuery}
         onAdd={() => setShowForm(true)}
+        onImport={() => setShowImportModal(true)}
         transactions={listToShow}
       />
       {user?.role === 'manager' && (
@@ -177,18 +182,23 @@ const AiePettyCash = () => {
       />
 
       {can('aiePettyCash', 'create') && (
+        <Modal isOpen={showImportModal} onClose={() => setShowImportModal(false)} title="Import Transactions">
+          <PettyCashImportModal
+            onClose={() => setShowImportModal(false)}
+            collectionName="aiePettyCash"
+          />
+        </Modal>
+      )}
+
+      {can('aiePettyCash', 'create') && (
         <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="New Transaction" size="xl">
           <PettyCashForm onClose={() => setShowForm(false)} collectionName="aiePettyCash" />
         </Modal>
       )}
 
-      <Modal isOpen={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} title="Transaction Details">
-        {selectedTransaction && <PettyCashDetails transaction={selectedTransaction} />}
-      </Modal>
-
       <Modal isOpen={!!editingTransaction} onClose={() => setEditingTransaction(null)} title="Edit Transaction" size="xl">
         {editingTransaction && (
-          <PettyCashForm
+          <PettyCashForm /* <-- CORRECTED THIS LINE (was PetTtyCashForm) */
             transaction={editingTransaction}
             onClose={() => setEditingTransaction(null)}
             collectionName="aiePettyCash"

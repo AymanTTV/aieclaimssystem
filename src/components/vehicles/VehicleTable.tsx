@@ -1,16 +1,12 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle } from 'lucide-react'; // Added Wrench and AlertTriangle
+import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
-import { isExpiringOrExpired, isServiceOverdue, isServiceDueSoon } from '../../utils/vehicleUtils'; // Import new utility functions
+import { isExpiringOrExpired, isServiceOverdue, isServiceDueSoon } from '../../utils/vehicleUtils';
 import { addDays } from 'date-fns';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-
-import { generateAndUploadDocument } from '../../utils/documentGenerator';
-import { VehicleDocument } from '../pdf/documents';
 
 interface VehicleTableProps {
   vehicles: Vehicle[];
@@ -37,13 +33,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 }) => {
   const { can } = usePermissions();
 
-  const calculateMotExpiry = (motDate: string | undefined): string | undefined => {
-    if (!motDate) return undefined;
-    const motExpiryDate = new Date(motDate);
-    motExpiryDate.setMonth(motExpiryDate.getMonth() + 6);
-    return motExpiryDate.toISOString();
-  };
-
   const sortedVehicles = [...vehicles].sort((a, b) => {
     const now = new Date();
     const thirtyDays = addDays(now, 30);
@@ -55,14 +44,13 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       if (vehicle.insuranceExpiry < now) count += 10;
       if (vehicle.nslExpiry < now) count += 10;
       if (vehicle.roadTaxExpiry < now) count += 10;
-      // Add service mileage to sorting priority
-      // Ensure mileage is a number before checking service status
+
       const aMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
-      const aNextServiceMileage = typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : aMileage + 25000; // Use the calculated value if not present
+      const aNextServiceMileage =
+        typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : aMileage + 25000;
 
-      if (aMileage >= aNextServiceMileage) count += 15; // Higher priority for overdue service
-      if (aMileage < aNextServiceMileage && (aNextServiceMileage - aMileage <= 1000)) count += 7; // Medium priority for due soon service
-
+      if (aMileage >= aNextServiceMileage) count += 15;
+      if (aMileage < aNextServiceMileage && aNextServiceMileage - aMileage <= 1000) count += 7;
 
       if (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) count += 5;
       if (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) count += 5;
@@ -79,7 +67,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       return bCount - aCount;
     }
 
-    // Fallback to earliest expiry date for documents if counts are equal
     const aEarliestExpiry = Math.min(
       new Date(a.motExpiry).getTime(),
       new Date(a.insuranceExpiry).getTime(),
@@ -100,11 +87,11 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   const columns = [
     {
       header: 'Vehicle',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="flex items-center space-x-3">
           {row.original.image ? (
-            <img 
-              src={row.original.image} 
+            <img
+              src={row.original.image}
               alt={`${row.original.make} ${row.original.model}`}
               className="h-10 w-10 object-cover rounded-md"
             />
@@ -114,58 +101,74 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
             </div>
           )}
           <div>
-            <div className="font-medium">{row.original.make} {row.original.model}</div>
+            <div className="font-medium">
+              {row.original.make} {row.original.model}
+            </div>
             <div className="text-sm text-gray-500">{row.original.registrationNumber}</div>
           </div>
         </div>
       ),
     },
-    {
+
+    // ▶ Owner column wrapped by 'vehicles.owner' permission
+    can('vehicles', 'owner') && {
       header: 'Owner',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
-          <div className="font-medium">
-            {row.original.owner?.name || 'AIE Skyline'}
-          </div>
+          <div className="font-medium">{row.original.owner?.name || 'AIE Skyline'}</div>
         </div>
       ),
     },
-    {
-      header: 'Status',
-      cell: ({ row }) => {
-        const vehicle = row.original;
-        const statuses = vehicle.activeStatuses || [];
-        
-        const getDisplayStatus = (status: string) => {
-          switch (status) {
-            case 'rented':
-              return 'hired';
-            case 'scheduled-rental':
-              return 'scheduled for hire';
-            default:
-              return status.replace('-', ' ');
-          }
-        };
 
-        return (
-          <div className="flex flex-col space-y-1">
-            {statuses.length > 0 ? (
-              statuses.map((status, index) => (
-                <StatusBadge 
-                  key={index} 
-                  status={getDisplayStatus(status)}
-                />
-              ))
-            ) : (
-              <StatusBadge status="available" />
-            )}
-          </div>
-        );
-      },
-    },
+    {
+  header: 'Status',
+  cell: ({ row }: any) => {
+    const vehicle = row.original;
+    const statuses = vehicle.activeStatuses || [];
+
+    const getDisplayStatus = (status: string) => {
+      switch (status) {
+        case 'rented':
+          return 'hired';
+        case 'scheduled-rental':
+          return 'scheduled for hire';
+        default:
+          return status.replace('-', ' ');
+      }
+    };
+
+    // Always show SOLD if the vehicle status is sold
+    if (vehicle.status === 'sold') {
+      return (
+        <div className="flex flex-col space-y-1">
+          <StatusBadge status="sold" />
+        </div>
+      );
+    }
+
+    // If we have explicit active statuses, render them
+    if (statuses.length > 0) {
+      return (
+        <div className="flex flex-col space-y-1">
+          {statuses.map((s: string, i: number) => (
+            <StatusBadge key={i} status={getDisplayStatus(s)} />
+          ))}
+        </div>
+      );
+    }
+
+    // Fallback to the single vehicle.status (e.g., 'available', 'maintenance', etc.)
+    return (
+      <div className="flex flex-col space-y-1">
+        <StatusBadge status={getDisplayStatus(vehicle.status || 'available')} />
+      </div>
+    );
+  },
+},
+
     {
       header: 'Rental Rates',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="space-y-1 text-sm">
           <div>Weekly: £{Math.round(row.original.weeklyRentalPrice)}</div>
           <div>Daily: £{Math.round(row.original.dailyRentalPrice)}</div>
@@ -175,7 +178,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     },
     {
       header: 'Vehicle Documents',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const vehicle = row.original;
         const motExpiryDate = vehicle.motExpiry instanceof Date ? vehicle.motExpiry : vehicle.motExpiry?.toDate();
 
@@ -201,184 +204,157 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       },
     },
     {
-  header: 'Mileage',
-  cell: ({ row }) => {
-    const vehicle = row.original;
-    const currentMileage =
-      typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
+      header: 'Mileage',
+      cell: ({ row }: any) => {
+        const vehicle = row.original;
+        const currentMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
+        const nextServiceMileageStored =
+          typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : currentMileage + 25000;
+        const milesToNext = nextServiceMileageStored - currentMileage;
 
-    // use the stored nextServiceMileage, falling back to current + 25000 if undefined
-    const nextServiceMileageStored =
-      typeof vehicle.nextServiceMileage === 'number'
-        ? vehicle.nextServiceMileage
-        : currentMileage + 25000;
-
-    const milesToNext = nextServiceMileageStored - currentMileage;
-
-    return (
-      <div className="space-y-1">
-        <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>
-          Current: {currentMileage.toLocaleString()} Mi
-        </div>
-        <div
-          className={
-            isServiceOverdue(vehicle)
-              ? 'text-red-600 font-medium flex items-center'
-              : isServiceDueSoon(vehicle)
-              ? 'text-yellow-600 font-medium flex items-center'
-              : 'flex items-center'
-          }
-        >
-          Next Service: {nextServiceMileageStored.toLocaleString()} Mi
-          {isServiceOverdue(vehicle) && (
-            <AlertTriangle
-              className="h-4 w-4 ml-1 text-red-600"
-              title="Service Overdue!"
-            />
-          )}
-          {!isServiceOverdue(vehicle) && isServiceDueSoon(vehicle) && (
-            <Wrench
-              className="h-4 w-4 ml-1 text-yellow-600"
-              title="Service Due Soon!"
-            />
-          )}
-        </div>
-        <div className="text-xs text-gray-500">
-          Remaining: {milesToNext.toLocaleString()} Mi
-        </div>
-      </div>
-    );
-  },
-},
+        return (
+          <div className="space-y-1">
+            <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>
+              Current: {currentMileage.toLocaleString()} Mi
+            </div>
+            <div
+              className={
+                isServiceOverdue(vehicle)
+                  ? 'text-red-600 font-medium flex items-center'
+                  : isServiceDueSoon(vehicle)
+                  ? 'text-yellow-600 font-medium flex items-center'
+                  : 'flex items-center'
+              }
+            >
+              Next Service: {nextServiceMileageStored.toLocaleString()} Mi
+              {isServiceOverdue(vehicle) && <AlertTriangle className="h-4 w-4 ml-1" title="Service Overdue!" />}
+              {!isServiceOverdue(vehicle) && isServiceDueSoon(vehicle) && (
+                <Wrench className="h-4 w-4 ml-1" title="Service Due Soon!" />
+              )}
+            </div>
+            <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
+          </div>
+        );
+      },
+    },
     {
-  header: 'Actions',
-  cell: ({ row }) => (
-    <div className="flex space-x-2">
-      {can('vehicles', 'view') && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(row.original);
-          }}
-          className="text-blue-600 hover:text-blue-800"
-          title="View Details"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-      )}
-      {can('vehicles', 'update') && row.original.status !== 'sold' && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row.original);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onMarkAsSold(row.original);
-            }}
-            className="text-green-600 hover:text-green-800"
-            title="Mark as Sold"
-          >
-            <DollarSign className="h-4 w-4" />
-          </button>
-        </>
-      )}
-      {can('vehicles', 'mileage') && (
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              onSetServiceMileage(row.original);
-            }}
-            className="text-gray-600 hover:text-gray-800"
-            title="Set Next Service"
-          >
-            <Wrench className="h-4 w-4" />
-          </button>
-        )}
-      {can('vehicles', 'update') && row.original.status === 'sold' && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onUndoSale(row.original);
-          }}
-          className="text-orange-600 hover:text-orange-800"
-          title="Undo Sale"
-        >
-          <RotateCw className="h-4 w-4" />
-        </button>
-      )}
-      {can('vehicles', 'delete') && row.original.status === 'sold' && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(row.original);
-          }}
-          className="text-red-600 hover:text-red-800"
-          title="Delete"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      )}
-      {/* Document actions */}
-      {can('vehicles', 'update') && (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onGenerateDocument(row.original);
-        }}
-        className="text-green-600 hover:text-green-800"
-        title="Generate Document"
-      >
-        <FileText className="h-4 w-4" />
-      </button>
-      )}
-      
-      {row.original.documentUrl && can('vehicles', 'view') && (
-        
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewDocument(row.original.documentUrl!);
-          }}
-          className="text-blue-600 hover:text-blue-800"
-          title="View Document"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  ),
-},
-  ];
+      header: 'Actions',
+      cell: ({ row }: any) => (
+        <div className="flex space-x-2">
+          {can('vehicles', 'view') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(row.original);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {can('vehicles', 'update') && row.original.status !== 'sold' && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(row.original);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAsSold(row.original);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="Mark as Sold"
+              >
+                <DollarSign className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {can('vehicles', 'mileage') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetServiceMileage(row.original);
+              }}
+              className="text-gray-600 hover:text-gray-800"
+              title="Set Next Service"
+            >
+              <Wrench className="h-4 w-4" />
+            </button>
+          )}
+          {can('vehicles', 'update') && row.original.status === 'sold' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUndoSale(row.original);
+              }}
+              className="text-orange-600 hover:text-orange-800"
+              title="Undo Sale"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+          )}
+          {can('vehicles', 'delete') && row.original.status === 'sold' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(row.original);
+              }}
+              className="text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {can('vehicles', 'update') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onGenerateDocument(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Generate Document"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {row.original.documentUrl && can('vehicles', 'view') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDocument(row.original.documentUrl!);
+              }}
+              className="text-blue-600 hover:text-blue-800"
+              title="View Document"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ].filter(Boolean); // filter out falsey (Owner column when not permitted)
 
   return (
     <DataTable
       data={sortedVehicles}
-      columns={columns}
+      columns={columns as any}
       onRowClick={(vehicle) => can('vehicles', 'view') && onView(vehicle)}
       rowClassName={(row) => {
         const vehicle = row.original;
         const now = new Date();
         const thirtyDays = addDays(now, 30);
 
-        // High priority for overdue service
-        if (isServiceOverdue(vehicle)) {
-          return 'bg-red-100'; // Lighter red for service overdue
-        }
+        if (isServiceOverdue(vehicle)) return 'bg-red-100';
+        if (isServiceDueSoon(vehicle)) return 'bg-yellow-100';
 
-        // Medium priority for service due soon
-        if (isServiceDueSoon(vehicle)) {
-          return 'bg-yellow-100'; // Lighter yellow for service due soon
-        }
-
-        // Existing document expiry highlighting
         if (
           vehicle.motExpiry < now ||
           vehicle.insuranceExpiry < now ||

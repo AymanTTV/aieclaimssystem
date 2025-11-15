@@ -17,10 +17,8 @@ interface InvoiceTableProps {
   onDelete: (invoice: Invoice) => void;
   onDownload: (invoice: Invoice) => void;
   onRecordPayment: (invoice: Invoice) => void;
-  onApplyDiscount: (invoice: Invoice) => void;   // not used here
+  onApplyDiscount: (invoice: Invoice) => void;
   onDeletePayment: (invoice: Invoice, paymentId: string) => void;
-
-  // NEW: callbacks for single‐invoice PDF generation / viewing
   onGenerateDocument: (invoice: Invoice) => void;
   onViewDocument: (invoice: Invoice) => void;
 }
@@ -36,35 +34,44 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onRecordPayment,
   onApplyDiscount,
   onDeletePayment,
-
-  // NEW:
   onGenerateDocument,
   onViewDocument,
 }) => {
   const formatDateValue = (date: any): string => {
-    if (date?.toDate) return format(date.toDate(), 'dd/MM/yyyy HH:mm');
-    if (date instanceof Date) return format(date, 'dd/MM/yyyy HH:mm');
+    if (date?.toDate) return format(date.toDate(), 'dd/MM/yyyy');
+    if (date instanceof Date) return format(date, 'dd/MM/yyyy');
     return 'N/A';
   };
 
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
 
-  // Mark overdue if not paid and past dueDate
   const isOverdue = (invoice: Invoice): boolean => {
-    return invoice.paymentStatus !== 'paid' && new Date() > invoice.dueDate;
+    const status = invoice.paymentStatus;
+    return (status === 'pending' || status === 'partially_paid' || status === 'unpaid') && new Date() > new Date(invoice.dueDate);
   };
 
-  // Always show overdue first, then by ascending due date
   const sortedInvoices = [...invoices].sort((a, b) => {
     const aOver = isOverdue(a);
     const bOver = isOverdue(b);
     if (aOver && !bOver) return -1;
     if (!aOver && bOver) return 1;
-    return a.dueDate.getTime() - b.dueDate.getTime();
+    const dateA = a.date instanceof Date ? a.date : a.date.toDate();
+    const dateB = b.date instanceof Date ? b.date : b.date.toDate();
+    return dateB.getTime() - dateA.getTime();
   });
 
   const columns = [
+    {
+        header: 'Invoice #',
+        cell: ({ row }) => {
+          return (
+            <div className="font-medium text-gray-800">
+              {row.original.invoiceNumber || 'N/A'}
+            </div>
+          );
+        },
+    },
     {
       header: 'Customer',
       cell: ({ row }) => {
@@ -91,6 +98,39 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         );
       },
     },
+    // --- ⬇️ NEW VEHICLE COLUMN ⬇️ ---
+    {
+      header: 'Vehicle',
+      cell: ({ row }: { row: { original: Invoice } }) => {
+        const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
+        const regNumber = vehicle?.registrationNumber;
+        const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
+
+        if (regNumber) {
+          // Display only Reg Number, use full details in title for hover
+          return <div title={fullDetails}>{regNumber}</div>;
+        }
+        if(row.original.vehicleName) {
+             // Display cached name if no vehicle found but name exists
+             return <div title={row.original.vehicleName}>{row.original.vehicleName}</div>
+        }
+        return <div className="text-gray-400">N/A</div>; // Fallback
+      },
+    },
+    // --- ⬆️ END NEW VEHICLE COLUMN ⬆️ ---
+    { 
+      header: 'Type',
+      cell: ({ row }) => {
+        if (row.original.isLoan) {
+          return (
+            <span className="px-2 py-1 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">
+              Loan
+            </span>
+          );
+        }
+        return <span className="text-gray-400 text-sm">-</span>;
+      },
+    },
     {
       header: 'Due Date',
       cell: ({ row }) => formatDateValue(row.original.dueDate),
@@ -99,20 +139,19 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       header: 'Status',
       cell: ({ row }) => {
         const inv = row.original;
+        if (inv.remainingAmount <= 0.001 && inv.paidAmount > 0) {
+          return <StatusBadge status="paid" />;
+        }
         const overdue = isOverdue(inv);
-        return (
-          <StatusBadge
-            status={overdue ? 'overdue' : inv.paymentStatus}
-            className={overdue ? 'bg-red-100 text-red-800' : ''}
-          />
-        );
+        const currentStatus = overdue ? 'overdue' : inv.paymentStatus;
+        return <StatusBadge status={currentStatus} />;
       },
     },
     {
       header: 'Category',
       cell: ({ row }) => (
         <span className="capitalize">
-          {row.original.category === 'other'
+          {row.original.category === 'Other'
             ? row.original.customCategory
             : row.original.category}
         </span>
@@ -122,25 +161,11 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       header: 'Cost Breakdown',
       cell: ({ row }) => {
         const inv = row.original;
-        // compute total discount from lineItems
-        const totalDiscount = inv.lineItems.reduce((sum, li) => {
-          const gross = li.quantity * li.unitPrice;
-          return sum + (li.discount / 100) * gross;
-        }, 0);
-        const net = inv.subTotal;
-        const vat = inv.vatAmount;
-        const total = net + vat - totalDiscount;
-        const paid = inv.paidAmount;
-        const owing = inv.remainingAmount;
-
         return (
           <div className="text-sm space-y-1">
-            <div>Net: {formatCurrency(net)}</div>
-            <div>VAT: {formatCurrency(vat)}</div>
-            {/* <div className="text-red-600">Discount: –{formatCurrency(totalDiscount)}</div> */}
-            <div>Total: {formatCurrency(total)}</div>
-            <div>Paid: {formatCurrency(paid)}</div>
-            <div>Owing: {formatCurrency(owing)}</div>
+            <div>Total: {formatCurrency(inv.total)}</div>
+            <div className="text-green-600">Paid: {formatCurrency(inv.paidAmount)}</div>
+            <div className="font-medium">Owing: {formatCurrency(inv.remainingAmount)}</div>
           </div>
         );
       },
@@ -159,16 +184,18 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
                 <div>
                   <div className="flex items-center">
                     <span>{formatCurrency(payment.amount)}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeletePayment(row.original, payment.id);
-                      }}
-                      className="ml-2 text-red-600 hover:text-red-800"
-                      title="Delete Payment"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    {can('finance', 'delete') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeletePayment(row.original, payment.id);
+                        }}
+                        className="ml-2 text-red-600 hover:text-red-800"
+                        title="Delete Payment"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500">
                     <span className="capitalize">
@@ -182,93 +209,56 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
             ))}
           </div>
         ) : (
-          <span className="text-gray-500">No payments</span>
+          <span className="text-gray-500 text-sm">No payments</span>
         );
       },
     },
     {
       header: 'Actions',
       cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {can('invoices', 'view') && (
+        <div className="flex space-x-2 items-center">
+          {can('finance', 'view') && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View Details"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
+              onClick={(e) => { e.stopPropagation(); onView(row.original); }}
+              className="text-gray-500 hover:text-blue-600" title="View Details"
+            > <Eye className="h-4 w-4" /> </button>
           )}
 
-          {can('invoices', 'update') && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(row.original);
-                }}
-                className="text-blue-600 hover:text-blue-800"
-                title="Edit"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              {row.original.remainingAmount > 0 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRecordPayment(row.original);
-                  }}
-                  className="text-primary hover:text-primary-600"
-                  title="Record Payment"
-                >
-                  <span className="text-lg">£</span>
-                </button>
-              )}
-            </>
+          {can('finance', 'update') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(row.original); }}
+              className="text-gray-500 hover:text-blue-600" title="Edit"
+            > <Edit className="h-4 w-4" /> </button>
           )}
 
-          {can('invoices', 'delete') && (
+          {can('finance', 'update') && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
-              className="text-red-600 hover:text-red-800"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* ── NEW: Generate PDF for this invoice ── */}
-          {can('invoices', 'update') && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onGenerateDocument(row.original);
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Generate PDF"
+              onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }}
+              className="text-green-600 hover:text-green-800" title="Generate PDF"
             >
               <FileText className="h-4 w-4" />
             </button>
           )}
-
-          {/* ── NEW: View already‐generated invoice PDF ── */}
-          {row.original.documentUrl && (
+          
+          {row.original.documentUrl && can('finance', 'view') && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewDocument(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View PDF"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
+              onClick={(e) => { e.stopPropagation(); onViewDocument(row.original); }}
+              className="text-gray-500 hover:text-blue-600" title="View PDF"
+            > <Eye className="h-4 w-4" /> </button>
+          )}
+
+          {can('finance', 'delete') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(row.original); }}
+              className="text-gray-500 hover:text-red-600" title="Delete"
+            > <Trash2 className="h-4 w-4" /> </button>
+          )}
+
+          {row.original.remainingAmount > 0 && can('finance', 'create') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRecordPayment(row.original); }}
+              className="text-primary hover:text-primary-dark font-bold" title="Record Payment"
+            > £ </button>
           )}
         </div>
       ),
@@ -280,7 +270,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       data={sortedInvoices}
       columns={columns}
       onRowClick={(inv) => onView(inv)}
-      rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50' : '')}
+      rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50')}
     />
   );
 };

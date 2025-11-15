@@ -11,7 +11,7 @@ import {
 import BaseDocument from './BaseDocument';
 import { styles as globalStyles } from './styles';
 import logo from '../../assets/logo.png';
-import logoBlur from '../../assets/logo.png';        // blurred logo for watermark
+import logoBlur from '../../assets/logo.png'; // blurred logo for watermark
 import signatureImg from '../../assets/signiture.png';
 import { Rental, Vehicle, Customer } from '../../types';
 
@@ -27,6 +27,7 @@ interface ParkingPermitLetterProps {
     website: string;
     registrationNumber: string;
     vatNumber: string;
+    logoUrl?: string; // MODIFIED: Added optional logoUrl
   };
 }
 
@@ -70,7 +71,13 @@ const localStyles = StyleSheet.create({
   bulletRow: {
     flexDirection: 'row',
     marginBottom: 4,
-    paddingLeft: 12,
+    paddingLeft: 12, // Original padding
+  },
+  // MODIFIED: Simplified bulletRow for no-bullet list
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+    paddingLeft: 0, // No indent
   },
   bullet: {
     width: 8,
@@ -129,12 +136,18 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
     <Document>
       <Page size="A4" style={globalStyles.page}>
         {/* Watermark */}
-        <Image src={logoBlur} style={localStyles.watermark} />
+        <Image
+          src={companyDetails.logoUrl || logoBlur} // MODIFIED
+          style={localStyles.watermark}
+        />
 
         {/* Header */}
         <View style={globalStyles.header}>
           <View style={globalStyles.headerLeft}>
-            <Image src={logo} style={globalStyles.logo} />
+            <Image
+              src={companyDetails.logoUrl || logo} // MODIFIED
+              style={globalStyles.logo}
+            />
           </View>
           <View style={globalStyles.headerRight}>
             <Text style={globalStyles.companyDetail}>Tel: {companyDetails.phone}</Text>
@@ -153,65 +166,66 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
         {/* Title Lines */}
         <Text style={localStyles.centeredBold}>To Whom It May Concern</Text>
         <Text style={localStyles.subject}>
-          Subject: Parking Permit Request for Hired Vehicle and Driver
+          {/* MODIFIED: Subject line text */}
+          Subject: Parking Permit Support for Hired Vehicle {vehicle.registrationNumber}
         </Text>
 
-        {/* Body */}
+        {/* --- MODIFIED: Body Text --- */}
         <Text style={localStyles.paragraph}>
-          We are writing to request the issuance of a parking permit for a vehicle and driver currently hired from {companyDetails.fullName}.
+          We are writing to support the application for a parking permit for {customer.name} at his residential address.
         </Text>
-        <Text style={localStyles.paragraph}>Please find the details below:</Text>
+        <Text style={localStyles.paragraph}>
+          {customer.name} has the vehicle detailed below on a long-term hire agreement with our company, and we understand he requires a permit to park at his home.
+        </Text>
 
+        {/* --- MODIFIED: Info sections (no bullets) --- */}
         {/* Driver Info */}
         <Text style={localStyles.listTitle}>Driver Information:</Text>
-        <View style={localStyles.bulletRow}>
-          <Text style={localStyles.bullet}>{'\u2022'}</Text>
+        <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>Name: {customer.name}</Text>
         </View>
-        <View style={localStyles.bulletRow}>
-          <Text style={localStyles.bullet}>{'\u2022'}</Text>
+        <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>Address: {customer.address}</Text>
         </View>
 
         {/* Vehicle Info */}
         <Text style={[localStyles.listTitle, { marginTop: 8 }]}>Vehicle Information:</Text>
-        <View style={localStyles.bulletRow}>
-          <Text style={localStyles.bullet}>{'\u2022'}</Text>
+        <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>
-            Make &amp; Model: {vehicle.make} {vehicle.model}
+            Make & Model: {vehicle.make} {vehicle.model}
           </Text>
         </View>
-        <View style={localStyles.bulletRow}>
-          <Text style={localStyles.bullet}>{'\u2022'}</Text>
+        <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>
             Registration Number: {vehicle.registrationNumber}
           </Text>
         </View>
-        <View style={localStyles.bulletRow}>
-          <Text style={localStyles.bullet}>{'\u2022'}</Text>
+        <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>
             Registered Owner: {companyDetails.fullName}
           </Text>
         </View>
+        {/* --- END: MODIFIED Info sections --- */}
 
+        {/* --- MODIFIED: Concluding Text --- */}
         <Text style={[localStyles.paragraph, { marginTop: 8 }]}>
-          We confirm that the above vehicle and driver are under an active hire agreement. We kindly request that a parking permit be issued accordingly.
+          We confirm that {customer.name} is the legitimate user of this vehicle under an active hire agreement with {companyDetails.fullName}.
         </Text>
         <Text style={localStyles.paragraph}>
-          Please let us know if any further information or documentation is required.
+          Please let us know if any further information or documentation is required from us as the vehicle's registered owner.
         </Text>
 
-        {/* Signature */}
+        {/* --- MODIFIED: Signature --- */}
         <View style={localStyles.signatureSection}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Yours sincerely,</Text>
+          <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Yours faithfully,</Text>
           <Image src={signatureImg} style={localStyles.signatureImage} />
-          <Text style={localStyles.signerName}>Mr A I Egale</Text>
-          <Text>Director of {companyDetails.fullName}</Text>
+          <Text style={localStyles.signerName}>Admin Team</Text>
+          <Text>{companyDetails.fullName}</Text>
         </View>
 
         {/* Footer */}
         <View style={localStyles.footerContainer}>
-        <Text style={localStyles.footerText}>
+          <Text style={localStyles.footerText}>
             {companyDetails.fullName} Registered in England and Wales with company registration no {companyDetails.registrationNumber}.
           </Text>
           <Text style={localStyles.footerText}>

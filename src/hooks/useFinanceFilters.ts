@@ -1,8 +1,14 @@
+// src/hooks/useFinanceFilters.ts
 import { useState, useMemo } from 'react';
-import { Transaction, Vehicle, Account } from '../types';
-import { isWithinInterval } from 'date-fns';
+import { Transaction, Vehicle, Account, Customer } from '../types';
+import { isWithinInterval, parseISO, isValid } from 'date-fns';
 
-export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Vehicle[] = [], accounts: Account[] = []) => {
+export const useFinanceFilters = (
+  transactions: Transaction[] = [],
+  vehicles: Vehicle[] = [],
+  accounts: Account[] = [],
+  customers: Customer[] = []
+) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -13,165 +19,138 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState<string>('all');
+  const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
+
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
-    
-    // Iterate through vehicles to gather owner names
-    vehicles.forEach(vehicle => {
-      if (vehicle.owner && vehicle.owner.name) {
-        // Explicitly add "AIE Skyline Limited" if it's an owner
-        if (vehicle.owner.name === 'AIE Skyline Limited') {
-          ownerSet.add('AIE Skyline Limited');
-        } 
-        // Add other owner names, but explicitly exclude "AIE Skyline" (without Limited)
-        else if (vehicle.owner.name !== 'AIE Skyline') {
-          ownerSet.add(vehicle.owner.name);
-        }
-      }
-    });
-    // Sort and convert to array
+    vehicles.forEach(vehicle => { if (vehicle.owner?.name) ownerSet.add(vehicle.owner.name); });
+    if (transactions.some(t => !t.vehicleId || t.vehicleOwner?.name === 'AIE Skyline Limited')) ownerSet.add('AIE Skyline Limited');
+    if (transactions.some(t => t.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT')) ownerSet.add('AIE SKYLINE ACCOUNT');
     return Array.from(ownerSet).sort();
-  }, [vehicles]);
+  }, [vehicles, transactions]);
+
+  const dateRange = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
+
+    // Helper to safely parse date from various formats
+    const safeParseDate = (dateVal: any): Date | null => {
+        if (!dateVal) return null;
+        if (dateVal instanceof Date && isValid(dateVal)) return dateVal;
+        if (dateVal.toDate) { // Firestore Timestamp
+             const tsDate = dateVal.toDate();
+             return isValid(tsDate) ? tsDate : null;
+        }
+        try {
+            // Attempt ISO string parse first
+            const isoDate = parseISO(dateVal);
+            if (isValid(isoDate)) return isoDate;
+            // Fallback for other potential string formats
+            const genericDate = new Date(dateVal);
+             if (isValid(genericDate)) return genericDate;
+        } catch { /* Ignore parsing errors */ }
+        console.warn('Could not parse date:', dateVal);
+        return null; // Invalid date format
+    };
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
+      const transactionDate = safeParseDate(transaction.date);
+      if (!transactionDate) return false; // Skip transactions with invalid dates
+
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
+      const customer = customers.find(c => c.id === transaction.customerId);
 
-      if (groupFilter !== 'all' && transaction.groupId !== groupFilter) {
-        return false;
-      }
+      const matchesSearch = !searchQuery || [
+        transaction.category, transaction.description, transaction.paymentReference,
+        transaction.vehicleName, vehicle?.registrationNumber, transaction.vehicleOwner?.name,
+        customer?.name, transaction.customerName
+      ].some(field => field && field.toLowerCase().includes(searchLower));
 
-      const matchesSearch =
-        transaction.category.toLowerCase().includes(searchLower) ||
-        transaction.paymentReference?.toLowerCase().includes(searchLower) ||
-        transaction.vehicleName?.toLowerCase().includes(searchLower) ||
-        vehicle?.registrationNumber?.toLowerCase().includes(searchLower) ||
-        transaction.vehicleOwner?.name?.toLowerCase().includes(searchLower) ||
-        false;
 
       const matchesType = type === 'all' || transaction.type === type;
-      const matchesCategory = category === 'all' || transaction.category.toLowerCase() === category.toLowerCase();
+      const matchesCategory = category === 'all' || (transaction.category || '').toLowerCase() === category.toLowerCase();
       const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
       const matchesCustomer = !selectedCustomerId || transaction.customerId === selectedCustomerId;
 
-      // Account filter - match if transaction involves the selected account (from OR to)
+      // Account Filter (Checks arrays)
       const matchesAccount = accountFilter === 'all' ||
-                           transaction.accountFrom === accountFilter ||
-                           transaction.accountTo === accountFilter;
+        (accountFilter === 'no_account_assigned' && (!transaction.accountsFrom?.length && !transaction.accountsTo?.length)) ||
+        (transaction.accountsFrom?.includes(accountFilter)) ||
+        (transaction.accountsTo?.includes(accountFilter));
 
       let matchesOwner = false;
-      if (selectedOwner === 'all') {
-        matchesOwner = true; // 'All Owners' matches all transactions
-      } else if (selectedOwner === 'AIE Skyline Limited') {
-        // "AIE Skyline Limited" matches transactions explicitly assigned to it
-        // OR transactions with no vehicleOwner (which are now considered "AIE Skyline Limited" by default)
-        matchesOwner = (transaction.vehicleOwner && transaction.vehicleOwner.name === 'AIE Skyline Limited') ||
-                       (!transaction.vehicleOwner);
-      } else {
-        // Match if transaction has a vehicle owner and their name matches the selected owner (excluding AIE Skyline Limited if it's not the selected owner)
-        matchesOwner = (transaction.vehicleOwner && transaction.vehicleOwner.name === selectedOwner);
-      }
+      if (selectedOwner === 'all') matchesOwner = true;
+      else if (selectedOwner === 'no_owner_assigned') matchesOwner = !transaction.vehicleId && !transaction.vehicleOwner?.name;
+      else matchesOwner = transaction.vehicleOwner?.name === selectedOwner || (!transaction.vehicleOwner?.name && transaction.vehicleId && selectedOwner === 'AIE Skyline Limited');
+      if (selectedOwner === 'AIE SKYLINE ACCOUNT') matchesOwner = transaction.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT'; // Explicit check
+
 
       let matchesDateRange = true;
       if (startDate && endDate) {
-        matchesDateRange = isWithinInterval(transaction.date, { start: startDate, end: endDate });
-      }
+          const endOfDay = new Date(endDate); endOfDay.setHours(23, 59, 59, 999);
+          matchesDateRange = isWithinInterval(transactionDate, { start: startDate, end: endOfDay });
+      } else if (startDate) matchesDateRange = transactionDate >= startDate;
+      else if (endDate) { const endOfDay = new Date(endDate); endOfDay.setHours(23, 59, 59, 999); matchesDateRange = transactionDate <= endOfDay; }
 
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesCategory &&
-        matchesPaymentStatus &&
-        matchesCustomer &&
-        matchesOwner && // Use the updated matchesOwner logic
-        matchesAccount &&
-        matchesDateRange
-      );
-    }).sort((a, b) => b.date.getTime() - a.date.getTime());
+      const matchesGroup = groupFilter === 'all' || (groupFilter === 'none' && !transaction.groupId) || transaction.groupId === groupFilter;
+      // Check for referenceId (now primarily for Invoice links)
+      const matchesLinked = showLinked === 'all' || (showLinked === 'linked' && !!transaction.referenceId) || (showLinked === 'unlinked' && !transaction.referenceId);
+
+      return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked;
+    }).sort((a, b) => {
+        const dateA = safeParseDate(a.date)?.getTime() || 0;
+        const dateB = safeParseDate(b.date)?.getTime() || 0;
+        if (dateB !== dateA) return dateB - dateA;
+        const timeA = (a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() : (a.createdAt instanceof Date ? a.createdAt.getTime() : 0);
+        const timeB = (b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() : (b.createdAt instanceof Date ? b.createdAt.getTime() : 0);
+        return timeB - timeA;
+    });
   }, [
-    transactions,
-    searchQuery,
-    type,
-    category,
-    paymentStatus,
-    selectedCustomerId,
-    selectedOwner, // Dependency for the updated logic
-    accountFilter,
-    startDate,
-    endDate,
-    groupFilter,
-    vehicles
+    transactions, searchQuery, type, category, paymentStatus,
+    selectedCustomerId, selectedOwner, accountFilter, startDate, endDate,
+    groupFilter, showLinked, vehicles, customers,
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
-    // Determine the relevant transactions for owing calculation based on selectedOwner
-    const transactionsForOwingCalculation = transactions.filter(t => {
-      const isAIESkylineLimitedDefault = !t.vehicleOwner; // Transactions with no vehicle owner are AIE Skyline Limited by default
-      const isExplicitAIESkylineLimited = t.vehicleOwner && t.vehicleOwner.name === 'AIE Skyline Limited';
-
-      if (selectedOwner === 'all') {
-        // For 'all', consider all transactions that have an owner or are implicitly AIE Skyline Limited
-        return t.vehicleOwner || isAIESkylineLimitedDefault;
-      } else if (selectedOwner === 'AIE Skyline Limited') {
-        // For 'AIE Skyline Limited', consider explicit AIE Skyline Limited transactions and those with no owner
-        return isExplicitAIESkylineLimited || isAIESkylineLimitedDefault;
-      } else {
-        // For any other specific owner, only consider transactions explicitly assigned to them
-        return t.vehicleOwner && t.vehicleOwner.name === selectedOwner;
-      }
-    });
-
     const ownerNetIncomes: { [ownerName: string]: number } = {};
-
-    transactionsForOwingCalculation.forEach(t => {
-      // Determine the effective owner for this transaction
-      let effectiveOwnerName: string | null = null;
-      if (t.vehicleOwner) {
-        effectiveOwnerName = t.vehicleOwner.name;
-      } else {
-        // If no vehicle owner, assign to "AIE Skyline Limited" for calculation purposes
-        effectiveOwnerName = 'AIE Skyline Limited';
-      }
-
+    transactions.forEach(t => {
+      let effectiveOwnerName: string | null = t.vehicleOwner?.name || (t.vehicleId ? 'AIE Skyline Limited' : null);
+      if (t.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT') effectiveOwnerName = 'AIE SKYLINE ACCOUNT';
       if (effectiveOwnerName) {
-        if (!ownerNetIncomes[effectiveOwnerName]) {
-          ownerNetIncomes[effectiveOwnerName] = 0;
-        }
+        if (!ownerNetIncomes[effectiveOwnerName]) ownerNetIncomes[effectiveOwnerName] = 0;
+        // Apply full amount regardless of split for owner calculation
         ownerNetIncomes[effectiveOwnerName] += (t.type === 'income' ? t.amount : -t.amount);
       }
     });
-
     let totalOwing = 0;
-    if (selectedOwner === 'all') {
-      // If 'all', sum up negative net incomes for all owners (including AIE Skyline Limited)
-      for (const ownerName in ownerNetIncomes) {
-        if (ownerNetIncomes[ownerName] < 0) {
-          totalOwing += Math.abs(ownerNetIncomes[ownerName]);
-        }
-      }
-    } else if (selectedOwner in ownerNetIncomes) {
-      // If a specific owner is selected, return their owing if negative
-      totalOwing = Math.max(0, -ownerNetIncomes[selectedOwner]);
-    }
-    
+    for (const ownerName in ownerNetIncomes) { if (ownerName !== 'AIE Skyline Limited' && ownerName !== 'AIE SKYLINE ACCOUNT' && ownerNetIncomes[ownerName] < 0) totalOwing += Math.abs(ownerNetIncomes[ownerName]); }
     return totalOwing;
-  }, [transactions, selectedOwner, type, category, paymentStatus, selectedCustomerId, accountFilter, startDate, endDate, vehicles]);
+  }, [transactions]);
 
 
+  // Account Summary (Uses arrays and FULL amount per account)
   const accountSummary = useMemo(() => {
-    if (accountFilter === 'all') return null;
+    if (accountFilter === 'all' || accountFilter === 'no_account_assigned') return null;
 
-    const income = filteredTransactions
-      .filter(t => t.type === 'income' && t.accountTo === accountFilter)
-      .reduce((sum, t) => sum + t.amount, 0);
+    let income = 0;
+    let expense = 0;
 
-    const expense = filteredTransactions
-      .filter(t => t.type === 'expense' && t.accountFrom === accountFilter)
-      .reduce((sum, t) => sum + t.amount, 0);
+    filteredTransactions.forEach(t => {
+        const fullAmount = t.amount; // Use the full amount
+
+        // Add income if account is in the 'to' list
+        if (t.type === 'income' && t.accountsTo?.includes(accountFilter)) {
+            income += fullAmount;
+        }
+        // Add expense if account is in the 'from' list
+        else if (t.type === 'expense' && t.accountsFrom?.includes(accountFilter)) {
+            expense += fullAmount; // Keep expense positive for summary
+        }
+    });
 
     return { income, expense, balance: income - expense };
   }, [filteredTransactions, accountFilter]);
+
 
   const setDateRange = (range: { start: Date | null; end: Date | null }) => {
     setStartDate(range.start);
@@ -179,27 +158,20 @@ export const useFinanceFilters = (transactions: Transaction[] = [], vehicles: Ve
   };
 
   return {
-    searchQuery,
-    setSearchQuery,
-    type,
-    setType,
-    category,
-    setCategory,
-    paymentStatus,
-    setPaymentStatus,
-    dateRange: { start: startDate, end: endDate },
+    searchQuery, setSearchQuery,
+    type, setType,
+    category, setCategory,
+    paymentStatus, setPaymentStatus,
+    dateRange,
     setDateRange,
-    selectedCustomerId,
-    setSelectedCustomerId,
-    selectedOwner,
-    setSelectedOwner,
-    accountFilter,
-    setAccountFilter,
-    groupFilter,
-    setGroupFilter,
+    selectedCustomerId, setSelectedCustomerId,
+    selectedOwner, setSelectedOwner,
+    accountFilter, setAccountFilter,
+    groupFilter, setGroupFilter,
+    showLinked, setShowLinked,
     owners,
     filteredTransactions,
     accountSummary,
-    totalOwingFromOwners // Ensure this is returned for FinancialSummary
+    totalOwingFromOwners,
   };
 };

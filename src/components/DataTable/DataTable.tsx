@@ -12,38 +12,90 @@ import {
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
+import { usePersistentPagination } from '../../hooks/usePersistentPagination';
 
-interface DataTableProps<T> {
+type AnyRow = { [k: string]: any };
+
+interface DataTableProps<T extends AnyRow> {
   data: T[];
   columns: ColumnDef<T, any>[];
   onRowClick?: (row: T) => void;
-  /**
-   * Optional module key used by your permissions system to gate row click.
-   * If omitted, clicking is allowed when onRowClick is provided.
-   */
+  /** Your module key already used in permissions (helps auto-keying pagination) */
   module?: string;
+  /** Optional: override the auto storage key if you want */
+  tableId?: string;
+  /** Optional default size (10 by default) */
+  initialPageSize?: number;
+  /** Optional: class per row (you already pass this in VehicleTable) */
+  rowClassName?: (row: { original: T }) => string;
 }
 
-export function DataTable<T>({ data, columns, onRowClick, module }: DataTableProps<T>) {
+/** small stable hash for column signature */
+function hashColumns(cols: ColumnDef<any, any>[]) {
+  try {
+    const ids = cols.map((c: any) => c.id || c.accessorKey || c.header?.toString?.() || '').join('|');
+    let h = 0;
+    for (let i = 0; i < ids.length; i++) {
+      h = (h * 31 + ids.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h).toString(36);
+  } catch {
+    return 'cols';
+  }
+}
+
+export function DataTable<T extends AnyRow>({
+  data,
+  columns,
+  onRowClick,
+  module,
+  tableId,
+  initialPageSize = 10,
+  rowClassName,
+}: DataTableProps<T>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const { can } = usePermissions();
+
+  // ---- Controlled + persistent pagination (no page edits needed anywhere) ----
+  const autoKeyPart =
+    typeof window !== 'undefined' ? window.location.pathname.replace(/\W+/g, ':') : 'route';
+  const colsSig = hashColumns(columns as any);
+  const persistKey = tableId || `${autoKeyPart}:${module || 'mod'}:${colsSig}`;
+
+  const { pagination, setPagination, setPageIndex, setPageSize } = usePersistentPagination(
+    persistKey,
+    { pageSize: initialPageSize }
+  );
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    // @ts-expect-error exists at runtime; prevents jump to page 1 on data change
+    autoResetPageIndex: false,
   });
+
+  // Clamp to last page if data shrinks (e.g. delete)
+  React.useEffect(() => {
+    queueMicrotask?.(() => {
+      const total = table.getPageCount?.() ?? 1;
+      if (pagination.pageIndex > total - 1) {
+        setPageIndex(Math.max(0, total - 1));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.length]);
 
   // -------- Mobile/Tablet card renderer (<= lg) --------
   const CardList = () => {
     const headerGroups = table.getHeaderGroups();
     const headerMap = new Map<string, React.ReactNode>();
-    // Build a map of columnId -> header label
     headerGroups.forEach(hg => {
       hg.headers.forEach(h => {
         if (h.column) {
@@ -56,12 +108,10 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
 
     return (
       <div className="lg:hidden space-y-4">
-        {/* Cards grid: 1 per row on very small screens, 2 per row on small+ */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rows.map(row => {
             const cells = row.getVisibleCells();
 
-            // Heuristic: first non-"Actions" cell is the title, second becomes subtitle if sensible
             const infoCells = cells.filter(c => {
               const label = String(headerMap.get(c.column.id) ?? '').trim();
               return label.toLowerCase() !== 'actions';
@@ -70,13 +120,15 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
             const titleCell = infoCells[0];
             const subtitleCell = infoCells[1];
 
+            const rowCls = rowClassName ? rowClassName({ original: row.original }) : '';
+
             return (
               <div
                 key={row.id}
-                className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${rowCls || ''}`}
                 onClick={() => {
                   if (onRowClick && (!module || can(module as any, 'view'))) {
-                    onRowClick(row.original as unknown as T);
+                    onRowClick(row.original as T);
                   }
                 }}
                 role={onRowClick ? 'button' : undefined}
@@ -100,7 +152,6 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
                   ) : null}
                 </div>
 
-                {/* Inline label:value pairs */}
                 <div className="grid grid-cols-1 gap-y-2">
                   {infoCells.slice(2).map(cell => {
                     const label = headerMap.get(cell.column.id);
@@ -124,7 +175,6 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
                   })}
                 </div>
 
-                {/* If there is an Actions column, render it as a toolbar at the bottom */}
                 {cells.some(c => String(headerMap.get(c.column.id) ?? '').trim().toLowerCase() === 'actions') && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
                     {cells
@@ -163,7 +213,7 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
           </div>
 
           <span className="text-sm text-gray-700">
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            Page {pagination.pageIndex + 1} of {table.getPageCount()}
           </span>
 
           <div className="flex items-center gap-2">
@@ -213,19 +263,22 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
             ))}
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {table.getRowModel().rows.map(row => (
-              <tr
-                key={row.id}
-                onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as unknown as T)}
-                className={`table-row ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''}`}
-              >
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="table-cell px-6 py-4">
-                    {flexRender(cell.column.columnDef.cell ?? cell.column.columnDef.header, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {table.getRowModel().rows.map(row => {
+              const cls = rowClassName ? rowClassName({ original: row.original }) : '';
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as T)}
+                  className={`table-row ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''} ${cls || ''}`}
+                >
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id} className="table-cell px-6 py-4">
+                      {flexRender(cell.column.columnDef.cell ?? cell.column.columnDef.header, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -270,8 +323,8 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
         <div className="flex items-center gap-2">
           <select
             className="select"
-            value={table.getState().pagination.pageSize}
-            onChange={e => table.setPageSize(Number(e.target.value))}
+            value={pagination.pageSize}
+            onChange={e => setPageSize(Number(e.target.value))}
           >
             {[10, 20, 30, 40, 50].map(pageSize => (
               <option key={pageSize} value={pageSize}>
@@ -280,19 +333,16 @@ export function DataTable<T>({ data, columns, onRowClick, module }: DataTablePro
             ))}
           </select>
           <span className="text-sm text-gray-700">
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            Page {pagination.pageIndex + 1} of {table.getPageCount()}
           </span>
         </div>
       </div>
     </div>
   );
 
-  // ---- Render ----
   return (
     <div className="space-y-4">
-      {/* Mobile & Tablet cards */}
       <CardList />
-      {/* Desktop table */}
       <DesktopTable />
     </div>
   );

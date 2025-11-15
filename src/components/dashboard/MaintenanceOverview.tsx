@@ -3,7 +3,7 @@ import { MaintenanceLog } from '../../types';
 import { Wrench, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
-
+import { useAuth } from '../../context/AuthContext';
 interface MaintenanceOverviewProps {
   logs: MaintenanceLog[];
 }
@@ -14,7 +14,7 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
   const completedCount = logs.filter(log => log.status === 'completed').length;
   const inProgressCount = logs.filter(log => log.status === 'in-progress').length;
   const scheduledCount = logs.filter(log => log.status === 'scheduled').length;
-
+  const { user } = useAuth();
   const totalExpenses = logs.reduce((sum, log) => sum + log.cost, 0);
 
   return (
@@ -43,7 +43,7 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
             <p className="mt-1 text-sm text-gray-600">Scheduled</p>
           </div>
         </div>
-
+        {user?.role === 'manager' && (
         <div className="pt-4 border-t">
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Total Maintenance Expenses</span>
@@ -52,6 +52,7 @@ const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
             </span>
           </div>
         </div>
+        )}
       </div>
     </Card>
   );

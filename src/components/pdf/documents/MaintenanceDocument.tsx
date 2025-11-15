@@ -1,8 +1,7 @@
 // MaintenanceDocument.tsx
 import React from 'react';
-import { Text, View, Page, Document, Image } from '@react-pdf/renderer'; // Added Page, Document, Image
+import { Text, View, Page, Document, Image, StyleSheet } from '@react-pdf/renderer';
 import { MaintenanceLog, Vehicle } from '../../../types';
-// import BaseDocument from '../BaseDocument'; // Remove BaseDocument import
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 
@@ -21,11 +20,11 @@ interface MaintenanceDocumentProps {
     sortCode?: string;
     accountNumber?: string;
     maintenanceTerms?: string;
-    logoUrl?: string; // Added logoUrl for header
-    fullName?: string; // Added fullName for header
-    officialAddress?: string; // Added officialAddress for header
-    phone?: string; // Added phone for header
-    email?: string; // Added email for header
+    logoUrl?: string;
+    fullName?: string;
+    officialAddress?: string;
+    phone?: string;
+    email?: string;
   };
 }
 
@@ -87,10 +86,9 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
   const documentTotals = calculateDocumentTotals();
 
   return (
-    // Removed BaseDocument and directly using Document and Page
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header - Replicated from Vehicle Documents */}
+        {/* Header */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
             {companyDetails?.logoUrl && (
@@ -204,6 +202,14 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
         </View>
       </View>
 
+      {/* Work Description Section */}
+      {data.description && (
+        <View style={localStyles.descriptionContainer}>
+          <Text style={localStyles.descriptionTitle}>Maintenance Description</Text>
+          <Text style={styles.text}>{data.description}</Text>
+        </View>
+      )}
+
       {/* Bank Details & Payment Summary (kept together) */}
       <View style={[styles.section, { marginBottom: companyDetails.maintenanceTerms ? 10 : 0 }]} wrap={false}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }} wrap={false}>
@@ -263,7 +269,7 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
         </View>
       )}
 
-        {/* Footer - Replicated from Vehicle Documents */}
+        {/* Footer */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
             AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
@@ -277,5 +283,24 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
     </Document>
   );
 };
+
+// Local styles to avoid modifying global styles.ts
+const localStyles = StyleSheet.create({
+  descriptionContainer: {
+    marginTop: 15,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    breakInside: 'avoid',
+  },
+  descriptionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+});
 
 export default MaintenanceDocument;

@@ -277,6 +277,7 @@ const Vehicles: React.FC = () => {
 
       {/* Table */}
       <VehicleTable
+      
         vehicles={displayedVehicles}
         onView={setSelectedVehicle}
         onEdit={setEditingVehicle}

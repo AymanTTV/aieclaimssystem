@@ -1,17 +1,20 @@
 // src/types/todo.ts
 import { Timestamp } from 'firebase/firestore';
 
-export type Priority = 'high' | 'medium' | 'low';
+export type TodoStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold';
+export type TodoPriority = 'low' | 'medium' | 'high';
 
-export interface TodoItem {
+export interface Todo {
   id: string;
-  text: string;
+  title: string;
   description?: string;
-  completed: boolean;
+  status: TodoStatus;
+  priority: TodoPriority;
+  category?: string;
+  group?: string;
+  dueDate?: Timestamp | null;
+  assignedTo?: string | null;
+  createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  dueDate?: Timestamp;
-  priority?: Priority;
-  tags?: string[];
-  category?: string;
 }

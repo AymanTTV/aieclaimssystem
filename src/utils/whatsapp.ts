@@ -1,3 +1,4 @@
+// src/utils/whatsapp.ts
 import { Customer, Vehicle, Invoice, Claim, DriverPay } from '../types';
 import { format } from 'date-fns';
 
@@ -12,27 +13,48 @@ AIE Skyline Limited
 interface WhatsAppMessage {
   phone: string;
   message: string;
-  attachments?: string[];
+  attachments?: string[]; // Note: wa.me links cannot auto-attach; kept for API parity/future use
 }
 
+/**
+ * Normalize to digits-only E.164 without the '+' (as required by wa.me path).
+ * If the number looks local (leading 0, no country code), default to UK (44).
+ */
 export const formatWhatsAppNumber = (phone: string): string => {
-  // Remove any non-numeric characters
-  const cleanNumber = phone.replace(/\D/g, '');
-  
-  // Add UK country code if not present
-  if (cleanNumber.startsWith('0')) {
-    return '44' + cleanNumber.substring(1);
+  if (!phone) return '';
+  let p = String(phone).trim();
+
+  // Keep only digits and a single leading '+', then normalize
+  p = p.replace(/[^+\d]/g, '');
+  if (p.startsWith('+')) p = p.slice(1);
+  if (p.startsWith('00')) p = p.slice(2);
+
+  // If still starts with a local 0, assume UK and drop the 0
+  if (p.startsWith('0')) {
+    p = p.slice(1);
+    p = '44' + p;
   }
-  
-  return cleanNumber;
+
+  // Final safety: digits only
+  p = p.replace(/\D/g, '');
+  return p;
 };
 
-export const sendWhatsAppMessage = ({ phone, message, attachments }: WhatsAppMessage) => {
-  const formattedNumber = formatWhatsAppNumber(phone);
-  const encodedMessage = encodeURIComponent(message + '\n\n' + COMPANY_SIGNATURE);
-  const whatsappUrl = `https://wa.me/${formattedNumber}?text=${encodedMessage}`;
-  window.open(whatsappUrl, '_blank');
+/**
+ * Opens WhatsApp chat (app/web) with a prefilled message and your company signature.
+ * NOTE: User must tap "Send" in WhatsApp (cannot auto-send).
+ */
+export const sendWhatsAppMessage = ({ phone, message }: WhatsAppMessage) => {
+  const digits = formatWhatsAppNumber(phone);
+  if (!digits) throw new Error('Invalid phone number for WhatsApp');
+
+  const url = buildWaMeLink(digits, message);
+  window.open(url, '_blank', 'noopener,noreferrer');
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Prebuilt notifications (reused across the app)
+// ────────────────────────────────────────────────────────────────────────────
 
 // Rental notifications
 export const sendRentalReminder = (customer: Customer, rental: any) => {
@@ -48,7 +70,6 @@ Please arrange payment at your earliest convenience.`;
   return sendWhatsAppMessage({
     phone: customer.mobile,
     message,
-    attachments: rental.documents ? [rental.documents.invoice] : undefined
   });
 };
 
@@ -65,7 +86,6 @@ Please process the payment as soon as possible.`;
   return sendWhatsAppMessage({
     phone: customer.mobile,
     message,
-    attachments: [invoice.documentUrl]
   });
 };
 
@@ -102,7 +122,6 @@ We will keep you updated on the progress.`;
   return sendWhatsAppMessage({
     phone: customer.mobile,
     message,
-    attachments: claim.documents ? Object.values(claim.documents) : undefined
   });
 };
 
@@ -142,10 +161,54 @@ Please ensure to renew these documents before expiry.`;
   });
 };
 
-// Helper function to check if date is expiring or expired
-const isExpiringOrExpired = (date: Date): boolean => {
+// Helper function to check if date is expiring or expired (<=30 days)
+const isExpiringOrExpired = (date?: Date | null): boolean => {
+  if (!date) return false;
   const now = new Date();
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
   return date <= thirtyDaysFromNow;
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// WhatsApp helpers for wa.me links & preview  ✅ (tiny helpers you requested)
+// ────────────────────────────────────────────────────────────────────────────
+export function toE164Digits(raw: string): string {
+  try {
+    return formatWhatsAppNumber(String(raw || ''));
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Compose a nicely structured WhatsApp message.
+ * Supports WhatsApp basic formatting: *bold*, _italics_, ~strike~, `mono`
+ */
+export function buildWhatsAppMessage(params: {
+  type?: string;
+  subject?: string;
+  body?: string;
+  recordRef?: string;
+  contactText?: string;
+}): string {
+  const lines: string[] = [];
+  if (params.type)    lines.push(`*${params.type}*`);
+  if (params.subject) lines.push(`*Subject:* ${params.subject}`);
+  if (params.body)    lines.push(params.body);
+  if (params.recordRef) lines.push(`\n*Ref:* ${params.recordRef}`);
+  if (params.contactText) {
+    lines.push('\n*Contact Details:*');
+    lines.push(params.contactText);
+  }
+  return lines.join('\n\n').trim();
+}
+
+/**
+ * Build a wa.me link with the encoded message + company signature appended.
+ */
+export function buildWaMeLink(phoneDigits: string, message: string): string {
+  // ✅ Corrected version: Only encode the message as-is.
+  const encoded = encodeURIComponent(message || '');
+  return `https://wa.me/${phoneDigits}?text=${encoded}`;
+}

@@ -31,7 +31,7 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
     startDate: '',
     endDate: '',
     totalAmount: '',
-    commissionPercentage: '',
+    commissionPercentage: '6', // Default commission is 6%
     notes: '',
   })
   const [commissionAmount, setCommissionAmount] = useState(0)
@@ -178,7 +178,7 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         onChange={e =>
           setFormData({ ...formData, commissionPercentage: e.target.value })
         }
-        placeholder="e.g., 20"
+        placeholder="e.g., 6"
         min="0"
         max="100"
         step="0.01"

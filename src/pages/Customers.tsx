@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// pages/Customers.tsx
+import React, { useMemo, useState } from 'react';
 import { useCustomers } from '../hooks/useCustomers';
 import { useCustomerFilters } from '../hooks/useCustomerFilters';
 import CustomerTable from '../components/customers/CustomerTable';
@@ -7,8 +8,8 @@ import CustomerForm from '../components/customers/CustomerForm';
 import CustomerDetails from '../components/customers/CustomerDetails';
 import Modal from '../components/ui/Modal';
 import { Customer } from '../types/customer';
-import { handleCustomerExport, handleCustomerImport } from '../utils/customerHelpers';
-import { Plus, Download, Upload } from 'lucide-react';
+import { handleCustomerExport } from '../utils/customerHelpers';
+import { Plus, Download } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -16,6 +17,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
 import { CustomerDocument } from '../components/pdf/documents';
+import AssignCustomerTypeForm from '../components/customers/AssignCustomerTypeForm';
 
 const Customers = () => {
   const { customers, loading } = useCustomers();
@@ -23,23 +25,38 @@ const Customers = () => {
   const { user } = useAuth();
 
   const {
-    searchQuery,
-    setSearchQuery,
-    filterExpired,
-    setFilterExpired,
-    filterSoonExpiring,
-    setFilterSoonExpiring,
-    selectedGender,
-    setSelectedGender,
-    ageRange,
-    setAgeRange,
+    searchQuery, setSearchQuery,
+    filterExpired, setFilterExpired,
+    filterSoonExpiring, setFilterSoonExpiring,
+    selectedGender, setSelectedGender,
+    ageRange, setAgeRange,
+    selectedType, setSelectedType,
     filteredCustomers
   } = useCustomerFilters(customers);
 
-  const [showForm, setShowForm] = useState(false);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
+  const [assigningCustomer, setAssigningCustomer] = useState<Customer | null>(null);
+
+  const isManager = (user?.role || '').toLowerCase() === 'manager';
+
+  // Managers see the full filtered list; others see empty unless searching
+  const visibleCustomers = useMemo(() => {
+    if (isManager) return filteredCustomers;
+    return (searchQuery || '').trim() ? filteredCustomers : [];
+  }, [filteredCustomers, isManager, searchQuery]);
+
+  const handleOpenEditForm = (customer: Customer | null) => {
+    setEditingCustomer(customer);
+    setIsFormModalOpen(true);
+  };
+
+  const handleCloseForm = () => {
+    setIsFormModalOpen(false);
+    setEditingCustomer(null);
+  };
 
   const handleDelete = async (customer: Customer) => {
     try {
@@ -52,16 +69,17 @@ const Customers = () => {
     }
   };
 
+  // 🔧 Back to the old, correct call signature and data shape
   const handleGenerateDocument = async (customer: Customer) => {
     try {
       await generateAndUploadDocument(
-        CustomerDocument,
-        customer,
-        'customers',
-        customer.id,
-        'customers'
+        CustomerDocument, // Component
+        customer,         // ✅ data (NOT { data, companyDetails })
+        'customers',      // path (Storage folder)
+        customer.id,      // ✅ recordId (Firestore doc id)
+        'customers'       // collectionName
       );
-      
+
       toast.success('Document generated successfully');
     } catch (error) {
       console.error('Error generating document:', error);
@@ -98,7 +116,7 @@ const Customers = () => {
           )}
           {can('customers', 'create') && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => handleOpenEditForm(null)}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
             >
               <Plus className="h-5 w-5 mr-2" />
@@ -110,36 +128,33 @@ const Customers = () => {
 
       {/* Filters */}
       <CustomerFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        filterExpired={filterExpired}
-        onFilterExpired={setFilterExpired}
-        filterSoonExpiring={filterSoonExpiring}
-        onFilterSoonExpiring={setFilterSoonExpiring}
-        selectedGender={selectedGender}
-        onGenderFilter={setSelectedGender}
-        ageRange={ageRange}
-        onAgeRangeFilter={setAgeRange}
+        searchQuery={searchQuery} onSearchChange={setSearchQuery}
+        filterExpired={filterExpired} onFilterExpired={setFilterExpired}
+        filterSoonExpiring={filterSoonExpiring} onFilterSoonExpiring={setFilterSoonExpiring}
+        selectedGender={selectedGender} onGenderFilter={setSelectedGender}
+        ageRange={ageRange} onAgeRangeFilter={setAgeRange}
+        selectedType={selectedType} onTypeFilter={setSelectedType}
       />
 
       {/* Table */}
       <CustomerTable
-        customers={filteredCustomers}
+        customers={visibleCustomers}
         onView={setSelectedCustomer}
-        onEdit={setEditingCustomer}
+        onEdit={(c) => handleOpenEditForm(c)}
         onDelete={setDeletingCustomer}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={handleViewDocument}
+        onAssignType={setAssigningCustomer}
       />
 
       {/* Modals */}
       <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title="Add New Customer"
+        isOpen={isFormModalOpen}
+        onClose={handleCloseForm}
+        title={editingCustomer ? 'Edit Customer' : 'Add New Customer'}
         size="xl"
       >
-        <CustomerForm onClose={() => setShowForm(false)} />
+        <CustomerForm customer={editingCustomer || undefined} onClose={handleCloseForm} />
       </Modal>
 
       <Modal
@@ -152,15 +167,14 @@ const Customers = () => {
       </Modal>
 
       <Modal
-        isOpen={!!editingCustomer}
-        onClose={() => setEditingCustomer(null)}
-        title="Edit Customer"
-        size="xl"
+        isOpen={!!assigningCustomer}
+        onClose={() => setAssigningCustomer(null)}
+        title="Assign Customer Type"
       >
-        {editingCustomer && (
-          <CustomerForm
-            customer={editingCustomer}
-            onClose={() => setEditingCustomer(null)}
+        {assigningCustomer && (
+          <AssignCustomerTypeForm
+            customer={assigningCustomer}
+            onClose={() => setAssigningCustomer(null)}
           />
         )}
       </Modal>

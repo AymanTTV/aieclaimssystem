@@ -4,10 +4,9 @@ import Modal from '../ui/Modal'
 import { useTodos, TodoItem } from '../../hooks/useTodos'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { collection, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { Priority } from '../../types/todo'
-import { format } from 'date-fns'
 
 const priorityOptions: Priority[] = ['high', 'medium', 'low']
 
@@ -40,33 +39,28 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
         }
       })
       setUserList(list)
-      if (list.length && !selectedUser) {
-        setSelectedUser(list[0].uid)
-      }
     })
     return () => unsub()
-  }, [isManager, selectedUser])
+  }, [isManager])
 
   // helpers
-  const normalizeDate = (d?: TodoItem['dueDate']) => {
-    if (!d) return undefined
-    if ((d as any).toDate) return (d as any).toDate() as Date
-    return d as Date
-  }
   const collaboratorNames = (ids: string[]) =>
     ids.map(id => userList.find(u => u.uid === id)?.displayName || id).join(', ')
 
-  // enforce owner for non-managers
+  // enforce owner for non-managers and reset selection on user change
   useEffect(() => {
-    if (user && !isManager) setSelectedUser(user.id)
-  }, [user, isManager])
+    if (user) {
+      setSelectedUser(user.id)
+    }
+  }, [user])
 
   const { todos, addTodo, updateTodo, toggleTodo, removeTodo } = useTodos(
     isManager ? selectedUser : undefined
   )
   const isOwner = user?.id === selectedUser
 
-  // new task form
+  // form states (for both new and editing tasks)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [newText, setNewText] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [newDueDate, setNewDueDate] = useState<string>('')
@@ -82,11 +76,55 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
   const [filterPriority, setFilterPriority] = useState<Priority | ''>('')
   const [filterCategory, setFilterCategory] = useState<string>('')
 
-  // inline edit
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editFields, setEditFields] = useState<Partial<TodoItem>>({})
-
   if (!open || !user) return null
+
+  // clear form and exit edit mode
+  const resetForm = () => {
+    setEditingId(null)
+    setNewText('')
+    setNewDescription('')
+    setNewDueDate('')
+    setNewPriority('medium')
+    setNewTags('')
+    setNewCategory('')
+    setNewCollaborators([])
+  }
+
+  const handleFormSubmit = () => {
+    if (!newText.trim()) return
+
+    const taskData: Partial<TodoItem> = {
+      description: newDescription.trim(),
+      dueDate: newDueDate ? new Date(newDueDate) : undefined,
+      priority: newPriority,
+      tags: newTags
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean),
+      category: newCategory.trim(),
+      collaborators: newCollaborators,
+      text: newText.trim(),
+    }
+
+    if (editingId) {
+      updateTodo(editingId, taskData)
+    } else {
+      addTodo(newText.trim(), taskData)
+    }
+    resetForm()
+  }
+  
+  const handleEditClick = (todo: TodoItem) => {
+    setEditingId(todo.id);
+    setNewText(todo.text);
+    setNewDescription(todo.description || '');
+    setNewDueDate(todo.dueDate ? todo.dueDate.toDate().toISOString().slice(0, 10) : '');
+    setNewPriority(todo.priority || 'medium');
+    setNewTags((todo.tags || []).join(', '));
+    setNewCategory(todo.category || '');
+    setNewCollaborators(todo.collaborators || []);
+  };
+
 
   // filtered list
   const filtered = todos.filter(todo => {
@@ -105,7 +143,7 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
   })
 
   // due-date color helper
-  const getColor = (due?: TodoItem['dueDate']) => {
+  const getColor = (due?: Timestamp) => {
     if (!due) return 'text-gray-800'
     const now = Date.now()
     const diff = due.toDate().getTime() - now
@@ -121,71 +159,11 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
       {/* Main To-Do Modal */}
       <Modal isOpen={open} onClose={onClose} title="To-Do List" size="xl">
         <div className="space-y-4">
-          {/* Manager user selector */}
-          {isManager && (
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                View for user
-              </label>
-              <select
-                value={selectedUser}
-                onChange={e => setSelectedUser(e.target.value)}
-                className="w-full p-2 border rounded"
-              >
-                {userList.map(u => (
-                  <option key={u.uid} value={u.uid}>
-                    {u.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Filters */}
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder="Search tasks…"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="flex-1 p-2 border rounded"
-            />
-            <select
-              value={filterStatus}
-              onChange={e =>
-                setFilterStatus(e.target.value as 'all' | 'completed' | 'pending')
-              }
-              className="p-2 border rounded"
-            >
-              <option value="all">All</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-            </select>
-            <select
-              value={filterPriority}
-              onChange={e => setFilterPriority(e.target.value as Priority)}
-              className="p-2 border rounded"
-            >
-              <option value="">Any priority</option>
-              {priorityOptions.map(p => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Category"
-              value={filterCategory}
-              onChange={e => setFilterCategory(e.target.value)}
-              className="p-2 border rounded"
-            />
-          </div>
-
-          {/* New Task Form */}
+          
+          {/* 1. New/Edit Task Form */}
           {isOwner && can('share', 'create') && (
             <div className="p-4 border rounded-md bg-gray-50 space-y-2">
-              <h3 className="font-semibold">New Task</h3>
+              <h3 className="font-semibold">{editingId ? 'Edit Task' : 'New Task'}</h3>
               <input
                 type="text"
                 placeholder="Title"
@@ -254,177 +232,93 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
                   ))}
                 </select>
               </div>
-              <button
-                onClick={() => {
-                  if (!newText.trim()) return
-                  addTodo(newText.trim(), {
-                    description: newDescription.trim(),
-                    dueDate: newDueDate ? new Date(newDueDate) : undefined,
-                    priority: newPriority,
-                    tags: newTags
-                      .split(',')
-                      .map(t => t.trim())
-                      .filter(Boolean),
-                    category: newCategory.trim(),
-                    collaborators: newCollaborators,
-                  })
-                  setNewText('')
-                  setNewDescription('')
-                  setNewDueDate('')
-                  setNewPriority('medium')
-                  setNewTags('')
-                  setNewCategory('')
-                  setNewCollaborators([])
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-              >
-                Add Task
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleFormSubmit}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                >
+                  {editingId ? 'Update Task' : 'Add Task'}
+                </button>
+                {editingId && (
+                  <button
+                    onClick={resetForm}
+                    className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Task List */}
+          {/* 2. Manager user selector */}
+          {isManager && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                View tasks for user
+              </label>
+              <select
+                value={selectedUser}
+                onChange={e => setSelectedUser(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                {userList.map(u => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* 3. Filters */}
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              placeholder="Search tasks…"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="flex-1 p-2 border rounded"
+            />
+            <select
+              value={filterStatus}
+              onChange={e =>
+                setFilterStatus(e.target.value as 'all' | 'completed' | 'pending')
+              }
+              className="p-2 border rounded"
+            >
+              <option value="all">All Status</option>
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+            </select>
+            <select
+              value={filterPriority}
+              onChange={e => setFilterPriority(e.target.value as Priority | '')}
+              className="p-2 border rounded"
+            >
+              <option value="">Any Priority</option>
+              {priorityOptions.map(p => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Category"
+              value={filterCategory}
+              onChange={e => setFilterCategory(e.target.value)}
+              className="p-2 border rounded"
+            />
+          </div>
+
+          {/* 4. Task List */}
           <ul className="max-h-96 overflow-y-auto divide-y">
             {filtered.map(todo => (
               <li key={todo.id} className="py-2">
-                {editingId === todo.id ? (
-                  <div className="p-2 bg-yellow-50 rounded space-y-2">
-                    {/* Inline edit (owner) */}
-                    <input
-                      type="text"
-                      value={editFields.text as string}
-                      onChange={e =>
-                        setEditFields({
-                          ...editFields,
-                          text: e.target.value,
-                        })
-                      }
-                      className="w-full p-2 border rounded"
-                    />
-                    <textarea
-                      value={editFields.description as string}
-                      onChange={e =>
-                        setEditFields({
-                          ...editFields,
-                          description: e.target.value,
-                        })
-                      }
-                      rows={2}
-                      className="w-full p-2 border rounded"
-                    />
-                    <div className="flex space-x-2">
-                      <input
-                        type="date"
-                        value={
-                          (() => {
-                            const dt = normalizeDate(
-                              editFields.dueDate
-                            )
-                            return dt ? dt.toISOString().slice(0, 10) : ''
-                          })()
-                        }
-                        onChange={e =>
-                          setEditFields({
-                            ...editFields,
-                            dueDate: new Date(e.target.value),
-                          })
-                        }
-                        className="p-2 border rounded"
-                      />
-                      <select
-                        value={editFields.priority as Priority}
-                        onChange={e =>
-                          setEditFields({
-                            ...editFields,
-                            priority: e.target
-                              .value as Priority,
-                          })
-                        }
-                        className="p-2 border rounded"
-                      >
-                        {priorityOptions.map(p => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="Tags"
-                        value={(
-                          editFields.tags as string[]
-                        )?.join(', ')}
-                        onChange={e =>
-                          setEditFields({
-                            ...editFields,
-                            tags: e.target.value
-                              .split(',')
-                              .map(t => t.trim())
-                              .filter(Boolean),
-                          })
-                        }
-                        className="flex-1 p-2 border rounded"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Category"
-                        value={editFields.category as string}
-                        onChange={e =>
-                          setEditFields({
-                            ...editFields,
-                            category: e.target.value,
-                          })
-                        }
-                        className="p-2 border rounded"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm">
-                        Collaborators
-                      </label>
-                      <select
-                        multiple
-                        value={
-                          (editFields.collaborators as string[]) || []
-                        }
-                        onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                          setEditFields({
-                            ...editFields,
-                            collaborators: Array.from(
-                              e.target.selectedOptions
-                            ).map(o => o.value),
-                          })
-                        }
-                        className="w-full p-2 border rounded h-24"
-                      >
-                        {userList.map(u => (
-                          <option key={u.uid} value={u.uid}>
-                            {u.displayName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          updateTodo(todo.id, editFields as TodoItem)
-                          setEditingId(null)
-                        }}
-                        className="px-3 py-1 bg-green-600 text-white rounded"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="px-3 py-1 bg-gray-300 rounded"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center space-x-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
                         checked={todo.completed}
@@ -433,58 +327,63 @@ export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
                           can('share', 'update') &&
                           toggleTodo(todo.id, todo.completed)
                         }
+                        className="mt-1"
                       />
                       <span
-                        className={`${todo.completed
+                        className={`font-medium ${todo.completed
                           ? 'line-through text-gray-500'
-                          : ''} ${getColor(todo.dueDate)}`}
+                          : ''}`}
                       >
                         {todo.text}
                       </span>
-                    </label>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span>
-                        {todo.completed
-                          ? '✓ Completed'
-                          : 'Pending'}
-                      </span>
-                      {todo.category && (
-                        <span>📂 {todo.category}</span>
-                      )}
-                      {todo.tags?.length > 0 && (
-                        <span>🏷 {todo.tags.join(', ')}</span>
-                      )}
-                      {todo.collaborators?.length > 0 && (
-                        <span>
-                          👥 {collaboratorNames(todo.collaborators)}
-                        </span>
-                      )}
-                      {/* Delete */}
-                      {isOwner && can('share', 'delete') && (
-                        <button
-                          onClick={() =>
-                            setConfirmDeleteId(todo.id)
-                          }
-                          className="text-red-500"
-                        >
-                          ✕
-                        </button>
-                      )}
-                      {/* Edit */}
-                      {isOwner && can('share', 'update') && (
-                        <button
-                          onClick={() => {
-                            setEditingId(todo.id)
-                            setEditFields({ ...todo })
-                          }}
-                          className="text-blue-500"
-                        >
-                          ✎
-                        </button>
-                      )}
                     </div>
+                    {todo.description && (
+                      <p className="text-sm text-gray-600 pl-6">{todo.description}</p>
+                    )}
+                     <div className="pl-6 text-xs text-gray-500 flex items-center space-x-3">
+                        {todo.dueDate && (
+                          <span className={getColor(todo.dueDate)}>
+                            Due: {todo.dueDate.toDate().toLocaleDateString()}
+                          </span>
+                        )}
+                        {todo.category && (
+                          <span>📂 {todo.category}</span>
+                        )}
+                        {todo.tags?.length > 0 && (
+                          <span>🏷 {todo.tags.join(', ')}</span>
+                        )}
+                        {todo.collaborators?.length > 0 && (
+                          <span>
+                            👥 {collaboratorNames(todo.collaborators)}
+                          </span>
+                        )}
+                      </div>
                   </div>
-                )}
+                  <div className="flex items-center space-x-2 text-sm text-gray-600 flex-shrink-0 ml-4">
+                    {/* Edit */}
+                    {isOwner && can('share', 'update') && (
+                      <button
+                        onClick={() => handleEditClick(todo)}
+                        className="text-blue-500 hover:text-blue-700 p-1"
+                        title="Edit Task"
+                      >
+                        ✎
+                      </button>
+                    )}
+                    {/* Delete */}
+                    {isOwner && can('share', 'delete') && (
+                      <button
+                        onClick={() =>
+                          setConfirmDeleteId(todo.id)
+                        }
+                        className="text-red-500 hover:text-red-700 p-1"
+                        title="Delete Task"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

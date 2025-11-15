@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs, or } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { uploadFile } from '../../utils/uploadFile';
@@ -29,6 +29,50 @@ import FileHandlers from './ClaimForm/sections/FileHandlers';
 import ClaimProgress from './ClaimForm/sections/ClaimProgress';
 import ClientRefField from './ClaimForm/sections/ClientRefField';
 import Hospitalinformation from './ClaimForm/sections/Hospitalinformation';
+
+/**
+ * Checks if a customer exists based on email or phone. If not, creates one.
+ * @param clientInfo - The client details from the form.
+ */
+const upsertCustomerFromClaimData = async (clientInfo: ClaimFormData['clientInfo']) => {
+  if (!clientInfo.email && !clientInfo.phone) {
+    console.log('No email or phone provided, skipping customer creation.');
+    return;
+  }
+
+  const customersRef = collection(db, 'customers');
+  const q = query(
+    customersRef,
+    or(where('email', '==', clientInfo.email), where('mobile', '==', clientInfo.phone))
+  );
+
+  const existingCustomerSnapshot = await getDocs(q);
+
+  if (existingCustomerSnapshot.empty) {
+    // No customer found, so create a new one
+    try {
+      await addDoc(customersRef, {
+        type: 'claim', // Set type to 'claim'
+        name: clientInfo.name,
+        mobile: clientInfo.phone,
+        email: clientInfo.email,
+        address: clientInfo.address,
+        dateOfBirth: new Date(clientInfo.dateOfBirth),
+        nationalInsuranceNumber: clientInfo.nationalInsuranceNumber,
+        signature: clientInfo.signature || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      toast.success('New customer profile created from claim.');
+    } catch (error) {
+      console.error('Failed to create new customer from claim:', error);
+      toast.error('Could not create customer profile.');
+    }
+  } else {
+    console.log('Existing customer found. No new customer created.');
+  }
+};
+
 
 interface ClaimFormProps {
   onClose: () => void;
@@ -104,6 +148,15 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       progress: 'Your Claim Has Started',
       gpInformation: { visited: false },
       hospitalInformation: { visited: false },
+      policeOfficerName: '',
+      policeBadgeNumber: '',
+      policeStation: '',
+      policeIncidentNumber: '',
+      policeContactInfo: '',
+      
+      paramedicNames: '',
+      ambulanceReference: '',
+      ambulanceService: '',
       hireDetails: { enabled: false },
       storage: { enabled: false },
       recovery: { enabled: false }
@@ -127,6 +180,9 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
     setSubmitError(null);
 
     try {
+      // Check for and create the customer if they don't exist
+      await upsertCustomerFromClaimData(data.clientInfo);
+
       // Upload documents & build URLs...
       const vehicleDocUrls: Record<string,string> = {};
       for (const [key,file] of Object.entries(data.clientVehicle!.documents || {})) {

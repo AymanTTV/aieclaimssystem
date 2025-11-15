@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions'; // ✨ ADD THIS
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+
 import WaitingDeleteModal from '../components/waiting/WaitingDeleteModal'; //
 
 // Shared UI
@@ -51,6 +52,8 @@ const STATUS_FLOW: WaitingStatus[] = [
   'not_proceeding',
 ];
 
+const COMPLETED_STATUSES: WaitingStatus[] = ['booked', 'not_proceeding'];
+
 const WaitingPage: React.FC = () => {
   const { user } = useAuth();
   const { can } = usePermissions(); // ✨ ADD THIS
@@ -60,6 +63,8 @@ const WaitingPage: React.FC = () => {
   const [categories, setCategories] = useState<WaitingCategory[]>([]);
   const [groups, setGroups] = useState<WaitingGroup[]>([]);
   const [deleting, setDeleting] = useState<WaitingEntry | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  
 
   useEffect(() => {
     const unsubE = onSnapshot(
@@ -113,6 +118,12 @@ const WaitingPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
+      // ✨ ADD THIS LOGIC BLOCK AT THE TOP
+      if (!showCompleted && COMPLETED_STATUSES.includes(e.status)) {
+        return false;
+      }
+
+      // Existing filter logic below...
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
       if (catFilter !== 'all' && !(e.categoryIds || []).includes(catFilter)) return false;
       if (grpFilter !== 'all' && !(e.groupIds || []).includes(grpFilter)) return false;
@@ -125,7 +136,7 @@ const WaitingPage: React.FC = () => {
       }
       return true;
     });
-  }, [entries, statusFilter, catFilter, grpFilter, qText]);
+  }, [entries, statusFilter, catFilter, grpFilter, qText, showCompleted]); 
 
   // ─────────────────── Summary ───────────────────
   const summary = useMemo(() => {
@@ -258,12 +269,17 @@ const WaitingPage: React.FC = () => {
               Export
             </button>
           )}
+
+          {user?.role === 'manager' && (
           <button className="btn" onClick={() => setShowCats(true)}>
             Manage Categories
           </button>
+          )}
+          {user?.role === 'manager' && (
           <button className="btn" onClick={() => setShowGroups(true)}>
             Manage Groups
           </button>
+          )}
         </div>
       </div>
 
@@ -309,6 +325,18 @@ const WaitingPage: React.FC = () => {
               </option>
             ))}
           </select>
+        </div>
+        <div className="flex items-center justify-start md:mt-6">
+          <input
+            id="show-completed"
+            type="checkbox"
+            checked={showCompleted}
+            onChange={(e) => setShowCompleted(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <label htmlFor="show-completed" className="ml-2 block text-sm text-gray-900">
+            Show completed
+          </label>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Category</label>

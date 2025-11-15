@@ -1,25 +1,36 @@
+// src/types/customer.ts
 
 import { addYears, addDays } from 'date-fns';
 
 export type Gender = 'male' | 'female' | 'other';
+export type CustomerType = 'customer' | 'claim' | 'company';
 
 export interface Customer {
   id: string;
+  type: CustomerType;
   name: string;
   mobile: string;
   email: string;
   address: string;
-  gender: Gender;
-  dateOfBirth: Date;
-  nationalInsuranceNumber: string;
-  driverLicenseNumber: string;
-  licenseValidFrom: Date;
-  licenseExpiry: Date;
-  isExpired: Date;
-  badgeNumber: string;
-  billExpiry: Date;
-  age: number;
+
+  // Optional fields not applicable to 'company' type
+  gender?: Gender;
+  dateOfBirth?: Date;
+  nationalInsuranceNumber?: string;
+  driverLicenseNumber?: string;
+  licenseValidFrom?: Date;
+  licenseExpiry?: Date;
+  badgeNumber?: string;
+  billExpiry?: Date;
+  age?: number;
   signature?: string;
+
+  // Document URLs
+  licenseFrontUrl?: string;
+  licenseBackUrl?: string;
+  billDocumentUrl?: string;
+  documentUrl?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }

@@ -4,6 +4,7 @@ import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
 import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../context/AuthContext';
 interface RentalOverviewProps {
   rentals: Rental[];
 }
@@ -14,7 +15,7 @@ const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
   const completedCount = rentals.filter(rental => rental.status === 'completed').length;
   const activeCount = rentals.filter(rental => rental.status === 'active').length;
   const scheduledCount = rentals.filter(rental => rental.status === 'scheduled').length;
-
+  const { user } = useAuth();
   const totalIncome = rentals.reduce((sum, rental) => sum + rental.cost, 0);
 
   // Don't even render the cards if the user lacks the 'cards' permission
@@ -47,7 +48,7 @@ const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
             <p className="mt-1 text-sm text-gray-600">Scheduled</p>
           </div>
         </div>
-
+        {user?.role === 'manager' && (
         <div className="pt-4 border-t">
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Total Rental Income</span>
@@ -56,6 +57,7 @@ const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
             </span>
           </div>
         </div>
+        )}
       </div>
     </Card>
   );

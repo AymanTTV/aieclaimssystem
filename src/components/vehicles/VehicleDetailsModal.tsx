@@ -1,6 +1,6 @@
 // src/components/vehicles/VehicleDetailsModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Vehicle } from '../../types';
+import { Vehicle, MileageUpdate } from '../../types';
 import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
@@ -9,19 +9,18 @@ import {
   User,
   MapPin,
   Calendar,
-  Clock,
-  AlertTriangle,
-  FileText,
-  DollarSign,
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import Modal from '../ui/Modal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface VehicleDetailsModalProps {
   vehicle: Vehicle;
   onClose: () => void;
 }
+
+
 
 // Normalize Firestore Timestamp | string | Date -> Date | undefined
 const toDate = (v: any): Date | undefined => {
@@ -47,7 +46,10 @@ const toDate = (v: any): Date | undefined => {
 const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onClose }) => {
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
+  // NEW: State to hold mileage history fetched from the separate collection
+  const [mileageHistory, setMileageHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const { can } = usePermissions();
   useEffect(() => {
     const fetchCreatedByName = async () => {
       if (vehicle.createdBy) {
@@ -59,13 +61,38 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             setCreatedByName('Unknown User');
           }
         } catch (error) {
-        console.error('Error fetching user:', error);
+          console.error('Error fetching user:', error);
           setCreatedByName('Unknown User');
         }
       }
     };
     fetchCreatedByName();
   }, [vehicle.createdBy]);
+
+  // NEW: useEffect to fetch mileage history from the 'mileageHistory' collection
+  useEffect(() => {
+    if (!vehicle.id) return;
+
+    setIsLoadingHistory(true);
+    const q = query(
+      collection(db, 'mileageHistory'),
+      where('vehicleId', '==', vehicle.id),
+      orderBy('date', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const historyData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMileageHistory(historyData);
+      setIsLoadingHistory(false);
+    }, (error) => {
+      console.error("Error fetching mileage history:", error);
+      setIsLoadingHistory(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [vehicle.id]);
+
 
   const DetailItem = ({
     label,
@@ -88,13 +115,13 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
   // Normalized dates
   const motTestDate = useMemo(() => toDate(vehicle.motTestDate), [vehicle.motTestDate]);
-  const motExpirySaved = useMemo(() => toDate((vehicle as any).motExpiry), [vehicle as any]);
+  const motExpirySaved = useMemo(() => toDate((vehicle as any).motExpiry), [(vehicle as any).motExpiry]);
   const nslExpiry = useMemo(() => toDate(vehicle.nslExpiry), [vehicle.nslExpiry]);
   const roadTaxExpiry = useMemo(() => toDate(vehicle.roadTaxExpiry), [vehicle.roadTaxExpiry]);
   const insuranceExpiry = useMemo(() => toDate(vehicle.insuranceExpiry), [vehicle.insuranceExpiry]);
   const lastMaintenance = useMemo(() => toDate(vehicle.lastMaintenance), [vehicle.lastMaintenance]);
   const nextMaintenance = useMemo(() => toDate(vehicle.nextMaintenance), [vehicle.nextMaintenance]);
-  const purchasedDate = useMemo(() => toDate((vehicle as any).purchasedDate), [vehicle as any]);
+  const purchasedDate = useMemo(() => toDate((vehicle as any).purchasedDate), [(vehicle as any).purchasedDate]);
   const createdAt = useMemo(() => toDate(vehicle.createdAt), [vehicle.createdAt]);
   const soldDate = useMemo(() => toDate(vehicle.soldDate), [vehicle.soldDate]);
 
@@ -107,13 +134,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
     return e;
   }, [motExpirySaved, motTestDate]);
 
-  // Sort mileage updates newest first
-  const mileageHistory = useMemo(() => {
-    const arr = Array.isArray(vehicle.mileageUpdates) ? vehicle.mileageUpdates : [];
-    return [...arr].sort(
-      (a: any, b: any) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0)
-    );
-  }, [vehicle.mileageUpdates]);
+  // REMOVED: Old useMemo that was looking at vehicle.mileageUpdates, as it was always empty.
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Vehicle Details" size="lg">
@@ -162,8 +183,6 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                 : (((vehicle.mileage as any) || 0) + 25000).toLocaleString?.()
             }
           />
-
-          {/* NEW: Purchased Date */}
           <DetailItem label="Purchased Date" value={purchasedDate} isDate />
         </div>
 
@@ -173,7 +192,6 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             label="MOT Test Date"
             value={motTestDate}
             isDate
-            // isExpiring={isExpiringOrExpired(motTestDate)}
           />
           <DetailItem
             label="MOT Expiry"
@@ -212,14 +230,16 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           />
         </div>
 
-        {/* NEW: Mileage Updates History */}
+        {/* UPDATED: Mileage Updates History Section */}
         <div className="border-b border-gray-200 pb-4">
           <div className="flex items-center space-x-2 mb-2">
             <Calendar className="w-5 h-5 text-gray-400" />
             <h3 className="text-lg font-medium text-gray-900">Mileage Updates History</h3>
           </div>
 
-          {mileageHistory.length === 0 ? (
+          {isLoadingHistory ? (
+            <p className="text-sm text-gray-500">Loading history...</p>
+          ) : mileageHistory.length === 0 ? (
             <p className="text-sm text-gray-500">No mileage updates recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -233,10 +253,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                       Mileage
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Updated By
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                      Source
+                      Recorded By
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                       Note
@@ -244,17 +261,16 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {mileageHistory.map((m: any, idx: number) => (
-                    <tr key={idx}>
+                  {mileageHistory.map((m: any) => (
+                    <tr key={m.id}>
                       <td className="px-3 py-2 text-sm text-gray-700">
                         {formatDate(toDate(m.date))}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-700">
-                        {typeof m.mileage === 'number' ? m.mileage.toLocaleString() : m.mileage}
+                        {typeof m.newMileage === 'number' ? m.newMileage.toLocaleString() : m.newMileage}
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-700">{m.updatedBy || '-'}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700">{m.source || '-'}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700">{m.note || '-'}</td>
+                      <td className="px-3 py-2 text-sm text-gray-700">{m.recordedBy || '-'}</td>
+                      <td className="px-3 py-2 text-sm text-gray-700">{m.notes || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -264,6 +280,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
         </div>
 
         {/* Owner Information */}
+        {can('vehicles', 'owner') && (
         <div className="border-b border-gray-200 pb-4">
           <div className="flex items-start space-x-3">
             <User className="w-5 h-5 text-gray-400 mt-1" />
@@ -281,103 +298,31 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             </div>
           </div>
         </div>
+        )}
 
         {/* Document Images */}
         {vehicle.documents && (
           <div className="border-b border-gray-200 pb-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Document Images</h3>
-
-            {/* NSL Images */}
-            {vehicle.documents.nslImage && vehicle.documents.nslImage.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-md font-medium text-gray-700 mb-2">NSL Documents</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {vehicle.documents.nslImage.map((image, index) => (
-                    <img
-                      key={`nsl-${index}`}
-                      src={image}
-                      alt={`NSL document ${index + 1}`}
-                      className="h-24 w-full object-cover rounded-md cursor-pointer"
-                      onClick={() => setSelectedImage(image)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* MOT Images */}
-            {vehicle.documents.motImage && vehicle.documents.motImage.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-md font-medium text-gray-700 mb-2">MOT Documents</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {vehicle.documents.motImage.map((image, index) => (
-                    <img
-                      key={`mot-${index}`}
-                      src={image}
-                      alt={`MOT document ${index + 1}`}
-                      className="h-24 w-full object-cover rounded-md cursor-pointer"
-                      onClick={() => setSelectedImage(image)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* V5 Images */}
-            {vehicle.documents.v5Image && vehicle.documents.v5Image.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-md font-medium text-gray-700 mb-2">V5 Documents</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {vehicle.documents.v5Image.map((image, index) => (
-                    <img
-                      key={`v5-${index}`}
-                      src={image}
-                      alt={`V5 document ${index + 1}`}
-                      className="h-24 w-full object-cover rounded-md cursor-pointer"
-                      onClick={() => setSelectedImage(image)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Meter Certificate Images */}
-            {vehicle.documents.MeterCertificateImage &&
-              vehicle.documents.MeterCertificateImage.length > 0 && (
-                <div className="mb-4">
+            {Object.entries(vehicle.documents).map(([key, images]) =>
+              images && images.length > 0 ? (
+                <div className="mb-4" key={key}>
                   <h4 className="text-md font-medium text-gray-700 mb-2">
-                    Meter Certificate Documents
+                    {key.replace(/([A-Z])/g, ' $1').replace('Image', 'Documents').trim()}
                   </h4>
                   <div className="grid grid-cols-3 gap-2">
-                    {vehicle.documents.MeterCertificateImage.map((image, index) => (
+                    {images.map((image, index) => (
                       <img
-                        key={`meter-certificate-${index}`}
+                        key={`${key}-${index}`}
                         src={image}
-                        alt={`Meter Certificate document ${index + 1}`}
+                        alt={`${key} document ${index + 1}`}
                         className="h-24 w-full object-cover rounded-md cursor-pointer"
                         onClick={() => setSelectedImage(image)}
                       />
                     ))}
                   </div>
                 </div>
-              )}
-
-            {/* Insurance Images */}
-            {vehicle.documents.insuranceImage && vehicle.documents.insuranceImage.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-md font-medium text-gray-700 mb-2">Insurance Documents</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {vehicle.documents.insuranceImage.map((image, index) => (
-                    <img
-                      key={`insurance-${index}`}
-                      src={image}
-                      alt={`Insurance document ${index + 1}`}
-                      className="h-24 w-full object-cover rounded-md cursor-pointer"
-                      onClick={() => setSelectedImage(image)}
-                    />
-                  ))}
-                </div>
-              </div>
+              ) : null
             )}
           </div>
         )}

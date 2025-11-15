@@ -89,6 +89,14 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
     }
   };
 
+  // --- ADDED: Helper to get Registration Number ---
+  const getReg = (vehicleName?: string): string => {
+    if (!vehicleName) return 'N/A';
+    const regMatch = vehicleName.match(/\(([^)]+)\)$/);
+    return regMatch ? regMatch[1] : 'N/A'; // If name exists but no reg, show N/A
+  };
+  // --- END ADDED ---
+
   // Derive header details from companyDetails, splitting the address
   const headerDetails = {
     logoUrl: companyDetails?.logoUrl || '',
@@ -155,7 +163,7 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
               </>
             )}
 
-            {/* ── Invoice Records Table ── */}
+            {/* --- UPDATED: Invoice Records Table --- */}
             <View style={[globalStyles.section, globalStyles.keepTogether]}>
               <Text style={globalStyles.sectionTitle}>Invoice Records</Text>
               <View style={globalStyles.tableContainer}>
@@ -163,10 +171,11 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
                 <View style={globalStyles.tableHeader}>
                   <Text style={[globalStyles.tableCell, { width: '15%' }]}>Date</Text>
                   <Text style={[globalStyles.tableCell, { width: '20%' }]}>Customer</Text>
-                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Status</Text>
+                  <Text style={[globalStyles.tableCell, { width: '15%' }]}>Vehicle Reg</Text>
+                  <Text style={[globalStyles.tableCell, { width: '10%' }]}>Status</Text>
                   <Text style={[globalStyles.tableCell, { width: '15%' }]}>Total</Text>
                   <Text style={[globalStyles.tableCell, { width: '15%' }]}>Paid</Text>
-                  <Text style={[globalStyles.tableCell, { width: '20%' }]}>Due Date</Text>
+                  <Text style={[globalStyles.tableCell, { width: '10%' }]}>Due Date</Text>
                 </View>
 
                 {/* Table Rows */}
@@ -179,6 +188,9 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
                       {record.customerName}
                     </Text>
                     <Text style={[globalStyles.tableCell, { width: '15%' }]}>
+                      {getReg(record.vehicleName)}
+                    </Text>
+                    <Text style={[globalStyles.tableCell, { width: '10%' }]}>
                       {record.paymentStatus}
                     </Text>
                     <Text style={[globalStyles.tableCell, { width: '15%' }]}>
@@ -187,7 +199,7 @@ const InvoiceBulkDocument: React.FC<InvoiceBulkDocumentProps> = ({
                     <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                       £{record.paidAmount.toFixed(2)}
                     </Text>
-                    <Text style={[globalStyles.tableCell, { width: '20%' }]}>
+                    <Text style={[globalStyles.tableCell, { width: '10%' }]}>
                       {formatDateValue(record.dueDate)}
                     </Text>
                   </View>

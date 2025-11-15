@@ -1,55 +1,54 @@
 // src/hooks/useInvoiceFilters.ts
+import { useState, useMemo, useEffect } from 'react';
+import { Invoice, Vehicle } from '../types/finance'; // Import Vehicle
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
-import { useState, useMemo } from 'react';
-import { Invoice, Customer } from '../types';
-import { isWithinInterval } from 'date-fns';
-
-export const useInvoiceFilters = (invoices: Invoice[], customers?: Customer[]) => {
+export const useInvoiceFilters = (
+  invoices: Invoice[] = [],
+  vehicles: Vehicle[] = [] // <-- ADDED
+) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [dateRange, setDateRange] = useState<{
-    start: Date | null;
-    end: Date | null;
-  }>({ start: null, end: null });
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(invoice => {
+    return invoices.filter((inv) => {
       const searchLower = searchQuery.toLowerCase();
+      const vehicle = vehicles.find(v => v.id === inv.vehicleId); // <-- ADDED
+      
+      const matchesSearch =
+        !searchQuery ||
+        inv.customerName?.toLowerCase().includes(searchLower) ||
+        inv.category.toLowerCase().includes(searchLower) ||
+        inv.customCategory?.toLowerCase().includes(searchLower) ||
+        inv.invoiceNumber?.toLowerCase().includes(searchLower) ||
+        inv.vehicleName?.toLowerCase().includes(searchLower) || // <-- ADDED
+        vehicle?.registrationNumber?.toLowerCase().includes(searchLower); // <-- ADDED
 
-      const matchesCustomerName =
-        (invoice.customerName?.toLowerCase().includes(searchLower)) ||
-        (invoice.customerId && customers?.find(c => c.id === invoice.customerId)?.name?.toLowerCase().includes(searchLower));
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'overdue' &&
+          (inv.paymentStatus === 'pending' || inv.paymentStatus === 'partially_paid' || inv.paymentStatus === 'unpaid') &&
+          new Date() > new Date(inv.dueDate)) ||
+        inv.paymentStatus === statusFilter;
 
-      const matchesInvoiceNumber = `AIE-INV-${invoice.id.slice(-8)}`.toLowerCase().includes(searchLower);
+      const matchesCategory = categoryFilter === 'all' || inv.category === categoryFilter;
 
-      const matchesCategorySearch =
-        invoice.category.toLowerCase().includes(searchLower) ||
-        invoice.customCategory?.toLowerCase().includes(searchLower);
-
-      // *** CORRECTED LOGIC HERE ***
-      const matchesSearch = searchQuery === "" || (matchesCustomerName || matchesInvoiceNumber || matchesCategorySearch);
-
-      const matchesStatus = statusFilter === 'all' || invoice.paymentStatus === statusFilter;
-      const matchesCategoryFilter = categoryFilter === 'all' || invoice.category === categoryFilter;
-
-      let matchesDateRange = true;
+      let matchesDate = true;
       if (dateRange.start && dateRange.end) {
-        matchesDateRange = isWithinInterval(invoice.date, { start: dateRange.start, end: dateRange.end });
+        matchesDate = isWithinInterval(new Date(inv.date), {
+          start: startOfDay(dateRange.start),
+          end: endOfDay(dateRange.end),
+        });
       }
 
-      return matchesSearch && matchesStatus && matchesCategoryFilter && matchesDateRange;
-    }).sort((a, b) => {
-      // Sort by overdue status first, then by due date
-      const aOverdue = a.paymentStatus !== 'paid' && new Date() > a.dueDate;
-      const bOverdue = b.paymentStatus !== 'paid' && new Date() > b.dueDate;
-      
-      if (aOverdue && !bOverdue) return -1;
-      if (!aOverdue && bOverdue) return 1;
-      
-      return a.dueDate.getTime() - b.dueDate.getTime();
+      return matchesSearch && matchesStatus && matchesCategory && matchesDate;
     });
-  }, [invoices, customers, searchQuery, statusFilter, categoryFilter, dateRange]);
+  }, [invoices, searchQuery, statusFilter, categoryFilter, dateRange, vehicles]); // <-- ADDED vehicles
 
   return {
     searchQuery,
@@ -60,6 +59,6 @@ export const useInvoiceFilters = (invoices: Invoice[], customers?: Customer[]) =
     setCategoryFilter,
     dateRange,
     setDateRange,
-    filteredInvoices
+    filteredInvoices,
   };
 };

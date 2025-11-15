@@ -12,13 +12,14 @@ import ComplianceReport from '../components/dashboard/ComplianceReport';
 import FinancialSummary from '../components/dashboard/FinancialSummary';
 import VehicleReport from '../components/dashboard/VehicleReport';
 import UrgentAlerts from '../components/dashboard/UrgentAlerts';
-
+import { useAuth } from '../context/AuthContext';
 const Dashboard = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs: maintenanceLogs, loading: logsLoading } = useMaintenanceLogs();
   const { rentals, loading: rentalsLoading } = useRentals();
   const { transactions, loading: transactionsLoading } = useFinances();
   const { can } = usePermissions();
+  const { user } = useAuth();
 
   // Prepare fleet status distribution data
   const fleetStatusData = {
@@ -58,8 +59,10 @@ const Dashboard = () => {
         <VehicleMetrics />
       )}
 
+      
+
       {/* Financial Summary */}
-      {can('finance', 'view') && (
+      {user?.role === 'manager' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Financial Overview</h2>
           <FinancialSummary transactions={transactions} period="month" />

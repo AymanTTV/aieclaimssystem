@@ -30,6 +30,9 @@ export interface Vehicle {
   weeklyRentalPrice?: number | null;
   claimRentalPrice?: number | null;
   owner?: VehicleOwner;
+  // Added from your other files
+  motExpiry?: Date;
+  roadTaxExpiry?: Date;
 }
 
 export interface Customer {
@@ -40,6 +43,8 @@ export interface Customer {
   address?: string;
   driverLicenseNumber?: string;
   licenseExpiry?: Date; // Firestore Timestamp is compatible at runtime
+  dateOfBirth?: Date; // Added from agreement
+  badgeNumber?: string; // Added from agreement
   signature?: string;
 }
 
@@ -79,7 +84,8 @@ export interface ReturnCondition extends VehicleCondition {
 }
 
 export interface RentalDocuments {
-  agreement?: string;
+  // agreement?: string; // DEPRECATED
+  agreements?: Record<string, string>; // NEW: Stores { "agreement_1678886400000": "url" }
   invoice?: string;
   permit?: string;
 
@@ -92,7 +98,7 @@ export interface RentalDocuments {
   satisfactionNotice?: string;
 
   // Allow future keys while maintaining index signature
-  [key: string]: string | undefined;
+  [key: string]: string | undefined | Record<string, string>; // Allow agreements map
 }
 
 export interface ExtensionEntry {
@@ -106,10 +112,44 @@ export interface ExtensionEntry {
 export interface Claim {
   id: string;
   clientRef?: string | null;
-  clientInfo?: { name: string };
-  clientVehicle?: { registration?: string };
+  clientInfo?: { 
+    name: string;
+    phone?: string;
+    email?: string;
+    dateOfBirth?: Date;
+    driverLicenseNumber?: string;
+    licenseExpiry?: Date;
+    address?: string;
+    signature?: string;
+  };
+  clientVehicle?: { 
+    registration?: string;
+    documents?: any;
+    motExpiry?: Date;
+    roadTaxExpiry?: Date;
+  };
   [key: string]: any;
 }
+
+// NEW: For "H Substitute" reason
+export interface HireSubstitutionDetails {
+  make: string;
+  model: string;
+  registration: string;
+  loaner: string; // provider name
+  givenAt: Date | string; // String for form, Date for Firestore
+  expectedReturnAt: Date | string; // String for form, Date for Firestore
+  notes: string;
+}
+
+// --- From RentalAgreement.tsx ---
+export const DEFAULT_RENTAL_PRICES = {
+  daily: 100,
+  weekly: 500,
+  claim: 150,
+};
+// --- End RentalAgreement.tsx ---
+
 
 export interface Rental {
   id: string;
@@ -181,6 +221,9 @@ export interface Rental {
 
   // Docs
   documents?: RentalDocuments;
+  
+  // --- MODIFIED: Now an array ---
+  hireSubstitutionDetails?: HireSubstitutionDetails[] | null;
 
   // Misc
   ongoingCharges?: number;

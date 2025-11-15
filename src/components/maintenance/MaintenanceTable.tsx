@@ -4,7 +4,7 @@ import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { Eye, Edit as EditIcon, Trash2, FileText, DollarSign } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
-import { format, differenceInCalendarDays } from 'date-fns'; // 👈 ADD differenceInCalendarDays
+import { format, differenceInCalendarDays } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
@@ -34,17 +34,36 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
   const columns = [
     {
-      header: 'Vehicle',
-      cell: ({ row }) => {
-        const vehicle = vehicles[row.original.vehicleId];
-        return vehicle ? (
+    header: 'Vehicle',
+    cell: ({ row }) => {
+      const log = row.original;
+
+      // Case 1: Manually entered vehicle details exist on the log
+      if (log.vehicleDetails) {
+        return (
           <div>
-            <div className="font-medium">{vehicle.make} {vehicle.model}</div>
-            <div className="text-sm text-gray-500">{vehicle.registrationNumber}</div>
+            <div className="font-medium">
+              {log.vehicleDetails.make} {log.vehicleDetails.model}
+            </div>
+            <div className="text-sm text-gray-500">
+              {log.vehicleDetails.registrationNumber}
+            </div>
           </div>
-        ) : 'N/A';
-      },
+        );
+      }
+
+      // Case 2 (Fallback): Vehicle from the main list
+      const vehicle = vehicles[log.vehicleId!]; // Use ! because we know vehicleId exists here
+      return vehicle ? (
+        <div>
+          <div className="font-medium">{vehicle.make} {vehicle.model}</div>
+          <div className="text-sm text-gray-500">{vehicle.registrationNumber}</div>
+        </div>
+      ) : (
+        'N/A'
+      );
     },
+  },
     {
       header: 'Type',
       cell: ({ row }) => (
@@ -63,20 +82,25 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const isScheduled = row.original.status === 'scheduled';
         const days = differenceInCalendarDays(d, new Date());
 
+        // Always RED for scheduled items that are overdue/today/<= 7 days away
         let badge: React.ReactNode = null;
         if (isScheduled) {
-          if (days < 0 || days === 0) {
-            // Overdue or Today => red
+          if (days < 0) {
             badge = (
               <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
-                {days < 0 ? `${Math.abs(days)}d overdue` : 'Today'}
+                {`${Math.abs(days)}d overdue`}
               </span>
             );
-          } else if (days === 1 || days === 2) {
-            // Near ones => yellow
+          } else if (days === 0) {
             badge = (
-              <span className="ml-2 inline-flex items-center rounded-full bg-yellow-100 text-yellow-800 px-2 py-0.5 text-xs">
-                {days === 1 ? 'Tomorrow' : 'In 2 days'}
+              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
+                Today
+              </span>
+            );
+          } else if (days <= 7) {
+            badge = (
+              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
+                {days === 1 ? 'Tomorrow' : `In ${days} days`}
               </span>
             );
           }
@@ -230,11 +254,26 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
   ];
 
+  // Optional whole-row highlighting (depends on DataTable support)
+  const rowClassName = (row: { original: MaintenanceLog }) => {
+    const { date, status } = row.original;
+    if (status === 'scheduled') {
+      const days = differenceInCalendarDays(date, new Date());
+      if (days <= 7) {
+        // includes overdue (negative), today (0), and next 7 days (1..7)
+        return 'bg-red-50 hover:bg-red-100';
+      }
+    }
+    return '';
+  };
+
   return (
     <DataTable
       data={logs}
       columns={columns}
       onRowClick={log => can('maintenance', 'view') && onView(log)}
+      // If your DataTable supports custom row classes, this will highlight the whole row:
+      rowClassName={rowClassName as any}
     />
   );
 };

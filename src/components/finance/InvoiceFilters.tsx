@@ -11,8 +11,6 @@ interface InvoiceFiltersProps {
   onCategoryFilterChange: (category: string) => void;
   dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
-
-  /** ── NEW: pass in dynamic category list ── **/
   categories: string[];
 }
 
@@ -57,6 +55,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
             <option value="paid">Paid</option>
             <option value="partially_paid">Partially Paid</option>
             <option value="pending">Pending</option>
+            <option value="unpaid">Unpaid</option>
             <option value="overdue">Overdue</option>
           </select>
         </div>

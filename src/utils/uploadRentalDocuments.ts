@@ -2,11 +2,12 @@
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore'; // Import getDoc
 import { db } from '../lib/firebase';
 
 type Blobs = {
-  agreement: Blob;
+  // agreement: Blob; // REMOVED
+  agreements: Record<string, Blob>; // CHANGED: Now a map of blobs
   invoice: Blob;
   permit?: Blob;
   claimDocuments?: Record<string, Blob>;
@@ -16,13 +17,14 @@ export const uploadRentalDocuments = async (
   rentalId: string,
   documents: Blobs
 ): Promise<{
-  agreementUrl: string;
+  // agreementUrl: string; // REMOVED
+  agreementUrls: Record<string, string>; // CHANGED: Returns a map of new URLs
   invoiceUrl: string;
   permitUrl?: string;
   claimDocumentUrls?: Record<string, string>;
 }> => {
   try {
-    console.log("Starting document upload for rental:", rentalId);
+    console.log('Starting document upload for rental:', rentalId);
 
     // helper to upload one blob and return its URL
     async function upload(name: string, blob: Blob) {
@@ -34,18 +36,30 @@ export const uploadRentalDocuments = async (
       return getDownloadURL(snap.ref);
     }
 
+    // --- Upload agreements ---
+    const agreementUrls: Record<string, string> = {};
+    if (documents.agreements) {
+      for (const [key, blob] of Object.entries(documents.agreements)) {
+        if (blob) {
+          const url = await upload(key, blob); // key is 'agreement_12345'
+          agreementUrls[key] = url;
+          console.log(`Agreement "${key}" uploaded:`, url);
+        }
+      }
+    }
+
     // Upload agreement & invoice
-    const agreementUrl = await upload('agreement', documents.agreement);
-    console.log("Agreement uploaded:", agreementUrl);
+    // const agreementUrl = await upload('agreement', documents.agreement); // REMOVED
+    // console.log("Agreement uploaded:", agreementUrl); // REMOVED
 
     const invoiceUrl = await upload('invoice', documents.invoice);
-    console.log("Invoice uploaded:", invoiceUrl);
+    console.log('Invoice uploaded:', invoiceUrl);
 
     // Optionally upload permit
     let permitUrl: string | undefined;
     if (documents.permit) {
       permitUrl = await upload('permit', documents.permit);
-      console.log("Permit uploaded:", permitUrl);
+      console.log('Permit uploaded:', permitUrl);
     }
 
     // Upload any claim documents
@@ -53,29 +67,50 @@ export const uploadRentalDocuments = async (
     if (documents.claimDocuments) {
       claimDocumentUrls = {};
       for (const [key, blob] of Object.entries(documents.claimDocuments)) {
-        const url = await upload(key, blob);
-        claimDocumentUrls[key] = url;
-        console.log(`Claim document "${key}" uploaded:`, url);
+        if (blob) {
+          const url = await upload(key, blob);
+          claimDocumentUrls[key] = url;
+          console.log(`Claim document "${key}" uploaded:`, url);
+        }
       }
     }
 
-    // Build the Firestore `documents` map
-    const docsMap: Record<string, string> = {
-      agreement: agreementUrl,
-      invoice: invoiceUrl,
+    // --- NEW: Merge with existing documents ---
+    
+    // 1. Get existing document data
+    const rentalRef = doc(db, 'rentals', rentalId);
+    const rentalSnap = await getDoc(rentalRef);
+    const existingDocs = rentalSnap.data()?.documents || {};
+
+    // 2. Build the map of NEWLY uploaded URLs
+    const newDocsMap: Record<string, any> = {
+      // Only include fields if they were actually uploaded
+      ...(Object.keys(agreementUrls).length > 0 && { agreements: agreementUrls }),
+      ...(invoiceUrl && { invoice: invoiceUrl }),
       ...(permitUrl && { permit: permitUrl }),
-      ...(claimDocumentUrls || {})
+      ...(claimDocumentUrls && { ...claimDocumentUrls }) // Spread claim docs
     };
 
-    // Write back to Firestore
-    await updateDoc(doc(db, 'rentals', rentalId), {
-      documents: docsMap,
+    // 3. Merge new with old
+    const mergedDocsMap = {
+      ...existingDocs, // Start with old
+      ...newDocsMap, // Overwrite invoice, permit, claims
+      agreements: { // Deep merge agreements
+        ...(existingDocs.agreements || {}),
+        ...(newDocsMap.agreements || {})
+      }
+    };
+
+    // 4. Write back the MERGED map
+    await updateDoc(rentalRef, {
+      documents: mergedDocsMap,
       updatedAt: new Date()
     });
-    console.log("Rental document URLs updated in Firestore");
+    console.log('Rental document URLs *merged* in Firestore');
 
     return {
-      agreementUrl,
+      // agreementUrl, // REMOVED
+      agreementUrls, // CHANGED
       invoiceUrl,
       ...(permitUrl && { permitUrl }),
       ...(claimDocumentUrls && { claimDocumentUrls })

@@ -1,7 +1,7 @@
 // src/components/finance/InvoiceForm.tsx
 
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -29,6 +29,28 @@ interface ProductSuggestion {
   lastPrice: number; // from product.retailPrice (fallback to legacy price)
 }
 
+const getNextInvoiceNumber = async (): Promise<string> => {
+  const invoicesRef = collection(db, 'invoices');
+  const q = query(invoicesRef, orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+
+  let maxNum = 0;
+  querySnapshot.forEach((doc) => {
+    const data = doc.data() as Invoice;
+    if (data.invoiceNumber && data.invoiceNumber.startsWith('INV')) {
+      const numPart = data.invoiceNumber.substring(3);
+      const num = parseInt(numPart, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+
+  const nextNum = maxNum + 1;
+  return `INV${String(nextNum).padStart(4, '0')}`;
+};
+
+
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
@@ -45,6 +67,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     category: '',
     customCategory: '',
     vehicleId: '',
+    vehicleName: '', // <-- ADDED
     useCustomCustomer: false,
     customerId: '',
     customerName: '',
@@ -54,6 +77,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
+    isLoan: false, // <-- NEW: Loan checkbox state
     uploadedDocument: null as File | null
   });
 
@@ -181,7 +205,7 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
   };
   const handleSuggestionSelect = (prod: ProductSuggestion, idx: number) => {
     handleLineChange(idx, 'description', prod.name);
-    handleLineChange(idx, 'unitPrice', prod.price.toString());
+    handleLineChange(idx, 'unitPrice', prod.lastPrice.toString());
     const arr = [...showSuggestions]; arr[idx] = false; setShowSuggestions(arr);
   };
   const handleFieldFocus = (idx: number) => {
@@ -198,105 +222,154 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
     if (!user) return;
     setLoading(true);
 
+    // NEW: Customer validation
+    if (
+      (!formData.useCustomCustomer && !formData.customerId) ||
+      (formData.useCustomCustomer && !formData.customerName.trim())
+    ) {
+      toast.error('A customer is required. Please select one or enter their details manually.');
+      setLoading(false);
+      return;
+    }
+
     if (!lineItems.length || lineItems.every(li => li.quantity * li.unitPrice - (li.discount/100)*li.quantity*li.unitPrice === 0)) {
-      toast.error('Add at least one line item with nonzero net.');
+      toast.error('Add at least one line item with a non-zero value.');
       setLoading(false);
       return;
     }
     if (paidNow > total) {
-      toast.error('Cannot pay more than total.');
+      toast.error('Amount paid cannot exceed the total amount.');
       setLoading(false);
       return;
     }
-
-    const remaining = total - paidNow;
-    const status = paidNow === 0 ? 'unpaid' : paidNow >= total ? 'paid' : 'partially_paid';
-    const payments: Invoice['payments'] = paidNow > 0 ? [{
-      id: Date.now().toString(),
-      date: new Date(),
-      amount: paidNow,
-      method: formData.paymentMethod,
-      reference: formData.paymentReference,
-      notes: formData.paymentNotes,
-      createdAt: new Date(),
-      createdBy: user.id,
-      document: null
-    }] : [];
-
-    const payload: Partial<Invoice> = {
-      date: new Date(formData.date),
-      dueDate: new Date(formData.dueDate),
-      lineItems: lineItems.map(li => ({ ...li })),
-      subTotal,
-      vatAmount,
-      total,
-      amount: total,
-      paidAmount: paidNow,
-      remainingAmount: remaining,
-      paymentStatus: status,
-      category: formData.category,
-      customCategory: formData.category === 'Other' ? formData.customCategory : null,
-      vehicleId: formData.vehicleId || null,
-      useCustomCustomer: formData.useCustomCustomer,
-      customerId: formData.useCustomCustomer ? null : formData.customerId,
-      customerName: formData.useCustomCustomer
-        ? formData.customerName
-        : customers.find(c => c.id === formData.customerId)?.name || '',
-      customerPhone: formData.useCustomCustomer
-        ? formData.customerPhone
-        : customers.find(c => c.id === formData.customerId)?.mobile || '',
-      payments,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
+    
     try {
-      const docRef = await addDoc(collection(db, 'invoices'), payload as any);
+        const newInvoiceNumber = await getNextInvoiceNumber();
 
-      // generate & upload PDF
-      const blob = await generateInvoicePDF(
-        { id: docRef.id, ...payload } as any,
-        vehicles.find(v => v.id === formData.vehicleId)!
-      );
-      const stRef = ref(storage, `invoices/${docRef.id}/invoice.pdf`);
-      const snap = await uploadBytes(stRef, blob);
-      const url = await getDownloadURL(snap.ref);
-      await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: url });
+        const remaining = parseFloat((total - paidNow).toFixed(2));
+        let status = remaining <= 0.001 ? (paidNow > 0 ? 'paid' : 'unpaid') : 'partially_paid';
+        if (Math.abs(total - paidNow) < 0.01 && total > 0) status = 'paid';
 
-      // finance transaction
-      if (paidNow > 0) {
+        const payments: Invoice['payments'] = paidNow > 0 ? [{
+          id: Date.now().toString(),
+          date: new Date(),
+          amount: paidNow,
+          method: formData.paymentMethod,
+          reference: formData.paymentReference,
+          notes: formData.paymentNotes,
+          createdAt: new Date(),
+          createdBy: user.id,
+          document: null
+        }] : [];
+    
+        const payload: Omit<Invoice, 'id'> = {
+          invoiceNumber: newInvoiceNumber,
+          date: new Date(formData.date),
+          dueDate: new Date(formData.dueDate),
+          lineItems: lineItems.map(li => ({ ...li })),
+          subTotal,
+          vatAmount,
+          total,
+          amount: total,
+          paidAmount: paidNow,
+          remainingAmount: remaining,
+          paymentStatus: status,
+          category: formData.category,
+          customCategory: formData.category === 'Other' ? formData.customCategory : null,
+          vehicleId: formData.vehicleId || null,
+          vehicleName: formData.vehicleName || null, // <-- ADDED
+          customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
+          customerName: formData.useCustomCustomer
+            ? formData.customerName
+            : customers.find(c => c.id === formData.customerId)?.name || '',
+          customerPhone: formData.useCustomCustomer
+            ? formData.customerPhone
+            : customers.find(c => c.id === formData.customerId)?.mobile || '',
+          payments,
+          isLoan: formData.isLoan,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        const docRef = await addDoc(collection(db, 'invoices'), payload);
+
+        // generate & upload PDF
+        const blob = await generateInvoicePDF(
+            { id: docRef.id, ...payload } as any,
+            vehicles.find(v => v.id === formData.vehicleId)!
+        );
+        const stRef = ref(storage, `invoices/${docRef.id}/invoice.pdf`);
+        const snap = await uploadBytes(stRef, blob);
+        const url = await getDownloadURL(snap.ref);
+        await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: url });
+
         const vehicle = vehicles.find(v => v.id === formData.vehicleId);
         const vehicleOwner = vehicle?.owner
-          ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false }
-          : undefined;
-        await createFinanceTransaction({
-          type: 'income',
-          category: formData.category,
-          amount: paidNow,
-          description: formData.paymentNotes,
-          referenceId: docRef.id,
-          vehicleId: formData.vehicleId || undefined,
-          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
-          vehicleOwner,
-          customerId: payload.customerId || undefined,
-          customerName: payload.customerName || undefined,
-          paymentMethod: formData.paymentMethod,
-          paymentReference: formData.paymentReference,
-          paymentStatus: status
-        });
-      }
+            ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false }
+            : undefined;
 
-      toast.success('Invoice created successfully');
-      onClose();
-    } catch {
-      toast.error('Failed to create invoice');
+        if (formData.isLoan) {
+            await createFinanceTransaction({
+            type: 'expense',
+            category: 'Loan Provided',
+            amount: total,
+            description: `Loan for Invoice ${newInvoiceNumber}`,
+            referenceId: docRef.id,
+            vehicleId: payload.vehicleId,
+            vehicleName: payload.vehicleName || undefined, // <-- UPDATED
+            vehicleOwner,
+            customerId: payload.customerId,
+            customerName: payload.customerName || undefined,
+            paymentMethod: 'internal',
+            paymentStatus: 'paid'
+            });
+        }
+
+        if (paidNow > 0) {
+            await createFinanceTransaction({
+            type: 'income',
+            category: formData.category,
+            amount: paidNow,
+            description: formData.paymentNotes,
+            referenceId: docRef.id,
+            vehicleId: payload.vehicleId,
+            vehicleName: payload.vehicleName || undefined, // <-- UPDATED
+            vehicleOwner,
+            customerId: payload.customerId,
+            customerName: payload.customerName || undefined,
+            paymentMethod: formData.paymentMethod,
+            paymentReference: formData.paymentReference,
+            paymentStatus: status
+            });
+        }
+
+        toast.success(`Invoice ${newInvoiceNumber} created successfully`);
+        onClose();
+    } catch (err) {
+        console.error(err);
+        toast.error('Failed to create invoice');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* -- NEW: Loan Checkbox -- */}
+      <div className="flex justify-end">
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.isLoan}
+            onChange={e =>
+              setFormData(fd => ({ ...fd, isLoan: e.target.checked }))
+            }
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+          />
+          <span className="text-sm font-medium text-gray-700">Is it a Loan?</span>
+        </label>
+      </div>
+
       {/* Customer */}
       <div className="space-y-4">
         <label className="flex items-center space-x-2">
@@ -404,7 +477,14 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
           subLabel: v.registrationNumber
         }))}
         value={formData.vehicleId}
-        onChange={id => setFormData(fd => ({ ...fd, vehicleId: id }))}
+        onChange={id => { // <-- UPDATED
+          const v = vehicles.find(vh => vh.id === id);
+          setFormData(fd => ({
+            ...fd,
+            vehicleId: id || '',
+            vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+          }));
+        }}
         placeholder="Search…"
       />
 
@@ -423,50 +503,43 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
               className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
               <div className="sm:col-span-2 relative">
-  <FormField
-    label="Description"
-    value={item.description}
-    onChange={e => handleDescriptionChange(idx, e.target.value)}
-    onFocus={() => handleFieldFocus(idx)}
-    onBlur={() => {
-      // close after a short delay so clicks register
-      setTimeout(() => handleFieldBlur(idx), 120);
-      // optional: if exact match, auto-fill price
-      tryAutofillUnitPrice(item.description, idx);
-    }}
-    required
-  />
-
-  {showSuggestions[idx] && item.description && (
-    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
-      {filterMatches(item.description).map(s => (
-        <li
-          key={s.id}
-          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-          onMouseDown={() => {
-            handleSuggestionSelect(
-              { name: s.name, price: s.lastPrice }, // uses your existing handler
-              idx
-            );
-          }}
-          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
-        >
-          <span className="truncate">
-            {s.name}
-            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-          </span>
-          <span className="text-gray-500 text-sm ml-3">
-            {formatCurrency(s.lastPrice)}
-          </span>
-        </li>
-      ))}
-      {filterMatches(item.description).length === 0 && (
-        <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
-      )}
-    </ul>
-  )}
-</div>
-
+                <FormField
+                  label="Description"
+                  value={item.description}
+                  onChange={e => handleDescriptionChange(idx, e.target.value)}
+                  onFocus={() => handleFieldFocus(idx)}
+                  onBlur={() => {
+                    setTimeout(() => handleFieldBlur(idx), 120);
+                    tryAutofillUnitPrice(item.description, idx);
+                  }}
+                  required
+                />
+                {showSuggestions[idx] && item.description && (
+                  <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+                    {filterMatches(item.description).map(s => (
+                      <li
+                        key={s.id}
+                        className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                        onMouseDown={() => {
+                          handleSuggestionSelect(s, idx);
+                        }}
+                        title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+                      >
+                        <span className="truncate">
+                          {s.name}
+                          {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+                        </span>
+                        <span className="text-gray-500 text-sm ml-3">
+                          {formatCurrency(s.lastPrice)}
+                        </span>
+                      </li>
+                    ))}
+                    {filterMatches(item.description).length === 0 && (
+                      <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
+                    )}
+                  </ul>
+                )}
+              </div>
               <FormField
                 type="number"
                 label="Quantity"
@@ -552,7 +625,7 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
         value={formData.amountToPay}
         onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))}
         min="0"
-        max={total}
+        max={total || 0}
         step="0.01"
         disabled={!formData.isPaid}
       />

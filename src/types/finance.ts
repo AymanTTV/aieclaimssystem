@@ -1,3 +1,5 @@
+// src/types/finance.ts
+
 export interface InvoicePayment {
   id: string;
   date: Date;
@@ -12,13 +14,14 @@ export interface InvoicePayment {
 
 export interface Transaction {
   id: string;
-  type: 'income' | 'expense' | 'transfer';
+  type: 'income' | 'expense'; // Removed 'transfer'
   customerId?: string;
+  customerName?: string;
   category: string;
-  amount: number;
+  amount: number; // Represents the TOTAL amount of the transaction
   description: string;
   date: Date;
-  referenceId?: string;
+  referenceId?: string; // Primarily for linking to external docs like Invoices now
   vehicleId?: string;
   vehicleName?: string;
   groupId?: string;
@@ -35,20 +38,27 @@ export interface Transaction {
   status?: 'pending' | 'completed' | 'cancelled';
   createdAt: Date;
   createdBy: string;
-  accountFrom?: string;
-  accountTo?: string;
+  updatedAt?: Date;
+  updatedBy?: string;
+  // --- Use arrays for accounts ---
+  accountsFrom?: string[]; // Array of account IDs debited (for Expense)
+  accountsTo?: string[];   // Array of account IDs credited (for Income)
+  // ---
+  documentUrl?: string;
+  receiptUrl?: string;
 }
 
 export interface Account {
   id: string;
   name: string;
-  balance: number;
+  balance: number; // Stored balance (not used for real-time calculation)
   createdAt: Date;
   updatedAt: Date;
 }
 
+// TransferHistory might be less relevant now
 export interface TransferHistory {
-  id: string;
+  id:string;
   fromAccount: string;
   toAccount: string;
   amount: number;
@@ -59,43 +69,37 @@ export interface TransferHistory {
 }
 
 export interface InvoiceLineItem {
-  id: string;                 // unique identifier
+  id: string;
   description: string;
   quantity: number;
   unitPrice: number;
-  discount: number;           // <— new field (%)
-  includeVAT: boolean;        // if true, 20% VAT applies on (net after discount)
+  discount: number;
+  includeVAT: boolean;
 }
 
 export interface Invoice {
   id: string;
+  invoiceNumber?: string;
   date: Date;
   dueDate: Date;
-
-  // multiple line items
+  isLoan?: boolean;
   lineItems: InvoiceLineItem[];
-
-  // Computed fields (stored in Firestore):
-  subTotal: number;         // sum of (quantity × unitPrice – discountAmt)
-  vatAmount: number;        // total VAT across all lineItems (20% on net after discount)
-  total: number;            // subTotal + vatAmount
-
-  // old `amount` field is now alias for `total`
-  amount: number;           // <— kept for legacy
+  subTotal: number;
+  vatAmount: number;
+  total: number;
+  amount: number; // Legacy alias for total
   paidAmount: number;
   remainingAmount: number;
-
   category: string;
   customCategory?: string;
   vehicleId?: string;
+  vehicleName?: string; // <-- ADDED
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
-
-  paymentStatus: 'pending' | 'partially_paid' | 'paid' | 'overdue';
+  paymentStatus: 'pending' | 'partially_paid' | 'paid' | 'overdue' | 'unpaid';
   documentUrl?: string;
   payments: InvoicePayment[];
-
   createdAt: Date;
   updatedAt: Date;
 }

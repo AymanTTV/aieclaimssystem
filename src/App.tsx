@@ -30,12 +30,12 @@ function AppInner() {
       <AppRoutes />
 
       {/* Only show To-Do on non-member routes */}
-      {!isMemberRoute && (
+      {/* {!isMemberRoute && (
         <>
           <ToDoIcon onClick={() => setTodoOpen(true)} />
           <ToDoModal open={todoOpen} onClose={() => setTodoOpen(false)} />
         </>
-      )}
+      )} */}
     </>
   );
 }

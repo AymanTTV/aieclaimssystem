@@ -12,7 +12,7 @@ export const ROUTES = {
   LOGIN: '/login',
   ADMIN_SETUP: '/admin-setup',
   PRODUCTS: '/products',
-
+  TODO: '/todo',
   // Protected routes
   DASHBOARD: '/',
   PROFILE: '/profile',
@@ -54,7 +54,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.PERSONAL_INJURY]: { module: 'claims', action: 'view' },
   [ROUTES.PRODUCTS]: { module: 'products', action: 'view' },
   [ROUTES.WHATSAPP]: { module: 'whatsapp', action: 'view' },
-
+  
   // ✅ Fixed: use dedicated modules, not umbrella ones
   [ROUTES.VD_FINANCE]: { module: 'vdFinance', action: 'view' },
   [ROUTES.VD_INVOICE]: { module: 'vdInvoice', action: 'view' },
@@ -72,6 +72,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.SKYLINE_PETTY_CASH]: { module: 'aiePettyCash', action: 'view' }, // was driverPay
   [ROUTES.DRIVER_PAY]: { module: 'driverPay', action: 'view' },
   [ROUTES.WAITING]: { module: 'waiting', action: 'view' },
+  [ROUTES.TODO]: { module: 'todo', action: 'view' },
   [ROUTES.VAT_RECORD]: { module: 'vatRecord', action: 'view' },
   [ROUTES.BULK_EMAIL]: { module: 'bulkEmail', action: 'view' },
   [ROUTES.COMPANY_MANAGERS]: { module: 'users', action: 'view' },
@@ -97,7 +98,7 @@ export const ROUTE_METADATA = {
   [ROUTES.WAITING]: { title: 'Waiting List', icon: 'Clock' },
   [ROUTES.FINANCE]:  { title: 'Finance', icon: 'DollarSign' },
   [ROUTES.INVOICES]: { title: 'Invoices', icon: 'FileText' },
-  [ROUTES.PETTY_CASH]: { title: 'Petty Cash', icon: 'DollarSign' },
+  [ROUTES.PETTY_CASH]: { title: 'AIE Petty Cash', icon: 'DollarSign' },
   [ROUTES.VAT_RECORD]: { title: 'VAT Records', icon: 'Calculator' },
   
 
@@ -109,9 +110,9 @@ export const ROUTE_METADATA = {
   [ROUTES.INCOME_EXPENSE]: { title: 'AIE Income & Expense', icon: 'DollarSign' },
   [ROUTES.SKYLINE_INCOME_EXPENSE]: { title: 'Income & Expense', icon: 'Building' },
 
-  [ROUTES.SKYLINE_PETTY_CASH]: { title: 'Petty Cash', icon: 'Building' },
+  [ROUTES.SKYLINE_PETTY_CASH]: { title: 'Skyline Petty Cash', icon: 'Building' },
   [ROUTES.DRIVER_PAY]: { title: 'Driver Pay', icon: 'Truck' },
-
+  [ROUTES.TODO]: { title: 'To-Do' },
   [ROUTES.BULK_EMAIL]: { title: 'Bulk Email', icon: 'Mail' },
   [ROUTES.COMPANY_MANAGERS]: { title: 'Company Managers', icon: 'Users' },
   [ROUTES.SHARE]: { title: 'Share', icon: 'Share2' },

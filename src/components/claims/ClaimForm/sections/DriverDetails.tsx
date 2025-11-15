@@ -5,24 +5,64 @@ import FormField from '../../../ui/FormField';
 import SignaturePad from '../../../ui/SignaturePad';
 import SearchableSelect from '../../../ui/SearchableSelect';
 import { useCustomers } from '../../../../hooks/useCustomers';
+import { collection, getDocs, or, query, where } from 'firebase/firestore';
+import { db } from '../../../../lib/firebase';
 
 const DriverDetails = () => {
-  const { register, formState: { errors }, setValue, watch } = useFormContext();
+  const { register, formState: { errors }, setValue, watch, setError, clearErrors } = useFormContext();
   const { customers } = useCustomers();
   const [manualEntry, setManualEntry] = React.useState(false);
   const signature = watch('clientInfo.signature');
-  const claimReason: string[] = watch('claimReason');
+  const claimReason: string[] = watch('claimReason') || [];
 
   const handleCustomerSelect = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     if (customer) {
+      clearErrors(['clientInfo.email', 'clientInfo.phone']); // Clear errors on select
       setValue('clientInfo.name', customer.name);
       setValue('clientInfo.phone', customer.mobile);
       setValue('clientInfo.email', customer.email);
-      setValue('clientInfo.dateOfBirth', customer.dateOfBirth.toISOString().slice(0,10));
+      setValue('clientInfo.dateOfBirth', customer.dateOfBirth ? customer.dateOfBirth.toISOString().slice(0,10) : '');
       setValue('clientInfo.nationalInsuranceNumber', customer.nationalInsuranceNumber);
       setValue('clientInfo.address', customer.address);
       setValue('clientInfo.signature', customer.signature || '');
+    }
+  };
+
+  // NEW: Function to check for existing customers on blur
+  const checkForExistingCustomer = async () => {
+    // Only run if manual entry is active and we are not selecting a customer
+    if (!manualEntry) return;
+
+    const email = watch('clientInfo.email')?.trim();
+    const phone = watch('clientInfo.phone')?.trim();
+
+    // Don't check if both fields are empty
+    if (!email && !phone) {
+        clearErrors(['clientInfo.email', 'clientInfo.phone']);
+        return;
+    }
+
+    const customersRef = collection(db, 'customers');
+    const queryConstraints = [];
+    if (email) queryConstraints.push(where('email', '==', email));
+    if (phone) queryConstraints.push(where('mobile', '==', phone));
+    
+    // If there's nothing to query, exit
+    if (queryConstraints.length === 0) return;
+
+    const q = query(customersRef, or(...queryConstraints));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const existingCustomer = querySnapshot.docs[0].data();
+      const message = `Customer "${existingCustomer.name}" already exists. Please select them from the search list above.`;
+      // Set an error on both fields to alert the user
+      setError('clientInfo.email', { type: 'manual_conflict', message });
+      setError('clientInfo.phone', { type: 'manual_conflict', message });
+    } else {
+      // If no customer is found, clear any previous errors
+      clearErrors(['clientInfo.email', 'clientInfo.phone']);
     }
   };
 
@@ -36,7 +76,13 @@ const DriverDetails = () => {
           <input
             type="checkbox"
             checked={manualEntry}
-            onChange={e => setManualEntry(e.target.checked)}
+            onChange={e => {
+                setManualEntry(e.target.checked);
+                // Clear errors when toggling manual entry
+                if (!e.target.checked) {
+                    clearErrors(['clientInfo.email', 'clientInfo.phone']);
+                }
+            }}
             className="rounded border-gray-300 text-primary focus:ring-primary"
           />
           <span className="text-sm text-gray-700">Enter Details Manually</span>
@@ -82,6 +128,7 @@ const DriverDetails = () => {
           {...register('clientInfo.phone')}
           required
           disabled={!manualEntry}
+          onBlur={checkForExistingCustomer} // Add onBlur check
         />
 
         {/* Email */}
@@ -92,6 +139,7 @@ const DriverDetails = () => {
           {...register('clientInfo.email')}
           required
           disabled={!manualEntry}
+          onBlur={checkForExistingCustomer} // Add onBlur check
         />
 
         {/* DOB */}
@@ -113,34 +161,34 @@ const DriverDetails = () => {
           disabled={!manualEntry}
         />
 
-{showPIFields && (
-  <>
-    <FormField
-      label="Occupation"
-      error={errors.clientInfo?.occupation?.message as string}
-      {...register('clientInfo.occupation')}
-      required
-    />
+        {showPIFields && (
+          <>
+            <FormField
+              label="Occupation"
+              error={errors.clientInfo?.occupation?.message as string}
+              {...register('clientInfo.occupation')}
+              required
+            />
 
-    <div className="col-span-2">
-      <label className="block text-sm font-medium text-gray-700">
-        Injury Details
-      </label>
-      <textarea
-        {...register('clientInfo.injuryDetails')}
-        rows={5}
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
-                   focus:border-primary focus:ring-primary sm:text-sm"
-        placeholder="Describe the injury in detail…"
-      />
-      {errors.clientInfo?.injuryDetails && (
-        <p className="mt-1 text-sm text-red-600">
-          {errors.clientInfo.injuryDetails.message as string}
-        </p>
-      )}
-    </div>
-  </>
-)}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Injury Details
+              </label>
+              <textarea
+                {...register('clientInfo.injuryDetails')}
+                rows={5}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
+                           focus:border-primary focus:ring-primary sm:text-sm"
+                placeholder="Describe the injury in detail…"
+              />
+              {errors.clientInfo?.injuryDetails && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.clientInfo.injuryDetails.message as string}
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Signature */}

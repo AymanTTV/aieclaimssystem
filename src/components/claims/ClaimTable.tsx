@@ -85,13 +85,10 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       header: 'Incident Details',
       cell: ({ row }) => (
         <div>
-          <div className="text-sm">
+          <div className="text-sm font-medium"> {/* Made date bold */}
             {format(new Date(row.original.incidentDetails.date), 'dd/MM/yyyy')}
           </div>
           <div className="text-sm text-gray-500">{row.original.incidentDetails.time}</div>
-          <div className="text-sm text-gray-500 truncate max-w-xs">
-            {row.original.incidentDetails.location}
-          </div>
         </div>
       ),
     },

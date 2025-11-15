@@ -117,6 +117,7 @@ const VDFinanceFilters: React.FC<VDFinanceFiltersProps> = ({
             className="form-select mt-1 w-full"
           >
             <option value="all">All</option>
+            <option value="none">None Group Assigned</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>

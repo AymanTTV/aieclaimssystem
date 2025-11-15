@@ -1,3 +1,4 @@
+// src/components/rentals/RentalTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
@@ -43,6 +44,7 @@ interface RentalTableProps {
   onRecordPayment: (rental: Rental) => void;
   onApplyDiscount: (rental: Rental) => void;
   onDeletePayment: (rental: Rental, paymentId: string) => void;
+  onGenerate90DayAgreement?: (rental: Rental) => void;
 }
 
 // statuses that DO NOT accrue ongoing charges
@@ -61,9 +63,67 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onRecordPayment,
   onApplyDiscount,
   onDeletePayment,
+  onGenerate90DayAgreement,
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
+
+  const calculateOwingAmount = (rental: Rental): number => {
+    const v = vehicles.find(v => v.id === rental.vehicleId);
+    if (!v) return 0;
+
+    const start = ensureValidDate(rental.startDate);
+    const end = ensureValidDate(rental.endDate);
+
+    const baseCost = calculateRentalCost(
+      start,
+      end,
+      rental.type,
+      v,
+      rental.reason,
+      rental.negotiatedRate ?? undefined,
+      0, 0, 0, 0, 0,
+      false, false, false, false, false
+    );
+
+    const displayStorageCost = rental.storageCost || 0;
+    const displayRecoveryCost = (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1);
+    const displayDeliveryCharge = rental.deliveryCharge || 0;
+    const displayCollectionFee = rental.collectionCharge || 0;
+    const insuranceDays = (() => {
+      try {
+        if (start && end && !isAfter(start, end)) return (differenceInDays(end, start) + 1);
+      } catch {}
+      return 0;
+    })();
+    const displayInsuranceCost =
+      insuranceDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1);
+
+    const subtotalBeforeOverallVAT =
+      baseCost +
+      displayStorageCost +
+      displayRecoveryCost +
+      displayDeliveryCharge +
+      displayCollectionFee +
+      displayInsuranceCost;
+
+    const vatAmount = rental.includeVAT ? subtotalBeforeOverallVAT * 0.2 : 0;
+    const subtotalWithOverallVAT = subtotalBeforeOverallVAT + vatAmount;
+
+    const discountedRentalTotal = subtotalWithOverallVAT - (rental.discountAmount ?? 0);
+
+    const now = new Date();
+    const ongoingCharges =
+      rental.status === 'active' && isAfter(now, end) ? calculateOverdueCost(rental, now, v) : 0;
+
+    const returnCharges = rental.returnCondition?.totalCharges ?? 0;
+
+    const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
+    const paid = rental.paidAmount || 0;
+    const remaining = totalAmountDue - paid;
+
+    return remaining > 0 ? remaining : 0;
+  };
 
   const sortedRentals = [...rentals].sort((a, b) => {
     const priority = (r: Rental) => {
@@ -76,9 +136,16 @@ const RentalTable: React.FC<RentalTableProps> = ({
       if (r.status === 'scheduled') return 3;
       return 4;
     };
-    const pa = priority(a), pb = priority(b);
-    if (pa === pb) return isBefore(a.endDate, b.endDate) ? -1 : 1;
-    return pa - pb;
+    const pa = priority(a);
+    const pb = priority(b);
+
+    if (pa !== pb) return pa - pb;
+
+    const owingA = calculateOwingAmount(a);
+    const owingB = calculateOwingAmount(b);
+    if (Math.abs(owingA - owingB) > 0.001) return owingB - owingA;
+
+    return isBefore(a.endDate, b.endDate) ? -1 : 1;
   });
 
   const columns = [
@@ -123,12 +190,10 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const end = ensureValidDate(r.endDate);
         const unit = r.type === 'weekly' ? 'week' : 'day';
 
-        // Base units for the booked period
         const totalHours = differenceInHours(end, start);
         const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
         const baseUnits = r.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
 
-        // Ongoing units — only if overdue AND not inactive
         const now = new Date();
         const showOngoingUnits = isAfter(now, end) && !INACTIVE_STATUSES.has(r.status);
         const ongoingUnits = showOngoingUnits ? getOverdueUnits(r, now) : 0;
@@ -157,154 +222,130 @@ const RentalTable: React.FC<RentalTableProps> = ({
       ),
     },
     {
-  header: 'Cost Summary',
-  cell: ({ row }) => {
-    const r = row.original as Rental;
-    const v = vehicles.find(v => v.id === r.vehicleId);
-    if (!v) return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
+      header: 'Cost Summary',
+      cell: ({ row }) => {
+        const r = row.original as Rental;
+        const v = vehicles.find(v => v.id === r.vehicleId);
+        if (!v) return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
 
-    const start = ensureValidDate(r.startDate);
-    const end = ensureValidDate(r.endDate);
-    const unit = r.type === 'weekly' ? 'week' : 'day';
+        const start = ensureValidDate(r.startDate);
+        const end = ensureValidDate(r.endDate);
+        const unit = r.type === 'weekly' ? 'week' : 'day';
 
-    // ----- Display rate (just for showing the unit rate) -----
-    const vehicleRate =
-      r.type === 'daily' ? (v.dailyRentalPrice ?? 0)
-      : r.type === 'weekly' ? (v.weeklyRentalPrice ?? 0)
-      : (v.claimRentalPrice ?? 0); // claim treated per-day
-    const fallback = RENTAL_RATES[r.type] ?? 0;
-    const effectiveRate = (r.negotiatedRate ?? vehicleRate ?? fallback) || 0;
-    const isNegotiated = r.negotiatedRate != null;
+        const vehicleRate =
+          r.type === 'daily' ? (v.dailyRentalPrice ?? 0)
+          : r.type === 'weekly' ? (v.weeklyRentalPrice ?? 0)
+          : (v.claimRentalPrice ?? 0);
+        const fallback = RENTAL_RATES[r.type] ?? 0;
+        const effectiveRate = (r.negotiatedRate ?? vehicleRate ?? fallback) || 0;
+        const isNegotiated = r.negotiatedRate != null;
 
-    // ----- Base Rental Cost (booked period only; NO extras; NO overall VAT) -----
-    const baseCost = calculateRentalCost(
-      start,
-      end,
-      r.type,
-      v,
-      r.reason,
-      r.negotiatedRate ?? undefined,
-      0, 0, 0, 0, 0,
-      false, false, false, false, false
-    );
+        const baseCost = calculateRentalCost(
+          start,
+          end,
+          r.type,
+          v,
+          r.reason,
+          r.negotiatedRate ?? undefined,
+          0, 0, 0, 0, 0,
+          false, false, false, false, false
+        );
 
-    // Base units for display
-    const totalHours = differenceInHours(end, start);
-    const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
-    const baseUnits = r.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
+        const totalHours = differenceInHours(end, start);
+        const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
+        const baseUnits = r.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
 
-    // ----- Claim / extras (match Details modal logic) -----
-    // storageCost is already stored with its own VAT toggle applied at save-time
-    const displayStorageCost = r.storageCost || 0;
+        const displayStorageCost = r.storageCost || 0;
+        const displayRecoveryCost = (r.recoveryCost || 0) * (r.includeRecoveryCostVAT ? 1.2 : 1);
+        const displayDeliveryCharge = r.deliveryCharge || 0;
+        const displayCollectionFee = r.collectionCharge || 0;
 
-    // recoveryCost stored as base; apply its VAT toggle here
-    const displayRecoveryCost = (r.recoveryCost || 0) * (r.includeRecoveryCostVAT ? 1.2 : 1);
+        const insuranceDays = (() => {
+          try {
+            if (start && end && !isAfter(start, end)) return (differenceInDays(end, start) + 1);
+          } catch {}
+          return 0;
+        })();
+        const displayInsuranceCost =
+          insuranceDays * (r.insurancePerDay || 0) * (r.insurancePerDayIncludeVAT ? 1.2 : 1);
 
-    // delivery/collection stored already VAT-inclusive if those flags were ticked at save-time
-    const displayDeliveryCharge = r.deliveryCharge || 0;
-    const displayCollectionFee = r.collectionCharge || 0;
+        const subtotalBeforeOverallVAT =
+          baseCost +
+          displayStorageCost +
+          displayRecoveryCost +
+          displayDeliveryCharge +
+          displayCollectionFee +
+          displayInsuranceCost;
 
-    // insurance-per-day * days; apply its VAT toggle here
-    const insuranceDays = (() => {
-      try {
-        if (start && end && !isAfter(start, end)) return (differenceInDays(end, start) + 1);
-      } catch {}
-      return 0;
-    })();
-    const displayInsuranceCost =
-      insuranceDays * (r.insurancePerDay || 0) * (r.insurancePerDayIncludeVAT ? 1.2 : 1);
+        const vatAmount = r.includeVAT ? subtotalBeforeOverallVAT * 0.2 : 0;
+        const subtotalWithOverallVAT = subtotalBeforeOverallVAT + vatAmount;
 
-    // Subtotal BEFORE overall VAT (NO overdue / return)
-    const subtotalBeforeOverallVAT =
-      baseCost +
-      displayStorageCost +
-      displayRecoveryCost +
-      displayDeliveryCharge +
-      displayCollectionFee +
-      displayInsuranceCost;
+        const discountedRentalTotal = subtotalWithOverallVAT - (r.discountAmount ?? 0);
 
-    // Overall VAT on the above block (to mirror Details modal behavior)
-    const vatAmount = r.includeVAT ? subtotalBeforeOverallVAT * 0.2 : 0;
-    const subtotalWithOverallVAT = subtotalBeforeOverallVAT + vatAmount;
+        const now = new Date();
+        const ongoingCharges =
+          r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
 
-    // Discount off the rental subtotal (with overall VAT)
-    const discountedRentalTotal = subtotalWithOverallVAT - (r.discountAmount ?? 0);
+        const returnCharges = r.returnCondition?.totalCharges ?? 0;
 
-    // Ongoing (overdue) – VAT-inclusive from util; only if active & overdue
-    const now = new Date();
-    const ongoingCharges =
-      r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
+        const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
+        const paid = r.paidAmount || 0;
+        const remaining = totalAmountDue - paid;
 
-    // Return charges (fuel/damage/cleaning already stored VAT-inclusive in your flow)
-    const returnCharges = r.returnCondition?.totalCharges ?? 0;
+        return (
+          <div className="space-y-1 text-base">
+            <div className="flex justify-between">
+              <span>Rate:</span>
+              <span className="font-medium">
+                {formatCurrency(effectiveRate)}/{unit}{isNegotiated ? ' (negotiated)' : ''}
+              </span>
+            </div>
 
-    // Final totals
-    const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
-    const paid = r.paidAmount || 0;
-    const remaining = totalAmountDue - paid;
+            <div className="flex justify-between">
+              <span>Period:</span>
+              <span className="font-medium">
+                {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
+              </span>
+            </div>
 
-    return (
-      <div className="space-y-1 text-base">
-        {/* Keep compact: show unit rate & period like before */}
-        <div className="flex justify-between">
-          <span>Rate:</span>
-          <span className="font-medium">
-            {formatCurrency(effectiveRate)}/{unit}{isNegotiated ? ' (negotiated)' : ''}
-          </span>
-        </div>
+            <div className="flex justify-between">
+              <span>Net:</span>
+              <span className="font-medium">{formatCurrency(subtotalBeforeOverallVAT)}</span>
+            </div>
 
-        <div className="flex justify-between">
-          <span>Period:</span>
-          <span className="font-medium">
-            {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
-          </span>
-        </div>
+            {r.includeVAT && (
+              <div className="flex justify-between text-blue-600">
+                <span>VAT:</span>
+                <span className="font-medium">{formatCurrency(vatAmount)}</span>
+              </div>
+            )}
 
-        {/* Net = base + ALL extras (no overdue, no return, no overall VAT) */}
-        <div className="flex justify-between">
-          <span>Net:</span>
-          <span className="font-medium">{formatCurrency(subtotalBeforeOverallVAT)}</span>
-        </div>
+            {returnCharges > 0 && (
+              <div className="flex justify-between">
+                <span>Return Charges:</span>
+                <span className="font-medium">{formatCurrency(returnCharges)}</span>
+              </div>
+            )}
 
-        {/* VAT on Net (rental + extras), to match Details modal */}
-        {r.includeVAT && (
-          <div className="flex justify-between text-blue-600">
-            <span>VAT:</span>
-            <span className="font-medium">{formatCurrency(vatAmount)}</span>
+            <div className="border-t my-1" />
+
+            <div className="flex justify-between font-semibold">
+              <span>Total:</span>
+              <span className="font-medium">{formatCurrency(totalAmountDue)}</span>
+            </div>
+
+            <div className="flex justify-between text-green-700">
+              <span>Amount Paid:</span>
+              <span className="font-bold">{formatCurrency(paid)}</span>
+            </div>
+            <div className="flex justify-between text-red-700">
+              <span>Owing:</span>
+              <span className="font-bold">{formatCurrency(remaining)}</span>
+            </div>
           </div>
-        )}
-
-        {/* Optional extras kept compact: we do NOT list each by name here */}
-
-        {/* Return charges (if any) */}
-        {returnCharges > 0 && (
-          <div className="flex justify-between">
-            <span>Return Charges:</span>
-            <span className="font-medium">{formatCurrency(returnCharges)}</span>
-          </div>
-        )}
-
-        <div className="border-t my-1" />
-
-        {/* Total (discount applied to rental subtotal with VAT; then add overdue + return) */}
-        <div className="flex justify-between font-semibold">
-          <span>Total:</span>
-          <span className="font-medium">{formatCurrency(totalAmountDue)}</span>
-        </div>
-
-        <div className="flex justify-between text-green-700">
-          <span>Amount Paid:</span>
-          <span className="font-bold">{formatCurrency(paid)}</span>
-        </div>
-        <div className="flex justify-between text-red-700">
-          <span>Owing:</span>
-          <span className="font-bold">{formatCurrency(remaining)}</span>
-        </div>
-      </div>
-    );
-  },
-},
-
+        );
+      },
+    },
     {
       header: 'Actions',
       cell: ({ row }) => {
@@ -314,7 +355,6 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const start = ensureValidDate(r.startDate);
         const end = ensureValidDate(r.endDate);
 
-        // Match the same math used in Cost Summary above
         const baseCost = calculateRentalCost(
           start,
           end,
@@ -374,6 +414,13 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 >
                   <RotateCw className="h-4 w-4 text-green-600 hover:text-green-800"/>
                 </button>
+
+                <button
+                  onClick={e => { e.stopPropagation(); onGenerate90DayAgreement?.(r); }}
+                  title="Generate 90-day Agreement"
+                >
+                  <FileText className="h-4 w-4 text-purple-600 hover:text-purple-800"/>
+                </button>
               </>
             )}
 
@@ -383,11 +430,13 @@ const RentalTable: React.FC<RentalTableProps> = ({
               </button>
             )}
 
-            {r.documents?.agreement && (
+            {/* ----------------- ✅ FIX 5: Check the correct 'agreements' map ----------------- */}
+            {r.documents?.agreements && Object.keys(r.documents.agreements).length > 0 && (
               <button onClick={e => { e.stopPropagation(); onDownloadAgreement(r); }} title="Agreement">
                 <FileText className="h-4 w-4 text-blue-600 hover:text-blue-800"/>
               </button>
             )}
+            {/* ----------------- END OF FIX 5 ----------------- */}
 
             {r.documents?.invoice && (
               <button onClick={e => { e.stopPropagation(); onDownloadInvoice(r); }} title="Invoice">

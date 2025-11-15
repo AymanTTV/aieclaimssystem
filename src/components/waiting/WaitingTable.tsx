@@ -2,7 +2,7 @@
 import React from 'react';
 import { Eye, Pencil, Bell, Phone, Trash2 } from 'lucide-react';
 import type { WaitingEntry, WaitingStatus } from '../../types/waiting';
-
+import { usePermissions } from '../../hooks/usePermissions';
 type Props = {
   entries: WaitingEntry[];
   categoriesById: Record<string, string>;
@@ -29,6 +29,7 @@ const WaitingTable: React.FC<Props> = ({
   canUpdate, // ✨ ADDED
   canDelete, // ✨ ADDED
 }) => {
+  const { can } = usePermissions();
   return (
     <div className="bg-white border rounded">
       <table className="w-full text-sm">
@@ -57,6 +58,7 @@ const WaitingTable: React.FC<Props> = ({
                 {e.waitingType === 'open' ? 'Open' : 'Specific Date'}
               </td>
               <td className="px-3 py-2">
+                {can('waiting', 'update') && (
                 <select
                   value={e.status}
                   onChange={(ev) => onStatusChange(e, ev.target.value as WaitingStatus)}
@@ -69,12 +71,14 @@ const WaitingTable: React.FC<Props> = ({
                   <option value="booked">Booked</option>
                   <option value="not_proceeding">Not Proceeding</option>
                 </select>
+                )}
               </td>
               <td className="px-3 py-2">
                 {(e.categoryIds || []).map((id) => categoriesById[id] || id).join(' | ') || '—'}
               </td>
               <td className="px-3 py-2">
                 <div className="flex items-center justify-end gap-1.5">
+                  {can('waiting', 'view') && (
                   <button
                     className="p-1.5 rounded hover:bg-gray-100"
                     title="View"
@@ -82,7 +86,8 @@ const WaitingTable: React.FC<Props> = ({
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  {canUpdate && ( // ✨ MODIFIED
+                  )}
+                  {can('waiting', 'update') && (
                     <button
                       className="p-1.5 rounded hover:bg-gray-100"
                       title="Edit"
@@ -91,6 +96,7 @@ const WaitingTable: React.FC<Props> = ({
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
+                  {can('waiting', 'update') && (
                   <button
                     className="p-1.5 rounded hover:bg-gray-100"
                     title="Reminder"
@@ -98,6 +104,8 @@ const WaitingTable: React.FC<Props> = ({
                   >
                     <Bell className="h-4 w-4" />
                   </button>
+                  )}
+                  {can('waiting', 'view') && (
                   <button
                     className="p-1.5 rounded hover:bg-gray-100"
                     title="Quick Contact"
@@ -105,7 +113,8 @@ const WaitingTable: React.FC<Props> = ({
                   >
                     <Phone className="h-4 w-4" />
                   </button>
-                  {onDelete && canDelete && ( // ✨ MODIFIED
+                  )}
+                  {can('waiting', 'delete') && (
                     <button
                       className="p-1.5 rounded hover:bg-red-50 text-red-600"
                       title="Delete"

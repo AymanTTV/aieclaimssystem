@@ -1,3 +1,4 @@
+// src/components/finance/InvoiceDetails.tsx
 import React from 'react';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
 import { format } from 'date-fns';
@@ -5,10 +6,10 @@ import StatusBadge from '../ui/StatusBadge';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
 import {
   FileText,
-  Download,
   Car,
   User,
   Calendar,
+  Hash
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
@@ -45,23 +46,10 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
   const net = invoice.subTotal;
   const vat = invoice.vatAmount;
-  const total = net + vat - totalDiscount;
+  const total = invoice.total;
   const paid = invoice.paidAmount;
   const owing = invoice.remainingAmount;
   
-  // Helper: compute each line’s net, vat, and total
-  const lineTotals = (item: Invoice['lineItems'][0]) => {
-    const gross = item.quantity * item.unitPrice;
-    const discountAmt = (item.discount / 100) * gross;
-    const netAfterDiscount = gross - discountAmt;
-    const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
-    return {
-      netAfterDiscount,
-      vatAmt,
-      totalLine: netAfterDiscount + vatAmt
-    };
-  };
-
   return (
     <div className="space-y-6">
       {/* ── Status & Download ── */}
@@ -78,8 +66,15 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         )}
       </div>
 
-      {/* ── Invoice Dates ── */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* ── Invoice Dates & Number ── */}
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Invoice Number</h3>
+          <p className="mt-1 flex items-center font-semibold text-gray-800">
+            <Hash className="h-4 w-4 text-gray-400 mr-2" />
+            {invoice.invoiceNumber || 'N/A'}
+          </p>
+        </div>
         <div>
           <h3 className="text-sm font-medium text-gray-500">Invoice Date</h3>
           <p className="mt-1 flex items-center">
@@ -122,19 +117,27 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         )}
       </div>
 
-      {/* ── Vehicle Info ── */}
-      {vehicle && (
+      {/* --- ⬇️ UPDATED VEHICLE INFO ⬇️ --- */}
+      {(vehicle || invoice.vehicleName) && (
         <div>
           <h3 className="text-sm font-medium text-gray-500">Related Vehicle</h3>
           <div className="mt-1 flex items-center">
             <Car className="h-4 w-4 text-gray-400 mr-2" />
-            <div>
-              <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-              <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
-            </div>
+            {vehicle ? (
+              <div>
+                <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="font-medium">{invoice.vehicleName}</p>
+                <p className="text-sm text-gray-500">Vehicle details (ID: {invoice.vehicleId})</p>
+              </div>
+            )}
           </div>
         </div>
       )}
+      {/* --- ⬆️ END UPDATED VEHICLE INFO ⬆️ --- */}
 
       {/* Cost Breakdown */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -150,7 +153,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           <span>Discount:</span>
           <span className="text-red-600">–{formatCurrency(totalDiscount)}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
           <span>Total:</span>
           <span>{formatCurrency(total)}</span>
         </div>
@@ -158,7 +161,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           <span>Paid:</span>
           <span className="text-green-600">{formatCurrency(paid)}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-sm font-semibold">
           <span>Owing:</span>
           <span className="text-amber-600">{formatCurrency(owing)}</span>
         </div>

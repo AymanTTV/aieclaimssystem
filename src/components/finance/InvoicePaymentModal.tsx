@@ -65,8 +65,8 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
       };
 
       const newPaidAmount = invoice.paidAmount + paymentAmount;
-      const newRemainingAmount = invoice.amount - newPaidAmount;
-      const newPaymentStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
+const newRemainingAmount = parseFloat((invoice.amount - newPaidAmount).toFixed(2));
+const newPaymentStatus = newRemainingAmount <= 0 ? 'paid' : 'partially_paid';
 
       // Update invoice
       await updateDoc(doc(db, 'invoices', invoice.id), {
@@ -92,7 +92,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         description: formData.notes,
         referenceId: invoice.id,
         vehicleId: invoice.vehicleId,
-        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined,
+        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
         vehicleOwner,          // ← new
         customerId: invoice.customerId,
         customerName: paymentCustomer?.name,

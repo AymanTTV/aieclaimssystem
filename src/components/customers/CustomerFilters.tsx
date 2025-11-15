@@ -1,6 +1,7 @@
+// src/components/customers/CustomerFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
-import { Gender } from '../../types/customer';
+import { Gender, CustomerType } from '../../types/customer';
 
 interface CustomerFiltersProps {
   searchQuery: string;
@@ -13,6 +14,8 @@ interface CustomerFiltersProps {
   onGenderFilter: (gender: Gender | 'all') => void;
   ageRange: { min: number; max: number } | null;
   onAgeRangeFilter: (range: { min: number; max: number } | null) => void;
+  selectedType: CustomerType | 'all';
+  onTypeFilter: (type: CustomerType | 'all') => void;
 }
 
 const CustomerFilters: React.FC<CustomerFiltersProps> = ({
@@ -26,6 +29,8 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
   onGenderFilter,
   ageRange,
   onAgeRangeFilter,
+  selectedType,
+  onTypeFilter,
 }) => {
   return (
     <div className="space-y-4">
@@ -37,6 +42,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         <input
           type="text"
           placeholder="Search by name, email, phone, badge number..."
+          value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
         />
@@ -55,7 +61,6 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             />
             <span className="text-sm text-gray-700">Hide Expired Documents</span>
           </label>
-
           <label className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -66,6 +71,18 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             <span className="text-sm text-gray-700">Show Soon Expiring</span>
           </label>
         </div>
+
+        {/* Type Filter */}
+        <select
+          value={selectedType}
+          onChange={(e) => onTypeFilter(e.target.value as CustomerType | 'all')}
+          className="block w-32 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        >
+          <option value="all">All Types</option>
+          <option value="customer">Customer</option>
+          <option value="claim">Claim</option>
+          <option value="company">Company</option>
+        </select>
 
         {/* Gender Filter */}
         <select

@@ -274,7 +274,7 @@ const orderedLogs = React.useMemo(() => {
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6">
 
       {/* ── Summary Cards ── */}
       <MaintenanceSummaryCards logs={filteredLogs} />

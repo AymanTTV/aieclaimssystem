@@ -106,12 +106,12 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
         const rec: VDFinanceRecord = row.original;
         return (
           <div className="flex space-x-2">
-            {can('claims', 'view') && (
+            {can('vdFinance', 'view') && (
               <button onClick={e => { e.stopPropagation(); onView(rec); }} className="text-blue-600 hover:text-blue-800" title="View Details">
                 <Eye className="h-4 w-4" />
               </button>
             )}
-            {can('claims', 'update') && (
+            {can('vdFinance', 'update') && (
               <>
                 <button onClick={e => { e.stopPropagation(); onEdit(rec); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                   <Edit className="h-4 w-4" />
@@ -121,7 +121,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
                 </button>
               </>
             )}
-            {can('claims', 'delete') && (
+            {can('vdFinance', 'delete') && (
               <button onClick={e => { e.stopPropagation(); onDelete(rec); }} className="text-red-600 hover:text-red-800" title="Delete">
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -149,7 +149,7 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     },
   ];
 
-  return <DataTable data={records} columns={columns} onRowClick={rec => can('claims', 'view') && onView(rec)} />;
+  return <DataTable data={records} columns={columns} onRowClick={rec => can('vdFinance', 'view') && onView(rec)} />;
 };
 
 export default VDFinanceTable;

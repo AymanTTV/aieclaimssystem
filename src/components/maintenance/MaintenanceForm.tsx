@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Vehicle, MaintenanceLog, Part } from '../../types';
+import { Vehicle, MaintenanceLog, Part, VehicleOwner } from '../../types';
 import { addYears } from 'date-fns';
 import { formatDateForInput } from '../../utils/dateHelpers';
 import toast from 'react-hot-toast';
 import FileUpload from '../ui/FileUpload';
 import ServiceCenterDropdown from './ServiceCenterDropdown';
 import FormField from '../ui/FormField';
-import { createMaintenanceTransaction } from '../../utils/financeTransactions';
+import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { createMileageHistoryRecord } from '../../utils/mileageUtils';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
@@ -29,7 +29,7 @@ interface PartSuggestion {
   id: string;
   partNumber: string;
   name: string;
-  lastCost: number; // comes from product.retailPrice (fallback to legacy price)
+  lastCost: number;
 }
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
@@ -37,7 +37,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const { can } = usePermissions();
   const [loading, setLoading] = useState(false);
 
-  // --- NEW: manual entry toggle & fields ---
   const [manualEntry, setManualEntry] = useState(false);
   const [manualMake, setManualMake] = useState('');
   const [manualModel, setManualModel] = useState('');
@@ -92,7 +91,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     laborRate: editLog?.laborRate || 75,
     nextServiceMileage: editLog?.nextServiceMileage || 0,
     nextServiceDate:
-      formatDateForInput(editLog?.nextServiceDate) || addYears(new Date(), 1).toISOString().split('T')[0],
+    formatDateForInput(editLog?.nextServiceDate) || addYears(new Date(), 1).toISOString().split('T')[0],
     notes: editLog?.notes || '',
     status: editLog?.status || 'scheduled',
   });
@@ -101,39 +100,21 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const round = (n: number) => Math.round(n * 100) / 100;
   let totalDiscount = 0;
 
-  // Sum up parts (with per-line discount & VAT)
   const partsTotal = round(
     parts.reduce((sum, p) => {
-      // line gross = unit cost × qty
       const lineGross = round(p.cost * p.quantity);
-
-      // discount amount on this line
       const discAmt = round((p.discount / 100) * lineGross);
       totalDiscount = round(totalDiscount + discAmt);
-
-      // net after discount
       const net = round(lineGross - discAmt);
-
-      // VAT on this line if applicable
       const vat = p.includeVAT ? round(net * 0.2) : 0;
-
-      // accumulate
       return round(sum + net + vat);
     }, 0)
   );
 
-  // Labor base cost
   const laborBase = round(formData.laborHours * formData.laborRate);
-
-  // labor + VAT if toggled
-  const laborTotal = includeVATOnLabor
-    ? round(laborBase * 1.2)
-    : laborBase;
-
-  // subtotal before separating out VAT/net
+  const laborTotal = includeVATOnLabor ? round(laborBase * 1.2) : laborBase;
   const subtotal = round(partsTotal + laborTotal);
 
-  // compute total VAT separately for netAmount calculation
   const vatAmount = round(
     parts.reduce((acc, p) => {
       const lineGross = round(p.cost * p.quantity);
@@ -144,7 +125,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     + (includeVATOnLabor ? round(laborBase * 0.2) : 0)
   );
 
-  // net = subtotal minus all VAT
   const netAmount = round(subtotal - vatAmount);
 
   return {
@@ -194,7 +174,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           id: p.id,
           partNumber: p.partNumber ?? '',
           name: p.name ?? '',
-          lastCost: Number(p.retailPrice ?? p.price ?? 0), // ← retailPrice first
+          lastCost: Number(p.retailPrice ?? p.price ?? 0),
         }))
       )
     )
@@ -219,169 +199,189 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) {
-    toast.error('Please log in');
-    return;
-  }
-  if (!manualEntry && !selectedVehicleId) {
-    toast.error('Please select a vehicle');
-    return;
-  }
-  if (
-    manualEntry &&
-    (!manualMake.trim() || !manualModel.trim() || !manualRegNumber.trim())
-  ) {
-    toast.error('Please fill in all vehicle fields');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    // 1) Determine which vehicle to use
-    let vehicleIdToUse: string;
-    let vehicleToUse: Vehicle;
-    if (manualEntry) {
-      const vd = {
-        make: manualMake.trim(),
-        model: manualModel.trim(),
-        registrationNumber: manualRegNumber.trim(),
-        mileage: manualMileage,
+    e.preventDefault();
+    if (!user) {
+      toast.error('Please log in');
+      return;
+    }
+    if (!manualEntry && !selectedVehicleId) {
+      toast.error('Please select a vehicle');
+      return;
+    }
+    if (
+      manualEntry &&
+      (!manualMake.trim() || !manualModel.trim() || !manualRegNumber.trim())
+    ) {
+      toast.error('Please fill in all vehicle fields');
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      // This is the data that doesn't depend on whether the vehicle is manual or existing
+      const commonMaintenanceData = {
+        type: formData.type,
+        description: formData.description,
+        serviceProvider: formData.serviceProvider,
+        location: formData.location,
+        date: new Date(formData.date),
+        currentMileage: formData.currentMileage,
+        nextServiceMileage: formData.nextServiceMileage,
+        nextServiceDate: new Date(formData.nextServiceDate),
+        parts: parts.map(p => ({
+          name: p.name,
+          quantity: p.quantity,
+          cost: p.cost,
+          discount: p.discount,
+          includeVAT: p.includeVAT,
+        })),
+        laborHours: formData.laborHours,
+        laborRate: formData.laborRate,
+        laborCost: laborTotal,
+        cost: totalAmount,
+        netAmount,
+        vatAmount,
+        paidAmount: totalPaidAmount,
+        remainingAmount,
+        paymentStatus,
+        paymentMethod,
+        paymentReference,
+        status: formData.status,
+        notes: formData.notes,
+        totalDiscount,
+        vatDetails: {
+          partsVAT: parts.map(p => ({ partName: p.name, includeVAT: p.includeVAT })),
+          laborVAT: includeVATOnLabor,
+        },
       };
-      const vr = await addDoc(collection(db, 'vehicles'), vd);
-      vehicleIdToUse = vr.id;
-      vehicleToUse = { id: vr.id, ...vd } as Vehicle;
-    } else {
-      const ev = vehicles.find(v => v.id === selectedVehicleId)!;
-      vehicleIdToUse = ev.id;
-      vehicleToUse = ev;
-    }
-
-    // 2) Build the maintenance object to write
-    const maintenanceData = {
-      vehicleId: vehicleIdToUse,
-      type: formData.type,
-      description: formData.description,
-      serviceProvider: formData.serviceProvider,
-      location: formData.location,
-      date: new Date(formData.date),
-      currentMileage: formData.currentMileage,
-      nextServiceMileage: formData.nextServiceMileage,
-      nextServiceDate: new Date(formData.nextServiceDate),
-      parts: parts.map(p => ({
-        name: p.name,
-        quantity: p.quantity,
-        cost: p.cost,
-        discount: p.discount,
-        includeVAT: p.includeVAT,
-      })),
-      laborHours: formData.laborHours,
-      laborRate: formData.laborRate,
-      laborCost: laborTotal,
-      cost: totalAmount,
-      netAmount,     // ← new
-      vatAmount,     // ← new
-      paidAmount: totalPaidAmount,
-      remainingAmount,
-      paymentStatus,
-      paymentMethod,
-      paymentReference,
-      status: formData.status,
-      notes: formData.notes,
-      totalDiscount,
-      vatDetails: {
-        partsVAT: parts.map(p => ({ partName: p.name, includeVAT: p.includeVAT })),
-        laborVAT: includeVATOnLabor,
-      },
-    };
-
-    if (editLog) {
-      // 3A) update existing record
-      await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
-        ...maintenanceData,
-        updatedAt: new Date(),
-        updatedBy: user.id,
-      });
-
-      // 3B) record additional payment if any
-      if (additionalPayment > 0) {
-        await createMaintenanceTransaction(
-          { id: editLog.id, ...maintenanceData },
-          vehicleToUse,
-          additionalPayment,
-          paymentMethod,
-          paymentReference
-        );
+  
+      let maintenanceData;
+      let vehicleToUseForTransaction: { id?: string; make: string; model: string; registrationNumber: string; owner?: VehicleOwner };
+  
+      if (manualEntry) {
+        // For manual entries, DO NOT create a vehicle.
+        // Instead, store the details directly in the log.
+        maintenanceData = {
+          ...commonMaintenanceData,
+          vehicleDetails: {
+            make: manualMake.trim(),
+            model: manualModel.trim(),
+            registrationNumber: manualRegNumber.trim(),
+          },
+        };
+        // Prepare details for the finance transaction
+        vehicleToUseForTransaction = {
+          make: manualMake.trim(),
+          model: manualModel.trim(),
+          registrationNumber: manualRegNumber.trim(),
+        };
+      } else {
+        // For existing vehicles, use the vehicleId as before.
+        const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
+        maintenanceData = {
+          ...commonMaintenanceData,
+          vehicleId: selectedVehicleId,
+        };
+        vehicleToUseForTransaction = existingVehicle;
       }
-
-      // 3C) upload & merge any new attachments
-      if (newAttachments.length) {
-        const uploaded = await uploadMaintenanceAttachments(editLog.id, newAttachments);
-        const merged = [...existingAttachments, ...uploaded];
+  
+      const vehicleOwner = vehicleToUseForTransaction.owner ? { name: vehicleToUseForTransaction.owner.name, isDefault: vehicleToUseForTransaction.owner.isDefault ?? false } : undefined;
+  
+      if (editLog) {
+        // Update logic remains largely the same, but now uses the structured 'maintenanceData'
         await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
-          attachments: merged,
+          ...maintenanceData,
+          updatedAt: new Date(),
+          updatedBy: user.id,
         });
-        setExistingAttachments(merged);
-        setNewAttachments([]);
-      }
-
-      toast.success('Maintenance updated successfully');
-    } else {
-      // 4A) create a brand-new log
-      const dr = await addDoc(collection(db, 'maintenanceLogs'), {
-        ...maintenanceData,
-        createdAt: new Date(),
-        createdBy: user.id,
-        updatedAt: new Date(),
-      });
-
-      // 4B) initial payment record
-      if (totalPaidAmount > 0) {
-        await createMaintenanceTransaction(
-          { id: dr.id, ...maintenanceData },
-          vehicleToUse,
-          totalPaidAmount,
-          paymentMethod,
-          paymentReference
-        );
-      }
-
-      // 4C) upload attachments & persist URLs
-      if (newAttachments.length) {
-        const uploaded = await uploadMaintenanceAttachments(dr.id, newAttachments);
-        await updateDoc(doc(db, 'maintenanceLogs', dr.id), {
-          attachments: uploaded,
+  
+        if (additionalPayment > 0) {
+          await createFinanceTransaction({
+              type: 'expense',
+              category: maintenanceData.type,
+              amount: additionalPayment,
+              description: maintenanceData.notes || maintenanceData.description,
+              customerName: maintenanceData.serviceProvider,
+              referenceId: editLog.id,
+              vehicleId: vehicleToUseForTransaction.id,
+              vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+              vehicleOwner,
+              paymentMethod: paymentMethod,
+              paymentReference: paymentReference || undefined,
+              paymentStatus: maintenanceData.paymentStatus,
+              status: 'completed',
+              date: new Date()
+          });
+        }
+  
+        if (newAttachments.length) {
+          const uploaded = await uploadMaintenanceAttachments(editLog.id, newAttachments);
+          const merged = [...existingAttachments, ...uploaded];
+          await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+            attachments: merged,
+          });
+          setExistingAttachments(merged);
+          setNewAttachments([]);
+        }
+  
+        toast.success('Maintenance updated successfully');
+      } else { // This is for creating a NEW log
+        const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+          ...maintenanceData,
+          createdAt: new Date(),
+          createdBy: user.id,
         });
-        setExistingAttachments(uploaded);
-        setNewAttachments([]);
+  
+        if (totalPaidAmount > 0) {
+          await createFinanceTransaction({
+              type: 'expense',
+              category: maintenanceData.type,
+              amount: totalPaidAmount,
+              description: maintenanceData.notes || maintenanceData.description,
+              customerName: maintenanceData.serviceProvider,
+              referenceId: docRef.id,
+              vehicleId: vehicleToUseForTransaction.id, // Can be undefined for manual
+              vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+              vehicleOwner,
+              paymentMethod: paymentMethod,
+              paymentReference: paymentReference || undefined,
+              paymentStatus: maintenanceData.paymentStatus,
+              status: 'completed',
+              date: new Date()
+          });
+        }
+  
+        if (newAttachments.length) {
+          const uploaded = await uploadMaintenanceAttachments(docRef.id, newAttachments);
+          await updateDoc(doc(db, 'maintenanceLogs', docRef.id), {
+            attachments: uploaded,
+          });
+          setExistingAttachments(uploaded);
+          setNewAttachments([]);
+        }
+  
+         if (!manualEntry && formData.currentMileage !== (vehicles.find(v=>v.id === selectedVehicleId)!).mileage) {
+          await createMileageHistoryRecord(
+            vehicles.find(v=>v.id === selectedVehicleId)!,
+            formData.currentMileage,
+            user.name || 'System',
+            'Updated during maintenance'
+          );
+        }
+  
+        toast.success('Maintenance scheduled successfully');
       }
-
-      // 4D) record mileage history
-      if (formData.currentMileage !== vehicleToUse.mileage) {
-        await createMileageHistoryRecord(
-          vehicleToUse,
-          formData.currentMileage,
-          user.name || 'System',
-          'Updated during maintenance'
-        );
-      }
-
-      toast.success('Maintenance scheduled successfully');
+  
+      onClose();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        editLog ? 'Failed to update maintenance' : 'Failed to schedule maintenance'
+      );
+    } finally {
+      setLoading(false);
     }
-
-    onClose();
-  } catch (error) {
-    console.error(error);
-    toast.error(
-      editLog ? 'Failed to update maintenance' : 'Failed to schedule maintenance'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -558,7 +558,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               key={index}
               className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
             >
-              {/* Part Name + Suggestions */}
 <div className="relative col-span-1 sm:col-span-2">
   <FormField
     label="Part Name"
@@ -596,7 +595,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               newParts[index] = {
                 ...newParts[index],
                 name: s.name,
-                cost: s.lastCost, // ← auto-fill Unit Price from retailPrice
+                cost: s.lastCost,
               };
               setParts(newParts);
               const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
@@ -618,7 +617,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 </div>
 
 
-              {/* Quantity */}
               <FormField
                 type="number"
                 label="Quantity"
@@ -632,7 +630,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 inputClassName="w-full"
               />
 
-              {/* Unit Price */}
               <FormField
                 type="number"
                 label="Unit Price (£)"
@@ -647,7 +644,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 inputClassName="w-full"
               />
 
-              {/* Discount % */}
               <FormField
                 type="number"
                 label="Discount (%)"
@@ -663,7 +659,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 inputClassName="w-full"
               />
 
-              {/* VAT + Remove */}
               <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
                 <label className="flex items-center space-x-2">
                   <input
@@ -703,7 +698,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   placeholder="Hours"
   className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
   min={0}
-  step="any"              // ✅ allows 0.6, 0.75, etc.
+  step="any"
   inputMode="decimal"
 />
 
