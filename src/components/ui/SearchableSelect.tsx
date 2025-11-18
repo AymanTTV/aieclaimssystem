@@ -1,5 +1,6 @@
+// src/components/ui/SearchableSelect.tsx
 import React, { useState, useRef } from 'react';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react'; // <-- 1. IMPORT 'X' ICON
 import { useOnClickOutside } from '../../hooks/useOnClickOutside';
 
 interface Option {
@@ -11,12 +12,13 @@ interface Option {
 interface SearchableSelectProps {
   options: Option[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string) => void; // <-- No change here, remains safe
   label: string;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
   error?: string;
+  isClearable?: boolean; // <-- 2. ADD 'isClearable' PROP
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -28,6 +30,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   required = false,
   disabled = false,
   error,
+  isClearable = false, // <-- 3. DESTRUCTURE THE PROP
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,7 +59,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           onClick={() => !disabled && setIsOpen(true)}
         >
           {!isOpen && (
-            <div className="px-3 py-2 text-gray-900">
+            // --- 4. START OF UPDATED BLOCK ---
+            <div className="px-3 py-2 text-gray-900 flex items-center justify-between">
               {selectedOption ? (
                 <div>
                   <div>{selectedOption.label}</div>
@@ -67,7 +71,23 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               ) : (
                 <span className="text-gray-400">{placeholder}</span>
               )}
+
+              {/* This button clears the selection */}
+              {isClearable && selectedOption && !disabled && (
+                <button
+                  type="button"
+                  className="ml-2 p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevents opening the dropdown
+                    onChange(''); // Clears the value by sending an empty string
+                  }}
+                  aria-label="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
+            // --- END OF UPDATED BLOCK ---
           )}
 
           {isOpen && (

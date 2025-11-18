@@ -154,21 +154,52 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           finalAccountsFrom = transaction.accountsFrom || [];
           finalAccountsTo = transaction.accountsTo || [];
       } else {
+          // --- UPDATED LOGIC ---
           if (initialType === 'income') {
-              if (!formData.accountTo) { toast.error('At least one "Account To" is required.'); setLoading(false); return; }
-              finalAccountsTo.push(formData.accountTo);
+              // New logic: Check if *both* are empty
+              if (!formData.accountTo && !formData.accountTo2) {
+                  toast.error('At least one "Account To" is required.');
+                  setLoading(false);
+                  return;
+              }
+              // New logic: Check for duplicates only if both are filled
+              if (formData.accountTo && formData.accountTo === formData.accountTo2) {
+                  toast.error('Cannot credit the same account twice.');
+                  setLoading(false);
+                  return;
+              }
+              
+              // Add whichever accounts are filled
+              if (formData.accountTo) {
+                  finalAccountsTo.push(formData.accountTo);
+              }
               if (formData.accountTo2) {
-                  if (formData.accountTo === formData.accountTo2) { toast.error('Cannot credit the same account twice.'); setLoading(false); return; }
                   finalAccountsTo.push(formData.accountTo2);
               }
+
           } else { // expense
-              if (!formData.accountFrom) { toast.error('At least one "Account From" is required.'); setLoading(false); return; }
-              finalAccountsFrom.push(formData.accountFrom);
+              // New logic: Check if *both* are empty
+              if (!formData.accountFrom && !formData.accountFrom2) {
+                  toast.error('At least one "Account From" is required.');
+                  setLoading(false);
+                  return;
+              }
+              // New logic: Check for duplicates only if both are filled
+              if (formData.accountFrom && formData.accountFrom === formData.accountFrom2) {
+                  toast.error('Cannot debit the same account twice.');
+                  setLoading(false);
+                return;
+              }
+
+              // Add whichever accounts are filled
+              if (formData.accountFrom) {
+                  finalAccountsFrom.push(formData.accountFrom);
+              }
               if (formData.accountFrom2) {
-                  if (formData.accountFrom === formData.accountFrom2) { toast.error('Cannot debit the same account twice.'); setLoading(false); return; }
                   finalAccountsFrom.push(formData.accountFrom2);
               }
           }
+          // --- END UPDATED LOGIC ---
       }
 
       payload = {
@@ -252,7 +283,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         <>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Account To (Credit)</label>
-            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." required disabled={restrictAccountFields} />
+            {/* --- UPDATED FIELD --- */}
+            <SearchableSelect 
+              options={accounts.map(a => ({ id: a.id, label: a.name }))} 
+              value={formData.accountTo} 
+              onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} 
+              placeholder="Select primary account..." 
+              isClearable // <-- ADDED
+              disabled={restrictAccountFields} 
+            />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Also Credit Account (Optional Split)</label>
@@ -264,7 +303,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         <>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Account From (Debit)</label>
-            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." required disabled={restrictAccountFields} />
+            {/* --- UPDATED FIELD --- */}
+            <SearchableSelect 
+              options={accounts.map(a => ({ id: a.id, label: a.name }))} 
+              value={formData.accountFrom} 
+              onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} 
+              placeholder="Select primary account..." 
+              isClearable // <-- ADDED
+              disabled={restrictAccountFields} 
+            />
           </div>
            <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Also Debit From (Optional Split)</label>
@@ -293,7 +340,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-        <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
+        <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.g.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
           <option value="cash">Cash</option> <option value="card">Card</option> <option value="bank_transfer">Bank Transfer</option> <option value="cheque">Cheque</option> <option value="mobile_money">Mobile Money</option> <option value="other">Other</option>
         </select>
       </div>
