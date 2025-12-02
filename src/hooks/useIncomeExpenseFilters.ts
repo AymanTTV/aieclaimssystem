@@ -5,6 +5,7 @@ export function useIncomeExpenseFilters(entries: IncomeExpenseEntry[]) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [progress, setProgress] = useState<'all' | 'in-progress' | 'completed'>('all');
+  const [category, setCategory] = useState('all'); // New Category State
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
 
   const filteredEntries = useMemo(() => {
@@ -22,6 +23,9 @@ export function useIncomeExpenseFilters(entries: IncomeExpenseEntry[]) {
 
       const matchesProgress =
         progress === 'all' || e.progress === progress;
+      
+      const matchesCategory = 
+        category === 'all' || e.category === category;
 
       const matchesDate =
         dateRange.start && dateRange.end
@@ -29,9 +33,9 @@ export function useIncomeExpenseFilters(entries: IncomeExpenseEntry[]) {
             new Date(e.date) <= new Date(dateRange.end)
           : true;
 
-      return matchesSearch && matchesType && matchesProgress && matchesDate;
+      return matchesSearch && matchesType && matchesProgress && matchesCategory && matchesDate;
     });
-  }, [entries, search, typeFilter, progress, dateRange]);
+  }, [entries, search, typeFilter, progress, category, dateRange]);
 
   return {
     search,
@@ -40,6 +44,8 @@ export function useIncomeExpenseFilters(entries: IncomeExpenseEntry[]) {
     setTypeFilter,
     progress,
     setProgress,
+    category,
+    setCategory,
     dateRange,
     setDateRange,
     filteredEntries

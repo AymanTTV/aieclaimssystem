@@ -1,4 +1,5 @@
 // src/components/finance/TransactionForm.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   addDoc,
@@ -15,10 +16,12 @@ import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import financeCategoryService from '../../services/financeCategory.service';
 import financeGroupService from '../../services/financeGroup.service';
-import { Info } from 'lucide-react';
+import { Info, RefreshCw } from 'lucide-react';
+import { addDays, addWeeks, addMonths, addYears } from 'date-fns';
 
 interface TransactionFormProps {
   type: 'income' | 'expense';
+  initialIsRecurring?: boolean;
   transaction?: Transaction;
   accounts: Account[];
   vehicles: Vehicle[];
@@ -28,6 +31,7 @@ interface TransactionFormProps {
 
 const TransactionForm: React.FC<TransactionFormProps> = ({
   type: initialType,
+  initialIsRecurring = false,
   transaction,
   accounts = [],
   vehicles = [],
@@ -37,6 +41,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
+  
+  // State for Type switching in Recurring mode
+  const [currentType, setCurrentType] = useState<'income' | 'expense'>(initialType);
+  const [isRecurring, setIsRecurring] = useState(initialIsRecurring || !!transaction?.isRecurring);
+  const [frequency, setFrequency] = useState<string>(transaction?.recurringFrequency || 'monthly');
+
+  // Sync currentType if transaction exists
+  useEffect(() => {
+    if (transaction) {
+      setCurrentType(transaction.type);
+    }
+  }, [transaction]);
 
   const isEditing = useMemo(() => !!transaction?.id, [transaction]);
   const isEditingMultiAccount = useMemo(() =>
@@ -50,7 +66,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       [isEditingMultiAccount, isInvoiceLinked, user?.role]
   );
   const restrictFinancialFields = restrictAccountFields;
-
 
   // --- Category and Group Loading ---
   const [financeCategories, setFinanceCategories] = useState<string[]>([]);
@@ -82,8 +97,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const getFirstAccount = (accArray?: string[]): string => (accArray && accArray.length > 0) ? accArray[0] : '';
   const getSecondAccount = (accArray?: string[]): string => (accArray && accArray.length > 1) ? accArray[1] : '';
 
+  // Helper to format date object to datetime-local string (YYYY-MM-DDTHH:mm)
+  const toDateTimeLocal = (date: Date) => {
+    const pad = (num: number) => num.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
   const [formData, setFormData] = useState({
-    date: transaction?.date ? (transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date)).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: transaction?.date 
+      ? toDateTimeLocal(transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date))
+      : toDateTimeLocal(new Date()), // Default to now
     amount: transaction?.amount ? Math.abs(transaction.amount).toString() : '',
     category: transaction?.category || '',
     description: transaction?.description || '',
@@ -107,7 +130,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     if (transaction) {
       setManualEntry(!!transaction.customerName && !transaction.customerId);
       setFormData({
-         date: (transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date)).toISOString().split('T')[0],
+         date: toDateTimeLocal(transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date)),
          amount: Math.abs(transaction.amount).toString(),
          category: transaction.category || '',
          description: transaction.description || '',
@@ -125,11 +148,27 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
          accountTo2: getSecondAccount(transaction.accountsTo),
          accountFrom2: getSecondAccount(transaction.accountsFrom),
       });
+      setIsRecurring(!!transaction.isRecurring);
+      setFrequency(transaction.recurringFrequency || 'monthly');
     } else {
-        setFormData({ date: new Date().toISOString().split('T')[0], amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '' });
+        // Reset Logic
+        setFormData(prev => ({ ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '' }));
         setManualEntry(false);
     }
   }, [transaction]);
+
+  const calculateNextDate = (dateStr: string, freq: string): Date => {
+    const date = new Date(dateStr);
+    switch (freq) {
+      case 'daily': return addDays(date, 1);
+      case 'weekly': return addWeeks(date, 1);
+      case 'monthly': return addMonths(date, 1);
+      case 'quarterly': return addMonths(date, 3);
+      case 'biannually': return addMonths(date, 6);
+      case 'yearly': return addYears(date, 1);
+      default: return addMonths(date, 1);
+    }
+  };
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -154,56 +193,21 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           finalAccountsFrom = transaction.accountsFrom || [];
           finalAccountsTo = transaction.accountsTo || [];
       } else {
-          // --- UPDATED LOGIC ---
-          if (initialType === 'income') {
-              // New logic: Check if *both* are empty
-              if (!formData.accountTo && !formData.accountTo2) {
-                  toast.error('At least one "Account To" is required.');
-                  setLoading(false);
-                  return;
-              }
-              // New logic: Check for duplicates only if both are filled
-              if (formData.accountTo && formData.accountTo === formData.accountTo2) {
-                  toast.error('Cannot credit the same account twice.');
-                  setLoading(false);
-                  return;
-              }
-              
-              // Add whichever accounts are filled
-              if (formData.accountTo) {
-                  finalAccountsTo.push(formData.accountTo);
-              }
-              if (formData.accountTo2) {
-                  finalAccountsTo.push(formData.accountTo2);
-              }
-
+          if (currentType === 'income') {
+              if (!formData.accountTo && !formData.accountTo2) { toast.error('At least one "Account To" is required.'); setLoading(false); return; }
+              if (formData.accountTo && formData.accountTo === formData.accountTo2) { toast.error('Cannot credit the same account twice.'); setLoading(false); return; }
+              if (formData.accountTo) finalAccountsTo.push(formData.accountTo);
+              if (formData.accountTo2) finalAccountsTo.push(formData.accountTo2);
           } else { // expense
-              // New logic: Check if *both* are empty
-              if (!formData.accountFrom && !formData.accountFrom2) {
-                  toast.error('At least one "Account From" is required.');
-                  setLoading(false);
-                  return;
-              }
-              // New logic: Check for duplicates only if both are filled
-              if (formData.accountFrom && formData.accountFrom === formData.accountFrom2) {
-                  toast.error('Cannot debit the same account twice.');
-                  setLoading(false);
-                return;
-              }
-
-              // Add whichever accounts are filled
-              if (formData.accountFrom) {
-                  finalAccountsFrom.push(formData.accountFrom);
-              }
-              if (formData.accountFrom2) {
-                  finalAccountsFrom.push(formData.accountFrom2);
-              }
+              if (!formData.accountFrom && !formData.accountFrom2) { toast.error('At least one "Account From" is required.'); setLoading(false); return; }
+              if (formData.accountFrom && formData.accountFrom === formData.accountFrom2) { toast.error('Cannot debit the same account twice.'); setLoading(false); return; }
+              if (formData.accountFrom) finalAccountsFrom.push(formData.accountFrom);
+              if (formData.accountFrom2) finalAccountsFrom.push(formData.accountFrom2);
           }
-          // --- END UPDATED LOGIC ---
       }
 
       payload = {
-          type: initialType,
+          type: currentType,
           category: formData.category,
           description: formData.description,
           paymentMethod: formData.paymentMethod,
@@ -216,11 +220,22 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null,
           vehicleOwner: vehicleOwner,
           groupId: formData.groupId || null,
-          accountsFrom: finalAccountsFrom, // Use determined array
-          accountsTo: finalAccountsTo,     // Use determined array
+          accountsFrom: finalAccountsFrom,
+          accountsTo: finalAccountsTo,
       };
 
-      // Set date and amount based on restrictions
+      // Recurring Logic
+      if (isRecurring) {
+        payload.isRecurring = true;
+        payload.recurringFrequency = frequency as any;
+        // If creating or editing, set next occurrence based on the set Date
+        payload.nextRecurringDate = calculateNextDate(formData.date, frequency);
+      } else {
+        payload.isRecurring = false;
+        payload.recurringFrequency = null as any;
+        payload.nextRecurringDate = null;
+      }
+
       if (!restrictFinancialFields) {
           payload.date = new Date(formData.date);
           payload.amount = newAmount;
@@ -229,17 +244,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           payload.amount = transaction.amount;
       }
 
-
       if (isEditing && transaction) {
         // --- EDITING ---
         payload.updatedAt = new Date();
         payload.updatedBy = user.name || user.email || '';
-        // *** FIX: Ensure referenceId is null if not present originally ***
         payload.referenceId = transaction.referenceId || null;
-
         await updateDoc(doc(db, 'transactions', transaction.id), payload);
         toast.success('Transaction updated successfully');
-
       } else {
         // --- CREATING ---
         const createPayload: Omit<Transaction, 'id'> = {
@@ -250,18 +261,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             createdBy: user.name || user.email || '',
             accountsFrom: payload.accountsFrom || [],
             accountsTo: payload.accountsTo || [],
-            // No referenceId needed for split creation anymore
         };
-
         await addDoc(collection(db, 'transactions'), createPayload);
-        toast.success(`Transaction created successfully${ (finalAccountsFrom.length > 1 || finalAccountsTo.length > 1) ? ' (Split)' : '' }`);
-      } // End Create/Edit block
+        toast.success(`Transaction created successfully`);
+      }
 
-      onClose(); // Close modal on success
+      onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      console.error('Payload attempted:', payload);
-      toast.error(`Failed to save transaction. ${ error instanceof Error ? error.message : '' }`);
+      toast.error(`Failed to save transaction.`);
     } finally {
       setLoading(false);
     }
@@ -271,27 +279,80 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   // --- JSX Rendering ---
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      
+      {/* --- NEW: TYPE SELECTOR FOR NEW RECURRING --- */}
+      {!transaction && initialIsRecurring && (
+        <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setCurrentType('income')}
+            className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Income
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentType('expense')}
+            className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Expense
+          </button>
+        </div>
+      )}
+
       {/* Banner */}
       {restrictAccountFields && ( <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-md"> <div className="flex"> <div className="flex-shrink-0"><Info className="h-5 w-5 text-yellow-400" aria-hidden="true" /></div> <div className="ml-3"><p className="text-sm text-yellow-700">Editing a linked or multi-account transaction. Amount, Date, and Accounts cannot be changed by your role.</p></div> </div> </div> )}
 
-      {/* Date & Amount Fields */}
-      <FormField type="date" label="Date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required disabled={restrictFinancialFields} />
+      {/* --- RECURRING TOGGLE & SETTINGS --- */}
+      <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
+        <div className="flex items-center">
+             <input id="isRecurring" type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center">
+                <RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />
+                Re-occurring Transaction
+              </label>
+        </div>
+        {isRecurring && (
+          <div className="animate-fadeIn">
+            <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
+            <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly (3 Months)</option>
+              <option value="biannually">Biannually (6 Months)</option>
+              <option value="yearly">Yearly</option>
+            </select>
+            <p className="mt-2 text-xs text-indigo-600">
+               Next occurrence will be automatically generated based on the date/time selected below + frequency.
+            </p>
+          </div>
+        )}
+      </div>
+      {/* ------------------------ */}
+
+      {/* --- UPDATED DATE FIELD: DATETIME-LOCAL --- */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Date & Time</label>
+        <input 
+          type="datetime-local" 
+          value={formData.date} 
+          onChange={(e) => setFormData({ ...formData, date: e.target.value })} 
+          required 
+          disabled={restrictFinancialFields} 
+          className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+        />
+      </div>
+      {/* ------------------------------------------ */}
+
       <FormField type="number" label="Amount" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} min="0" step="0.01" required placeholder="Enter total amount" disabled={restrictFinancialFields} />
 
-      {/* Account Selection */}
-      {initialType === 'income' && (
+      {/* Account Selection (Conditional on currentType) */}
+      {currentType === 'income' && (
         <>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Account To (Credit)</label>
-            {/* --- UPDATED FIELD --- */}
-            <SearchableSelect 
-              options={accounts.map(a => ({ id: a.id, label: a.name }))} 
-              value={formData.accountTo} 
-              onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} 
-              placeholder="Select primary account..." 
-              isClearable // <-- ADDED
-              disabled={restrictAccountFields} 
-            />
+            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Also Credit Account (Optional Split)</label>
@@ -299,19 +360,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </div>
         </>
       )}
-      {initialType === 'expense' && (
+      {currentType === 'expense' && (
         <>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Account From (Debit)</label>
-            {/* --- UPDATED FIELD --- */}
-            <SearchableSelect 
-              options={accounts.map(a => ({ id: a.id, label: a.name }))} 
-              value={formData.accountFrom} 
-              onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} 
-              placeholder="Select primary account..." 
-              isClearable // <-- ADDED
-              disabled={restrictAccountFields} 
-            />
+            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
           </div>
            <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Also Debit From (Optional Split)</label>
@@ -340,8 +393,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-        <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.g.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
-          <option value="cash">Cash</option> <option value="card">Card</option> <option value="bank_transfer">Bank Transfer</option> <option value="cheque">Cheque</option> <option value="mobile_money">Mobile Money</option> <option value="other">Other</option>
+        <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as any})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
+          <option value="cash">Cash</option> 
+          <option value="card">Card</option> 
+          <option value="bank_transfer">Bank Transfer</option> 
+          <option value="cheque">Cheque</option> 
+          <option value="mobile_money">Mobile Money</option> 
+          <option value="other">Other</option>
         </select>
       </div>
       <FormField label="Payment Reference (Optional)" value={formData.paymentReference} onChange={e => setFormData({...formData, paymentReference: e.target.value})} placeholder="e.g., Invoice #, Txn ID" />
@@ -358,7 +416,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </select>
       </div>
 
-      {/* Buttons */}
       <div className="flex justify-end space-x-3 pt-4">
         <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50">Cancel</button>
         <button type="submit" disabled={loading} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark disabled:opacity-50">{loading ? 'Saving...' : (transaction ? 'Update Transaction' : 'Create Transaction')}</button>

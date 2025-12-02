@@ -20,6 +20,10 @@ export function useShares() {
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as any
         const id   = docSnap.id
+        
+        // Capture creation time from the parent document
+        // This is crucial for determining if a backdated record was included in a past split
+        const createdAt = data.createdAt 
 
         // flatten payments → income entries
         Array.isArray(data.payments) &&
@@ -27,6 +31,7 @@ export function useShares() {
             all.push({
               id,
               type: 'income',
+              createdAt, // Pass doc creation time to the entry
               ...p
             })
           })
@@ -37,6 +42,7 @@ export function useShares() {
             all.push({
               id,
               type: 'expense',
+              createdAt, // Pass doc creation time to the entry
               ...e
             })
           })

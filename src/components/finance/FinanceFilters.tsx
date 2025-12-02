@@ -30,9 +30,12 @@ interface FinanceFiltersProps {
   onGroupFilterChange: (groupId: string) => void;
   groupOptions: { id: string; name: string }[];
   
-  // --- ADDED ---
   showLinked: 'all' | 'linked' | 'unlinked';
   onShowLinkedChange: (value: 'all' | 'linked' | 'unlinked') => void;
+
+  // --- ADDED ---
+  recurringFilter: 'all' | 'recurring' | 'non_recurring';
+  onRecurringFilterChange: (value: 'all' | 'recurring' | 'non_recurring') => void;
   // ---
 }
 
@@ -58,8 +61,10 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   onGroupFilterChange,
   groupOptions,
   categories,
-  showLinked, // <-- ADDED
-  onShowLinkedChange, // <-- ADDED
+  showLinked,
+  onShowLinkedChange,
+  recurringFilter, // <-- ADDED
+  onRecurringFilterChange, // <-- ADDED
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
@@ -218,7 +223,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </select>
         </div>
 
-        {/* --- ADDED: Linked Status Filter --- */}
+        {/* Linked Status Filter */}
         <div>
             <label className="block text-xs sm:text-sm font-medium text-gray-700">Linked Status</label>
             <select
@@ -229,6 +234,20 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
                 <option value="all">All Transactions</option>
                 <option value="linked">Show Linked Only</option>
                 <option value="unlinked">Show Unlinked Only</option>
+            </select>
+        </div>
+
+        {/* --- ADDED: Recurring Filter --- */}
+        <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">Recurring</label>
+            <select
+                value={recurringFilter}
+                onChange={(e) => onRecurringFilterChange(e.target.value as 'all' | 'recurring' | 'non_recurring')}
+                className="form-select mt-1 w-full"
+            >
+                <option value="all">All Transactions</option>
+                <option value="recurring">Recurring Only</option>
+                <option value="non_recurring">Non-Recurring Only</option>
             </select>
         </div>
         {/* --- End Update --- */}

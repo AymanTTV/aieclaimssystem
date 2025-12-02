@@ -12,9 +12,9 @@ import FinancialSummary from '../components/finance/FinancialSummary';
 import TransactionTable from '../components/finance/TransactionTable';
 import TransactionForm from '../components/finance/TransactionForm';
 import TransactionDetails from '../components/finance/TransactionDetails';
-import TransactionDeleteModal from '../components/finance/TransactionDeleteModal'; // Standard delete modal
+import TransactionDeleteModal from '../components/finance/TransactionDeleteModal'; 
 import ManageAccountsModal from '../components/finance/ManageAccountsModal';
-import Modal from '../components/ui/Modal'; // Generic modal wrapper
+import Modal from '../components/ui/Modal'; 
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import AssignGroupCategoryModal from '../components/finance/AssignGroupCategoryModal';
 
@@ -24,7 +24,7 @@ import { FinanceDocument } from '../components/pdf/documents';
 import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
-import { doc, updateDoc, collection, query, onSnapshot, writeBatch, deleteDoc, Timestamp, orderBy } from 'firebase/firestore'; // Added orderBy here
+import { doc, updateDoc, collection, query, onSnapshot, writeBatch, deleteDoc, Timestamp, orderBy } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
 import * as XLSX from 'xlsx';
 import { usePermissions } from '../hooks/usePermissions';
@@ -32,7 +32,8 @@ import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2, AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
+// --- NEW IMPORTS ---
+import { addDays, addWeeks, addMonths, addYears, isBefore, startOfDay } from 'date-fns'; 
 
 interface MemberPageProps {
   memberMode?: boolean;
@@ -62,6 +63,11 @@ const Finance: React.FC<MemberPageProps> = ({
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  
+  // --- NEW STATE for Recurring Modal ---
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  // -------------------------------------
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false); // For single deletes
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -110,9 +116,9 @@ const Finance: React.FC<MemberPageProps> = ({
 
   const visibleTransactions: Transaction[] = useMemo(() => { if (!memberMode) return transactions; const scopeId = memberCustomerId ?? derivedCustomerId; if (!scopeId) return []; return transactions.filter((t) => t.customerId === scopeId); }, [transactions, memberMode, memberCustomerId, derivedCustomerId]);
 
-  const { searchQuery, setSearchQuery, type, setType, category, setCategory, groupFilter, setGroupFilter, paymentStatus, setPaymentStatus, dateRange, setDateRange, selectedCustomerId, setSelectedCustomerId, selectedOwner, setSelectedOwner, owners, filteredTransactions, accountFilter, setAccountFilter, showLinked, setShowLinked, accountSummary, totalOwingFromOwners } = useFinanceFilters(visibleTransactions, vehicles, accounts, customers);
+  const { searchQuery, setSearchQuery, type, setType, category, setCategory, groupFilter, setGroupFilter, paymentStatus, setPaymentStatus, dateRange, setDateRange, selectedCustomerId, setSelectedCustomerId, selectedOwner, setSelectedOwner, owners, filteredTransactions, accountFilter, setAccountFilter, showLinked, setShowLinked, recurringFilter, setRecurringFilter, accountSummary, totalOwingFromOwners } = useFinanceFilters(visibleTransactions, vehicles, accounts, customers);
 
-  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedCustomerId, selectedOwner, accountFilter, groupFilter, showLinked]);
+  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedCustomerId, selectedOwner, accountFilter, groupFilter, showLinked, recurringFilter]);
 
   const blockIfMember = (fn: () => void) => { if (!memberMode) return fn(); toast.error('Action disabled.'); };
   const handleViewTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowDetailsModal(true); }, []);
@@ -203,6 +209,82 @@ const Finance: React.FC<MemberPageProps> = ({
   const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const netIncome = totalIncome - totalExpenses;
   const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
+
+  // --- NEW: Recurring Engine Logic (With Catch-up & Auto-Run) ---
+  useEffect(() => {
+    if (loading || !transactions.length) return;
+    
+    const processRecurring = async () => {
+      const batch = writeBatch(db);
+      let updatesCount = 0;
+      const now = new Date();
+
+      // Filter for transactions that are recurring AND due
+      const dueTransactions = transactions.filter(t => 
+        t.isRecurring && 
+        t.nextRecurringDate && 
+        isBefore(t.nextRecurringDate instanceof Timestamp ? t.nextRecurringDate.toDate() : new Date(t.nextRecurringDate), now)
+      );
+
+      if (dueTransactions.length === 0) return;
+
+      for (const txn of dueTransactions) {
+        let currentDate = txn.nextRecurringDate instanceof Timestamp ? txn.nextRecurringDate.toDate() : new Date(txn.nextRecurringDate);
+        
+        // Loop to catch up
+        while (isBefore(currentDate, now)) {
+            updatesCount++;
+            
+            let nextDate: Date;
+            switch (txn.recurringFrequency) {
+                case 'daily': nextDate = addDays(currentDate, 1); break;
+                case 'weekly': nextDate = addWeeks(currentDate, 1); break;
+                case 'monthly': nextDate = addMonths(currentDate, 1); break;
+                case 'quarterly': nextDate = addMonths(currentDate, 3); break;
+                case 'biannually': nextDate = addMonths(currentDate, 6); break;
+                case 'yearly': nextDate = addYears(currentDate, 1); break;
+                default: nextDate = addMonths(currentDate, 1);
+            }
+
+            const newTxnRef = doc(collection(db, 'transactions'));
+            
+            // Determine if this is the future transaction
+            const isLast = !isBefore(nextDate, now);
+
+            const newTxnData: any = {
+                ...txn,
+                id: newTxnRef.id,
+                date: currentDate, 
+                createdAt: new Date(),
+                createdBy: 'System (Recurring)',
+                isRecurring: true, // Keep it true for all history items so badge shows
+                recurringFrequency: txn.recurringFrequency,
+                nextRecurringDate: isLast ? nextDate : null, // Only the future one triggers next time
+            };
+            
+            delete newTxnData.documentUrl; 
+            delete newTxnData.receiptUrl;
+            
+            batch.set(newTxnRef, newTxnData);
+            currentDate = nextDate;
+        }
+
+        // Update old transaction: Keep isRecurring=true, but remove trigger date
+        const oldTxnRef = doc(db, 'transactions', txn.id);
+        batch.update(oldTxnRef, { nextRecurringDate: null });
+      }
+
+      if (updatesCount > 0) {
+        try {
+            await batch.commit();
+            toast.success(`Generated ${updatesCount} recurring transaction(s).`);
+        } catch (e) { console.error("Recurring Batch Error", e); }
+      }
+    };
+    
+    processRecurring();
+  }, [loading, transactions]); // Added 'transactions' dependency to auto-run on change
+  // -------------------------------------
 
   // --- ⬇️ FIXED PDF FUNCTION ⬇️ ---
   const handleGeneratePDF = useCallback(async () => {
@@ -354,6 +436,8 @@ const Finance: React.FC<MemberPageProps> = ({
           'Vehicle Reg': vehicles.find((v) => v.id === txn.vehicleId)?.registrationNumber || '',
           'Owner': txn.vehicleOwner?.name || '',
           'Customer Name': customers.find((c) => c.id === txn.customerId)?.name || txn.customerName || '',
+          // --- NEW EXPORT FIELD ---
+          'Recurring': txn.isRecurring ? `Yes (${txn.recurringFrequency})` : 'No',
         };
       });
 
@@ -387,8 +471,23 @@ const Finance: React.FC<MemberPageProps> = ({
       />
       {/* --- ⬆️ END FIXED DATA PROP ⬆️ --- */}
 
-      <FinanceHeader onSearch={setSearchQuery} onImport={() => toast.error('Import not implemented.')} onExport={handleExport} onAddIncome={() => blockIfMember(() => setShowAddIncome(true))} onAddExpense={() => blockIfMember(() => setShowAddExpense(true))} onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} onManageGroups={() => blockIfMember(() => setManageOpen(true))} onManageCategories={() => blockIfMember(() => setShowCatModal(true))} onManageAccounts={() => blockIfMember(() => setShowManageAccountsModal(true))} />
-      <FinanceFilters type={type} onTypeChange={setType} searchQuery={searchQuery} onSearchChange={setSearchQuery} statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} categoryFilter={category} onCategoryFilterChange={setCategory} dateRange={dateRange} onDateRangeChange={setDateRange} accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} accounts={accounts} owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} customers={customers} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} accountSummary={accountSummary} categories={financeCategories.map((c) => c.name)} groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} showLinked={showLinked} onShowLinkedChange={setShowLinked} />
+      <FinanceHeader 
+          onSearch={setSearchQuery} 
+          onImport={() => toast.error('Import not implemented.')} 
+          onExport={handleExport} 
+          onAddIncome={() => blockIfMember(() => setShowAddIncome(true))} 
+          onAddExpense={() => blockIfMember(() => setShowAddExpense(true))} 
+          onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} onManageGroups={() => blockIfMember(() => setManageOpen(true))} onManageCategories={() => blockIfMember(() => setShowCatModal(true))} onManageAccounts={() => blockIfMember(() => setShowManageAccountsModal(true))} 
+          // --- NEW PROP ---
+          onAddRecurring={() => blockIfMember(() => setShowRecurringModal(true))}
+      />
+      
+      <FinanceFilters 
+          type={type} onTypeChange={setType} searchQuery={searchQuery} onSearchChange={setSearchQuery} statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} categoryFilter={category} onCategoryFilterChange={setCategory} dateRange={dateRange} onDateRangeChange={setDateRange} accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} accounts={accounts} owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} customers={customers} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} accountSummary={accountSummary} categories={financeCategories.map((c) => c.name)} groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} showLinked={showLinked} onShowLinkedChange={setShowLinked} 
+          // --- NEW PROPS ---
+          recurringFilter={recurringFilter} 
+          onRecurringFilterChange={setRecurringFilter}
+      />
 
       {selectedTransactionIds.size > 0 && !memberMode && ( <div className="bg-blue-50 border border-blue-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm"> <span className="font-medium text-sm text-blue-800">{selectedTransactionIds.size} transaction(s) selected</span> <button onClick={() => setShowAssignAccountModal(true)} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"> Assign Account </button> </div> )}
 
@@ -396,6 +495,20 @@ const Finance: React.FC<MemberPageProps> = ({
 
       {/* --- Modals --- */}
       <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl"><TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} /></Modal>
+      
+      {/* --- NEW: Recurring Modal --- */}
+      <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
+          <TransactionForm 
+              type="income" // Default, but form handles switching
+              initialIsRecurring={true} // Forces recurring logic in form
+              accounts={accounts} 
+              vehicles={vehicles} 
+              customers={customers} 
+              onClose={() => setShowRecurringModal(false)} 
+          />
+      </Modal>
+      {/* --------------------------- */}
+
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
       <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">{selectedTransaction && ( <TransactionDetails transaction={selectedTransaction} vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} customer={customers.find(c => c.id === selectedTransaction.customerId)} accounts={accounts} /> )}</Modal>
       <ManageGroupsModal open={manageOpen} onClose={() => { setManageOpen(false); loadGroups(); }} />

@@ -2,12 +2,12 @@
 import React from 'react'
 import { ShareEntry, SplitRecord } from '../../types/share'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
-import { usePermissions } from '../../hooks/usePermissions';
+import { usePermissions } from '../../hooks/usePermissions'
+import { TrendingUp, TrendingDown, Users, Wallet } from 'lucide-react'
 
 interface Props {
   entries: ShareEntry[]
   splits:  SplitRecord[]
-  /** Optional—if you’ve got a date filter active */
   startDate?: string
   endDate?: string
 }
@@ -19,8 +19,8 @@ export default function ShareSummary({
   endDate
 }: Props) {
   const { formatCurrency } = useFormattedDisplay()
-  const { can } = usePermissions();
-  if (!can('share', 'cards')) return null;
+  const { can } = usePermissions()
+  if (!can('share', 'cards')) return null
 
   // 1) Compute raw totals
   const totalIncome  = entries
@@ -45,45 +45,88 @@ export default function ShareSummary({
   }, {})
 
   const cards = [
-    { label: 'Income',  amount: totalIncome,  color: 'text-gray-900' },
-    { label: 'Expense', amount: totalExpense, color: 'text-red-600' },
-    { label: 'Shared',  amount: totalShared,  color: 'text-blue-600',  isShared: true as const },
-    { label: 'Balance', amount: balance,      color: 'text-green-600' }
-  ] as const
+    { 
+      label: 'Total Income', 
+      amount: totalIncome, 
+      icon: TrendingUp,
+      colorClass: 'text-green-600', 
+      bgClass: 'bg-green-50'
+    },
+    { 
+      label: 'Total Expense', 
+      amount: totalExpense, 
+      icon: TrendingDown,
+      colorClass: 'text-red-600', 
+      bgClass: 'bg-red-50'
+    },
+    { 
+      label: 'Shared Funds', 
+      amount: totalShared, 
+      icon: Users,
+      colorClass: 'text-blue-600', 
+      bgClass: 'bg-blue-50',
+      isShared: true 
+    },
+    { 
+      label: 'Current Balance', 
+      amount: balance, 
+      icon: Wallet,
+      colorClass: 'text-gray-900', 
+      bgClass: 'bg-gray-50'
+    }
+  ]
 
   return (
-    <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-      {cards.map(card => (
-        <div key={card.label} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-          <h3 className="text-xs sm:text-sm font-medium text-gray-500">
-            {card.label.toUpperCase()}
-          </h3>
-
-          {card.isShared && (
-            <div className="mt-2 space-y-1 text-xs sm:text-sm text-gray-700 max-h-28 overflow-y-auto pr-1">
-              {(startDate && endDate) && (
-                <p className="italic text-[11px] sm:text-xs text-gray-500">
-                  {startDate} → {endDate}
-                </p>
-              )}
-
-              {Object.entries(breakdown).map(([name, amt]) => {
-                const pct = totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0
-                return (
-                  <p key={name} className="flex justify-between gap-2">
-                    <span className="font-medium truncate">{name} <span className="text-gray-500">({pct}%)</span></span>
-                    <span className="font-semibold whitespace-nowrap">{formatCurrency(amt)}</span>
-                  </p>
-                )
-              })}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {cards.map((card) => {
+        const Icon = card.icon
+        return (
+          <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col justify-between transition-shadow hover:shadow-md">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  {card.label}
+                </h3>
+                <div className={`p-2 rounded-lg ${card.bgClass}`}>
+                  <Icon className={`w-5 h-5 ${card.colorClass}`} />
+                </div>
+              </div>
+              
+              <p className={`text-2xl font-bold ${card.colorClass}`}>
+                {formatCurrency(card.amount)}
+              </p>
             </div>
-          )}
 
-          <p className={`mt-2 text-lg sm:text-3xl font-semibold ${card.color}`}>
-            {formatCurrency(card.amount)}
-          </p>
-        </div>
-      ))}
+            {card.isShared && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                {startDate && endDate && (
+                  <div className="text-xs text-gray-400 mb-2 italic">
+                    {startDate} → {endDate}
+                  </div>
+                )}
+                <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+                  {Object.entries(breakdown).map(([name, amt]) => {
+                    const pct = totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0
+                    return (
+                      <div key={name} className="flex justify-between items-center text-xs sm:text-sm">
+                        <span className="text-gray-600 truncate max-w-[60%]">
+                          {name} <span className="text-gray-400 text-[10px]">({pct}%)</span>
+                        </span>
+                        <span className="font-medium text-gray-800">
+                          {formatCurrency(amt)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {Object.keys(breakdown).length === 0 && (
+                     <span className="text-xs text-gray-400">No splits in this period</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

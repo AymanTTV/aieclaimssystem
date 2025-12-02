@@ -20,6 +20,10 @@ export const useFinanceFilters = (
   const [accountFilter, setAccountFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
+  
+  // --- NEW: Recurring Filter State ---
+  const [recurringFilter, setRecurringFilter] = useState<'all' | 'recurring' | 'non_recurring'>('all');
+  // -----------------------------------
 
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -96,7 +100,13 @@ export const useFinanceFilters = (
       // Check for referenceId (now primarily for Invoice links)
       const matchesLinked = showLinked === 'all' || (showLinked === 'linked' && !!transaction.referenceId) || (showLinked === 'unlinked' && !transaction.referenceId);
 
-      return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked;
+      // --- NEW: Recurring Filter Check ---
+      const matchesRecurring = recurringFilter === 'all' || 
+          (recurringFilter === 'recurring' && transaction.isRecurring) || 
+          (recurringFilter === 'non_recurring' && !transaction.isRecurring);
+      // -----------------------------------
+
+      return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked && matchesRecurring;
     }).sort((a, b) => {
         const dateA = safeParseDate(a.date)?.getTime() || 0;
         const dateB = safeParseDate(b.date)?.getTime() || 0;
@@ -108,7 +118,8 @@ export const useFinanceFilters = (
   }, [
     transactions, searchQuery, type, category, paymentStatus,
     selectedCustomerId, selectedOwner, accountFilter, startDate, endDate,
-    groupFilter, showLinked, vehicles, customers,
+    groupFilter, showLinked, recurringFilter, // <-- Added dependency
+    vehicles, customers,
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
@@ -169,6 +180,7 @@ export const useFinanceFilters = (
     accountFilter, setAccountFilter,
     groupFilter, setGroupFilter,
     showLinked, setShowLinked,
+    recurringFilter, setRecurringFilter, // <-- Added Return
     owners,
     filteredTransactions,
     accountSummary,

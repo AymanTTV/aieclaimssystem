@@ -1,5 +1,6 @@
+// src/components/finance/FinanceHeader.tsx
 import React from 'react';
-import { Download, Plus, Search, FileText, Settings } from 'lucide-react';
+import { Download, Plus, Search, FileText, Settings, Repeat } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 
@@ -17,7 +18,11 @@ interface FinanceHeaderProps {
 
   onManageCategories: () => void;
   onManageGroups: () => void;
-  onManageAccounts: () => void; // <-- ADDED PROP
+  onManageAccounts: () => void;
+  
+  // --- NEW PROP ---
+  onAddRecurring: () => void;
+  // ----------------
 }
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
@@ -28,7 +33,8 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onGeneratePDF,
   onManageGroups,
   onManageCategories,
-  onManageAccounts, // <-- DESTRUCTURED PROP
+  onManageAccounts,
+  onAddRecurring, // <-- Destructured
 }) => {
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -56,7 +62,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
             {user?.role === 'manager' && (
               <>
                 <button
-                    onClick={onManageAccounts} // <-- ADDED BUTTON
+                    onClick={onManageAccounts}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
                     <Settings className="h-5 w-5 mr-2" />
@@ -102,6 +108,18 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                 </button>
             )}
 
+             {/* --- NEW RECURRING BUTTON --- */}
+             {can('finance', 'create') && (
+                <button
+                    onClick={onAddRecurring}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                    <Repeat className="h-5 w-5 mr-2" />
+                    Recurring
+                </button>
+            )}
+            {/* ---------------------------- */}
+
             {can('finance', 'create') && (
                 <button
                     onClick={onAddIncome}
@@ -122,7 +140,6 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                 </button>
             )}
         </div>
-        
         
       </div>
     </div>

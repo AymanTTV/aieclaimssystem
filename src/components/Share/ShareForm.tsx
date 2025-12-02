@@ -160,7 +160,7 @@ export default function ShareForm({ record, onClose }: Props) {
         </fieldset>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="VD Profit" type="number" value={vdProfit} onChange={e=>setVdProfit(+e.target.value)} />
-          <FormField label="Actual Paid" type="number" value={actualPaid} onChange={e=>setActualPaid(+e.target.value)} />
+          <FormField label="Actual Paid/Hire" type="number" value={actualPaid} onChange={e=>setActualPaid(+e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Legal Fee %" type="number" value={legalFeePct} onChange={e=>setLegalFeePct(+e.target.value)} min={0} max={100}/>

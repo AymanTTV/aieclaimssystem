@@ -5,7 +5,8 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  doc
+  doc,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import toast from 'react-hot-toast'
@@ -14,7 +15,7 @@ import { SplitRecord, Recipient } from '../../types/share'
 import { useShares } from '../../hooks/useShares'
 import FormField from '../ui/FormField'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
-import { Trash2 } from 'lucide-react'
+import { Trash2, AlertTriangle } from 'lucide-react'
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface Props {
@@ -69,17 +70,54 @@ export default function SplitForm({
     }
   }, [splitToEdit])
 
+  // --- AUTO-FILL DATES Logic ---
+  useEffect(() => {
+    // 1. Only run if NOT editing an existing split
+    if (splitToEdit) return
+    
+    // 2. Only run if dates are currently empty
+    if (startDate || endDate) return
+
+    // 3. Ensure we have records to work with
+    if (records.length === 0) return
+
+    // 4. Find records that are NOT covered by any existing split
+    // This allows backdated records to be picked up if they weren't in a split
+    const unsplitRecords = records.filter(r => {
+      const rDate = r.date // YYYY-MM-DD
+      const isCovered = history.some(sp => 
+        sp.startDate && sp.endDate &&
+        rDate >= sp.startDate && rDate <= sp.endDate
+      )
+      return !isCovered
+    })
+
+    if (unsplitRecords.length === 0) return
+
+    // 5. Sort these records by date ascending
+    unsplitRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    // 6. Set Start to the earliest unsplit record, End to the latest
+    setStartDate(unsplitRecords[0].date.slice(0, 10))
+    setEndDate(unsplitRecords[unsplitRecords.length - 1].date.slice(0, 10))
+
+  }, [splitToEdit, records, history, startDate, endDate])
+
+
   // recompute balance: income − expense − other splits (excluding the one we’re editing)
   useEffect(() => {
     if (!startDate || !endDate) {
       setBalance(0)
       return
     }
-    const s = new Date(startDate), e = new Date(endDate)
+    const s = new Date(startDate)
+    const e = new Date(endDate) 
+    
     let inc = 0, exp = 0, sharedAmt = 0
 
     records.forEach(r => {
       const d = new Date(r.date)
+      // Standard comparison
       if (d < s || d > e) return
       if (r.type === 'income') inc += (r as any).amount
       else                   exp += (r as any).totalCost
@@ -95,12 +133,17 @@ export default function SplitForm({
       }
     })
 
-    setBalance(Math.max(0, inc - exp - sharedAmt))
+    // NOTE: We now allow negative balance to show deficit
+    setBalance(inc - exp - sharedAmt)
   }, [startDate, endDate, records, history, splitToEdit])
 
-  const aieAmt   = Math.round(balance * (aiePct   / 100) * 100) / 100
-  const abdulAmt = Math.round(balance * (abdulPct / 100) * 100) / 100
-  const jayAmt   = Math.round(balance * (jayPct   / 100) * 100) / 100
+  // Calculation Logic (Handles Income Split OR Deficit Contribution)
+  const isDeficit = balance < 0;
+  const absBalance = Math.abs(balance);
+
+  const aieAmt   = Math.round(absBalance * (aiePct   / 100) * 100) / 100
+  const abdulAmt = Math.round(absBalance * (abdulPct / 100) * 100) / 100
+  const jayAmt   = Math.round(absBalance * (jayPct   / 100) * 100) / 100
 
   // save or update
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +155,7 @@ export default function SplitForm({
 
     setLoading(true)
 
+    // Store amounts. If deficit, these are technically "amounts to pay in"
     const recipients: Recipient[] = (
       [
         ['AIE Skyline',  aiePct,   aieAmt],
@@ -125,7 +169,8 @@ export default function SplitForm({
       startDate,
       endDate,
       recipients,
-      totalSplitAmount: recipients.reduce((s,r)=>s+r.amount, 0),
+      // If deficit, the split amount is negative technically, but usually we just track the total processed
+      totalSplitAmount: isDeficit ? -absBalance : absBalance,
       createdAt:  new Date().toISOString(),
       createdBy:  user.id
     }
@@ -137,6 +182,26 @@ export default function SplitForm({
       } else {
         await addDoc(collection(db,'splits'), payload)
         toast.success('Split created')
+        
+        // --- AUTOMATIC STATUS UPDATE ---
+        const batch = writeBatch(db)
+        let updateCount = 0
+        const s = new Date(startDate)
+        const e = new Date(endDate)
+
+        records.forEach(r => {
+          const d = new Date(r.date)
+          if (d >= s && d <= e && r.progress !== 'completed') {
+            const ref = doc(db, 'shares', r.id)
+            batch.update(ref, { progress: 'completed' })
+            updateCount++
+          }
+        })
+
+        if (updateCount > 0) {
+          await batch.commit()
+          toast.success(`Marked ${updateCount} records as Completed`)
+        }
       }
       onClose()
       onEditRequested?.(null)
@@ -185,11 +250,10 @@ export default function SplitForm({
                   <span className="font-medium">
                     {sp.startDate} → {sp.endDate}
                   </span>
-                  <span className="ml-2 text-sm text-gray-500">
-                    (£{formatCurrency(sp.totalSplitAmount)})
+                  <span className={`ml-2 text-sm ${sp.totalSplitAmount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ({formatCurrency(sp.totalSplitAmount)})
                   </span>
                 </div>
-                {/* --- MODIFICATION START --- */}
                 {user?.role === 'manager' && (
                   <button
                     onClick={() => handleDelete(sp.id)}
@@ -198,7 +262,6 @@ export default function SplitForm({
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
-                {/* --- MODIFICATION END --- */}
               </div>
             ))
           }
@@ -227,11 +290,21 @@ export default function SplitForm({
           />
         </div>
 
+        {/* BALANCE DISPLAY */}
         <div>
           <label className="block text-sm font-medium">Balance</label>
-          <p className="mt-1 text-2xl font-semibold">
+          <p className={`mt-1 text-2xl font-semibold ${isDeficit ? 'text-red-600' : 'text-gray-900'}`}>
             {formatCurrency(balance)}
           </p>
+          {isDeficit && (
+             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md flex items-start">
+               <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+               <div className="text-sm text-red-700">
+                 <strong>Warning: Negative Balance.</strong><br/>
+                 The calculations below now show how much each recipient must <u>pay</u> to clear the deficit.
+               </div>
+             </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -252,8 +325,8 @@ export default function SplitForm({
                 className="mt-1 block w-full rounded border-gray-300 focus:ring-primary focus:border-primary sm:text-sm"
                 required
               />
-              <p className="mt-1 text-sm text-gray-500">
-                {formatCurrency(amt)}
+              <p className={`mt-1 text-sm font-medium ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>
+                {isDeficit ? 'Pay: ' : 'Get: '} {formatCurrency(amt)}
               </p>
             </div>
           ))}

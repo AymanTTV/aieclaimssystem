@@ -1,7 +1,7 @@
 // src/pages/Share.tsx
 
 import React, { useState, useMemo } from 'react'
-import { Plus, FileText, Download } from 'lucide-react'
+import { Plus, FileText, Download, FileSpreadsheet, Settings } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import toast from 'react-hot-toast'
 import Modal from '../components/ui/Modal'
@@ -12,6 +12,7 @@ import ShareDetails from '../components/Share/ShareDetails'
 import PaymentForm from '../components/Share/PaymentForm'
 import ExpenseForm from '../components/Share/ExpenseForm'
 import SplitForm from '../components/Share/SplitForm'
+import ManageShareCategoriesModal from '../components/Share/ManageShareCategoriesModal' 
 import { useShares } from '../hooks/useShares'
 import { useSplits } from '../hooks/useSplits'
 import { usePermissions } from '../hooks/usePermissions'
@@ -25,6 +26,7 @@ import {
 } from '../utils/documentGenerator'
 import { ShareDocument, ShareBulkDocument } from '../components/pdf/documents'
 import { ShareEntry, SplitRecord } from '../types/share'
+import { format } from 'date-fns'
 
 export default function Share() {
   const { records, loading } = useShares()
@@ -36,12 +38,17 @@ export default function Share() {
   // FILTERS
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'in-progress' | 'completed'>('all')
+  const [categoryFilter, setCategoryFilter] = useState('all') 
+  // -- NEW FILTERS --
+  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest' | 'lowest'>('newest')
+  // -----------------
+  
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: '',
     end: ''
   })
   
-  // NEW: Default is FALSE (Only show current pot)
   const [showHistory, setShowHistory] = useState(false) 
 
   const [viewing, setViewing] = useState<ShareEntry | null>(null)
@@ -49,59 +56,96 @@ export default function Share() {
   const [showPay, setShowPay] = useState(false)
   const [showExp, setShowExp] = useState(false)
   const [showSplit, setShowSplit] = useState(false)
+  const [showManageCats, setShowManageCats] = useState(false) 
   const [deleting, setDeleting] = useState<ShareEntry | null>(null)
   const [editingSplit, setEditingSplit] = useState<string | null>(null)
 
-  // 1. Determine the date of the LAST split (to establish the cutoff)
-  const lastSplitDate = useMemo(() => {
-    if (splits.length === 0) return null
-    // Sort splits by endDate descending
-    const sorted = [...splits].sort((a, b) => {
-      return new Date(b.endDate || '').getTime() - new Date(a.endDate || '').getTime()
-    })
-    return sorted[0]?.endDate || null
-  }, [splits])
+  // --- FIXED LOGIC: Check if record is splitted ---
+  const isRecordSplitted = (record: ShareEntry, splitList: SplitRecord[]) => {
+    return splitList.some(sp => {
+      // 1. Check Date Range
+      const inRange = sp.startDate && sp.endDate && record.date >= sp.startDate && record.date <= sp.endDate;
+      if (!inRange) return false;
 
-  // 2. Determine which RECORDS (Income/Expense) to show
+      // 2. Check Creation Time
+      if (!record.createdAt || !sp.createdAt) return true; 
+
+      // Parse Record Time
+      let recordTime = 0;
+      if ((record.createdAt as any).toMillis) {
+         recordTime = (record.createdAt as any).toMillis();
+      } else if (record.createdAt instanceof Date) {
+         recordTime = record.createdAt.getTime();
+      } else {
+         recordTime = new Date(record.createdAt).getTime();
+      }
+
+      // Parse Split Time
+      const splitTime = new Date(sp.createdAt).getTime();
+
+      // The record is only "Splitted" if it existed BEFORE the split happened.
+      return recordTime < splitTime;
+    })
+  }
+
+  // Determine which RECORDS (Income/Expense) to show
   const filteredEntries = useMemo(() => {
     let data = records
 
-    // LOGIC A: "Current Pot" Mode (History OFF)
-    if (!showHistory && lastSplitDate) {
-      // Only show records AFTER the last split
-      data = data.filter(r => new Date(r.date) > new Date(lastSplitDate))
+    // STEP 1: Filter Scope (History vs Current Pot)
+    if (!showHistory) {
+      data = data.filter(r => !isRecordSplitted(r, splits))
     }
     
-    // LOGIC B: "History" Mode (History ON)
-    // If History is ON, we respect the manual Date Range picker.
-    // If History is OFF, we ignore manual dates and just use the "After Last Split" logic above.
-    if (showHistory && dateRange.start && dateRange.end) {
-      const s = new Date(dateRange.start)
-      const e = new Date(dateRange.end)
-      data = data.filter(r => {
-        const d = new Date(r.date)
-        return d >= s && d <= e
-      })
+    // STEP 2: Date Filter 
+    if (dateRange.start) {
+      data = data.filter(r => r.date >= dateRange.start)
+    }
+    if (dateRange.end) {
+      data = data.filter(r => r.date <= dateRange.end)
     }
 
-    // Common Filters (Search & Status) apply to both modes
-    return data.filter(r => {
+    // STEP 3: Other Filters (Search, Status, Category, Type)
+    data = data.filter(r => {
       const nameMatch = (r.clientName || '').toLowerCase().includes(search.toLowerCase())
+      const refMatch = (r.claimRef || '').toLowerCase().includes(search.toLowerCase())
+      const vehicleMatch = (r.vehicleName || '').toLowerCase().includes(search.toLowerCase())
+      
       const statusMatch = status === 'all' || r.progress === status
-      return nameMatch && statusMatch
+      const catMatch = categoryFilter === 'all' || (r.category === categoryFilter)
+      
+      // -- NEW TYPE FILTER --
+      const typeMatch = typeFilter === 'all' || r.type === typeFilter
+
+      return (nameMatch || refMatch || vehicleMatch) && statusMatch && catMatch && typeMatch
     })
-  }, [records, showHistory, lastSplitDate, dateRange, search, status])
+
+    // STEP 4: Sort Order
+    return data.sort((a, b) => {
+      // Helper to get value for amount sorting
+      const getAmount = (rec: ShareEntry) => 
+        rec.type === 'income' ? (rec as any).amount : (rec as any).totalCost;
+
+      if (sortOrder === 'newest') {
+        return new Date(b.date).getTime() - new Date(a.date).getTime()
+      } else if (sortOrder === 'oldest') {
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
+      } else if (sortOrder === 'highest') {
+        return getAmount(b) - getAmount(a)
+      } else if (sortOrder === 'lowest') {
+        return getAmount(a) - getAmount(b)
+      }
+      return 0
+    })
+
+  }, [records, showHistory, splits, dateRange, search, status, categoryFilter, typeFilter, sortOrder])
 
 
-  // 3. Determine which SPLITS to show (for the Summary Cards)
+  // Determine which SPLITS to show (for the Summary Cards)
   const filteredSplits = useMemo(() => {
-    // If we are in "Current Pot" mode, we hide all past splits 
-    // so the "Shared" card shows 0 and "Balance" shows the full unsplit amount.
     if (!showHistory) {
       return []
     }
-
-    // If History is ON, filter splits by the manual date range
     return splits.filter(sp => {
       if (!dateRange.start || !dateRange.end) return true
       const s = new Date(dateRange.start)
@@ -126,12 +170,69 @@ export default function Share() {
   const handleGenerateBulkPDF = async () => {
     if (!companyDetails) { toast.error('Company details not found'); return }
     try {
-      // Note: This will generate a PDF of whatever is currently VISIBLE (Current pot or History)
       const blob = await generateBulkDocuments(ShareBulkDocument, filteredEntries, { ...companyDetails, splits: filteredSplits })
       saveAs(blob, 'share_records.pdf')
       toast.success('Bulk PDF generated')
     } catch { }
   }
+
+  // --- EXCEL EXPORT HANDLER ---
+  const handleExport = () => {
+    if (filteredEntries.length === 0) {
+      toast.error("No records to export");
+      return;
+    }
+
+    try {
+      const headers = [
+        "Date", "Type", "Category", "Client Name", "Client Phone", "Client Email", "Claim Ref", 
+        "Vehicle", "Status", "Splitted?", "Total Amount", "Notes", "VD Profit", "Actual Paid", "Legal Fee", 
+        "Storage Cost", "Recovery Cost", "PI Cost", "Expense Description"
+      ];
+
+      const rows = filteredEntries.map(entry => {
+        const isIncome = entry.type === 'income';
+        const inc = entry as any;
+        const exp = entry as any;
+        const isSplittedVal = isRecordSplitted(entry, splits) ? "Yes" : "No";
+
+        let expenseDesc = "";
+        if (!isIncome && exp.items) {
+          expenseDesc = exp.items.map((i: any) => `${i.type}: ${i.description} (£${i.unitPrice * i.quantity})`).join(" | ");
+        }
+
+        return [
+          format(new Date(entry.date), 'yyyy-MM-dd'),
+          entry.type.toUpperCase(),
+          `"${entry.category || ''}"`,
+          `"${entry.clientName || ''}"`,
+          `"${entry.clientPhone || ''}"`,
+          `"${entry.clientEmail || ''}"`,
+          `"${entry.claimRef || ''}"`,
+          `"${entry.vehicleName || ''}"`,
+          entry.progress,
+          isSplittedVal, 
+          isIncome ? inc.amount.toFixed(2) : exp.totalCost.toFixed(2),
+          `"${(entry.notes || '').replace(/"/g, '""')}"`,
+          isIncome ? (inc.vdProfit || 0).toFixed(2) : "0.00",
+          isIncome ? (inc.actualPaid || 0).toFixed(2) : "0.00",
+          isIncome ? (inc.legalFeeCost || 0).toFixed(2) : "0.00",
+          isIncome ? (inc.storageCost || 0).toFixed(2) : "0.00",
+          isIncome ? (inc.recoveryCost || 0).toFixed(2) : "0.00",
+          isIncome ? (inc.piCost || 0).toFixed(2) : "0.00",
+          `"${expenseDesc.replace(/"/g, '""')}"`
+        ].join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      saveAs(blob, `Share_Records_Export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      toast.success("Export downloaded");
+    } catch (error) {
+      console.error("Export failed", error);
+      toast.error("Failed to export data");
+    }
+  };
 
   const handleDeleteEntry = async (entry: ShareEntry) => {
     if (!entry.id) return
@@ -141,8 +242,6 @@ export default function Share() {
       setDeleting(null)
     } catch { toast.error('Failed to delete') }
   }
-
-  const handleExport = () => { toast.success('Export not implemented') }
 
   if (loading) {
     return (
@@ -158,37 +257,41 @@ export default function Share() {
         <ShareSummary
           entries={filteredEntries}
           splits={filteredSplits}
-          // Only pass dates to summary if we are in History mode
           startDate={showHistory ? dateRange.start : undefined}
           endDate={showHistory ? dateRange.end : undefined}
         />
       )}
 
       {/* Top Action Buttons */}
-      <div className="flex justify-end space-x-2">
+      <div className="flex flex-wrap justify-end gap-2">
         {can('share', 'create') && (
-          <button onClick={() => setShowPay(true)} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded">
+           <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+             <Settings className="h-5 w-5 mr-2" /> Cats
+           </button>
+        )}
+        {can('share', 'create') && (
+          <button onClick={() => setShowPay(true)} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition-colors shadow-sm">
             <Plus className="h-5 w-5 mr-2" /> Add Income
           </button>
         )}
         {can('share', 'create') && (
-          <button onClick={() => setShowExp(true)} className="inline-flex items-center px-4 py-2 border rounded">
+          <button onClick={() => setShowExp(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
             <FileText className="h-5 w-5 mr-2" /> Record Expense
           </button>
         )}
         {can('share', 'share') && (
-          <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 border rounded">
+          <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
             <FileText className="h-5 w-5 mr-2" /> Split
           </button>
         )}
         {user?.role === 'manager' && (
-          <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 border rounded">
-            <FileText className="h-5 w-5 mr-2" /> Generate PDF
+          <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+            <Download className="h-5 w-5 mr-2" /> PDF Report
           </button>
         )}
         {can('share', 'export') && (
-          <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border rounded">
-            <Download className="h-5 w-5 mr-2" /> Export
+          <button onClick={handleExport} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow-sm">
+            <FileSpreadsheet className="h-5 w-5 mr-2" /> Excel Export
           </button>
         )}
       </div>
@@ -199,35 +302,43 @@ export default function Share() {
         onSearch={setSearch}
         status={status}
         onStatus={setStatus}
+        // -- NEW PROPS --
+        typeFilter={typeFilter}
+        onTypeFilter={setTypeFilter}
+        sortOrder={sortOrder}
+        onSortOrder={setSortOrder}
+        // --------------
         dateRange={dateRange}
         onDateRange={setDateRange}
-        // Pass new toggle props
         showHistory={showHistory}
         onToggleHistory={setShowHistory}
+        category={categoryFilter}
+        onCategory={setCategoryFilter}
       />
 
       {/* Data Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <ShareTable
           entries={filteredEntries}
+          // Pass the list of splits AND logic to check them
+          splits={splits} 
+          isSplitted={(r) => isRecordSplitted(r, splits)}
           onView={setViewing}
           onEdit={setEditing}
           onGenerateDocument={handleGenerateDocument}
           onDelete={setDeleting}
         />
-        {/* Helper text for Empty State */}
         {filteredEntries.length === 0 && !showHistory && (
-          <div className="p-8 text-center text-gray-500">
-             No new records since the last split. 
-             <br/>
-             <button onClick={()=>setShowHistory(true)} className="text-primary underline mt-2">
+          <div className="p-10 text-center">
+             <p className="text-gray-500 mb-2">No new records found (all records are covered by existing splits).</p>
+             <button onClick={()=>setShowHistory(true)} className="text-primary hover:underline font-medium">
                View History
              </button>
           </div>
         )}
       </div>
 
-      {/* --- MODALS (Unchanged) --- */}
+      {/* --- MODALS --- */}
       <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Details" size="lg">
         {viewing && <ShareDetails entry={viewing} />}
       </Modal>
@@ -248,6 +359,10 @@ export default function Share() {
         <ExpenseForm onClose={() => setShowExp(false)} />
       </Modal>
 
+      <Modal isOpen={showManageCats} onClose={() => setShowManageCats(false)} title="" size="md">
+        <ManageShareCategoriesModal onClose={() => setShowManageCats(false)} />
+      </Modal>
+
       <Modal
         isOpen={showSplit}
         onClose={() => { setShowSplit(false); setEditingSplit(null) }}
@@ -263,10 +378,10 @@ export default function Share() {
 
       <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Confirm Delete">
         <div className="space-y-4">
-          <p>Are you sure you want to delete this record?</p>
+          <p className="text-gray-700">Are you sure you want to delete this record? This action cannot be undone.</p>
           <div className="flex justify-end space-x-2">
-            <button onClick={() => setDeleting(null)} className="px-4 py-2 border rounded">Cancel</button>
-            <button onClick={() => deleting && handleDeleteEntry(deleting)} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button>
+            <button onClick={() => setDeleting(null)} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+            <button onClick={() => deleting && handleDeleteEntry(deleting)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
           </div>
         </div>
       </Modal>

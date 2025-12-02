@@ -1,41 +1,68 @@
 import React, { useState, useEffect } from 'react';
-import { addDoc, updateDoc, doc, collection } from 'firebase/firestore';
+import { addDoc, updateDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
+import SearchableSelect from '../ui/SearchableSelect';
+import { useCustomers } from '../../hooks/useCustomers';
 import toast from 'react-hot-toast';
-
-interface ExpenseItem {
-  type: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  vat: boolean;
-}
+import { IncomeExpenseEntry, ExpenseItem } from '../../types/incomeExpense';
 
 interface Props {
   onClose(): void;
-  record?: any;
+  record?: IncomeExpenseEntry;
   collectionName: string;
+  categoriesCollection?: string;
 }
 
-export default function ExpenseForm({ onClose, record, collectionName }: Props) {
+export default function ExpenseForm({ onClose, record, collectionName, categoriesCollection = 'incomeExpenseCategories' }: Props) {
   const { user } = useAuth();
   const isEdit = !!record;
+  const { customers } = useCustomers();
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
-  const [items, setItems] = useState<ExpenseItem[]>(
-    (record?.items as ExpenseItem[]) || []
-  );
+  // Use type assertion to access items property safely
+  const recordItems = record && 'items' in record ? (record as any).items as ExpenseItem[] : [];
+
+  const [items, setItems] = useState<ExpenseItem[]>(recordItems.length > 0 ? recordItems : []);
 
   const [meta, setMeta] = useState({
+    customerId: record?.customerId || '',
+    customer: record?.customer || '',
+    customerPhone: record?.customerPhone || '',
+    customerEmail: record?.customerEmail || '',
+    customerAddress: record?.customerAddress || '',
+
     date: record?.date || new Date().toISOString().slice(0, 10),
     reference: record?.reference || '',
-    customerName: record?.customerName || '',
-    paymentStatus: record?.paymentStatus || 'Pending',
-    status: record?.status || 'Pending'
+    category: record?.category || '',
+    
+    paymentStatus: record?.status || 'Pending',
+    status: (record as any)?.progress || 'in-progress',
+    note: record?.note || ''
   });
 
   const [saving, setSaving] = useState(false);
+
+  // Fetch categories
+  useEffect(() => {
+    getDocs(collection(db, categoriesCollection)).then(snap => {
+      setAvailableCategories(snap.docs.map(d => d.data().name).sort())
+    })
+  }, [categoriesCollection]);
+
+  // Handle Customer
+  const handleCustomerChange = (id: string) => {
+    const c = customers.find(cx => cx.id === id);
+    setMeta(prev => ({
+      ...prev,
+      customerId: id,
+      customer: c ? c.name : (id === '' ? '' : prev.customer),
+      customerPhone: c?.mobile || '',
+      customerEmail: c?.email || '',
+      customerAddress: c?.address || '',
+    }));
+  };
 
   const addItem = () =>
     setItems([...items, { type: '', description: '', quantity: 1, unitPrice: 0, vat: false }]);
@@ -61,10 +88,10 @@ export default function ExpenseForm({ onClose, record, collectionName }: Props) 
       ...meta,
       items,
       totalCost,
-      type: 'expense',
-      createdBy: user.id,
+      type: 'expense' as const,
       updatedAt: new Date().toISOString(),
-      progress: 'in-progress'
+      status: meta.paymentStatus, 
+      progress: meta.status 
     };
 
     try {
@@ -72,7 +99,11 @@ export default function ExpenseForm({ onClose, record, collectionName }: Props) 
         await updateDoc(doc(db, collectionName, record.id), payload);
         toast.success('Expense updated');
       } else {
-        await addDoc(collection(db, collectionName), payload);
+        await addDoc(collection(db, collectionName), {
+           ...payload,
+           createdBy: user.id,
+           createdAt: new Date().toISOString(), // ADDED: Crucial for split logic
+        });
         toast.success('Expense recorded');
       }
       onClose();
@@ -86,96 +117,119 @@ export default function ExpenseForm({ onClose, record, collectionName }: Props) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <FormField
-        label="Date"
-        type="date"
-        value={meta.date}
-        onChange={(e) => setMeta({ ...meta, date: e.target.value })}
-        required
-      />
-      <FormField
-        label="Reference"
-        value={meta.reference}
-        onChange={(e) => setMeta({ ...meta, reference: e.target.value })}
-        required
-      />
-      <FormField
-        label="Customer/Company"
-        value={meta.customerName}
-        onChange={(e) => setMeta({ ...meta, customerName: e.target.value })}
-        required
-      />
+      
+      {/* Row 1: Customer & Ref */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SearchableSelect
+          label="Customer / Payee"
+          options={customers.map(c => ({ 
+            id: c.id, 
+            label: c.name, 
+            subLabel: `${c.mobile || ''} ${c.email ? '- ' + c.email : ''}` 
+          }))}
+          value={meta.customerId}
+          onChange={handleCustomerChange}
+          placeholder="Search customer..."
+          isClearable
+          required
+        />
+        <FormField
+          label="Reference"
+          value={meta.reference}
+          onChange={(e) => setMeta({ ...meta, reference: e.target.value })}
+          required
+        />
+      </div>
 
-      <div className="overflow-x-auto">
+      {/* Row 2: Date & Category */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+            label="Date"
+            type="date"
+            value={meta.date}
+            onChange={(e) => setMeta({ ...meta, date: e.target.value })}
+            required
+        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            value={meta.category}
+            onChange={(e) => setMeta({ ...meta, category: e.target.value })}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          >
+            <option value="">Select Category...</option>
+            {availableCategories.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Expense Items Table */}
+      <div className="overflow-x-auto border rounded-lg bg-white">
         <table className="w-full table-auto border-collapse">
-          <thead className="bg-gray-100">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               <th className="p-2 text-left">Type</th>
               <th className="p-2 text-left">Description</th>
               <th className="p-2 text-center">Qty</th>
               <th className="p-2 text-center">Unit Price</th>
               <th className="p-2 text-center">VAT</th>
-              <th className="p-2 text-center">Remove</th>
+              <th className="p-2 text-center"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-sm">
             {items.map((it, i) => (
-              <tr key={i} className="border-t">
-                <td className="p-1">
-                  <FormField
+              <tr key={i} className="border-t hover:bg-gray-50">
+                <td className="p-2">
+                  <input
+                    className="w-full border-gray-300 rounded-md text-sm"
                     value={it.type}
                     onChange={(e) => updateItem(i, 'type', e.target.value)}
+                    placeholder="Item type"
                     required
                   />
                 </td>
-                <td className="p-1">
-                  <FormField
+                <td className="p-2">
+                  <input
+                    className="w-full border-gray-300 rounded-md text-sm"
                     value={it.description}
-                    onChange={(e) =>
-                      updateItem(i, 'description', e.target.value)
-                    }
+                    onChange={(e) => updateItem(i, 'description', e.target.value)}
+                    placeholder="Description"
                     required
                   />
                 </td>
-                <td className="p-1 text-center">
-                  <FormField
+                <td className="p-2 w-20">
+                  <input
                     type="number"
+                    className="w-full border-gray-300 rounded-md text-center text-sm"
                     value={it.quantity}
-                    onChange={(e) =>
-                      updateItem(i, 'quantity', +e.target.value)
-                    }
+                    onChange={(e) => updateItem(i, 'quantity', +e.target.value)}
                     min={1}
                     required
                   />
                 </td>
-                <td className="p-1 text-center">
-                  <FormField
+                <td className="p-2 w-24">
+                  <input
                     type="number"
+                    className="w-full border-gray-300 rounded-md text-center text-sm"
                     value={it.unitPrice}
-                    onChange={(e) =>
-                      updateItem(i, 'unitPrice', +e.target.value)
-                    }
+                    onChange={(e) => updateItem(i, 'unitPrice', +e.target.value)}
                     min={0}
                     step="0.01"
                     required
                   />
                 </td>
-                <td className="p-1 text-center">
+                <td className="p-2 text-center">
                   <input
                     type="checkbox"
                     checked={it.vat}
-                    onChange={(e) =>
-                      updateItem(i, 'vat', e.target.checked)
-                    }
-                    className="h-4 w-4"
+                    onChange={(e) => updateItem(i, 'vat', e.target.checked)}
+                    className="h-4 w-4 text-primary border-gray-300 rounded"
                   />
                 </td>
-                <td className="p-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(i)}
-                    className="text-red-600"
-                  >
+                <td className="p-2 text-center">
+                  <button type="button" onClick={() => removeItem(i)} className="text-red-600 hover:text-red-800 font-medium text-xs">
                     Remove
                   </button>
                 </td>
@@ -184,54 +238,66 @@ export default function ExpenseForm({ onClose, record, collectionName }: Props) 
           </tbody>
         </table>
       </div>
-
+      
       <button
         type="button"
         onClick={addItem}
-        className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
+        className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 border border-gray-200"
       >
         + Add Item
       </button>
 
-      <div className="grid grid-cols-2 gap-4">
-        <label className="block text-sm font-medium">
-          Payment Status
-          <select
-            value={meta.paymentStatus}
-            onChange={(e) =>
-              setMeta({ ...meta, paymentStatus: e.target.value })
-            }
-            className="w-full mt-1 border p-2 rounded"
-          >
-            <option>Paid</option>
-            <option>Unpaid</option>
-            <option>Partially Paid</option>
-          </select>
-        </label>
-        <label className="block text-sm font-medium">
-          Status
-          <select
-            value={meta.status}
-            onChange={(e) => setMeta({ ...meta, status: e.target.value })}
-            className="w-full mt-1 border p-2 rounded"
-          >
-            <option>Pending</option>
-            <option>Completed</option>
-          </select>
-        </label>
+      <div className="flex justify-end">
+         <div className="text-lg font-bold text-gray-800">
+             Total Cost: £{totalCost.toLocaleString(undefined, {minimumFractionDigits: 2})}
+         </div>
       </div>
 
-      <div className="flex justify-end space-x-2">
+      {/* Status & Notes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+           <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+            <select
+                value={meta.paymentStatus}
+                onChange={(e) => setMeta({ ...meta, paymentStatus: e.target.value })}
+                className="w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-primary focus:ring-primary"
+            >
+                <option>Paid</option>
+                <option>Unpaid</option>
+                <option>Partially Paid</option>
+                <option>Pending</option>
+            </select>
+        </div>
+         <div>
+            <label className="block text-sm font-medium text-gray-700">Progress Status</label>
+            <select
+                value={meta.status}
+                onChange={(e) => setMeta({ ...meta, status: e.target.value })}
+                className="w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-primary focus:ring-primary"
+            >
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+            </select>
+        </div>
+      </div>
+      
+      <FormField
+         label="Note"
+         value={meta.note}
+         onChange={(e) => setMeta({ ...meta, note: e.target.value })}
+      />
+
+      <div className="flex justify-end space-x-3 pt-4 border-t">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 border rounded"
+          className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-primary text-white rounded"
+          className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50 shadow-sm"
           disabled={saving}
         >
           {saving ? 'Saving…' : isEdit ? 'Update Expense' : 'Save Expense'}

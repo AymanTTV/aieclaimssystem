@@ -11,14 +11,22 @@ export interface Recipient {
 export interface IncomeExpenseEntry {
   id: string;
   type: 'income' | 'expense';
-  customer: string;
+  
+  // Customer Info
+  customer: string; // Name
   customerId: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
+
+  category?: string; // New Category Field
+
   reference: string;
   date: string;
   status: 'Paid' | 'Unpaid' | 'Partially Paid' | 'Pending';
   description: string;
   unit: string;
-  note:string;
+  note: string;
   quantity: number;
   net: number;
   vat: boolean;

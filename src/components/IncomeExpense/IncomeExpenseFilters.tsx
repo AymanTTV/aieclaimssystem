@@ -1,6 +1,7 @@
-// src/components/IncomeExpense/IncomeExpenseFilters.tsx
-import React from 'react';
-import { Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, History } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface Props {
   search: string;
@@ -11,7 +12,13 @@ interface Props {
   onProgress: (val: 'all' | 'in-progress' | 'completed') => void;
   dateRange: { start: string; end: string };
   onDateRange: (range: { start: string; end: string }) => void;
-  permissionScope?: string; // keep optional for compatibility
+  permissionScope?: string;
+  showHistory: boolean;
+  onToggleHistory: (val: boolean) => void;
+  // New Category Props
+  category: string;
+  onCategory: (val: string) => void;
+  categoriesCollection?: string; // e.g. 'incomeExpenseCategories'
 }
 
 const IncomeExpenseFilters: React.FC<Props> = ({
@@ -23,13 +30,28 @@ const IncomeExpenseFilters: React.FC<Props> = ({
   onProgress,
   dateRange,
   onDateRange,
+  showHistory,
+  onToggleHistory,
+  category,
+  onCategory,
+  categoriesCollection = 'incomeExpenseCategories'
 }) => {
+  const [categories, setCategories] = useState<string[]>([]);
+
+  // Fetch categories
+  useEffect(() => {
+    if(!categoriesCollection) return;
+    getDocs(collection(db, categoriesCollection)).then(snap => {
+      setCategories(snap.docs.map(d => d.data().name).sort())
+    }).catch(console.error);
+  }, [categoriesCollection]);
+
   return (
-    <div className="space-y-3">
-      {/* 2 columns on mobile; 4 on md+ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* Search spans full width on mobile */}
-        <div className="relative col-span-2 md:col-span-1">
+    <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
+        
+        {/* Search */}
+        <div className="relative sm:col-span-2">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" />
           </div>
@@ -42,6 +64,7 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           />
         </div>
 
+        {/* Type Filter */}
         <select
           value={typeFilter}
           onChange={(e) => onType(e.target.value as any)}
@@ -52,30 +75,79 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           <option value="expense">Expense</option>
         </select>
 
+        {/* Category Filter */}
         <select
-          value={progress}
-          onChange={(e) => onProgress(e.target.value as any)}
+          value={category}
+          onChange={(e) => onCategory(e.target.value)}
           className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
         >
-          <option value="all">All Status</option>
-          <option value="in-progress">In Progress</option>
-          <option value="completed">Completed</option>
+          <option value="all">All Categories</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
         </select>
 
-        {/* Date range stays tidy in one grid cell */}
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })}
-            className="block w-full border-gray-300 rounded-md focus:border-primary focus:ring-primary sm:text-sm"
-          />
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })}
-            className="block w-full border-gray-300 rounded-md focus:border-primary focus:ring-primary sm:text-sm"
-          />
+      </div>
+
+      {/* Second Row: Date Range + History + Status */}
+      <div className="flex flex-col sm:flex-row gap-4 items-end justify-between pt-2 border-t border-gray-100">
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+           {/* Date Range */}
+            <div className="flex gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+            </div>
+            
+            {/* Status */}
+            <div>
+               <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+               <select
+                  value={progress}
+                  onChange={(e) => onProgress(e.target.value as any)}
+                  className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+            </div>
+        </div>
+
+        {/* History Toggle */}
+        <div className="flex items-center pb-1">
+          <button
+            onClick={() => onToggleHistory(!showHistory)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              showHistory ? 'bg-primary' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                showHistory ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+          <span className="ml-3 text-sm font-medium text-gray-900 flex items-center gap-1">
+            <History className="w-4 h-4" />
+            Include Past
+          </span>
         </div>
       </div>
     </div>

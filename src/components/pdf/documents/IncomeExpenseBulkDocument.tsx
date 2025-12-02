@@ -1,9 +1,7 @@
-// src/components/pdf/documents/IncomeExpenseBulkDocument.tsx
-
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { IncomeExpenseEntry, ProfitShare } from '../../../types/incomeExpense';
-import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict
+import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
 
 interface Props {
@@ -19,37 +17,26 @@ interface Props {
   title?: string;
 }
 
-// Local styles for the summary card and table, mimicking FinanceDocument.tsx's local styles
 const localStyles = StyleSheet.create({
   summaryCard: {
-    ...globalStyles.card, // Use existing card style as base
+    ...globalStyles.card,
     marginBottom: 10,
     padding: 10,
     backgroundColor: '#F9FAFB',
-    breakInside: 'avoid', // Ensure card stays together
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
+    breakInside: 'avoid',
   },
   summaryLabel: {
-    ...globalStyles.text, // Use existing text style as base
+    ...globalStyles.text,
     fontSize: 10,
     color: '#4B5563',
   },
   summaryValue: {
-    ...globalStyles.text, // Use existing text style as base
+    ...globalStyles.text,
     fontSize: 10,
     fontWeight: 'bold',
   },
-  positiveValue: {
-    color: '#10B981', // green
-  },
-  negativeValue: {
-    color: '#EF4444', // red
-  },
-  // Added style for wrapping text in table cells
+  positiveValue: { color: '#10B981' },
+  negativeValue: { color: '#EF4444' },
   tableCellWrappedText: {
     flexWrap: 'wrap',
     overflow: 'hidden',
@@ -57,8 +44,8 @@ const localStyles = StyleSheet.create({
   },
 });
 
-const ITEMS_FIRST_PAGE = 5; // 5 records on the first page table
-const ITEMS_PER_PAGE = 7;   // 7 records on other pages table
+const ITEMS_FIRST_PAGE = 7;
+const ITEMS_PER_PAGE = 10;
 
 const fmt = (n: number | undefined) => `£${(n ?? 0).toFixed(2)}`;
 const formatDate = (iso?: string) =>
@@ -89,7 +76,6 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
     return acc;
   }, {});
 
-  // Pagination logic
   const remainder = Math.max(0, records.length - ITEMS_FIRST_PAGE);
   const pageCount = records.length > 0 ? 1 + Math.ceil(remainder / ITEMS_PER_PAGE) : 0;
 
@@ -101,7 +87,6 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
           ITEMS_FIRST_PAGE + page * ITEMS_PER_PAGE
         );
 
-  // Derive header details from companyDetails, splitting the address
   const headerDetails = {
     logoUrl: companyDetails?.logoUrl || '',
     fullName: companyDetails?.fullName || 'AIE Skyline Limited',
@@ -117,8 +102,8 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
         const slice = getPageSlice(pageIndex);
 
         return (
-          <Page key={pageIndex} size="A4" style={globalStyles.page}>
-            {/* HEADER - Updated to match the consistent design */}
+          <Page key={pageIndex} size="A4" style={globalStyles.page} orientation="landscape">
+            {/* HEADER */}
             <View style={globalStyles.header} fixed>
               <View style={globalStyles.headerLeft}>
                 {headerDetails.logoUrl && (
@@ -134,7 +119,7 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
               </View>
             </View>
 
-            {/* TITLE + SUMMARY (first page only) */}
+            {/* SUMMARY (First Page Only) */}
             {pageIndex === 0 && (
               <>
                 <View style={globalStyles.titleContainer}>
@@ -142,19 +127,16 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
                 </View>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-                  {/* Income */}
                   <View style={[localStyles.summaryCard, { borderLeftColor: '#059669', width: '23%' }]}>
                     <Text style={localStyles.summaryLabel}>Income</Text>
                     <Text style={[localStyles.summaryValue, localStyles.positiveValue]}>{fmt(totalIncome)}</Text>
                   </View>
 
-                  {/* Expense */}
                   <View style={[localStyles.summaryCard, { borderLeftColor: '#DC2626', width: '23%' }]}>
                     <Text style={localStyles.summaryLabel}>Expense</Text>
                     <Text style={[localStyles.summaryValue, localStyles.negativeValue]}>{fmt(totalExpense)}</Text>
                   </View>
 
-                  {/* Shared */}
                   <View style={[localStyles.summaryCard, { borderLeftColor: '#3B82F6', width: '23%' }]}>
                     <Text style={localStyles.summaryLabel}>Shared</Text>
                     {Object.entries(breakdown).map(([name, amount]) => {
@@ -163,9 +145,7 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
                         : 0;
                       return (
                         <View key={name} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={localStyles.summaryValue}>
-                            {name} ({pct}%)
-                          </Text>
+                          <Text style={localStyles.summaryValue}>{name} ({pct}%)</Text>
                           <Text style={localStyles.summaryValue}>{fmt(amount)}</Text>
                         </View>
                       );
@@ -176,7 +156,6 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
                     </View>
                   </View>
 
-                  {/* Balance */}
                   <View style={[localStyles.summaryCard, { borderLeftColor: '#10B981', width: '23%' }]}>
                     <Text style={localStyles.summaryLabel}>Balance</Text>
                     <Text style={[localStyles.summaryValue, balance >= 0 ? localStyles.positiveValue : localStyles.negativeValue]}>{fmt(balance)}</Text>
@@ -185,35 +164,39 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
               </>
             )}
 
-            {/* TABLE HEADER */}
-            <View style={globalStyles.tableHeader} fixed> {/* Added fixed to tableHeader */}
-              <Text style={[globalStyles.tableHeaderCell, { width: '15%' }]}>Date</Text>
-              <Text style={[globalStyles.tableHeaderCell, { width: '25%' }]}>Customer</Text>
-              <Text style={[globalStyles.tableHeaderCell, { width: '20%' }]}>Reference</Text>
-              <Text style={[globalStyles.tableHeaderCell, { width: '15%' }]}>Type</Text>
+            {/* TABLE HEADER - Added Category */}
+            <View style={globalStyles.tableHeader} fixed>
+              <Text style={[globalStyles.tableHeaderCell, { width: '12%' }]}>Date</Text>
+              <Text style={[globalStyles.tableHeaderCell, { width: '20%' }]}>Customer</Text>
+              <Text style={[globalStyles.tableHeaderCell, { width: '15%' }]}>Category</Text>
+              <Text style={[globalStyles.tableHeaderCell, { width: '15%' }]}>Reference</Text>
+              <Text style={[globalStyles.tableHeaderCell, { width: '10%' }]}>Type</Text>
               <Text style={[globalStyles.tableHeaderCell, { width: '15%' }]}>Total</Text>
-              <Text style={[globalStyles.tableHeaderCell, { width: '10%' }]}>Status</Text>
+              <Text style={[globalStyles.tableHeaderCell, { width: '13%' }]}>Status</Text>
             </View>
 
             {/* TABLE ROWS */}
             {slice.map((rec, i) => (
               <View key={i} style={globalStyles.tableRow}>
-                <Text style={[globalStyles.tableCell, { width: '15%' }, localStyles.tableCellWrappedText]}>{formatDate(rec.date)}</Text>
-                <Text style={[globalStyles.tableCell, { width: '25%' }, localStyles.tableCellWrappedText]}>
+                <Text style={[globalStyles.tableCell, { width: '12%' }]}>{formatDate(rec.date)}</Text>
+                <Text style={[globalStyles.tableCell, { width: '20%' }, localStyles.tableCellWrappedText]}>
                   {rec.customer || (rec as any).customerName || '—'}
                 </Text>
-                <Text style={[globalStyles.tableCell, { width: '20%' }, localStyles.tableCellWrappedText]}>
+                <Text style={[globalStyles.tableCell, { width: '15%' }, localStyles.tableCellWrappedText]}>
+                  {rec.category || '-'}
+                </Text>
+                <Text style={[globalStyles.tableCell, { width: '15%' }, localStyles.tableCellWrappedText]}>
                   {rec.reference || '—'}
                 </Text>
-                <Text style={[globalStyles.tableCell, { width: '15%' }, localStyles.tableCellWrappedText]}>{rec.type}</Text>
-                <Text style={[globalStyles.tableCell, { width: '15%' }, localStyles.tableCellWrappedText]}>
+                <Text style={[globalStyles.tableCell, { width: '10%' }]}>{rec.type}</Text>
+                <Text style={[globalStyles.tableCell, { width: '15%' }]}>
                   {fmt(rec.total ?? (rec as any).totalCost ?? 0)}
                 </Text>
-                <Text style={[globalStyles.tableCell, { width: '10%' }, localStyles.tableCellWrappedText]}>{rec.status}</Text>
+                <Text style={[globalStyles.tableCell, { width: '13%' }]}>{rec.status}</Text>
               </View>
             ))}
 
-            {/* FOOTER - Updated to match the consistent design */}
+            {/* FOOTER */}
             <View style={globalStyles.footer} fixed>
               <Text style={globalStyles.footerText}>
                 AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875

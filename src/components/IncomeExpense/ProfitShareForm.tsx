@@ -13,7 +13,7 @@ import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, AlertTriangle } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { ProfitShare, Recipient, IncomeExpenseEntry } from '../../types/incomeExpense';
 
@@ -59,7 +59,39 @@ export default function ProfitShareForm({
     }
   }, [shareToEdit]);
 
-  // Balance calculation using passed records + local history
+  // --- AUTO-FILL DATES Logic ---
+  useEffect(() => {
+    // 1. Only run if NOT editing an existing split
+    if (shareToEdit) return;
+    
+    // 2. Only run if dates are currently empty
+    if (startDate || endDate) return;
+
+    // 3. Ensure we have records and history
+    if (records.length === 0) return;
+
+    // 4. Find records that are NOT covered by any existing split
+    const unsplitRecords = records.filter(r => {
+      const rDate = r.date.slice(0, 10);
+      const isCovered = history.some(sp => 
+        sp.startDate && sp.endDate &&
+        rDate >= sp.startDate && rDate <= sp.endDate
+      );
+      return !isCovered;
+    });
+
+    if (unsplitRecords.length === 0) return;
+
+    // 5. Sort these records by date ascending
+    unsplitRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // 6. Set Start to the earliest unsplit record, End to the latest
+    setStartDate(unsplitRecords[0].date.slice(0, 10));
+    setEndDate(unsplitRecords[unsplitRecords.length - 1].date.slice(0, 10));
+
+  }, [shareToEdit, records, history, startDate, endDate]);
+
+  // Balance calculation
   useEffect(() => {
     if (!startDate || !endDate) return setBalance(0);
     const s = new Date(startDate);
@@ -68,7 +100,10 @@ export default function ProfitShareForm({
 
     records.forEach(r => {
       const d = new Date(r.date);
-      if (d >= s && d <= e) {
+      // Ensure date comparison includes start and end dates inclusive
+      // Note: Comparing Date objects directly might miss time if not normalized, but assuming YYYY-MM-DD strings in inputs
+      const rDateStr = r.date.slice(0, 10);
+      if (rDateStr >= startDate && rDateStr <= endDate) {
         if (r.type === 'income') {
           income += r.total ?? 0;
         } else {
@@ -83,18 +118,23 @@ export default function ProfitShareForm({
 
       const ss = new Date(sp.startDate);
       const ee = new Date(sp.endDate);
-      if (!(ee < s || ss > e)) {
-        shared += sp.totalSplitAmount ?? 0;
-      }
+      // Skip logic for overlap checking here for simplicity, 
+      // typically profit shares shouldn't subtract from other profit shares unless tracking total pot.
+      // Assuming 'shared' logic is not needed if we are just summing up income/expense in range.
+      // Removing 'shared' subtraction as typically we just want Net Income in this range.
+      // If you need to subtract previous payouts in this range, logic applies.
     });
 
-    setBalance(Math.max(0, income - expense - shared));
+    setBalance(income - expense); // Allow negative balance
   }, [startDate, endDate, records, history, shareToEdit]);
+
+  const isDeficit = balance < 0;
+  const absBalance = Math.abs(balance);
 
   const totalPercentage = recipients.reduce((s, r) => s + r.percentage, 0);
   const recipientsWithAmount = recipients.map(r => ({
     ...r,
-    amount: Math.round(balance * (r.percentage / 100) * 100) / 100
+    amount: Math.round(absBalance * (r.percentage / 100) * 100) / 100
   }));
 
   const handleRecipientChange = (i: number, field: keyof Recipient, value: any) => {
@@ -121,7 +161,7 @@ export default function ProfitShareForm({
       startDate,
       endDate,
       recipients: recipientsWithAmount,
-      totalSplitAmount: recipientsWithAmount.reduce((s, r) => s + r.amount, 0),
+      totalSplitAmount: isDeficit ? -absBalance : absBalance,
       createdAt: new Date().toISOString(),
       createdBy: user.id
     };
@@ -167,7 +207,9 @@ export default function ProfitShareForm({
             <div key={sp.id} className="flex justify-between items-center p-2 hover:bg-gray-50">
               <div onClick={() => onEditRequested?.(sp)} className="cursor-pointer">
                 <span className="font-medium">{sp.startDate} → {sp.endDate}</span>
-                <span className="ml-2 text-sm text-gray-500">({formatCurrency(sp.totalSplitAmount)})</span>
+                <span className={`ml-2 text-sm ${sp.totalSplitAmount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                   ({formatCurrency(sp.totalSplitAmount)})
+                </span>
               </div>
               <button onClick={() => handleDelete(sp.id)} className="text-red-600 hover:text-red-800 p-1">
                 <Trash2 className="w-4 h-4" />
@@ -188,7 +230,18 @@ export default function ProfitShareForm({
 
         <div>
           <label className="block text-sm font-medium">Balance</label>
-          <p className="mt-1 text-2xl font-semibold">{formatCurrency(balance)}</p>
+          <p className={`mt-1 text-2xl font-semibold ${isDeficit ? 'text-red-600' : 'text-gray-900'}`}>
+            {formatCurrency(balance)}
+          </p>
+          {isDeficit && (
+             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md flex items-start">
+               <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+               <div className="text-sm text-red-700">
+                 <strong>Warning: Negative Balance.</strong><br/>
+                 The amounts below indicate what each recipient must <u>pay</u> to cover the deficit.
+               </div>
+             </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -209,12 +262,12 @@ export default function ProfitShareForm({
                 onChange={e => handleRecipientChange(i, 'percentage', +e.target.value)}
                 required
               />
-              <div className="pt-6 text-sm text-gray-500">
-                {formatCurrency(r.amount)}{' '}
+              <div className={`pt-6 text-sm font-medium flex items-center justify-between ${isDeficit ? 'text-red-600' : 'text-green-600'}`}>
+                <span>{isDeficit ? 'Pay: ' : 'Get: '} {formatCurrency(r.amount)}</span>
                 <button
                   type="button"
                   onClick={() => removeRecipient(i)}
-                  className="text-red-600 text-xs ml-2"
+                  className="text-red-600 text-xs hover:underline"
                 >
                   Remove
                 </button>

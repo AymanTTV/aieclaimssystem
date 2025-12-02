@@ -25,11 +25,27 @@ export interface BaseEntry {
   id: string
   /** 'income' for payments, 'expense' for expense records */
   type: 'income' | 'expense'
+  
+  // Client Info
   clientName: string
   clientId: string
+  clientPhone?: string
+  clientEmail?: string
+  clientAddress?: string
+  
+  // Vehicle Info
+  vehicleId?: string
+  vehicleName?: string // e.g. "Toyota Prius (LR60...)"
+
+  // New Category Field
+  category?: string 
+
   claimRef: string
   /** ISO date string */
   date: string
+  
+  notes?: string 
+
   progress: Progress
   createdBy: string
   /** ISO timestamp string */

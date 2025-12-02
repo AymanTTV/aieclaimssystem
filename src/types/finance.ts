@@ -1,5 +1,7 @@
 // src/types/finance.ts
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly';
+
 export interface InvoicePayment {
   id: string;
   date: Date;
@@ -40,10 +42,17 @@ export interface Transaction {
   createdBy: string;
   updatedAt?: Date;
   updatedBy?: string;
+  
   // --- Use arrays for accounts ---
   accountsFrom?: string[]; // Array of account IDs debited (for Expense)
   accountsTo?: string[];   // Array of account IDs credited (for Income)
-  // ---
+  
+  // --- Recurring Fields ---
+  isRecurring?: boolean;
+  recurringFrequency?: RecurringFrequency;
+  nextRecurringDate?: Date | any; // Timestamp or Date
+  // ------------------------
+
   documentUrl?: string;
   receiptUrl?: string;
 }
