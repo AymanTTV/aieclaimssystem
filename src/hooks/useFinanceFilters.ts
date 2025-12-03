@@ -21,8 +21,8 @@ export const useFinanceFilters = (
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   
-  // --- NEW: Recurring Filter State ---
-  const [recurringFilter, setRecurringFilter] = useState<'all' | 'recurring' | 'non_recurring'>('all');
+  // --- UPDATED: Recurring Filter State to String ---
+  const [recurringFilter, setRecurringFilter] = useState<string>('all');
   // -----------------------------------
 
   const owners = useMemo(() => {
@@ -100,10 +100,19 @@ export const useFinanceFilters = (
       // Check for referenceId (now primarily for Invoice links)
       const matchesLinked = showLinked === 'all' || (showLinked === 'linked' && !!transaction.referenceId) || (showLinked === 'unlinked' && !transaction.referenceId);
 
-      // --- NEW: Recurring Filter Check ---
-      const matchesRecurring = recurringFilter === 'all' || 
-          (recurringFilter === 'recurring' && transaction.isRecurring) || 
-          (recurringFilter === 'non_recurring' && !transaction.isRecurring);
+      // --- UPDATED: Recurring Filter Check ---
+      let matchesRecurring = true;
+      if (recurringFilter === 'all') {
+          matchesRecurring = true;
+      } else if (recurringFilter === 'non_recurring') {
+          matchesRecurring = !transaction.isRecurring;
+      } else if (recurringFilter === 'recurring_all') {
+          matchesRecurring = !!transaction.isRecurring;
+      } else if (recurringFilter.startsWith('recurring_')) {
+          // Check specific frequency (e.g. 'recurring_monthly')
+          const targetFreq = recurringFilter.replace('recurring_', '');
+          matchesRecurring = !!transaction.isRecurring && transaction.recurringFrequency === targetFreq;
+      }
       // -----------------------------------
 
       return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked && matchesRecurring;
@@ -180,7 +189,7 @@ export const useFinanceFilters = (
     accountFilter, setAccountFilter,
     groupFilter, setGroupFilter,
     showLinked, setShowLinked,
-    recurringFilter, setRecurringFilter, // <-- Added Return
+    recurringFilter, setRecurringFilter, 
     owners,
     filteredTransactions,
     accountSummary,

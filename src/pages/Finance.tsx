@@ -1,6 +1,6 @@
 // src/pages/Finance.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFinances } from '../hooks/useFinances';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
 import { useVehicles } from '../hooks/useVehicles';
@@ -32,8 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2, AlertTriangle } from 'lucide-react';
-// --- NEW IMPORTS ---
-import { addDays, addWeeks, addMonths, addYears, isBefore, startOfDay } from 'date-fns'; 
+import { addDays, addWeeks, addMonths, addYears, isBefore } from 'date-fns'; 
 
 interface MemberPageProps {
   memberMode?: boolean;
@@ -51,6 +50,9 @@ const Finance: React.FC<MemberPageProps> = ({
   const { can } = usePermissions();
   const { user } = useAuth();
 
+  const isProcessingRecurring = useRef(false);
+  const processedRecurringIds = useRef(new Set<string>());
+
   const [derivedCustomerId, setDerivedCustomerId] = useState<string | null>(null);
   const normalizePhone = (raw?: string | null) => { if (!raw) return null; const digits = raw.replace(/[^\d+]/g, ''); if (digits.startsWith('+44')) return '0' + digits.slice(3); if (digits.startsWith('44')) return '0' + digits.slice(2); return digits; };
   useEffect(() => { if (!memberMode) { setDerivedCustomerId(null); return; } if (memberCustomerId) { setDerivedCustomerId(memberCustomerId); return; } const emailLower = user?.email?.toLowerCase()?.trim() || null; const userPhone = normalizePhone((user as any)?.phoneNumber ?? (user as any)?.mobile ?? null); const pickFromLocal = () => { if (!customers || customers.length === 0) return null; if (emailLower) { const byEmail = customers.find((c: any) => c?.email && String(c.email).toLowerCase().trim() === emailLower); if (byEmail) return byEmail.id; } if (userPhone) { const byMobile = customers.find((c: any) => normalizePhone(c?.mobile) === userPhone); if (byMobile) return byMobile.id; } return null; }; setDerivedCustomerId(pickFromLocal()); }, [memberMode, memberCustomerId, customers, user]);
@@ -64,19 +66,17 @@ const Finance: React.FC<MemberPageProps> = ({
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   
-  // --- NEW STATE for Recurring Modal ---
   const [showRecurringModal, setShowRecurringModal] = useState(false);
-  // -------------------------------------
 
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false); // For single deletes
+  const [showDeleteModal, setShowDeleteModal] = useState(false); 
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showManageAccountsModal, setShowManageAccountsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showAssignAccountModal, setShowAssignAccountModal] = useState(false);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
-  const [showDeleteLinkedModal, setShowDeleteLinkedModal] = useState(false); // For OLD linked pairs
-  const [linkedTransactionsToDelete, setLinkedTransactionsToDelete] = useState<Transaction[] | null>(null); // For OLD linked pairs
+  const [showDeleteLinkedModal, setShowDeleteLinkedModal] = useState(false); 
+  const [linkedTransactionsToDelete, setLinkedTransactionsToDelete] = useState<Transaction[] | null>(null); 
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [showCatModal, setShowCatModal] = useState(false);
@@ -86,7 +86,7 @@ const Finance: React.FC<MemberPageProps> = ({
   const [catName, setCatName] = useState<string>('');
 
   useEffect(() => {
-    const q = query(collection(db, 'accounts'), orderBy('name')); // Order accounts by name
+    const q = query(collection(db, 'accounts'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const accountData = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -104,7 +104,7 @@ const Finance: React.FC<MemberPageProps> = ({
   const loadCategories = useCallback(() => {
     setLoadingCats(true);
     financeCategoryService.getAll()
-      .then((docs) => setFinanceCategories(docs.sort((a,b)=> a.name.localeCompare(b.name)))) // Sort categories
+      .then((docs) => setFinanceCategories(docs.sort((a,b)=> a.name.localeCompare(b.name)))) 
       .catch((err) => { console.error('Failed to load categories:', err); toast.error('Could not load categories'); })
       .finally(() => setLoadingCats(false));
   }, []);
@@ -124,28 +124,21 @@ const Finance: React.FC<MemberPageProps> = ({
   const handleViewTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowDetailsModal(true); }, []);
   const handleEditTransaction = useCallback((txn: Transaction) => { blockIfMember(() => { setSelectedTransaction(txn); setShowEditModal(true); }); }, [memberMode]);
 
-  // Updated Delete Logic
   const handleDeleteTransaction = useCallback((txn: Transaction) => {
     blockIfMember(() => {
-      setSelectedTransaction(txn); // Set the one clicked first
-
-      // Check specifically for the OLD link structure (referenceId exists AND it's likely a pair)
+      setSelectedTransaction(txn); 
       if (txn.referenceId) {
         const linkedPair = transactions.filter(t => t.referenceId === txn.referenceId && t.id !== txn.id);
         if (linkedPair.length > 0 && (txn.category === 'Transfer' || linkedPair[0].category === 'Transfer' || (txn.category !== 'Loan Provided' && linkedPair[0].category !== 'Loan Provided'))) {
-          // It looks like an old Transfer/Split pair, show the specific modal
           setLinkedTransactionsToDelete([txn, ...linkedPair]);
           setShowDeleteLinkedModal(true);
-          return; // Modal handles deletion choice
+          return; 
         }
       }
-
-      // For single records, multi-account records, invoice links, or orphan old links
       setShowDeleteModal(true);
     });
   }, [memberMode, transactions]);
 
-  // Handles deleting ONLY the selectedTransaction
   const handleConfirmDeleteSingle = async () => {
     if (!selectedTransaction) return;
     setDeleteLoading(true);
@@ -154,13 +147,12 @@ const Finance: React.FC<MemberPageProps> = ({
     try {
       await deleteDoc(doc(db, 'transactions', transactionIdToDelete));
       toast.success("Transaction deleted", { id: toastId });
-      setShowDeleteLinkedModal(false); setShowDeleteModal(false); // Close either modal
-      setLinkedTransactionsToDelete(null); setSelectedTransaction(null); // Clear state
+      setShowDeleteLinkedModal(false); setShowDeleteModal(false);
+      setLinkedTransactionsToDelete(null); setSelectedTransaction(null);
     } catch (err) { console.error("Error deleting single:", err); toast.error("Failed", { id: toastId });
     } finally { setDeleteLoading(false); }
   };
 
-  // Handles deleting BOTH parts of an OLD linked pair
   const handleConfirmDeleteLinked = async () => {
     if (!linkedTransactionsToDelete || linkedTransactionsToDelete.length === 0) return;
     setDeleteLoading(true);
@@ -180,7 +172,6 @@ const Finance: React.FC<MemberPageProps> = ({
   const handleToggleOne = useCallback((id: string) => { setSelectedTransactionIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }); }, []);
   const handleToggleAll = useCallback((checked: boolean) => { setSelectedTransactionIds(checked ? new Set(filteredTransactions.map(t => t.id)) : new Set()); }, [filteredTransactions]);
   const handleBulkAssignAccount = async (accountFrom: string | null, accountTo: string | null) => {
-      // Logic uses accountsFrom/To arrays
       if (selectedTransactionIds.size === 0) return toast.error('No transactions selected.');
       if (!accountFrom && !accountTo) return toast.error('Please select an account.');
       const toastId = toast.loading(`Assigning accounts...`);
@@ -191,14 +182,14 @@ const Finance: React.FC<MemberPageProps> = ({
           transactionsToUpdate.forEach(txn => {
               const isMultiFrom = txn.accountsFrom && txn.accountsFrom.length > 1;
               const isMultiTo = txn.accountsTo && txn.accountsTo.length > 1;
-              if (isMultiFrom || isMultiTo || txn.referenceId) { skippedCount++; return; } // Skip multi-account or linked
+              if (isMultiFrom || isMultiTo || txn.referenceId) { skippedCount++; return; } 
               const txnRef = doc(db, 'transactions', txn.id);
               if (txn.type === 'income' && accountTo) { batch.update(txnRef, { accountsTo: [accountTo], accountsFrom: [] }); assignedCount++; }
               else if (txn.type === 'expense' && accountFrom) { batch.update(txnRef, { accountsFrom: [accountFrom], accountsTo: [] }); assignedCount++; }
               else { skippedCount++; }
           });
           if (assignedCount > 0) await batch.commit();
-          else if (skippedCount > 0 && assignedCount === 0) { toast.error('Cannot assign (multi/linked/type mismatch).', { id: toastId }); /* ... cleanup ... */ return; }
+          else if (skippedCount > 0 && assignedCount === 0) { toast.error('Cannot assign (multi/linked/type mismatch).', { id: toastId }); return; }
           if (skippedCount > 0) toast.success(`Assigned ${assignedCount}. ${skippedCount} skipped.`, { id: toastId, duration: 4000 });
           else toast.success('Updated!', { id: toastId });
           setShowAssignAccountModal(false); setSelectedTransactionIds(new Set());
@@ -210,31 +201,30 @@ const Finance: React.FC<MemberPageProps> = ({
   const netIncome = totalIncome - totalExpenses;
   const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
 
-  // --- NEW: Recurring Engine Logic (With Catch-up & Auto-Run) ---
   useEffect(() => {
-    if (loading || !transactions.length) return;
+    if (loading || !transactions.length || isProcessingRecurring.current) return;
     
     const processRecurring = async () => {
+      isProcessingRecurring.current = true; 
+      
       const batch = writeBatch(db);
       let updatesCount = 0;
       const now = new Date();
 
-      // Filter for transactions that are recurring AND due
       const dueTransactions = transactions.filter(t => 
         t.isRecurring && 
         t.nextRecurringDate && 
         isBefore(t.nextRecurringDate instanceof Timestamp ? t.nextRecurringDate.toDate() : new Date(t.nextRecurringDate), now)
       );
 
-      if (dueTransactions.length === 0) return;
-
       for (const txn of dueTransactions) {
+        if (processedRecurringIds.current.has(txn.id)) continue;
+        processedRecurringIds.current.add(txn.id);
+
         let currentDate = txn.nextRecurringDate instanceof Timestamp ? txn.nextRecurringDate.toDate() : new Date(txn.nextRecurringDate);
         
-        // Loop to catch up
         while (isBefore(currentDate, now)) {
             updatesCount++;
-            
             let nextDate: Date;
             switch (txn.recurringFrequency) {
                 case 'daily': nextDate = addDays(currentDate, 1); break;
@@ -245,31 +235,23 @@ const Finance: React.FC<MemberPageProps> = ({
                 case 'yearly': nextDate = addYears(currentDate, 1); break;
                 default: nextDate = addMonths(currentDate, 1);
             }
-
-            const newTxnRef = doc(collection(db, 'transactions'));
-            
-            // Determine if this is the future transaction
             const isLast = !isBefore(nextDate, now);
-
+            const newTxnRef = doc(collection(db, 'transactions'));
             const newTxnData: any = {
                 ...txn,
                 id: newTxnRef.id,
                 date: currentDate, 
                 createdAt: new Date(),
                 createdBy: 'System (Recurring)',
-                isRecurring: true, // Keep it true for all history items so badge shows
+                isRecurring: true,
                 recurringFrequency: txn.recurringFrequency,
-                nextRecurringDate: isLast ? nextDate : null, // Only the future one triggers next time
+                nextRecurringDate: isLast ? nextDate : null, 
             };
-            
             delete newTxnData.documentUrl; 
             delete newTxnData.receiptUrl;
-            
             batch.set(newTxnRef, newTxnData);
             currentDate = nextDate;
         }
-
-        // Update old transaction: Keep isRecurring=true, but remove trigger date
         const oldTxnRef = doc(db, 'transactions', txn.id);
         batch.update(oldTxnRef, { nextRecurringDate: null });
       }
@@ -280,13 +262,13 @@ const Finance: React.FC<MemberPageProps> = ({
             toast.success(`Generated ${updatesCount} recurring transaction(s).`);
         } catch (e) { console.error("Recurring Batch Error", e); }
       }
+
+      isProcessingRecurring.current = false;
     };
     
     processRecurring();
-  }, [loading, transactions]); // Added 'transactions' dependency to auto-run on change
-  // -------------------------------------
+  }, [loading, transactions]); 
 
-  // --- ⬇️ FIXED PDF FUNCTION ⬇️ ---
   const handleGeneratePDF = useCallback(async () => {
     try {
       toast.loading('Generating financial report...');
@@ -321,9 +303,8 @@ const Finance: React.FC<MemberPageProps> = ({
     totalIncome, totalExpenses, netIncome, profitMargin,
     totalOwingFromOwners, selectedOwner, dateRange,
   ]);
-  // --- ⬆️ END FIXED PDF FUNCTION ⬆️ ---
 
-  // --- ⬇️ FIXED DOCUMENT FUNCTION ⬇️ ---
+  // --- UPDATED FUNCTION ---
   const handleGenerateDocument = useCallback(async (transaction: Transaction) => {
     if (!user) {
       toast.error('You must be logged in to generate documents.');
@@ -345,6 +326,7 @@ const Finance: React.FC<MemberPageProps> = ({
           ...transaction,
           vehicle,
           customer: customer || { name: transaction.customerName },
+          accounts, // <--- ADDED ACCOUNTS HERE
         },
         'finance',
         transaction.id,
@@ -363,10 +345,8 @@ const Finance: React.FC<MemberPageProps> = ({
       toast.dismiss();
       toast.error('Failed to generate document');
     }
-  }, [vehicles, customers, user]);
-  // --- ⬆️ END FIXED DOCUMENT FUNCTION ⬆️ ---
+  }, [vehicles, customers, user, accounts]); // Added accounts to dependencies
 
-  // --- ⬇️ FIXED RECEIPT FUNCTION ⬇️ ---
   const handlePrintReceipt = useCallback(async (transaction: Transaction) => {
     if (!user) {
       toast.error('You must be logged in to generate a receipt.');
@@ -407,13 +387,10 @@ const Finance: React.FC<MemberPageProps> = ({
       toast.error('Failed to generate receipt');
     }
   }, [vehicles, customers, user]);
-  // --- ⬆️ END FIXED RECEIPT FUNCTION ⬆️ ---
   
-  // --- ⬇️ FIXED EXPORT FUNCTION (WITH UPGRADES) ⬇️ ---
   const handleExport = useCallback(() => {
     try {
       const data = filteredTransactions.map((txn) => {
-        // Helper to format dates safely
         const safeFormatDate = (date: any): string => {
             if (!date) return '';
             if (date instanceof Date) return date.toLocaleDateString();
@@ -436,7 +413,6 @@ const Finance: React.FC<MemberPageProps> = ({
           'Vehicle Reg': vehicles.find((v) => v.id === txn.vehicleId)?.registrationNumber || '',
           'Owner': txn.vehicleOwner?.name || '',
           'Customer Name': customers.find((c) => c.id === txn.customerId)?.name || txn.customerName || '',
-          // --- NEW EXPORT FIELD ---
           'Recurring': txn.isRecurring ? `Yes (${txn.recurringFrequency})` : 'No',
         };
       });
@@ -450,16 +426,14 @@ const Finance: React.FC<MemberPageProps> = ({
       console.error('Error exporting to Excel:', err);
       toast.error('Failed to export data to Excel.');
     }
-  }, [filteredTransactions, vehicles, customers, accounts, groups]); // Added groups and accounts
-  // --- ⬆️ END FIXED EXPORT FUNCTION ⬆️ ---
+  }, [filteredTransactions, vehicles, customers, accounts, groups]);
 
-  if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>; // Enhanced loading indicator
-  if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>; // Enhanced error message
+  if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>; 
+  if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>;
 
   return (
-    <div className="space-y-6 p-4 md:p-6"> {/* Added padding */}
+    <div className="space-y-6 p-4 md:p-6">
       
-      {/* --- ⬇️ FIXED DATA PROP ⬇️ --- */}
       <FinancialSummary 
         totalIncome={totalIncome} 
         totalExpenses={totalExpenses} 
@@ -467,9 +441,8 @@ const Finance: React.FC<MemberPageProps> = ({
         profitMargin={profitMargin} 
         totalOwingFromOwners={totalOwingFromOwners} 
         accounts={accounts} 
-        transactions={filteredTransactions} // <-- THIS IS THE FIX
+        transactions={filteredTransactions} 
       />
-      {/* --- ⬆️ END FIXED DATA PROP ⬆️ --- */}
 
       <FinanceHeader 
           onSearch={setSearchQuery} 
@@ -478,13 +451,11 @@ const Finance: React.FC<MemberPageProps> = ({
           onAddIncome={() => blockIfMember(() => setShowAddIncome(true))} 
           onAddExpense={() => blockIfMember(() => setShowAddExpense(true))} 
           onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} onManageGroups={() => blockIfMember(() => setManageOpen(true))} onManageCategories={() => blockIfMember(() => setShowCatModal(true))} onManageAccounts={() => blockIfMember(() => setShowManageAccountsModal(true))} 
-          // --- NEW PROP ---
           onAddRecurring={() => blockIfMember(() => setShowRecurringModal(true))}
       />
       
       <FinanceFilters 
           type={type} onTypeChange={setType} searchQuery={searchQuery} onSearchChange={setSearchQuery} statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} categoryFilter={category} onCategoryFilterChange={setCategory} dateRange={dateRange} onDateRangeChange={setDateRange} accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} accounts={accounts} owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} customers={customers} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} accountSummary={accountSummary} categories={financeCategories.map((c) => c.name)} groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} showLinked={showLinked} onShowLinkedChange={setShowLinked} 
-          // --- NEW PROPS ---
           recurringFilter={recurringFilter} 
           onRecurringFilterChange={setRecurringFilter}
       />
@@ -493,21 +464,18 @@ const Finance: React.FC<MemberPageProps> = ({
 
       <TransactionTable transactions={filteredTransactions} vehicles={vehicles} customers={customers} accounts={accounts} onView={handleViewTransaction} onEdit={handleEditTransaction} onDelete={handleDeleteTransaction} onGenerateDocument={handleGenerateDocument} onViewDocument={(url) => window.open(url, '_blank', 'noopener,noreferrer')} onPrintReceipt={handlePrintReceipt} onAssign={handleAssignTransaction} groups={groups.map((g) => ({ id: g.id, name: g.name }))} selectedIds={selectedTransactionIds} onToggleOne={handleToggleOne} onToggleAll={handleToggleAll} />
 
-      {/* --- Modals --- */}
       <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl"><TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} /></Modal>
       
-      {/* --- NEW: Recurring Modal --- */}
       <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
           <TransactionForm 
-              type="income" // Default, but form handles switching
-              initialIsRecurring={true} // Forces recurring logic in form
+              type="income" 
+              initialIsRecurring={true}
               accounts={accounts} 
               vehicles={vehicles} 
               customers={customers} 
               onClose={() => setShowRecurringModal(false)} 
           />
       </Modal>
-      {/* --------------------------- */}
 
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
       <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">{selectedTransaction && ( <TransactionDetails transaction={selectedTransaction} vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} customer={customers.find(c => c.id === selectedTransaction.customerId)} accounts={accounts} /> )}</Modal>
@@ -517,14 +485,13 @@ const Finance: React.FC<MemberPageProps> = ({
         txn={selectedTransaction}
         groups={groups}
         categories={financeCategories}
-        accounts={accounts} // Pass accounts here
+        accounts={accounts} 
         onClose={() => { setShowAssignModal(false); setSelectedTransaction(null); }}
-        onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); /* Consider refresh */ }}
+        onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); }}
       />
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} title="Delete Transaction" size="sm">{selectedTransaction && ( <TransactionDeleteModal transactionId={selectedTransaction.id} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} onDeleted={handleConfirmDeleteSingle} /> )}</Modal>
       <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
       <Modal isOpen={showAssignAccountModal} onClose={() => setShowAssignAccountModal(false)} title="Assign Account to Selected Transactions" size="md"><BulkAssignAccountForm accounts={accounts} onClose={() => setShowAssignAccountModal(false)} onAssign={handleBulkAssignAccount} transactionCount={selectedTransactionIds.size} /></Modal>
-      {/* Updated Delete Modal for OLD linked records */}
       <Modal isOpen={showDeleteLinkedModal} onClose={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} title="Delete Linked Transaction?" size="md"><div className="p-1"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-4 mt-0 text-left"><h3 className="text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3><div className="mt-2"><p className="text-sm text-gray-500">This transaction appears linked to {linkedTransactionsToDelete ? linkedTransactionsToDelete.length - 1 : 0} other(s) (old format). Delete only this one, or all linked parts?</p></div></div></div><div className="mt-6 flex flex-col sm:flex-row-reverse gap-3"><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteLinked} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 sm:w-auto">{deleteLoading ? "Deleting..." : `Delete All ${linkedTransactionsToDelete?.length || 0} Linked`}</button><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteSingle} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:w-auto">{deleteLoading ? "..." : "Delete Only This One"}</button><button type="button" disabled={deleteLoading} onClick={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:mt-0 sm:w-auto">Cancel</button></div></div></Modal>
       <Modal isOpen={showCatModal} onClose={() => { setShowCatModal(false); setEditCat(null); setCatName(''); }} title={editCat ? 'Edit Category' : 'Add Category'} size="md"><form onSubmit={handleCatSubmit} className="flex items-center space-x-2 mb-4"><input type="text" value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Category name" required className="flex-1 border border-gray-300 rounded-md p-2 focus:outline-none" /><button type="submit" disabled={loadingCats} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">{loadingCats ? 'Saving...' : (editCat ? 'Update' : 'Add')}</button><button type="button" onClick={() => { setShowCatModal(false); setEditCat(null); setCatName(''); }} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100">Cancel</button></form><div className="max-h-56 overflow-y-auto">{loadingCats ? <div className="text-gray-500 text-sm">Loading…</div> : (<ul className="space-y-2">{financeCategories.map((c) => (<li key={c.id} className="flex justify-between items-center border-b pb-1"><span className="text-gray-700">{c.name}</span><div className="space-x-2"><button onClick={() => openCatForm(c)} disabled={loadingCats}><Edit2 className="h-4 w-4 text-indigo-600 hover:text-indigo-800" /></button><button onClick={() => handleCatDelete(c.id)} disabled={loadingCats || c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided'} className={`${(c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided') ? 'opacity-50 cursor-not-allowed' : ''}`}><Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" /></button></div></li>))}{financeCategories.length === 0 && <li className="text-gray-500 text-sm">No categories found.</li>}</ul>)}</div></Modal>
 

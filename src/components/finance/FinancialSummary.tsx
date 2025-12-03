@@ -4,16 +4,15 @@ import { DollarSign, TrendingUp, TrendingDown, Percent, Wallet, Banknote } from 
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Account, Transaction } from '../../types';
-// Removed format import as it's not used here
 
 interface FinancialSummaryProps {
-  totalIncome: number; // Filtered income
-  totalExpenses: number; // Filtered expenses
-  netIncome: number; // Filtered net
-  profitMargin: number; // Filtered margin
-  totalOwingFromOwners: number; // Overall owing
-  accounts: Account[]; // All accounts
-  transactions: Transaction[]; // Should be FILTERED transactions
+  totalIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+  profitMargin: number;
+  totalOwingFromOwners: number;
+  accounts: Account[];
+  transactions: Transaction[];
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({
@@ -23,50 +22,56 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   profitMargin,
   totalOwingFromOwners,
   accounts = [],
-  transactions = [], // This will now receive filteredTransactions
+  transactions = [], 
 }) => {
   const { formatCurrency, formatPercentage } = useFormattedDisplay();
   const { can } = usePermissions();
 
-  // --- UPDATED: Calculate balances using arrays and FULL amount per account ---
+  // --- UPDATED: Calculate balances based on Arrays (Debit/Credit) not just Type ---
   const accountBalances = useMemo(() => {
     if (!accounts || accounts.length === 0) return [];
 
     const balances = new Map<string, number>();
     const accountNames = new Map<string, string>();
 
+    // Initialize all accounts with 0
     accounts.forEach(acc => {
         balances.set(acc.id, 0);
         accountNames.set(acc.id, acc.name);
     });
 
-    // This 'transactions' prop is now the filtered list from the parent
     transactions.forEach(txn => {
-        const fullAmount = txn.amount; // Use the full amount
+        const fullAmount = txn.amount; 
 
-        // Add income to credited accounts
-        if (txn.type === 'income' && txn.accountsTo) {
+        let processed = false;
+
+        // 1. Process CREDITS (Money In)
+        // accountsTo always receives money, regardless if it's Income or Expense (3rd account)
+        if (txn.accountsTo && txn.accountsTo.length > 0) {
             txn.accountsTo.forEach(accId => {
                 if (balances.has(accId)) {
-                    // ADD FULL AMOUNT TO EACH ACCOUNT
                     balances.set(accId, (balances.get(accId) || 0) + fullAmount);
                 }
             });
+            processed = true;
         }
-        // Subtract expense from debited accounts
-        else if (txn.type === 'expense' && txn.accountsFrom) {
+
+        // 2. Process DEBITS (Money Out)
+        // accountsFrom always loses money, regardless if it's Expense or Income (3rd account)
+        if (txn.accountsFrom && txn.accountsFrom.length > 0) {
              txn.accountsFrom.forEach(accId => {
                 if (balances.has(accId)) {
-                    // SUBTRACT FULL AMOUNT FROM EACH ACCOUNT
                     balances.set(accId, (balances.get(accId) || 0) - fullAmount);
                 }
             });
+            processed = true;
         }
-        // Handle legacy or unassigned
-        else if ((!txn.accountsFrom || txn.accountsFrom.length === 0) && (!txn.accountsTo || txn.accountsTo.length === 0)) {
+
+        // 3. Handle legacy or unassigned (Fallbacks for old data)
+        if (!processed) {
             const defaultAccount = accounts.find(a => a.name === 'AIE SKYLINE ACCOUNT' || a.name === 'AIE Skyline Limited');
             if (defaultAccount && balances.has(defaultAccount.id)) {
-                const amountToAdd = (txn.type === 'income' ? fullAmount : -fullAmount); // Use full amount here too
+                const amountToAdd = (txn.type === 'income' ? fullAmount : -fullAmount);
                 balances.set(defaultAccount.id, (balances.get(defaultAccount.id) || 0) + amountToAdd);
             }
         }
@@ -80,7 +85,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       }))
       .sort((a,b) => a.name.localeCompare(b.name));
 
-  }, [accounts, transactions]); // Now depends on filtered transactions
+  }, [accounts, transactions]); 
   // --- End Balance Calculation Update ---
 
 
@@ -101,7 +106,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       key: acc.id,
       label: `${acc.name} Balance`,
       value: formatCurrency(acc.balance),
-      tone: acc.balance >= 0 ? 'text-green-700' : 'text-red-700', // Adjusted tone slightly
+      tone: acc.balance >= 0 ? 'text-green-700' : 'text-red-700',
       icon: <Banknote className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-500" />
   }));
 
@@ -112,9 +117,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
           {summaryCards.map((c) => (<div key={c.key} className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"><div className="flex items-center gap-3"><div className="rounded-md p-2 bg-gray-50">{c.icon}</div><div className="min-w-0"><p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">{c.label}</p><p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>{c.value}</p></div></div></div>))}
         </div>
 
-        {/* --- ⬇️ FIXED TITLE ⬇️ --- */}
         <h3 className="text-base font-medium text-gray-600 pt-4">Filtered Account Balances</h3>
-        {/* --- ⬆️ END FIXED TITLE ⬆️ --- */}
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {accountCards.map((c) => (<div key={c.key} className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"><div className="flex items-center gap-3"><div className="rounded-md p-2 bg-indigo-50">{c.icon}</div><div className="min-w-0"><p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">{c.label}</p><p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>{c.value}</p></div></div></div>))}

@@ -62,7 +62,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   };
 
   const getAccountNames = (ids?: string[]): string => {
-      if (!ids || ids.length === 0) return 'N/A';
+      if (!ids || ids.length === 0) return '';
       return ids.map(id => accounts.find(a => a.id === id)?.name || 'Unknown').join(' & ');
   };
 
@@ -86,21 +86,16 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       cell: ({ row }: { row: { original: Transaction } }) => {
         const bits = [row.original.type, row.original.status || 'completed', row.original.paymentStatus,].filter(Boolean) as string[];
         const isMultiOrLinked = (row.original.accountsFrom && row.original.accountsFrom.length > 1) || (row.original.accountsTo && row.original.accountsTo.length > 1) || !!row.original.referenceId;
-        
-        // Check if this is the "Latest" (Active) transaction in the recurring series
-        // It is active if nextRecurringDate is NOT null
         const isLatestRecurring = row.original.isRecurring && !!row.original.nextRecurringDate;
 
         return (
           <div className="flex flex-col gap-1 items-start leading-tight min-w-[100px]">
             {isMultiOrLinked && (<div className="flex items-center gap-1 text-xs text-blue-600 whitespace-nowrap" title="Multi-Account / Linked"><Link2 className="h-3 w-3" /><span>Split/Linked</span></div>)}
-            
-            {/* --- RECURRING BADGE --- */}
             {row.original.isRecurring && (
                <div className={`flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${
                  isLatestRecurring 
-                   ? 'text-indigo-700 bg-indigo-50 border-indigo-200'  // Active Style
-                   : 'text-gray-500 bg-gray-50 border-gray-200'      // Past/Inactive Style
+                   ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
+                   : 'text-gray-500 bg-gray-50 border-gray-200' 
                }`}>
                  <RefreshCw className="h-3 w-3" />
                  <span className="capitalize">
@@ -109,8 +104,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                  </span>
                </div>
             )}
-            {/* ----------------------- */}
-            
             {bits.map((s, i) => (<StatusBadge key={i} status={s} />))}
           </div>
         );
@@ -121,20 +114,31 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       cell: ({ row }: { row: { original: Transaction } }) => {
         const transaction = row.original;
         const group = transaction.groupId ? groups.find(g => g.id === transaction.groupId) : null;
-        const accountLabel = transaction.type === 'expense' ? 'From:' : 'To:';
-        const accountNames = transaction.type === 'expense' ? getAccountNames(transaction.accountsFrom) : getAccountNames(transaction.accountsTo);
+        
+        const fromNames = getAccountNames(transaction.accountsFrom);
+        const toNames = getAccountNames(transaction.accountsTo);
+
         return (
           <div className="flex flex-col gap-0.5 items-start leading-tight max-w-[160px]">
-            <div className="w-full truncate" title={accountNames}>
-                <span className="font-semibold text-gray-600 text-xs mr-1">{accountLabel}</span>
-                <span className="text-sm">{accountNames}</span>
-            </div>
-            <div className="w-full truncate">
-                <span className="font-semibold text-gray-600 text-xs mr-1">Group:</span>
+            {fromNames && (
+                <div className="w-full truncate" title={`Debit: ${fromNames}`}>
+                    <span className="font-semibold text-red-600 text-xs mr-1">From:</span>
+                    <span className="text-sm">{fromNames}</span>
+                </div>
+            )}
+            {toNames && (
+                <div className="w-full truncate" title={`Credit: ${toNames}`}>
+                    <span className="font-semibold text-green-600 text-xs mr-1">To:</span>
+                    <span className="text-sm">{toNames}</span>
+                </div>
+            )}
+            
+            <div className="w-full truncate mt-1">
+                <span className="font-semibold text-gray-500 text-xs mr-1">Group:</span>
                 {group ? (<span className="text-sm" title={group.name}>{group.name}</span>) : (<span className="text-gray-400 text-sm">N/A</span>)}
             </div>
             <div className="w-full truncate">
-                <span className="font-semibold text-gray-600 text-xs mr-1">Cat:</span>
+                <span className="font-semibold text-gray-500 text-xs mr-1">Cat:</span>
                 <span className="text-sm" title={transaction.category}>{transaction.category}</span>
             </div>
           </div>

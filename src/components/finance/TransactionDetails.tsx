@@ -5,8 +5,8 @@ import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
 import { Car, User, Mail, Phone, Link2, RefreshCw, Square, StopCircle } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { Timestamp, doc, updateDoc } from 'firebase/firestore'; // Import firestore functions
-import { db } from '../../lib/firebase'; // Import db
+import { Timestamp, doc, updateDoc } from 'firebase/firestore'; 
+import { db } from '../../lib/firebase'; 
 import toast from 'react-hot-toast';
 
 interface TransactionDetailsProps {
@@ -23,7 +23,7 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
   customer
 }) => {
   const { formatCurrency } = useFormattedDisplay();
-  const [loadingStop, setLoadingStop] = useState(false); // Local loading state
+  const [loadingStop, setLoadingStop] = useState(false); 
 
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
     if (!date) return 'N/A';
@@ -59,20 +59,16 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
                  .join(', ');
   };
 
-  // --- NEW HANDLER: Stop Recurrence ---
   const handleStopRecurring = async () => {
     if (!confirm('Are you sure you want to stop this recurring series? No future transactions will be generated.')) return;
     
     setLoadingStop(true);
     try {
         const txnRef = doc(db, 'transactions', transaction.id);
-        // We keep isRecurring: true (so the badge stays for history), 
-        // but we set nextRecurringDate to null so the engine ignores it.
         await updateDoc(txnRef, {
             nextRecurringDate: null
         });
         toast.success('Recurring series stopped successfully.');
-        // The modal will stay open, but the data might update via live listener in parent or on close
     } catch (error) {
         console.error("Error stopping recurrence:", error);
         toast.error("Failed to stop recurrence.");
@@ -80,7 +76,6 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
         setLoadingStop(false);
     }
   };
-  // ------------------------------------
 
   return (
     <div className="space-y-6 pb-2">
@@ -110,7 +105,7 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
         </div>
       </div>
 
-      {/* --- RECURRING INFORMATION & CONTROLS --- */}
+      {/* Recurring Info */}
       {transaction.isRecurring && (
         <div className={`p-4 rounded-md border ${transaction.nextRecurringDate ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}`}>
           <div className="flex justify-between items-start">
@@ -133,7 +128,6 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
               </div>
             </div>
 
-            {/* STOP BUTTON (Only shows if there is a next date scheduled) */}
             {transaction.nextRecurringDate && (
                 <button 
                     onClick={handleStopRecurring}
@@ -147,9 +141,8 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
           </div>
         </div>
       )}
-      {/* ------------------------------------------ */}
 
-      {/* Linked Transaction Info */}
+      {/* Linked Info */}
       {transaction.referenceId && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
           <div className="flex items-center">
@@ -163,17 +156,17 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
       )}
 
       {/* Account Information */}
-      <Section title="Account Details">
+      <Section title="Account Flow">
         <div className="grid grid-cols-1 gap-4">
           {transaction.accountsTo && transaction.accountsTo.length > 0 && (
-             <div>
-              <h4 className="text-sm font-medium text-gray-500">Account(s) To (Credit)</h4>
+             <div className="bg-green-50 p-3 rounded border border-green-100">
+              <h4 className="text-sm font-semibold text-green-800">Money Entering (Credit)</h4>
               <p className="mt-1 text-sm text-gray-900">{getAccountNames(transaction.accountsTo)}</p>
             </div>
           )}
           {transaction.accountsFrom && transaction.accountsFrom.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-500">Account(s) From (Debit)</h4>
+            <div className="bg-red-50 p-3 rounded border border-red-100">
+              <h4 className="text-sm font-semibold text-red-800">Money Leaving (Debit)</h4>
               <p className="mt-1 text-sm text-gray-900">{getAccountNames(transaction.accountsFrom)}</p>
             </div>
           )}

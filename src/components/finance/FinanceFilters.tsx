@@ -33,9 +33,9 @@ interface FinanceFiltersProps {
   showLinked: 'all' | 'linked' | 'unlinked';
   onShowLinkedChange: (value: 'all' | 'linked' | 'unlinked') => void;
 
-  // --- ADDED ---
-  recurringFilter: 'all' | 'recurring' | 'non_recurring';
-  onRecurringFilterChange: (value: 'all' | 'recurring' | 'non_recurring') => void;
+  // --- UPDATED ---
+  recurringFilter: string;
+  onRecurringFilterChange: (value: string) => void;
   // ---
 }
 
@@ -63,8 +63,8 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   categories,
   showLinked,
   onShowLinkedChange,
-  recurringFilter, // <-- ADDED
-  onRecurringFilterChange, // <-- ADDED
+  recurringFilter,
+  onRecurringFilterChange,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
@@ -242,12 +242,19 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             <label className="block text-xs sm:text-sm font-medium text-gray-700">Recurring</label>
             <select
                 value={recurringFilter}
-                onChange={(e) => onRecurringFilterChange(e.target.value as 'all' | 'recurring' | 'non_recurring')}
+                onChange={(e) => onRecurringFilterChange(e.target.value)}
                 className="form-select mt-1 w-full"
             >
                 <option value="all">All Transactions</option>
-                <option value="recurring">Recurring Only</option>
                 <option value="non_recurring">Non-Recurring Only</option>
+                <option disabled>──────────</option>
+                <option value="recurring_all">Recurring (All)</option>
+                <option value="recurring_daily">Recurring (Daily)</option>
+                <option value="recurring_weekly">Recurring (Weekly)</option>
+                <option value="recurring_monthly">Recurring (Monthly)</option>
+                <option value="recurring_quarterly">Recurring (Quarterly)</option>
+                <option value="recurring_biannually">Recurring (Biannually)</option>
+                <option value="recurring_yearly">Recurring (Yearly)</option>
             </select>
         </div>
         {/* --- End Update --- */}

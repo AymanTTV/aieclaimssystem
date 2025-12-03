@@ -96,6 +96,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   // --- Form State ---
   const getFirstAccount = (accArray?: string[]): string => (accArray && accArray.length > 0) ? accArray[0] : '';
   const getSecondAccount = (accArray?: string[]): string => (accArray && accArray.length > 1) ? accArray[1] : '';
+  
+  // Helper to get the 3rd account (The one on the OPPOSITE side of the transaction type)
+  // For Income: It's in accountsFrom. For Expense: It's in accountsTo.
+  const getThirdAccount = (txn: Transaction | undefined, type: 'income' | 'expense'): string => {
+    if (!txn) return '';
+    if (type === 'income') return getFirstAccount(txn.accountsFrom); // Income usually doesn't have accountsFrom, so this is the 3rd one
+    if (type === 'expense') return getFirstAccount(txn.accountsTo);   // Expense usually doesn't have accountsTo, so this is the 3rd one
+    return '';
+  };
 
   // Helper to format date object to datetime-local string (YYYY-MM-DDTHH:mm)
   const toDateTimeLocal = (date: Date) => {
@@ -106,7 +115,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [formData, setFormData] = useState({
     date: transaction?.date 
       ? toDateTimeLocal(transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date))
-      : toDateTimeLocal(new Date()), // Default to now
+      : toDateTimeLocal(new Date()),
     amount: transaction?.amount ? Math.abs(transaction.amount).toString() : '',
     category: transaction?.category || '',
     description: transaction?.description || '',
@@ -123,6 +132,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     accountFrom: getFirstAccount(transaction?.accountsFrom),
     accountTo2: getSecondAccount(transaction?.accountsTo),
     accountFrom2: getSecondAccount(transaction?.accountsFrom),
+    // New 3rd Account Field
+    accountThird: getThirdAccount(transaction, transaction?.type || initialType), 
   });
 
   // Effect to populate/reset form
@@ -147,12 +158,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
          accountFrom: getFirstAccount(transaction.accountsFrom),
          accountTo2: getSecondAccount(transaction.accountsTo),
          accountFrom2: getSecondAccount(transaction.accountsFrom),
+         accountThird: getThirdAccount(transaction, transaction.type),
       });
       setIsRecurring(!!transaction.isRecurring);
       setFrequency(transaction.recurringFrequency || 'monthly');
     } else {
         // Reset Logic
-        setFormData(prev => ({ ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '' }));
+        setFormData(prev => ({ ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' }));
         setManualEntry(false);
     }
   }, [transaction]);
@@ -194,15 +206,32 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           finalAccountsTo = transaction.accountsTo || [];
       } else {
           if (currentType === 'income') {
+              // INCOME: Main accounts are 'To' (Credit). 3rd account is 'From' (Debit).
               if (!formData.accountTo && !formData.accountTo2) { toast.error('At least one "Account To" is required.'); setLoading(false); return; }
               if (formData.accountTo && formData.accountTo === formData.accountTo2) { toast.error('Cannot credit the same account twice.'); setLoading(false); return; }
+              
               if (formData.accountTo) finalAccountsTo.push(formData.accountTo);
               if (formData.accountTo2) finalAccountsTo.push(formData.accountTo2);
+              
+              // 3rd Account Logic (Debit/From for Income)
+              if (formData.accountThird) {
+                 if (finalAccountsTo.includes(formData.accountThird)) { toast.error('Debit account cannot be same as Credit account.'); setLoading(false); return; }
+                 finalAccountsFrom.push(formData.accountThird);
+              }
+
           } else { // expense
+              // EXPENSE: Main accounts are 'From' (Debit). 3rd account is 'To' (Credit).
               if (!formData.accountFrom && !formData.accountFrom2) { toast.error('At least one "Account From" is required.'); setLoading(false); return; }
               if (formData.accountFrom && formData.accountFrom === formData.accountFrom2) { toast.error('Cannot debit the same account twice.'); setLoading(false); return; }
+              
               if (formData.accountFrom) finalAccountsFrom.push(formData.accountFrom);
               if (formData.accountFrom2) finalAccountsFrom.push(formData.accountFrom2);
+              
+              // 3rd Account Logic (Credit/To for Expense)
+              if (formData.accountThird) {
+                 if (finalAccountsFrom.includes(formData.accountThird)) { toast.error('Credit account cannot be same as Debit account.'); setLoading(false); return; }
+                 finalAccountsTo.push(formData.accountThird);
+              }
           }
       }
 
@@ -280,7 +309,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       
-      {/* --- NEW: TYPE SELECTOR FOR NEW RECURRING --- */}
       {!transaction && initialIsRecurring && (
         <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
           <button
@@ -329,9 +357,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </div>
         )}
       </div>
-      {/* ------------------------ */}
 
-      {/* --- UPDATED DATE FIELD: DATETIME-LOCAL --- */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Date & Time</label>
         <input 
@@ -343,32 +369,55 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
         />
       </div>
-      {/* ------------------------------------------ */}
 
       <FormField type="number" label="Amount" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} min="0" step="0.01" required placeholder="Enter total amount" disabled={restrictFinancialFields} />
 
       {/* Account Selection (Conditional on currentType) */}
       {currentType === 'income' && (
         <>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Account To (Credit)</label>
-            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
+          <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
+              <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Account To (Main)</label>
+                <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Also Credit Account (Split - Optional)</label>
+                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
+              </div>
           </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Also Credit Account (Optional Split)</label>
-            <SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
+
+          <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
+             <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
+             <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Debit Account (Optional)</label>
+                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo && a.id !== formData.accountTo2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to debit..." isClearable disabled={restrictAccountFields} />
+                <p className="text-xs text-gray-500">Select an account here to reduce its balance (e.g. transfer source).</p>
+             </div>
           </div>
         </>
       )}
       {currentType === 'expense' && (
         <>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Account From (Debit)</label>
-            <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
+          <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
+              <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Account From (Main)</label>
+                <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
+              </div>
+               <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Also Debit From (Split - Optional)</label>
+                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
+              </div>
           </div>
-           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Also Debit From (Optional Split)</label>
-            <SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
+
+          <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
+             <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
+             <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Credit Account (Optional)</label>
+                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom && a.id !== formData.accountFrom2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to credit..." isClearable disabled={restrictAccountFields} />
+                <p className="text-xs text-gray-500">Select an account here to increase its balance (e.g. money returned/transfer dest).</p>
+             </div>
           </div>
         </>
       )}
