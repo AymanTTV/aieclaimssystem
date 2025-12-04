@@ -1,6 +1,6 @@
 // src/pages/Share.tsx
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Plus, FileText, Download, FileSpreadsheet, Settings } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import toast from 'react-hot-toast'
@@ -17,7 +17,7 @@ import { useShares } from '../hooks/useShares'
 import { useSplits } from '../hooks/useSplits'
 import { usePermissions } from '../hooks/usePermissions'
 import { useCompanyDetails } from '../hooks/useCompanyDetails'
-import { deleteDoc, doc } from 'firebase/firestore'
+import { deleteDoc, doc, writeBatch, collection } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext';
 import {
@@ -26,7 +26,7 @@ import {
 } from '../utils/documentGenerator'
 import { ShareDocument, ShareBulkDocument } from '../components/pdf/documents'
 import { ShareEntry, SplitRecord } from '../types/share'
-import { format } from 'date-fns'
+import { format, isBefore, addDays, addWeeks, addMonths, addYears, isValid, startOfDay } from 'date-fns'
 
 export default function Share() {
   const { records, loading } = useShares()
@@ -35,15 +35,18 @@ export default function Share() {
   const { companyDetails } = useCompanyDetails()
   const { user } = useAuth();
 
+  // --- RECURRING ENGINE REFS ---
+  const isProcessingRecurring = useRef(false);
+  const processedRecurringIds = useRef(new Set<string>());
+
   // FILTERS
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'in-progress' | 'completed'>('all')
   const [categoryFilter, setCategoryFilter] = useState('all') 
-  // -- NEW FILTERS --
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest' | 'lowest'>('newest')
-  // -----------------
-  
+  const [recurringFilter, setRecurringFilter] = useState<string>('all')
+
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: '',
     end: ''
@@ -60,17 +63,161 @@ export default function Share() {
   const [deleting, setDeleting] = useState<ShareEntry | null>(null)
   const [editingSplit, setEditingSplit] = useState<string | null>(null)
 
-  // --- FIXED LOGIC: Check if record is splitted ---
+  // --- RECURRING AUTOMATION ENGINE ---
+  useEffect(() => {
+    // 1. Basic Guard Clauses
+    if (loading || records.length === 0 || isProcessingRecurring.current) return;
+    
+    const processRecurring = async () => {
+      console.log("Starting Recurring Check...");
+      isProcessingRecurring.current = true; // Lock
+      
+      const batch = writeBatch(db);
+      let updatesCount = 0;
+      const now = new Date(); // Right now
+
+      try {
+        // 2. Filter for transactions that are Recurring AND Due
+        const dueTransactions = records.filter(t => {
+            if (!t.isRecurring || !t.nextRecurringDate) return false;
+            
+            // Safe Date Parsing
+            let nextDate: Date;
+            if ((t.nextRecurringDate as any).toDate) {
+                nextDate = (t.nextRecurringDate as any).toDate();
+            } else {
+                nextDate = new Date(t.nextRecurringDate as string);
+            }
+            
+            // Check if valid and in the past
+            return isValid(nextDate) && isBefore(nextDate, now);
+        });
+
+        console.log(`Found ${dueTransactions.length} due recurring transactions.`);
+
+        for (const txn of dueTransactions) {
+            // 3. Prevent Double Processing (Critical for refresh bugs)
+            if (processedRecurringIds.current.has(txn.id)) {
+                console.warn(`Skipping ${txn.id} - already processed in this session.`);
+                continue;
+            }
+            processedRecurringIds.current.add(txn.id);
+
+            // Determine where we start calculating from
+            let currentDate: Date;
+            if ((txn.nextRecurringDate as any).toDate) {
+                currentDate = (txn.nextRecurringDate as any).toDate();
+            } else {
+                currentDate = new Date(txn.nextRecurringDate as string);
+            }
+            
+            // 4. Catch-up Loop
+            // Keep generating records until we pass "Now"
+            while (isBefore(currentDate, now)) {
+                updatesCount++;
+                
+                // Calculate NEXT date based on frequency
+                let nextDate: Date;
+                switch (txn.recurringFrequency) {
+                    case 'daily': nextDate = addDays(currentDate, 1); break;
+                    case 'weekly': nextDate = addWeeks(currentDate, 1); break;
+                    case 'monthly': nextDate = addMonths(currentDate, 1); break;
+                    case 'quarterly': nextDate = addMonths(currentDate, 3); break;
+                    case 'biannually': nextDate = addMonths(currentDate, 6); break;
+                    case 'yearly': nextDate = addYears(currentDate, 1); break;
+                    default: nextDate = addMonths(currentDate, 1);
+                }
+
+                // Determine if this new record is the one that sits in the Future
+                const isLast = !isBefore(nextDate, now);
+
+                const newTxnRef = doc(collection(db, 'shares'));
+                
+                // 5. Data Preparation
+                // Remove system fields from the old record
+                const { id, createdAt, updatedAt, nextRecurringDate, isRecurring, recurringFrequency, documentUrl, receiptUrl, ...cleanData } = txn as any;
+
+                // Define recurring fields for the NEW doc
+                const recurringFields = {
+                    isRecurring: true, 
+                    recurringFrequency: txn.recurringFrequency,
+                    // Only the future-most transaction gets the next date.
+                    nextRecurringDate: isLast ? nextDate.toISOString() : null, 
+                };
+
+                // Create the Inner Payload (matches what goes inside payments/expenses array)
+                // We MUST include recurring info here so the hook sees it!
+                const innerPayload = {
+                    ...cleanData,
+                    ...recurringFields, 
+                    date: currentDate.toISOString(), 
+                    updatedAt: new Date(),
+                    createdBy: 'System (Recurring)'
+                };
+
+                // Create the Wrapper Doc (matches Firestore structure)
+                const newDocData: any = {
+                    ...cleanData, // Save flat fields for indexing
+                    ...recurringFields,
+                    date: currentDate.toISOString(),
+                    createdAt: new Date(),
+                    createdBy: 'System (Recurring)',
+                    recipients: txn.recipients || [], 
+                };
+
+                // Insert into correct array
+                if (txn.type === 'income') {
+                    newDocData.payments = [innerPayload]; 
+                    newDocData.expenses = [];
+                } else {
+                    newDocData.expenses = [innerPayload];
+                    newDocData.payments = [];
+                }
+                
+                // Queue creation
+                batch.set(newTxnRef, newDocData);
+                console.log(`Generated new record for ${currentDate.toISOString()}`);
+                
+                // Advance date
+                currentDate = nextDate;
+
+                // Batch safety
+                if (updatesCount % 400 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db); // reset
+                }
+            }
+
+            // 6. Stop the OLD transaction
+            const oldTxnRef = doc(db, 'shares', txn.id);
+            batch.update(oldTxnRef, { nextRecurringDate: null });
+            console.log(`Stopped recurrence for old record ${txn.id}`);
+        }
+
+        if (updatesCount > 0) {
+            await batch.commit();
+            toast.success(`Generated ${updatesCount} recurring share(s).`);
+        }
+
+      } catch (e) { 
+        console.error("Recurring Engine Error:", e); 
+      } finally {
+        isProcessingRecurring.current = false; // Always Unlock
+      }
+    };
+    
+    processRecurring();
+  }, [loading, records]); // Dependency on records ensures it runs when data loads
+
+  // --- VISIBILITY CHECK ---
   const isRecordSplitted = (record: ShareEntry, splitList: SplitRecord[]) => {
     return splitList.some(sp => {
-      // 1. Check Date Range
       const inRange = sp.startDate && sp.endDate && record.date >= sp.startDate && record.date <= sp.endDate;
       if (!inRange) return false;
 
-      // 2. Check Creation Time
-      if (!record.createdAt || !sp.createdAt) return true; 
+      // FIX: Default to FALSE (visible) if timestamps missing
+      if (!record.createdAt || !sp.createdAt) return false; 
 
-      // Parse Record Time
       let recordTime = 0;
       if ((record.createdAt as any).toMillis) {
          recordTime = (record.createdAt as any).toMillis();
@@ -79,25 +226,20 @@ export default function Share() {
       } else {
          recordTime = new Date(record.createdAt).getTime();
       }
-
-      // Parse Split Time
       const splitTime = new Date(sp.createdAt).getTime();
-
-      // The record is only "Splitted" if it existed BEFORE the split happened.
+      
       return recordTime < splitTime;
     })
   }
 
-  // Determine which RECORDS (Income/Expense) to show
+  // --- FILTERING ---
   const filteredEntries = useMemo(() => {
     let data = records
 
-    // STEP 1: Filter Scope (History vs Current Pot)
     if (!showHistory) {
       data = data.filter(r => !isRecordSplitted(r, splits))
     }
     
-    // STEP 2: Date Filter 
     if (dateRange.start) {
       data = data.filter(r => r.date >= dateRange.start)
     }
@@ -105,7 +247,6 @@ export default function Share() {
       data = data.filter(r => r.date <= dateRange.end)
     }
 
-    // STEP 3: Other Filters (Search, Status, Category, Type)
     data = data.filter(r => {
       const nameMatch = (r.clientName || '').toLowerCase().includes(search.toLowerCase())
       const refMatch = (r.claimRef || '').toLowerCase().includes(search.toLowerCase())
@@ -113,16 +254,22 @@ export default function Share() {
       
       const statusMatch = status === 'all' || r.progress === status
       const catMatch = categoryFilter === 'all' || (r.category === categoryFilter)
-      
-      // -- NEW TYPE FILTER --
       const typeMatch = typeFilter === 'all' || r.type === typeFilter
 
-      return (nameMatch || refMatch || vehicleMatch) && statusMatch && catMatch && typeMatch
+      // Recurring Filter
+      let recurringMatch = true;
+      if (recurringFilter === 'all') recurringMatch = true;
+      else if (recurringFilter === 'non_recurring') recurringMatch = !r.isRecurring;
+      else if (recurringFilter === 'recurring_all') recurringMatch = !!r.isRecurring;
+      else if (recurringFilter.startsWith('recurring_')) {
+          const targetFreq = recurringFilter.replace('recurring_', '');
+          recurringMatch = !!r.isRecurring && r.recurringFrequency === targetFreq;
+      }
+
+      return (nameMatch || refMatch || vehicleMatch) && statusMatch && catMatch && typeMatch && recurringMatch
     })
 
-    // STEP 4: Sort Order
     return data.sort((a, b) => {
-      // Helper to get value for amount sorting
       const getAmount = (rec: ShareEntry) => 
         rec.type === 'income' ? (rec as any).amount : (rec as any).totalCost;
 
@@ -138,14 +285,11 @@ export default function Share() {
       return 0
     })
 
-  }, [records, showHistory, splits, dateRange, search, status, categoryFilter, typeFilter, sortOrder])
+  }, [records, showHistory, splits, dateRange, search, status, categoryFilter, typeFilter, sortOrder, recurringFilter])
 
 
-  // Determine which SPLITS to show (for the Summary Cards)
   const filteredSplits = useMemo(() => {
-    if (!showHistory) {
-      return []
-    }
+    if (!showHistory) { return [] }
     return splits.filter(sp => {
       if (!dateRange.start || !dateRange.end) return true
       const s = new Date(dateRange.start)
@@ -157,7 +301,6 @@ export default function Share() {
   }, [splits, showHistory, dateRange])
 
 
-  // PDF Generation Handlers
   const handleGenerateDocument = async (entry: ShareEntry) => {
     if (!companyDetails) { toast.error('Company details not found'); return }
     try {
@@ -176,62 +319,30 @@ export default function Share() {
     } catch { }
   }
 
-  // --- EXCEL EXPORT HANDLER ---
   const handleExport = () => {
     if (filteredEntries.length === 0) {
       toast.error("No records to export");
       return;
     }
-
     try {
-      const headers = [
-        "Date", "Type", "Category", "Client Name", "Client Phone", "Client Email", "Claim Ref", 
-        "Vehicle", "Status", "Splitted?", "Total Amount", "Notes", "VD Profit", "Actual Paid", "Legal Fee", 
-        "Storage Cost", "Recovery Cost", "PI Cost", "Expense Description"
-      ];
-
+      const headers = ["Date", "Type", "Client", "Ref", "Amount", "Recurring", "Frequency"];
       const rows = filteredEntries.map(entry => {
-        const isIncome = entry.type === 'income';
-        const inc = entry as any;
-        const exp = entry as any;
-        const isSplittedVal = isRecordSplitted(entry, splits) ? "Yes" : "No";
-
-        let expenseDesc = "";
-        if (!isIncome && exp.items) {
-          expenseDesc = exp.items.map((i: any) => `${i.type}: ${i.description} (£${i.unitPrice * i.quantity})`).join(" | ");
-        }
-
+        const amt = entry.type === 'income' ? (entry as any).amount : (entry as any).totalCost;
         return [
-          format(new Date(entry.date), 'yyyy-MM-dd'),
-          entry.type.toUpperCase(),
-          `"${entry.category || ''}"`,
-          `"${entry.clientName || ''}"`,
-          `"${entry.clientPhone || ''}"`,
-          `"${entry.clientEmail || ''}"`,
-          `"${entry.claimRef || ''}"`,
-          `"${entry.vehicleName || ''}"`,
-          entry.progress,
-          isSplittedVal, 
-          isIncome ? inc.amount.toFixed(2) : exp.totalCost.toFixed(2),
-          `"${(entry.notes || '').replace(/"/g, '""')}"`,
-          isIncome ? (inc.vdProfit || 0).toFixed(2) : "0.00",
-          isIncome ? (inc.actualPaid || 0).toFixed(2) : "0.00",
-          isIncome ? (inc.legalFeeCost || 0).toFixed(2) : "0.00",
-          isIncome ? (inc.storageCost || 0).toFixed(2) : "0.00",
-          isIncome ? (inc.recoveryCost || 0).toFixed(2) : "0.00",
-          isIncome ? (inc.piCost || 0).toFixed(2) : "0.00",
-          `"${expenseDesc.replace(/"/g, '""')}"`
-        ].join(",");
+          format(new Date(entry.date), 'yyyy-MM-dd HH:mm'),
+          entry.type,
+          entry.clientName,
+          entry.claimRef,
+          amt,
+          entry.isRecurring ? 'Yes' : 'No',
+          entry.isRecurring ? entry.recurringFrequency : '-'
+        ].join(',')
       });
-
       const csvContent = [headers.join(","), ...rows].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      saveAs(blob, `Share_Records_Export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      saveAs(blob, `Share_Export.csv`);
       toast.success("Export downloaded");
-    } catch (error) {
-      console.error("Export failed", error);
-      toast.error("Failed to export data");
-    }
+    } catch (error) { toast.error("Export failed"); }
   };
 
   const handleDeleteEntry = async (entry: ShareEntry) => {
@@ -262,52 +373,51 @@ export default function Share() {
         />
       )}
 
-      {/* Top Action Buttons */}
+      {/* Buttons */}
       <div className="flex flex-wrap justify-end gap-2">
         {can('share', 'create') && (
-           <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+           <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
              <Settings className="h-5 w-5 mr-2" /> Cats
            </button>
         )}
         {can('share', 'create') && (
-          <button onClick={() => setShowPay(true)} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition-colors shadow-sm">
+          <button onClick={() => setShowPay(true)} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark shadow-sm">
             <Plus className="h-5 w-5 mr-2" /> Add Income
           </button>
         )}
         {can('share', 'create') && (
-          <button onClick={() => setShowExp(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+          <button onClick={() => setShowExp(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
             <FileText className="h-5 w-5 mr-2" /> Record Expense
           </button>
         )}
         {can('share', 'share') && (
-          <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+          <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
             <FileText className="h-5 w-5 mr-2" /> Split
           </button>
         )}
         {user?.role === 'manager' && (
-          <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">
+          <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
             <Download className="h-5 w-5 mr-2" /> PDF Report
           </button>
         )}
         {can('share', 'export') && (
-          <button onClick={handleExport} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow-sm">
-            <FileSpreadsheet className="h-5 w-5 mr-2" /> Excel Export
+          <button onClick={handleExport} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 shadow-sm">
+            <FileSpreadsheet className="h-5 w-5 mr-2" /> Export
           </button>
         )}
       </div>
 
-      {/* Filters */}
       <ShareFilters
         search={search}
         onSearch={setSearch}
         status={status}
         onStatus={setStatus}
-        // -- NEW PROPS --
         typeFilter={typeFilter}
         onTypeFilter={setTypeFilter}
         sortOrder={sortOrder}
         onSortOrder={setSortOrder}
-        // --------------
+        recurringFilter={recurringFilter}
+        onRecurringFilter={setRecurringFilter}
         dateRange={dateRange}
         onDateRange={setDateRange}
         showHistory={showHistory}
@@ -316,11 +426,9 @@ export default function Share() {
         onCategory={setCategoryFilter}
       />
 
-      {/* Data Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <ShareTable
           entries={filteredEntries}
-          // Pass the list of splits AND logic to check them
           splits={splits} 
           isSplitted={(r) => isRecordSplitted(r, splits)}
           onView={setViewing}
@@ -330,7 +438,7 @@ export default function Share() {
         />
         {filteredEntries.length === 0 && !showHistory && (
           <div className="p-10 text-center">
-             <p className="text-gray-500 mb-2">No new records found (all records are covered by existing splits).</p>
+             <p className="text-gray-500 mb-2">No new records found.</p>
              <button onClick={()=>setShowHistory(true)} className="text-primary hover:underline font-medium">
                View History
              </button>
@@ -338,7 +446,6 @@ export default function Share() {
         )}
       </div>
 
-      {/* --- MODALS --- */}
       <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Details" size="lg">
         {viewing && <ShareDetails entry={viewing} />}
       </Modal>
@@ -378,7 +485,7 @@ export default function Share() {
 
       <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Confirm Delete">
         <div className="space-y-4">
-          <p className="text-gray-700">Are you sure you want to delete this record? This action cannot be undone.</p>
+          <p className="text-gray-700">Are you sure?</p>
           <div className="flex justify-end space-x-2">
             <button onClick={() => setDeleting(null)} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
             <button onClick={() => deleting && handleDeleteEntry(deleting)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>

@@ -50,6 +50,11 @@ export interface BaseEntry {
   createdBy: string
   /** ISO timestamp string */
   updatedAt: string
+
+  // --- NEW RECURRING FIELDS ---
+  isRecurring?: boolean
+  recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly'
+  nextRecurringDate?: string | Date | null // ISO String or Date
 }
 
 /** Flattened income (payment) entry */

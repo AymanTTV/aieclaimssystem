@@ -3,15 +3,14 @@
 import React from 'react'
 import { DataTable } from '../DataTable/DataTable'
 import { ShareEntry, SplitRecord } from '../../types/share'
-import { Eye, Edit, Trash2, FileText, MessageSquare, Car } from 'lucide-react'
+import { Eye, Edit, Trash2, FileText, MessageSquare, Car, RefreshCw, Clock } from 'lucide-react'
 import { usePermissions } from '../../hooks/usePermissions'
-import { format } from 'date-fns'
+import { format, isFuture, parseISO, isValid } from 'date-fns'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
 
 interface Props {
   entries: ShareEntry[]
   splits: SplitRecord[]
-  // New prop to handle complex check logic
   isSplitted?: (record: ShareEntry) => boolean 
   onView: (e: ShareEntry) => void
   onEdit: (e: ShareEntry) => void
@@ -22,7 +21,7 @@ interface Props {
 const ShareTable: React.FC<Props> = ({
   entries,
   splits,
-  isSplitted, // Received function
+  isSplitted,
   onView,
   onEdit,
   onDelete,
@@ -31,7 +30,6 @@ const ShareTable: React.FC<Props> = ({
   const { can } = usePermissions()
   const { formatCurrency } = useFormattedDisplay()
 
-  // Default check if function not provided (fallback)
   const defaultIsSplitted = (record: ShareEntry) => {
     return splits.some(sp => 
        sp.startDate && sp.endDate && 
@@ -76,7 +74,7 @@ const ShareTable: React.FC<Props> = ({
                <div className="text-xs text-gray-400 mb-1">No Vehicle</div>
            )}
            <div className="text-xs text-gray-500">
-             {format(new Date(row.original.date), 'dd/MM/yyyy')}
+             {format(new Date(row.original.date), 'dd/MM/yyyy HH:mm')}
            </div>
         </div>
       )
@@ -84,13 +82,45 @@ const ShareTable: React.FC<Props> = ({
     {
       header: 'Type',
       accessorKey: 'type',
-      cell: ({ row }) => (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
-              row.original.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
-              {row.original.type}
-          </span>
-      )
+      cell: ({ row }) => {
+        // Strict check: It's only "Active" if nextRecurringDate exists AND is in the future
+        let nextDate: Date | null = null;
+        if (row.original.nextRecurringDate) {
+             if ((row.original.nextRecurringDate as any).toDate) {
+                 nextDate = (row.original.nextRecurringDate as any).toDate();
+             } else {
+                 nextDate = new Date(row.original.nextRecurringDate as string);
+             }
+        }
+
+        const isActiveTrigger = row.original.isRecurring && nextDate && isValid(nextDate) && isFuture(nextDate);
+        
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                row.original.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+                {row.original.type}
+            </span>
+
+            {row.original.isRecurring && (
+               <div className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${
+                 isActiveTrigger 
+                   ? 'text-indigo-700 bg-indigo-50 border-indigo-200' // Active Future Trigger
+                   : 'text-gray-400 bg-gray-50 border-gray-200'     // Past / Done
+               }`}>
+                 <RefreshCw className="h-3 w-3" />
+                 <span className="capitalize">
+                    {row.original.recurringFrequency}
+                 </span>
+                 {isActiveTrigger && (
+                    <Clock className="h-3 w-3 ml-1 text-indigo-500" />
+                 )}
+               </div>
+            )}
+          </div>
+        )
+      }
     },
     {
       header: 'Amount',
@@ -119,7 +149,6 @@ const ShareTable: React.FC<Props> = ({
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex items-center space-x-2">
-          {/* Note Indicator */}
           {row.original.notes && (
               <div title="Has Notes" className="text-yellow-500 cursor-help">
                   <MessageSquare className="h-3 w-3" />

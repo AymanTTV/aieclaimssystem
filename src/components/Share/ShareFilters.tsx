@@ -11,13 +11,16 @@ interface ShareFiltersProps {
   status: 'all' | 'in-progress' | 'completed'
   onStatus: (value: 'all' | 'in-progress' | 'completed') => void
   
-  // --- NEW PROPS ---
   typeFilter: 'all' | 'income' | 'expense'
   onTypeFilter: (value: 'all' | 'income' | 'expense') => void
   sortOrder: 'newest' | 'oldest' | 'highest' | 'lowest'
   onSortOrder: (value: 'newest' | 'oldest' | 'highest' | 'lowest') => void
-  // ----------------
   
+  // -- NEW RECURRING PROP --
+  recurringFilter: string
+  onRecurringFilter: (val: string) => void
+  // ------------------------
+
   dateRange: { start: string; end: string }
   onDateRange: (range: { start: string; end: string }) => void
   showHistory: boolean
@@ -35,6 +38,8 @@ const ShareFilters: React.FC<ShareFiltersProps> = ({
   onTypeFilter,
   sortOrder,
   onSortOrder,
+  recurringFilter,
+  onRecurringFilter,
   dateRange,
   onDateRange,
   showHistory,
@@ -163,9 +168,30 @@ const ShareFilters: React.FC<ShareFiltersProps> = ({
             />
           </div>
         </div>
+        
+        {/* Recurring Filter */}
+        <div className="w-full sm:w-48">
+             <label className="block text-xs font-medium text-gray-500 mb-1">Recurring</label>
+             <select
+                 value={recurringFilter}
+                 onChange={(e) => onRecurringFilter(e.target.value)}
+                 className="block w-full py-1.5 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+             >
+                 <option value="all">All Records</option>
+                 <option value="non_recurring">Non-Recurring Only</option>
+                 <option disabled>──────────</option>
+                 <option value="recurring_all">Recurring (All)</option>
+                 <option value="recurring_daily">Recurring (Daily)</option>
+                 <option value="recurring_weekly">Recurring (Weekly)</option>
+                 <option value="recurring_monthly">Recurring (Monthly)</option>
+                 <option value="recurring_quarterly">Recurring (Quarterly)</option>
+                 <option value="recurring_biannually">Recurring (Biannually)</option>
+                 <option value="recurring_yearly">Recurring (Yearly)</option>
+             </select>
+        </div>
 
         {/* History Toggle Switch */}
-        <div className="flex items-center">
+        <div className="flex items-center pb-2">
            <button
              onClick={() => onToggleHistory(!showHistory)}
              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
@@ -180,7 +206,7 @@ const ShareFilters: React.FC<ShareFiltersProps> = ({
            </button>
            <span className="ml-3 text-sm font-medium text-gray-900 flex items-center gap-2">
              <History className="w-4 h-4" />
-             Include Past History
+             Past History
            </span>
         </div>
 

@@ -10,6 +10,8 @@ import { useVehicles } from '../../hooks/useVehicles'
 import SearchableSelect from '../ui/SearchableSelect'
 import FormField from '../ui/FormField'
 import { ShareEntry, Recipient } from '../../types/share'
+import { RefreshCw } from 'lucide-react'
+import { addDays, addWeeks, addMonths, addYears, isValid } from 'date-fns'
 
 const REASONS = ['VD','H','S','R','PI'] as const
 
@@ -24,6 +26,17 @@ export default function PaymentForm({ onClose, record }: Props) {
   const { customers } = useCustomers()
   const { vehicles } = useVehicles()
 
+  // -- Helper for datetime-local --
+  const toDateTimeLocal = (val: any) => {
+    let d = new Date()
+    if(val) {
+        const parsed = new Date(val)
+        if(isValid(parsed)) d = parsed
+    }
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
   // -- Form State --
   const [custId, setCustId]           = useState(record?.clientId || '')
   const [clientName, setClientName]   = useState(record?.clientName || '')
@@ -35,13 +48,20 @@ export default function PaymentForm({ onClose, record }: Props) {
   const [vehicleName, setVehicleName] = useState(record?.vehicleName || '')
 
   const [claimRef, setClaimRef]       = useState(record?.claimRef   || '')
-  const [date, setDate]               = useState(record?.date.slice(0,10) || new Date().toISOString().slice(0,10))
+  
+  // Date with Time Support
+  const [date, setDate]               = useState(toDateTimeLocal(record?.date))
+  
   const [reasons, setReasons]         = useState<string[]>(record?.reasons || [])
   const [notes, setNotes]             = useState(record?.notes || '')
   
   // New Category State
   const [category, setCategory]       = useState(record?.category || '')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
+
+  // --- RECURRING STATE ---
+  const [isRecurring, setIsRecurring] = useState(!!record?.isRecurring)
+  const [frequency, setFrequency]     = useState<string>(record?.recurringFrequency || 'monthly')
 
   // Financials
   const [vdProfit,    setVdProfit]    = useState<number>((record as any)?.vdProfit    || 0)
@@ -100,9 +120,28 @@ export default function PaymentForm({ onClose, record }: Props) {
   const toggleReason = (r:string) =>
     setReasons(rs => rs.includes(r) ? rs.filter(x=>x!==r) : [...rs, r])
 
+  // --- Date Calculation for Recurring ---
+  const calculateNextDate = (dateStr: string, freq: string): string => {
+    const d = new Date(dateStr);
+    let next: Date;
+    switch (freq) {
+      case 'daily': next = addDays(d, 1); break;
+      case 'weekly': next = addWeeks(d, 1); break;
+      case 'monthly': next = addMonths(d, 1); break;
+      case 'quarterly': next = addMonths(d, 3); break;
+      case 'biannually': next = addMonths(d, 6); break;
+      case 'yearly': next = addYears(d, 1); break;
+      default: next = addMonths(d, 1);
+    }
+    return next.toISOString();
+  };
+
   const handleSubmit = async (e:React.FormEvent) => {
     e.preventDefault()
     if (!user) return toast.error('Must be signed in')
+
+    // FIX: Safe User ID
+    const userId = (user as any).uid || user.id || 'unknown';
 
     setLoading(true)
     const amount =
@@ -113,7 +152,7 @@ export default function PaymentForm({ onClose, record }: Props) {
       (reasons.includes('R') ? recoveryCost : 0) +
       (reasons.includes('PI')? piCost       : 0)
 
-    const payment = {
+    const payment: any = {
       type:        'income' as const,
       clientName,
       clientId:    custId,
@@ -122,9 +161,9 @@ export default function PaymentForm({ onClose, record }: Props) {
       clientAddress,
       vehicleId,
       vehicleName,
-      category, // save category
+      category, 
       claimRef,
-      date,
+      date: new Date(date).toISOString(), // Ensure ISO for DB
       reasons,
       notes,
       vdProfit,
@@ -137,14 +176,26 @@ export default function PaymentForm({ onClose, record }: Props) {
       amount,
       progress,
       updatedAt:   new Date(),
-      createdBy:   user.id,
+      createdBy:   userId,
+    }
+
+    // --- RECURRING LOGIC ---
+    if (isRecurring) {
+        payment.isRecurring = true;
+        payment.recurringFrequency = frequency;
+        payment.nextRecurringDate = calculateNextDate(date, frequency);
+    } else {
+        payment.isRecurring = false;
+        payment.recurringFrequency = null;
+        payment.nextRecurringDate = null;
     }
 
     try {
       if (isEdit && record?.id) {
         await updateDoc(doc(db,'shares',record.id), {
-          payments: [payment],
-          progress
+          ...payment,
+          // Update the array wrapper too for consistency if needed, though most views use flattened
+          payments: [payment]
         })
         toast.success('Income updated')
       } else {
@@ -153,14 +204,14 @@ export default function PaymentForm({ onClose, record }: Props) {
           { name:'AbdulAziz',   percentage:0, amount:0 },
           { name:'JAY',         percentage:0, amount:0 },
         ]
+        // Save flattened fields AND the array wrapper
         await addDoc(collection(db,'shares'), {
+          ...payment,
           payments:    [payment],
           expenses:    [],
           recipients,
-          notes:       notes, 
-          progress,
           createdAt:   new Date(),
-          createdBy:   user.id
+          createdBy:   userId
         })
         toast.success('Income created')
       }
@@ -176,6 +227,30 @@ export default function PaymentForm({ onClose, record }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       
+      {/* Recurring Box */}
+      <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
+        <div className="flex items-center">
+             <input id="isRecurring" type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center">
+                <RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />
+                Re-occurring Transaction
+              </label>
+        </div>
+        {isRecurring && (
+          <div className="animate-fadeIn">
+            <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
+            <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly (3 Months)</option>
+              <option value="biannually">Biannually (6 Months)</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        )}
+      </div>
+
       {/* Row 1: Client & Vehicle */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SearchableSelect
@@ -227,12 +302,17 @@ export default function PaymentForm({ onClose, record }: Props) {
             onChange={e=>setClaimRef(e.target.value)}
             required
          />
-         <FormField 
-            label="Date" type="date"
-            value={date}
-            onChange={e=>setDate(e.target.value)}
-            required
-         />
+         {/* Date Time Local Input */}
+         <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+            <input 
+              type="datetime-local" 
+              value={date} 
+              onChange={e=>setDate(e.target.value)} 
+              required 
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            />
+         </div>
       </div>
 
       {/* Reasons */}
