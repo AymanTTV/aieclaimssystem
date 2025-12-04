@@ -1,28 +1,24 @@
 // src/types/incomeExpense.ts
 
-/** A single recipient's profit share */
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly';
+
 export interface Recipient {
   name: string;
   percentage: number;
   amount: number;
 }
 
-/** A recorded income or expense entry */
 export interface IncomeExpenseEntry {
   id: string;
   type: 'income' | 'expense';
-  
-  // Customer Info
-  customer: string; // Name
+  customer: string; 
   customerId: string;
   customerPhone?: string;
   customerEmail?: string;
   customerAddress?: string;
-
-  category?: string; // New Category Field
-
+  category?: string;
   reference: string;
-  date: string;
+  date: string; // ISO string
   status: 'Paid' | 'Unpaid' | 'Partially Paid' | 'Pending';
   description: string;
   unit: string;
@@ -34,9 +30,15 @@ export interface IncomeExpenseEntry {
   progress?: 'in-progress' | 'completed';
   createdBy: string;
   updatedAt: string;
+  createdAt?: string; 
+
+  // --- NEW: Recurring Fields ---
+  isRecurring?: boolean;
+  recurringFrequency?: RecurringFrequency;
+  nextRecurringDate?: string | null; // Storing as string (YYYY-MM-DD) or ISO
+  // ---------------------------
 }
 
-/** A single expense line item */
 export interface ExpenseItem {
   type: string;
   description: string;
@@ -45,8 +47,6 @@ export interface ExpenseItem {
   vat: boolean;
 }
 
-
-/** A profit share split */
 export interface ProfitShare {
   id: string;
   startDate: string;
