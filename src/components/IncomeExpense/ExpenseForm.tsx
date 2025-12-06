@@ -8,7 +8,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { useCustomers } from '../../hooks/useCustomers';
 import toast from 'react-hot-toast';
 import { IncomeExpenseEntry, ExpenseItem } from '../../types/incomeExpense';
-import { RefreshCw, Trash2, Plus } from 'lucide-react'; // Added icons
+import { RefreshCw, Trash2, Plus } from 'lucide-react'; 
 import { addDays, addWeeks, addMonths, addYears } from 'date-fns';
 
 interface Props {
@@ -111,16 +111,21 @@ export default function ExpenseForm({ onClose, record, collectionName, categorie
       progress: meta.status 
     };
 
-    // Recurring Logic
+    // --- RECURRING LOGIC FIX ---
     if (isRecurring) {
         payload.isRecurring = true;
         payload.recurringFrequency = frequency;
-        payload.nextRecurringDate = calculateNextDate(meta.date, frequency);
+        
+        // Only set nextRecurringDate if new or previously not recurring
+        if (!record || !record.isRecurring) {
+            payload.nextRecurringDate = calculateNextDate(meta.date, frequency);
+        }
     } else {
         payload.isRecurring = false;
         payload.recurringFrequency = null;
         payload.nextRecurringDate = null;
     }
+    // ---------------------------
 
     try {
       if (isEdit && record?.id) {

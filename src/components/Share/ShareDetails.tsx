@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { ShareEntry } from '../../types/share'
-import { format, parseISO, isValid } from 'date-fns'
+import { format, isValid } from 'date-fns'
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'
 import { Calendar, User, Tag, DollarSign, Truck, FileText, Phone, Mail, MapPin, RefreshCw, StopCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -14,6 +14,8 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
   const { formatCurrency } = useFormattedDisplay()
   const [createdByName, setCreatedByName] = useState<string>('—')
   const [loadingStop, setLoadingStop] = useState(false)
+  // Local state to update UI immediately after stopping
+  const [localNextDate, setLocalNextDate] = useState<string | Date | null | undefined>(entry.nextRecurringDate)
 
   useEffect(() => {
     if (!entry.createdBy) return
@@ -22,15 +24,22 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
     })
   }, [entry.createdBy])
 
+  useEffect(() => {
+     setLocalNextDate(entry.nextRecurringDate)
+  }, [entry.nextRecurringDate])
+
   const handleStopRecurring = async () => {
     if (!confirm('Are you sure you want to stop this recurring series? Future transactions will not be generated.')) return;
     
     setLoadingStop(true);
     try {
         const txnRef = doc(db, 'shares', entry.id);
+        // Update the Root document field
         await updateDoc(txnRef, {
             nextRecurringDate: null
         });
+        
+        setLocalNextDate(null); // Update local UI
         toast.success('Recurring series stopped successfully.');
     } catch (error) {
         console.error("Error stopping recurrence:", error);
@@ -57,14 +66,15 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
     </div>
   )
 
-  const safeFormatDate = (dStr: string) => {
-      const d = new Date(dStr);
+  const safeFormatDate = (dStr: any) => {
+      if (!dStr) return '—';
+      let d: Date;
+      if (dStr.toDate) d = dStr.toDate();
+      else d = new Date(dStr);
       return isValid(d) ? format(d, 'dd/MM/yyyy HH:mm') : '—';
   }
 
-  // --- RECURRING CHECK ---
-  // A record is "Active" ONLY if it holds the trigger for the next date
-  const isActiveRecurring = entry.isRecurring && !!entry.nextRecurringDate;
+  const isActiveRecurring = entry.isRecurring && !!localNextDate;
 
   return (
     <div className="space-y-2">
@@ -84,7 +94,7 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
                 </p>
                 {isActiveRecurring ? (
                   <p className="text-xs text-indigo-700 mt-0.5 font-medium">
-                     Next Due: {safeFormatDate(entry.nextRecurringDate as string)}
+                     Next Due: {safeFormatDate(localNextDate)}
                   </p>
                 ) : (
                     <p className="text-xs text-gray-500 mt-0.5 italic">History record. Check latest transaction for next due date.</p>
@@ -92,7 +102,7 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
               </div>
             </div>
 
-            {/* STOP BUTTON (Strictly checks for active trigger) */}
+            {/* STOP BUTTON */}
             {isActiveRecurring && (
                 <button 
                     onClick={handleStopRecurring}
@@ -107,7 +117,8 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
         </div>
       )}
       
-      {/* Client & Vehicle Info */}
+      {/* ... (Rest of the component content remains as previously provided) ... */}
+      
       <Section icon={User} title="Client & Vehicle">
         <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 sm:col-span-1 bg-gray-50 p-3 rounded-lg">
@@ -194,7 +205,6 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
         </Section>
       )}
 
-      {/* Notes Section */}
       {entry.notes && (
           <Section icon={FileText} title="Notes">
               <div className="bg-yellow-50 p-4 rounded-lg text-sm text-gray-800 whitespace-pre-wrap border border-yellow-100">
@@ -203,12 +213,11 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
           </Section>
       )}
 
-      {/* Audit */}
       <div className="text-xs text-gray-400 border-t pt-4 mt-6">
         <div className="flex justify-between">
           <span>Created by: {createdByName}</span>
           {entry.createdAt && (
-             <span>At: {isValid(new Date(entry.createdAt)) ? new Date(entry.createdAt).toLocaleString() : '—'}</span>
+             <span>At: {safeFormatDate(entry.createdAt)}</span>
           )}
         </div>
       </div>

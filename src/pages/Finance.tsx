@@ -32,7 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2, AlertTriangle } from 'lucide-react';
-import { addDays, addWeeks, addMonths, addYears, isBefore } from 'date-fns'; 
+import { addDays, addWeeks, addMonths, addYears, isBefore, startOfDay } from 'date-fns'; 
 
 interface MemberPageProps {
   memberMode?: boolean;
@@ -116,7 +116,24 @@ const Finance: React.FC<MemberPageProps> = ({
 
   const visibleTransactions: Transaction[] = useMemo(() => { if (!memberMode) return transactions; const scopeId = memberCustomerId ?? derivedCustomerId; if (!scopeId) return []; return transactions.filter((t) => t.customerId === scopeId); }, [transactions, memberMode, memberCustomerId, derivedCustomerId]);
 
-  const { searchQuery, setSearchQuery, type, setType, category, setCategory, groupFilter, setGroupFilter, paymentStatus, setPaymentStatus, dateRange, setDateRange, selectedCustomerId, setSelectedCustomerId, selectedOwner, setSelectedOwner, owners, filteredTransactions, accountFilter, setAccountFilter, showLinked, setShowLinked, recurringFilter, setRecurringFilter, accountSummary, totalOwingFromOwners } = useFinanceFilters(visibleTransactions, vehicles, accounts, customers);
+  const { 
+      searchQuery, setSearchQuery, 
+      type, setType, 
+      category, setCategory, 
+      groupFilter, setGroupFilter, 
+      paymentStatus, setPaymentStatus, 
+      dateRange, setDateRange, 
+      selectedCustomerId, setSelectedCustomerId, 
+      selectedOwner, setSelectedOwner, 
+      owners, filteredTransactions, 
+      accountFilter, setAccountFilter, 
+      showLinked, setShowLinked, 
+      recurringFilter, setRecurringFilter, 
+      // --- NEW: Destructure Recurring Frequency ---
+      recurringFrequency, setRecurringFrequency,
+      // --------------------------------------------
+      accountSummary, totalOwingFromOwners 
+  } = useFinanceFilters(visibleTransactions, vehicles, accounts, customers);
 
   useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedCustomerId, selectedOwner, accountFilter, groupFilter, showLinked, recurringFilter]);
 
@@ -201,6 +218,7 @@ const Finance: React.FC<MemberPageProps> = ({
   const netIncome = totalIncome - totalExpenses;
   const profitMargin = totalIncome > 0 ? (netIncome / totalIncome) * 100 : 0;
 
+  // --- RECURRING ENGINE LOGIC ---
   useEffect(() => {
     if (loading || !transactions.length || isProcessingRecurring.current) return;
     
@@ -274,130 +292,45 @@ const Finance: React.FC<MemberPageProps> = ({
       toast.loading('Generating financial report...');
       const companyDetails = await getCompanyDetails();
       if (!companyDetails) throw new Error('Company details not found');
-
-      const pdfBlob = await generateFinancePDF(
-        filteredTransactions,
-        vehicles,
-        customers,
-        accounts,
-        totalIncome,
-        totalExpenses,
-        netIncome,
-        profitMargin,
-        totalOwingFromOwners,
-        selectedOwner,
-        dateRange.start,
-        dateRange.end,
-        companyDetails
-      );
+      const pdfBlob = await generateFinancePDF(filteredTransactions, vehicles, customers, accounts, totalIncome, totalExpenses, netIncome, profitMargin, totalOwingFromOwners, selectedOwner, dateRange.start, dateRange.end, companyDetails);
       saveAs(pdfBlob, 'finance_report.pdf');
-      toast.dismiss();
-      toast.success('PDF generated successfully');
-    } catch (err) {
-      console.error('Error generating PDF:', err);
-      toast.dismiss();
-      toast.error('Failed to generate PDF');
-    }
-  }, [
-    filteredTransactions, vehicles, customers, accounts,
-    totalIncome, totalExpenses, netIncome, profitMargin,
-    totalOwingFromOwners, selectedOwner, dateRange,
-  ]);
+      toast.dismiss(); toast.success('PDF generated successfully');
+    } catch (err) { console.error('Error generating PDF:', err); toast.dismiss(); toast.error('Failed to generate PDF'); }
+  }, [filteredTransactions, vehicles, customers, accounts, totalIncome, totalExpenses, netIncome, profitMargin, totalOwingFromOwners, selectedOwner, dateRange]);
 
-  // --- UPDATED FUNCTION ---
   const handleGenerateDocument = useCallback(async (transaction: Transaction) => {
-    if (!user) {
-      toast.error('You must be logged in to generate documents.');
-      return;
-    }
+    if (!user) { toast.error('You must be logged in to generate documents.'); return; }
     try {
       toast.loading('Generating transaction document...');
       const vehicle = vehicles.find((v) => v.id === transaction.vehicleId);
-      const customer = transaction.customerId
-        ? customers.find((c) => c.id === transaction.customerId)
-        : null;
-
+      const customer = transaction.customerId ? customers.find((c) => c.id === transaction.customerId) : null;
       const companyDetails = await getCompanyDetails();
       if (!companyDetails) throw new Error('Company details not found');
-
-      const url = await generateAndUploadDocument(
-        FinanceDocument,
-        {
-          ...transaction,
-          vehicle,
-          customer: customer || { name: transaction.customerName },
-          accounts, // <--- ADDED ACCOUNTS HERE
-        },
-        'finance',
-        transaction.id,
-        'transactions',
-        companyDetails
-      );
-
+      const url = await generateAndUploadDocument(FinanceDocument, { ...transaction, vehicle, customer: customer || { name: transaction.customerName }, accounts }, 'finance', transaction.id, 'transactions', companyDetails);
       await updateDoc(doc(db, 'transactions', transaction.id), { documentUrl: url });
-
-      toast.dismiss();
-      toast.success('Document generated and uploaded');
-      window.open(url, '_blank');
-      return url;
-    } catch (err) {
-      console.error('Error generating document:', err);
-      toast.dismiss();
-      toast.error('Failed to generate document');
-    }
-  }, [vehicles, customers, user, accounts]); // Added accounts to dependencies
+      toast.dismiss(); toast.success('Document generated and uploaded'); window.open(url, '_blank'); return url;
+    } catch (err) { console.error('Error generating document:', err); toast.dismiss(); toast.error('Failed to generate document'); }
+  }, [vehicles, customers, user, accounts]);
 
   const handlePrintReceipt = useCallback(async (transaction: Transaction) => {
-    if (!user) {
-      toast.error('You must be logged in to generate a receipt.');
-      return;
-    }
+    if (!user) { toast.error('You must be logged in to generate a receipt.'); return; }
     try {
       toast.loading('Generating receipt…');
-      const vehicle    = vehicles.find(v => v.id === transaction.vehicleId);
-      const customer   = transaction.customerId
-                          ? customers.find(c => c.id === transaction.customerId)
-                          : null;
+      const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
+      const customer = transaction.customerId ? customers.find((c) => c.id === transaction.customerId) : null;
       const companyDetails = await getCompanyDetails();
       if (!companyDetails) throw new Error('Company details not found');
-
-      const url = await generateAndUploadDocument(
-        ReceiptDocument,
-        {
-          ...transaction,
-          vehicle,
-          customer: customer || { name: transaction.customerName },
-        },
-        'finance',
-        transaction.id,
-        'transactions',
-        companyDetails
-      );
-
+      const url = await generateAndUploadDocument(ReceiptDocument, { ...transaction, vehicle, customer: customer || { name: transaction.customerName }, }, 'finance', transaction.id, 'transactions', companyDetails);
       const txRef = doc(db, 'transactions', transaction.id);
       await updateDoc(txRef, { receiptUrl: url });
-
-      toast.dismiss();
-      toast.success('Receipt generated and uploaded');
-      window.open(url, '_blank');
-      return url;
-    } catch (err) {
-      console.error('Error generating receipt:', err);
-      toast.dismiss();
-      toast.error('Failed to generate receipt');
-    }
+      toast.dismiss(); toast.success('Receipt generated and uploaded'); window.open(url, '_blank'); return url;
+    } catch (err) { console.error('Error generating receipt:', err); toast.dismiss(); toast.error('Failed to generate receipt'); }
   }, [vehicles, customers, user]);
   
   const handleExport = useCallback(() => {
     try {
       const data = filteredTransactions.map((txn) => {
-        const safeFormatDate = (date: any): string => {
-            if (!date) return '';
-            if (date instanceof Date) return date.toLocaleDateString();
-            if (date.toDate) return date.toDate().toLocaleDateString();
-            try { return new Date(date).toLocaleDateString(); } catch { return 'Invalid Date'; }
-        };
-
+        const safeFormatDate = (date: any): string => { if (!date) return ''; if (date instanceof Date) return date.toLocaleDateString(); if (date.toDate) return date.toDate().toLocaleDateString(); try { return new Date(date).toLocaleDateString(); } catch { return 'Invalid Date'; } };
         return {
           'Date': safeFormatDate(txn.date),
           'Type': txn.type,
@@ -416,48 +349,39 @@ const Finance: React.FC<MemberPageProps> = ({
           'Recurring': txn.isRecurring ? `Yes (${txn.recurringFrequency})` : 'No',
         };
       });
-
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Finance Report');
       XLSX.writeFile(workbook, 'finance_report.xlsx');
       toast.success('Finance data exported to Excel!');
-    } catch (err) {
-      console.error('Error exporting to Excel:', err);
-      toast.error('Failed to export data to Excel.');
-    }
+    } catch (err) { console.error('Error exporting to Excel:', err); toast.error('Failed to export data to Excel.'); }
   }, [filteredTransactions, vehicles, customers, accounts, groups]);
 
-  if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>; 
+  if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>;
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      
-      <FinancialSummary 
-        totalIncome={totalIncome} 
-        totalExpenses={totalExpenses} 
-        netIncome={netIncome} 
-        profitMargin={profitMargin} 
-        totalOwingFromOwners={totalOwingFromOwners} 
-        accounts={accounts} 
-        transactions={filteredTransactions} 
-      />
-
+      <FinancialSummary totalIncome={totalIncome} totalExpenses={totalExpenses} netIncome={netIncome} profitMargin={profitMargin} totalOwingFromOwners={totalOwingFromOwners} accounts={accounts} transactions={filteredTransactions} />
       <FinanceHeader 
           onSearch={setSearchQuery} 
           onImport={() => toast.error('Import not implemented.')} 
           onExport={handleExport} 
           onAddIncome={() => blockIfMember(() => setShowAddIncome(true))} 
           onAddExpense={() => blockIfMember(() => setShowAddExpense(true))} 
+          onAddRecurring={() => blockIfMember(() => setShowRecurringModal(true))} 
           onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} onManageGroups={() => blockIfMember(() => setManageOpen(true))} onManageCategories={() => blockIfMember(() => setShowCatModal(true))} onManageAccounts={() => blockIfMember(() => setShowManageAccountsModal(true))} 
-          onAddRecurring={() => blockIfMember(() => setShowRecurringModal(true))}
       />
       
       <FinanceFilters 
           type={type} onTypeChange={setType} searchQuery={searchQuery} onSearchChange={setSearchQuery} statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} categoryFilter={category} onCategoryFilterChange={setCategory} dateRange={dateRange} onDateRangeChange={setDateRange} accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} accounts={accounts} owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} customers={customers} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} accountSummary={accountSummary} categories={financeCategories.map((c) => c.name)} groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} showLinked={showLinked} onShowLinkedChange={setShowLinked} 
+          
+          // --- NEW: PASS FREQUENCY PROPS ---
           recurringFilter={recurringFilter} 
           onRecurringFilterChange={setRecurringFilter}
+          recurringFrequency={recurringFrequency}
+          onRecurringFrequencyChange={setRecurringFrequency}
+          // --------------------------------
       />
 
       {selectedTransactionIds.size > 0 && !memberMode && ( <div className="bg-blue-50 border border-blue-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm"> <span className="font-medium text-sm text-blue-800">{selectedTransactionIds.size} transaction(s) selected</span> <button onClick={() => setShowAssignAccountModal(true)} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"> Assign Account </button> </div> )}
@@ -467,28 +391,13 @@ const Finance: React.FC<MemberPageProps> = ({
       <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl"><TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} /></Modal>
       
       <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
-          <TransactionForm 
-              type="income" 
-              initialIsRecurring={true}
-              accounts={accounts} 
-              vehicles={vehicles} 
-              customers={customers} 
-              onClose={() => setShowRecurringModal(false)} 
-          />
+          <TransactionForm type="income" initialIsRecurring={true} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => setShowRecurringModal(false)} />
       </Modal>
 
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
       <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">{selectedTransaction && ( <TransactionDetails transaction={selectedTransaction} vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} customer={customers.find(c => c.id === selectedTransaction.customerId)} accounts={accounts} /> )}</Modal>
       <ManageGroupsModal open={manageOpen} onClose={() => { setManageOpen(false); loadGroups(); }} />
-      <AssignGroupCategoryModal
-        open={showAssignModal}
-        txn={selectedTransaction}
-        groups={groups}
-        categories={financeCategories}
-        accounts={accounts} 
-        onClose={() => { setShowAssignModal(false); setSelectedTransaction(null); }}
-        onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); }}
-      />
+      <AssignGroupCategoryModal open={showAssignModal} txn={selectedTransaction} groups={groups} categories={financeCategories} accounts={accounts} onClose={() => { setShowAssignModal(false); setSelectedTransaction(null); }} onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); }} />
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} title="Delete Transaction" size="sm">{selectedTransaction && ( <TransactionDeleteModal transactionId={selectedTransaction.id} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} onDeleted={handleConfirmDeleteSingle} /> )}</Modal>
       <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
       <Modal isOpen={showAssignAccountModal} onClose={() => setShowAssignAccountModal(false)} title="Assign Account to Selected Transactions" size="md"><BulkAssignAccountForm accounts={accounts} onClose={() => setShowAssignAccountModal(false)} onAssign={handleBulkAssignAccount} transactionCount={selectedTransactionIds.size} /></Modal>

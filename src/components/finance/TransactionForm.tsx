@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  addDoc,
   collection,
   updateDoc,
   doc,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, Customer, Account, Transaction } from '../../types';
@@ -42,12 +42,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   
-  // State for Type switching in Recurring mode
   const [currentType, setCurrentType] = useState<'income' | 'expense'>(initialType);
   const [isRecurring, setIsRecurring] = useState(initialIsRecurring || !!transaction?.isRecurring);
   const [frequency, setFrequency] = useState<string>(transaction?.recurringFrequency || 'monthly');
 
-  // Sync currentType if transaction exists
   useEffect(() => {
     if (transaction) {
       setCurrentType(transaction.type);
@@ -67,7 +65,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   );
   const restrictFinancialFields = restrictAccountFields;
 
-  // --- Category and Group Loading ---
   const [financeCategories, setFinanceCategories] = useState<string[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   useEffect(() => {
@@ -91,22 +88,17 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
        .finally(() => { if (alive) setGroupsLoading(false); });
      return () => { alive = false; };
   }, []);
-  // ---
 
-  // --- Form State ---
   const getFirstAccount = (accArray?: string[]): string => (accArray && accArray.length > 0) ? accArray[0] : '';
   const getSecondAccount = (accArray?: string[]): string => (accArray && accArray.length > 1) ? accArray[1] : '';
   
-  // Helper to get the 3rd account (The one on the OPPOSITE side of the transaction type)
-  // For Income: It's in accountsFrom. For Expense: It's in accountsTo.
   const getThirdAccount = (txn: Transaction | undefined, type: 'income' | 'expense'): string => {
     if (!txn) return '';
-    if (type === 'income') return getFirstAccount(txn.accountsFrom); // Income usually doesn't have accountsFrom, so this is the 3rd one
-    if (type === 'expense') return getFirstAccount(txn.accountsTo);   // Expense usually doesn't have accountsTo, so this is the 3rd one
+    if (type === 'income') return getFirstAccount(txn.accountsFrom); 
+    if (type === 'expense') return getFirstAccount(txn.accountsTo);   
     return '';
   };
 
-  // Helper to format date object to datetime-local string (YYYY-MM-DDTHH:mm)
   const toDateTimeLocal = (date: Date) => {
     const pad = (num: number) => num.toString().padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -132,11 +124,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     accountFrom: getFirstAccount(transaction?.accountsFrom),
     accountTo2: getSecondAccount(transaction?.accountsTo),
     accountFrom2: getSecondAccount(transaction?.accountsFrom),
-    // New 3rd Account Field
     accountThird: getThirdAccount(transaction, transaction?.type || initialType), 
   });
 
-  // Effect to populate/reset form
   useEffect(() => {
     if (transaction) {
       setManualEntry(!!transaction.customerName && !transaction.customerId);
@@ -163,7 +153,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       setIsRecurring(!!transaction.isRecurring);
       setFrequency(transaction.recurringFrequency || 'monthly');
     } else {
-        // Reset Logic
         setFormData(prev => ({ ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' }));
         setManualEntry(false);
     }
@@ -182,13 +171,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-  // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { toast.error('User not authenticated'); return; }
     setLoading(true);
-
-    let payload: Partial<Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>> & { updatedAt?: Date; updatedBy?: string } = {};
 
     try {
       const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
@@ -197,46 +183,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       const newAmount = Math.abs(parseFloat(formData.amount || '0'));
       if (isNaN(newAmount) || newAmount <= 0) { toast.error('Please enter a valid positive amount.'); setLoading(false); return; }
 
-      let finalAccountsFrom: string[] = [];
-      let finalAccountsTo: string[] = [];
+      // --- Helper: Get Names ---
+      const getAccName = (id: string) => accounts.find(a => a.id === id)?.name || '';
 
-      // Determine final accounts based on form input, respecting restrictions
-      if (restrictAccountFields && transaction) {
-          finalAccountsFrom = transaction.accountsFrom || [];
-          finalAccountsTo = transaction.accountsTo || [];
-      } else {
-          if (currentType === 'income') {
-              // INCOME: Main accounts are 'To' (Credit). 3rd account is 'From' (Debit).
-              if (!formData.accountTo && !formData.accountTo2) { toast.error('At least one "Account To" is required.'); setLoading(false); return; }
-              if (formData.accountTo && formData.accountTo === formData.accountTo2) { toast.error('Cannot credit the same account twice.'); setLoading(false); return; }
-              
-              if (formData.accountTo) finalAccountsTo.push(formData.accountTo);
-              if (formData.accountTo2) finalAccountsTo.push(formData.accountTo2);
-              
-              // 3rd Account Logic (Debit/From for Income)
-              if (formData.accountThird) {
-                 if (finalAccountsTo.includes(formData.accountThird)) { toast.error('Debit account cannot be same as Credit account.'); setLoading(false); return; }
-                 finalAccountsFrom.push(formData.accountThird);
-              }
-
-          } else { // expense
-              // EXPENSE: Main accounts are 'From' (Debit). 3rd account is 'To' (Credit).
-              if (!formData.accountFrom && !formData.accountFrom2) { toast.error('At least one "Account From" is required.'); setLoading(false); return; }
-              if (formData.accountFrom && formData.accountFrom === formData.accountFrom2) { toast.error('Cannot debit the same account twice.'); setLoading(false); return; }
-              
-              if (formData.accountFrom) finalAccountsFrom.push(formData.accountFrom);
-              if (formData.accountFrom2) finalAccountsFrom.push(formData.accountFrom2);
-              
-              // 3rd Account Logic (Credit/To for Expense)
-              if (formData.accountThird) {
-                 if (finalAccountsFrom.includes(formData.accountThird)) { toast.error('Credit account cannot be same as Debit account.'); setLoading(false); return; }
-                 finalAccountsTo.push(formData.accountThird);
-              }
-          }
-      }
-
-      payload = {
-          type: currentType,
+      const basePayload: any = {
           category: formData.category,
           description: formData.description,
           paymentMethod: formData.paymentMethod,
@@ -249,50 +199,197 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null,
           vehicleOwner: vehicleOwner,
           groupId: formData.groupId || null,
-          accountsFrom: finalAccountsFrom,
-          accountsTo: finalAccountsTo,
+          updatedAt: new Date(),
+          updatedBy: user.name || user.email || '',
+          amount: newAmount,
+          date: new Date(formData.date),
       };
 
-      // Recurring Logic
-      if (isRecurring) {
-        payload.isRecurring = true;
-        payload.recurringFrequency = frequency as any;
-        // If creating or editing, set next occurrence based on the set Date
-        payload.nextRecurringDate = calculateNextDate(formData.date, frequency);
-      } else {
-        payload.isRecurring = false;
-        payload.recurringFrequency = null as any;
-        payload.nextRecurringDate = null;
+      if (!restrictFinancialFields) {
+          basePayload.date = new Date(formData.date);
+          basePayload.amount = newAmount;
+      } else if (isEditing && transaction) {
+          basePayload.date = transaction.date;
+          basePayload.amount = transaction.amount;
       }
 
-      if (!restrictFinancialFields) {
-          payload.date = new Date(formData.date);
-          payload.amount = newAmount;
-      } else if (isEditing && transaction) {
-          payload.date = transaction.date;
-          payload.amount = transaction.amount;
+      if (isRecurring) {
+        basePayload.isRecurring = true;
+        basePayload.recurringFrequency = frequency as any;
+        if (!transaction || !transaction.isRecurring) {
+             basePayload.nextRecurringDate = calculateNextDate(formData.date, frequency);
+        }
+      } else {
+        basePayload.isRecurring = false;
+        basePayload.recurringFrequency = null;
+        basePayload.nextRecurringDate = null;
       }
 
       if (isEditing && transaction) {
-        // --- EDITING ---
-        payload.updatedAt = new Date();
-        payload.updatedBy = user.name || user.email || '';
-        payload.referenceId = transaction.referenceId || null;
-        await updateDoc(doc(db, 'transactions', transaction.id), payload);
-        toast.success('Transaction updated successfully');
+          // EDIT MODE (Single record update)
+          const finalAccountsFrom: string[] = [];
+          const finalAccountsTo: string[] = [];
+
+          if (currentType === 'income') {
+             if (formData.accountTo) finalAccountsTo.push(formData.accountTo);
+             if (formData.accountTo2) finalAccountsTo.push(formData.accountTo2);
+             if (formData.accountThird) finalAccountsFrom.push(formData.accountThird);
+          } else {
+             if (formData.accountFrom) finalAccountsFrom.push(formData.accountFrom);
+             if (formData.accountFrom2) finalAccountsFrom.push(formData.accountFrom2);
+             if (formData.accountThird) finalAccountsTo.push(formData.accountThird);
+          }
+
+          const updateData = {
+              ...basePayload,
+              type: currentType,
+              accountsFrom: finalAccountsFrom,
+              accountsTo: finalAccountsTo,
+              referenceId: transaction.referenceId || null,
+          };
+
+          await updateDoc(doc(db, 'transactions', transaction.id), updateData);
+          toast.success('Transaction updated');
+
       } else {
-        // --- CREATING ---
-        const createPayload: Omit<Transaction, 'id'> = {
-            ...(payload as Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>),
-            date: new Date(formData.date),
-            amount: newAmount,
-            createdAt: new Date(),
-            createdBy: user.name || user.email || '',
-            accountsFrom: payload.accountsFrom || [],
-            accountsTo: payload.accountsTo || [],
-        };
-        await addDoc(collection(db, 'transactions'), createPayload);
-        toast.success(`Transaction created successfully`);
+        // --- CREATE MODE: Independent Records with Cross-Reference ---
+        const batch = writeBatch(db);
+        let operationCount = 0;
+
+        // --- PREPARE NAMES FOR RELATED ACCOUNT FIELD ---
+        // 1. Identify Names involved
+        const mainAccName = currentType === 'income' ? getAccName(formData.accountTo) : getAccName(formData.accountFrom);
+        const secondaryAccName = currentType === 'income' ? getAccName(formData.accountTo2) : getAccName(formData.accountFrom2);
+        const contraAccName = getAccName(formData.accountThird); // The money source/destination
+
+        // 2. Construct "Credit Side" names (where money went)
+        // If income: Money went to Main (+ Secondary)
+        // If expense: Money went to Contra (if exists)
+        const creditSideNames = [];
+        if (currentType === 'income') {
+             if (mainAccName) creditSideNames.push(mainAccName);
+             if (secondaryAccName) creditSideNames.push(secondaryAccName);
+        } else {
+             // For expense, money leaves Main/Secondary and goes to Contra (if defined as 'transfer dest')
+             // But usually Expense just leaves. If accountThird is set, it acts as "Paid To".
+             if (contraAccName) creditSideNames.push(contraAccName);
+        }
+        const creditSideString = creditSideNames.join(' & ');
+
+        // 3. Construct "Debit Side" names (where money came from)
+        // If income: Money came from Contra (if exists)
+        // If expense: Money came from Main (+ Secondary)
+        const debitSideNames = [];
+        if (currentType === 'expense') {
+            if (mainAccName) debitSideNames.push(mainAccName);
+            if (secondaryAccName) debitSideNames.push(secondaryAccName);
+        } else {
+            if (contraAccName) debitSideNames.push(contraAccName);
+        }
+        const debitSideString = debitSideNames.join(' & ');
+
+
+        // --- A. PRIMARY RECORD ---
+        if (currentType === 'income' && formData.accountTo) {
+            const ref = doc(collection(db, 'transactions'));
+            batch.set(ref, {
+                ...basePayload,
+                id: ref.id,
+                type: 'income',
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                accountsTo: [formData.accountTo],
+                accountsFrom: [],
+                // Income needs to know "From where?" -> The Debit Side
+                relatedAccountName: debitSideString || null 
+            });
+            operationCount++;
+        }
+        if (currentType === 'expense' && formData.accountFrom) {
+            const ref = doc(collection(db, 'transactions'));
+            batch.set(ref, {
+                ...basePayload,
+                id: ref.id,
+                type: 'expense',
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                accountsFrom: [formData.accountFrom],
+                accountsTo: [],
+                // Expense needs to know "To where?" -> The Credit Side (if it's a transfer/payment to account)
+                relatedAccountName: creditSideString || null
+            });
+            operationCount++;
+        }
+
+        // --- B. SECONDARY RECORD ---
+        if (currentType === 'income' && formData.accountTo2) {
+            const ref = doc(collection(db, 'transactions'));
+            batch.set(ref, {
+                ...basePayload,
+                id: ref.id,
+                type: 'income',
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                accountsTo: [formData.accountTo2],
+                accountsFrom: [],
+                relatedAccountName: debitSideString || null
+            });
+            operationCount++;
+        }
+        if (currentType === 'expense' && formData.accountFrom2) {
+            const ref = doc(collection(db, 'transactions'));
+            batch.set(ref, {
+                ...basePayload,
+                id: ref.id,
+                type: 'expense',
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                accountsFrom: [formData.accountFrom2],
+                accountsTo: [],
+                relatedAccountName: creditSideString || null
+            });
+            operationCount++;
+        }
+
+        // --- C. THIRD RECORD (CONTRA/TRANSFER) ---
+        if (formData.accountThird) {
+            const ref = doc(collection(db, 'transactions'));
+            // Invert type
+            const contraType = currentType === 'income' ? 'expense' : 'income';
+            
+            const contraData: any = {
+                ...basePayload,
+                id: ref.id,
+                type: contraType,
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                description: `(Transfer) ${formData.description}`,
+            };
+
+            if (contraType === 'income') {
+                // This is Income (money entering Account 3), so it came from the Expenses (Debit Side)
+                contraData.accountsTo = [formData.accountThird];
+                contraData.accountsFrom = [];
+                contraData.relatedAccountName = debitSideString; // Came from Main/Secondary
+            } else {
+                // This is Expense (money leaving Account 3), so it went to the Incomes (Credit Side)
+                contraData.accountsFrom = [formData.accountThird];
+                contraData.accountsTo = [];
+                contraData.relatedAccountName = creditSideString; // Went to Main/Secondary
+            }
+
+            batch.set(ref, contraData);
+            operationCount++;
+        }
+
+        if (operationCount === 0) {
+            toast.error("Please select at least one account.");
+            setLoading(false);
+            return;
+        }
+
+        await batch.commit();
+        toast.success(`Created ${operationCount} transaction record(s)`);
       }
 
       onClose();
@@ -304,96 +401,51 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-
-  // --- JSX Rendering ---
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       
       {!transaction && initialIsRecurring && (
         <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
-          <button
-            type="button"
-            onClick={() => setCurrentType('income')}
-            className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Income
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentType('expense')}
-            className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Expense
-          </button>
+          <button type="button" onClick={() => setCurrentType('income')} className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'}`}>Income</button>
+          <button type="button" onClick={() => setCurrentType('expense')} className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'}`}>Expense</button>
         </div>
       )}
 
-      {/* Banner */}
       {restrictAccountFields && ( <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-md"> <div className="flex"> <div className="flex-shrink-0"><Info className="h-5 w-5 text-yellow-400" aria-hidden="true" /></div> <div className="ml-3"><p className="text-sm text-yellow-700">Editing a linked or multi-account transaction. Amount, Date, and Accounts cannot be changed by your role.</p></div> </div> </div> )}
 
-      {/* --- RECURRING TOGGLE & SETTINGS --- */}
       <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
         <div className="flex items-center">
              <input id="isRecurring" type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
-              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center">
-                <RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />
-                Re-occurring Transaction
-              </label>
+              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center"><RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />Re-occurring Transaction</label>
         </div>
         {isRecurring && (
           <div className="animate-fadeIn">
             <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
             <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly (3 Months)</option>
-              <option value="biannually">Biannually (6 Months)</option>
-              <option value="yearly">Yearly</option>
+              <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="biannually">Biannually</option><option value="yearly">Yearly</option>
             </select>
-            <p className="mt-2 text-xs text-indigo-600">
-               Next occurrence will be automatically generated based on the date/time selected below + frequency.
-            </p>
+            <p className="mt-2 text-xs text-indigo-600">Next occurrence will be automatically generated based on the date/time selected below + frequency. <br/> <strong>Note:</strong> Separate recurring series will be created for each selected account.</p>
           </div>
         )}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700">Date & Time</label>
-        <input 
-          type="datetime-local" 
-          value={formData.date} 
-          onChange={(e) => setFormData({ ...formData, date: e.target.value })} 
-          required 
-          disabled={restrictFinancialFields} 
-          className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
+        <input type="datetime-local" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required disabled={restrictFinancialFields} className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
       </div>
 
       <FormField type="number" label="Amount" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} min="0" step="0.01" required placeholder="Enter total amount" disabled={restrictFinancialFields} />
 
-      {/* Account Selection (Conditional on currentType) */}
       {currentType === 'income' && (
         <>
           <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
               <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Account To (Main)</label>
-                <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Also Credit Account (Split - Optional)</label>
-                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
-              </div>
+              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account To (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
+              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Credit Account (Separate Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
           </div>
-
           <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
              <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
-             <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Debit Account (Optional)</label>
-                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo && a.id !== formData.accountTo2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to debit..." isClearable disabled={restrictAccountFields} />
-                <p className="text-xs text-gray-500">Select an account here to reduce its balance (e.g. transfer source).</p>
-             </div>
+             <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Debit Account (Create Separate Expense Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo && a.id !== formData.accountTo2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to debit..." isClearable disabled={restrictAccountFields} /><p className="text-xs text-gray-500">Select an account here to reduce its balance (e.g. transfer source).</p></div>
           </div>
         </>
       )}
@@ -401,69 +453,29 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         <>
           <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
               <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Account From (Main)</label>
-                <SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} />
-              </div>
-               <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Also Debit From (Split - Optional)</label>
-                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} />
-              </div>
+              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account From (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
+               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Debit From (Separate Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
           </div>
-
           <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
              <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
-             <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">Credit Account (Optional)</label>
-                <SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom && a.id !== formData.accountFrom2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to credit..." isClearable disabled={restrictAccountFields} />
-                <p className="text-xs text-gray-500">Select an account here to increase its balance (e.g. money returned/transfer dest).</p>
-             </div>
+             <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Credit Account (Separate Income Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom && a.id !== formData.accountFrom2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to credit..." isClearable disabled={restrictAccountFields} /><p className="text-xs text-gray-500">Select an account here to increase its balance (e.g. money returned/transfer dest).</p></div>
           </div>
         </>
       )}
 
-      {/* Other Fields */}
-      <div className="space-y-2">
-         <label className="block text-sm font-medium text-gray-700">Category</label>
-         {catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}
-      </div>
-      <div className="space-y-2">
-         <label className="block text-sm font-medium text-gray-700">Group (Optional)</label>
-         {groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}
-      </div>
+      <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Category</label>{catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}</div>
+      <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Group (Optional)</label>{groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}</div>
       <SearchableSelect label="Related Vehicle (Optional)" options={vehicles.map(v => ({ id: v.id, label: `${v.make} ${v.model}`, subLabel: v.registrationNumber }))} value={formData.vehicleId} onChange={id => { const v = vehicles.find(vh => vh.id === id); setFormData({...formData, vehicleId: id || '', vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : '' }); }} placeholder="Search vehicles..." isClearable />
+      
       <div className="space-y-4">
         <div><label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={manualEntry} onChange={e => { setManualEntry(e.target.checked); setFormData({...formData, customerId: '', customerName: e.target.checked ? formData.customerName : '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> <span className="text-sm text-gray-700">Enter Customer Manually</span></label></div>
         {manualEntry ? <FormField label="Customer Name" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} placeholder="Enter customer name" /> : <SearchableSelect label="Customer (Optional)" options={customers.map(c => ({ id: c.id, label: c.name, subLabel: `${c.mobile || ''} - ${c.email || ''}` }))} value={formData.customerId} onChange={id => { const c = customers.find(cu => cu.id === id); setFormData({...formData, customerId: id || '', customerName: c?.name || '' }); }} placeholder="Search customers..." isClearable />}
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="form-textarea mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-        <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as any})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
-          <option value="cash">Cash</option> 
-          <option value="card">Card</option> 
-          <option value="bank_transfer">Bank Transfer</option> 
-          <option value="cheque">Cheque</option> 
-          <option value="mobile_money">Mobile Money</option> 
-          <option value="other">Other</option>
-        </select>
-      </div>
+      <div><label className="block text-sm font-medium text-gray-700">Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="form-textarea mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required /></div>
+      <div><label className="block text-sm font-medium text-gray-700">Payment Method</label><select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as any})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option><option value="mobile_money">Mobile Money</option><option value="other">Other</option></select></div>
       <FormField label="Payment Reference (Optional)" value={formData.paymentReference} onChange={e => setFormData({...formData, paymentReference: e.target.value})} placeholder="e.g., Invoice #, Txn ID" />
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Payment Status</label>
-        <select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
-           <option value="paid">Paid</option> <option value="pending">Pending</option> <option value="partially_paid">Partially Paid</option> <option value="unpaid">Unpaid</option> <option value="failed">Failed</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Transaction Status</label>
-        <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required>
-           <option value="completed">Completed</option> <option value="pending">Pending</option> <option value="cancelled">Cancelled</option> <option value="failed">Failed</option>
-        </select>
-      </div>
+      <div><label className="block text-sm font-medium text-gray-700">Payment Status</label><select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="paid">Paid</option><option value="pending">Pending</option><option value="partially_paid">Partially Paid</option><option value="unpaid">Unpaid</option><option value="failed">Failed</option></select></div>
+      <div><label className="block text-sm font-medium text-gray-700">Transaction Status</label><select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="completed">Completed</option><option value="pending">Pending</option><option value="cancelled">Cancelled</option><option value="failed">Failed</option></select></div>
 
       <div className="flex justify-end space-x-3 pt-4">
         <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50">Cancel</button>

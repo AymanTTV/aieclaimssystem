@@ -21,9 +21,10 @@ export const useFinanceFilters = (
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   
-  // --- UPDATED: Recurring Filter State to String ---
+  // --- RECURRING FILTERS ---
   const [recurringFilter, setRecurringFilter] = useState<string>('all');
-  // -----------------------------------
+  const [recurringFrequency, setRecurringFrequency] = useState<string>('all');
+  // -------------------------
 
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -35,30 +36,26 @@ export const useFinanceFilters = (
 
   const dateRange = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
 
-    // Helper to safely parse date from various formats
     const safeParseDate = (dateVal: any): Date | null => {
         if (!dateVal) return null;
         if (dateVal instanceof Date && isValid(dateVal)) return dateVal;
-        if (dateVal.toDate) { // Firestore Timestamp
+        if (dateVal.toDate) {
              const tsDate = dateVal.toDate();
              return isValid(tsDate) ? tsDate : null;
         }
         try {
-            // Attempt ISO string parse first
             const isoDate = parseISO(dateVal);
             if (isValid(isoDate)) return isoDate;
-            // Fallback for other potential string formats
             const genericDate = new Date(dateVal);
              if (isValid(genericDate)) return genericDate;
-        } catch { /* Ignore parsing errors */ }
-        console.warn('Could not parse date:', dateVal);
-        return null; // Invalid date format
+        } catch { }
+        return null;
     };
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
       const transactionDate = safeParseDate(transaction.date);
-      if (!transactionDate) return false; // Skip transactions with invalid dates
+      if (!transactionDate) return false;
 
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
@@ -70,13 +67,11 @@ export const useFinanceFilters = (
         customer?.name, transaction.customerName
       ].some(field => field && field.toLowerCase().includes(searchLower));
 
-
       const matchesType = type === 'all' || transaction.type === type;
       const matchesCategory = category === 'all' || (transaction.category || '').toLowerCase() === category.toLowerCase();
       const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
       const matchesCustomer = !selectedCustomerId || transaction.customerId === selectedCustomerId;
 
-      // Account Filter (Checks arrays)
       const matchesAccount = accountFilter === 'all' ||
         (accountFilter === 'no_account_assigned' && (!transaction.accountsFrom?.length && !transaction.accountsTo?.length)) ||
         (transaction.accountsFrom?.includes(accountFilter)) ||
@@ -86,8 +81,7 @@ export const useFinanceFilters = (
       if (selectedOwner === 'all') matchesOwner = true;
       else if (selectedOwner === 'no_owner_assigned') matchesOwner = !transaction.vehicleId && !transaction.vehicleOwner?.name;
       else matchesOwner = transaction.vehicleOwner?.name === selectedOwner || (!transaction.vehicleOwner?.name && transaction.vehicleId && selectedOwner === 'AIE Skyline Limited');
-      if (selectedOwner === 'AIE SKYLINE ACCOUNT') matchesOwner = transaction.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT'; // Explicit check
-
+      if (selectedOwner === 'AIE SKYLINE ACCOUNT') matchesOwner = transaction.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT';
 
       let matchesDateRange = true;
       if (startDate && endDate) {
@@ -97,25 +91,33 @@ export const useFinanceFilters = (
       else if (endDate) { const endOfDay = new Date(endDate); endOfDay.setHours(23, 59, 59, 999); matchesDateRange = transactionDate <= endOfDay; }
 
       const matchesGroup = groupFilter === 'all' || (groupFilter === 'none' && !transaction.groupId) || transaction.groupId === groupFilter;
-      // Check for referenceId (now primarily for Invoice links)
       const matchesLinked = showLinked === 'all' || (showLinked === 'linked' && !!transaction.referenceId) || (showLinked === 'unlinked' && !transaction.referenceId);
 
-      // --- UPDATED: Recurring Filter Check ---
+      // --- RECURRING STATUS LOGIC ---
       let matchesRecurring = true;
       if (recurringFilter === 'all') {
           matchesRecurring = true;
       } else if (recurringFilter === 'non_recurring') {
           matchesRecurring = !transaction.isRecurring;
-      } else if (recurringFilter === 'recurring_all') {
-          matchesRecurring = !!transaction.isRecurring;
-      } else if (recurringFilter.startsWith('recurring_')) {
-          // Check specific frequency (e.g. 'recurring_monthly')
-          const targetFreq = recurringFilter.replace('recurring_', '');
-          matchesRecurring = !!transaction.isRecurring && transaction.recurringFrequency === targetFreq;
+      } else if (recurringFilter === 'active_recurring') {
+          matchesRecurring = !!transaction.isRecurring && !!transaction.nextRecurringDate;
+      } else if (recurringFilter === 'recurring_history') {
+          matchesRecurring = !!transaction.isRecurring && !transaction.nextRecurringDate;
       }
-      // -----------------------------------
 
-      return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked && matchesRecurring;
+      // --- FREQUENCY LOGIC (FIXED) ---
+      let matchesFrequency = true;
+      if (recurringFrequency !== 'all') {
+          // Only check frequency if the transaction IS recurring
+          if (transaction.isRecurring) {
+              matchesFrequency = transaction.recurringFrequency === recurringFrequency;
+          } else {
+              // Non-recurring transactions don't match any specific frequency filter
+              matchesFrequency = false; 
+          }
+      }
+
+      return matchesSearch && matchesType && matchesCategory && matchesPaymentStatus && matchesCustomer && matchesOwner && matchesAccount && matchesDateRange && matchesGroup && matchesLinked && matchesRecurring && matchesFrequency;
     }).sort((a, b) => {
         const dateA = safeParseDate(a.date)?.getTime() || 0;
         const dateB = safeParseDate(b.date)?.getTime() || 0;
@@ -127,7 +129,7 @@ export const useFinanceFilters = (
   }, [
     transactions, searchQuery, type, category, paymentStatus,
     selectedCustomerId, selectedOwner, accountFilter, startDate, endDate,
-    groupFilter, showLinked, recurringFilter, // <-- Added dependency
+    groupFilter, showLinked, recurringFilter, recurringFrequency, 
     vehicles, customers,
   ]);
 
@@ -138,7 +140,6 @@ export const useFinanceFilters = (
       if (t.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT') effectiveOwnerName = 'AIE SKYLINE ACCOUNT';
       if (effectiveOwnerName) {
         if (!ownerNetIncomes[effectiveOwnerName]) ownerNetIncomes[effectiveOwnerName] = 0;
-        // Apply full amount regardless of split for owner calculation
         ownerNetIncomes[effectiveOwnerName] += (t.type === 'income' ? t.amount : -t.amount);
       }
     });
@@ -147,30 +148,15 @@ export const useFinanceFilters = (
     return totalOwing;
   }, [transactions]);
 
-
-  // Account Summary (Uses arrays and FULL amount per account)
   const accountSummary = useMemo(() => {
     if (accountFilter === 'all' || accountFilter === 'no_account_assigned') return null;
-
-    let income = 0;
-    let expense = 0;
-
+    let income = 0; let expense = 0;
     filteredTransactions.forEach(t => {
-        const fullAmount = t.amount; // Use the full amount
-
-        // Add income if account is in the 'to' list
-        if (t.type === 'income' && t.accountsTo?.includes(accountFilter)) {
-            income += fullAmount;
-        }
-        // Add expense if account is in the 'from' list
-        else if (t.type === 'expense' && t.accountsFrom?.includes(accountFilter)) {
-            expense += fullAmount; // Keep expense positive for summary
-        }
+        if (t.type === 'income' && t.accountsTo?.includes(accountFilter)) income += t.amount;
+        else if (t.type === 'expense' && t.accountsFrom?.includes(accountFilter)) expense += t.amount;
     });
-
     return { income, expense, balance: income - expense };
   }, [filteredTransactions, accountFilter]);
-
 
   const setDateRange = (range: { start: Date | null; end: Date | null }) => {
     setStartDate(range.start);
@@ -182,14 +168,14 @@ export const useFinanceFilters = (
     type, setType,
     category, setCategory,
     paymentStatus, setPaymentStatus,
-    dateRange,
-    setDateRange,
+    dateRange, setDateRange,
     selectedCustomerId, setSelectedCustomerId,
     selectedOwner, setSelectedOwner,
     accountFilter, setAccountFilter,
     groupFilter, setGroupFilter,
     showLinked, setShowLinked,
     recurringFilter, setRecurringFilter, 
+    recurringFrequency, setRecurringFrequency, 
     owners,
     filteredTransactions,
     accountSummary,

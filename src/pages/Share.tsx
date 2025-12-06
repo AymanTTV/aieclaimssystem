@@ -1,7 +1,7 @@
 // src/pages/Share.tsx
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { Plus, FileText, Download, FileSpreadsheet, Settings } from 'lucide-react'
+import { Plus, FileText, Download, FileSpreadsheet, Settings, Repeat } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import toast from 'react-hot-toast'
 import Modal from '../components/ui/Modal'
@@ -20,22 +20,18 @@ import { useCompanyDetails } from '../hooks/useCompanyDetails'
 import { deleteDoc, doc, writeBatch, collection } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext';
-import {
-  generateAndUploadDocument,
-  generateBulkDocuments
-} from '../utils/documentGenerator'
+import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator'
 import { ShareDocument, ShareBulkDocument } from '../components/pdf/documents'
 import { ShareEntry, SplitRecord } from '../types/share'
-import { format, isBefore, addDays, addWeeks, addMonths, addYears, isValid, startOfDay } from 'date-fns'
+import { format, isBefore, addDays, addWeeks, addMonths, addYears, isValid, isSameDay } from 'date-fns'
 
 export default function Share() {
   const { records, loading } = useShares()
-  const splits = useSplits()
+  const splits = useSplits() // Correct variable name
   const { can } = usePermissions()
   const { companyDetails } = useCompanyDetails()
   const { user } = useAuth();
 
-  // --- RECURRING ENGINE REFS ---
   const isProcessingRecurring = useRef(false);
   const processedRecurringIds = useRef(new Set<string>());
 
@@ -45,12 +41,12 @@ export default function Share() {
   const [categoryFilter, setCategoryFilter] = useState('all') 
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest' | 'lowest'>('newest')
+  
+  // --- RECURRING FILTERS ---
   const [recurringFilter, setRecurringFilter] = useState<string>('all')
+  // -------------------------
 
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
-    start: '',
-    end: ''
-  })
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
   
   const [showHistory, setShowHistory] = useState(false) 
 
@@ -60,28 +56,30 @@ export default function Share() {
   const [showExp, setShowExp] = useState(false)
   const [showSplit, setShowSplit] = useState(false)
   const [showManageCats, setShowManageCats] = useState(false) 
+  
+  // --- RECURRING MODAL STATES ---
+  const [showRecurringSelect, setShowRecurringSelect] = useState(false);
+  const [isCreatingRecurring, setIsCreatingRecurring] = useState(false);
+  // ------------------------------
+
   const [deleting, setDeleting] = useState<ShareEntry | null>(null)
   const [editingSplit, setEditingSplit] = useState<string | null>(null)
 
-  // --- RECURRING AUTOMATION ENGINE ---
+  // --- RECURRING AUTOMATION ENGINE (FIXED) ---
   useEffect(() => {
-    // 1. Basic Guard Clauses
     if (loading || records.length === 0 || isProcessingRecurring.current) return;
     
     const processRecurring = async () => {
-      console.log("Starting Recurring Check...");
-      isProcessingRecurring.current = true; // Lock
-      
+      isProcessingRecurring.current = true;
       const batch = writeBatch(db);
       let updatesCount = 0;
-      const now = new Date(); // Right now
+      const now = new Date(); 
 
       try {
-        // 2. Filter for transactions that are Recurring AND Due
+        // 1. Identify Active, Due records
         const dueTransactions = records.filter(t => {
             if (!t.isRecurring || !t.nextRecurringDate) return false;
             
-            // Safe Date Parsing
             let nextDate: Date;
             if ((t.nextRecurringDate as any).toDate) {
                 nextDate = (t.nextRecurringDate as any).toDate();
@@ -89,21 +87,14 @@ export default function Share() {
                 nextDate = new Date(t.nextRecurringDate as string);
             }
             
-            // Check if valid and in the past
+            // Only process if strictly in the past
             return isValid(nextDate) && isBefore(nextDate, now);
         });
 
-        console.log(`Found ${dueTransactions.length} due recurring transactions.`);
-
         for (const txn of dueTransactions) {
-            // 3. Prevent Double Processing (Critical for refresh bugs)
-            if (processedRecurringIds.current.has(txn.id)) {
-                console.warn(`Skipping ${txn.id} - already processed in this session.`);
-                continue;
-            }
+            if (processedRecurringIds.current.has(txn.id)) continue;
             processedRecurringIds.current.add(txn.id);
 
-            // Determine where we start calculating from
             let currentDate: Date;
             if ((txn.nextRecurringDate as any).toDate) {
                 currentDate = (txn.nextRecurringDate as any).toDate();
@@ -111,12 +102,28 @@ export default function Share() {
                 currentDate = new Date(txn.nextRecurringDate as string);
             }
             
-            // 4. Catch-up Loop
-            // Keep generating records until we pass "Now"
+            // --- DUPLICATE CHECK ---
+            // Prevent double-creation on refresh
+            const alreadyExists = records.some(r => 
+                r.id !== txn.id && 
+                r.clientId === txn.clientId && 
+                r.type === txn.type &&
+                r.isRecurring &&
+                isSameDay(new Date(r.date), currentDate)
+            );
+
+            const oldTxnRef = doc(db, 'shares', txn.id);
+
+            if (alreadyExists) {
+                // Just retire the old one if the new one exists
+                batch.update(oldTxnRef, { nextRecurringDate: null });
+                updatesCount++; 
+                continue; 
+            }
+
+            // Loop to catch up
             while (isBefore(currentDate, now)) {
                 updatesCount++;
-                
-                // Calculate NEXT date based on frequency
                 let nextDate: Date;
                 switch (txn.recurringFrequency) {
                     case 'daily': nextDate = addDays(currentDate, 1); break;
@@ -128,70 +135,42 @@ export default function Share() {
                     default: nextDate = addMonths(currentDate, 1);
                 }
 
-                // Determine if this new record is the one that sits in the Future
                 const isLast = !isBefore(nextDate, now);
-
                 const newTxnRef = doc(collection(db, 'shares'));
                 
-                // 5. Data Preparation
-                // Remove system fields from the old record
-                const { id, createdAt, updatedAt, nextRecurringDate, isRecurring, recurringFrequency, documentUrl, receiptUrl, ...cleanData } = txn as any;
+                const { id, createdAt, updatedAt, nextRecurringDate, isRecurring, recurringFrequency, ...cleanData } = txn as any;
 
-                // Define recurring fields for the NEW doc
                 const recurringFields = {
                     isRecurring: true, 
                     recurringFrequency: txn.recurringFrequency,
-                    // Only the future-most transaction gets the next date.
                     nextRecurringDate: isLast ? nextDate.toISOString() : null, 
                 };
 
-                // Create the Inner Payload (matches what goes inside payments/expenses array)
-                // We MUST include recurring info here so the hook sees it!
-                const innerPayload = {
+                const innerItem = {
                     ...cleanData,
-                    ...recurringFields, 
-                    date: currentDate.toISOString(), 
+                    ...recurringFields,
+                    date: currentDate.toISOString(),
                     updatedAt: new Date(),
                     createdBy: 'System (Recurring)'
                 };
 
-                // Create the Wrapper Doc (matches Firestore structure)
                 const newDocData: any = {
-                    ...cleanData, // Save flat fields for indexing
+                    ...cleanData,
                     ...recurringFields,
                     date: currentDate.toISOString(),
                     createdAt: new Date(),
                     createdBy: 'System (Recurring)',
-                    recipients: txn.recipients || [], 
+                    recipients: txn.recipients || [],
+                    payments: txn.type === 'income' ? [innerItem] : [],
+                    expenses: txn.type === 'expense' ? [innerItem] : [],
                 };
-
-                // Insert into correct array
-                if (txn.type === 'income') {
-                    newDocData.payments = [innerPayload]; 
-                    newDocData.expenses = [];
-                } else {
-                    newDocData.expenses = [innerPayload];
-                    newDocData.payments = [];
-                }
                 
-                // Queue creation
                 batch.set(newTxnRef, newDocData);
-                console.log(`Generated new record for ${currentDate.toISOString()}`);
-                
-                // Advance date
                 currentDate = nextDate;
-
-                // Batch safety
-                if (updatesCount % 400 === 0) {
-                    await batch.commit();
-                    batch = writeBatch(db); // reset
-                }
             }
 
-            // 6. Stop the OLD transaction
-            const oldTxnRef = doc(db, 'shares', txn.id);
+            // Retire old record
             batch.update(oldTxnRef, { nextRecurringDate: null });
-            console.log(`Stopped recurrence for old record ${txn.id}`);
         }
 
         if (updatesCount > 0) {
@@ -202,103 +181,81 @@ export default function Share() {
       } catch (e) { 
         console.error("Recurring Engine Error:", e); 
       } finally {
-        isProcessingRecurring.current = false; // Always Unlock
+        isProcessingRecurring.current = false;
       }
     };
     
     processRecurring();
-  }, [loading, records]); // Dependency on records ensures it runs when data loads
+  }, [loading, records]);
 
-  // --- VISIBILITY CHECK ---
+
   const isRecordSplitted = (record: ShareEntry, splitList: SplitRecord[]) => {
     return splitList.some(sp => {
-      const inRange = sp.startDate && sp.endDate && record.date >= sp.startDate && record.date <= sp.endDate;
-      if (!inRange) return false;
-
-      // FIX: Default to FALSE (visible) if timestamps missing
-      if (!record.createdAt || !sp.createdAt) return false; 
-
-      let recordTime = 0;
-      if ((record.createdAt as any).toMillis) {
-         recordTime = (record.createdAt as any).toMillis();
-      } else if (record.createdAt instanceof Date) {
-         recordTime = record.createdAt.getTime();
-      } else {
-         recordTime = new Date(record.createdAt).getTime();
-      }
-      const splitTime = new Date(sp.createdAt).getTime();
-      
-      return recordTime < splitTime;
-    })
+       const d = record.date.slice(0, 10);
+       const inRange = sp.startDate && sp.endDate && d >= sp.startDate && d <= sp.endDate;
+       if (!inRange) return false;
+       if (!record.createdAt || !sp.createdAt) return false; 
+       let recordTime = 0;
+       if ((record.createdAt as any).toMillis) {
+          recordTime = (record.createdAt as any).toMillis();
+       } else if (record.createdAt instanceof Date) {
+          recordTime = record.createdAt.getTime();
+       } else {
+          recordTime = new Date(record.createdAt).getTime();
+       }
+       const splitTime = new Date(sp.createdAt).getTime();
+       return recordTime < splitTime;
+    });
   }
 
-  // --- FILTERING ---
   const filteredEntries = useMemo(() => {
-    let data = records
-
-    if (!showHistory) {
-      data = data.filter(r => !isRecordSplitted(r, splits))
+    let data = records;
+    if (!showHistory) data = data.filter(r => !isRecordSplitted(r, splits));
+    if (dateRange.start && dateRange.end) {
+      const s = new Date(dateRange.start).getTime();
+      const e = new Date(dateRange.end).getTime();
+      data = data.filter(r => {
+        const d = new Date(r.date).getTime();
+        return d >= s && d <= e;
+      });
     }
-    
-    if (dateRange.start) {
-      data = data.filter(r => r.date >= dateRange.start)
-    }
-    if (dateRange.end) {
-      data = data.filter(r => r.date <= dateRange.end)
-    }
-
+    const searchLower = search.toLowerCase();
     data = data.filter(r => {
-      const nameMatch = (r.clientName || '').toLowerCase().includes(search.toLowerCase())
-      const refMatch = (r.claimRef || '').toLowerCase().includes(search.toLowerCase())
-      const vehicleMatch = (r.vehicleName || '').toLowerCase().includes(search.toLowerCase())
+      const matchesSearch = (r.clientName || '').toLowerCase().includes(searchLower) || (r.claimRef || '').toLowerCase().includes(searchLower);
+      const matchesType = typeFilter === 'all' || r.type === typeFilter;
+      const matchesProgress = status === 'all' || r.progress === status;
+      const matchesCategory = categoryFilter === 'all' || r.category === categoryFilter;
       
-      const statusMatch = status === 'all' || r.progress === status
-      const catMatch = categoryFilter === 'all' || (r.category === categoryFilter)
-      const typeMatch = typeFilter === 'all' || r.type === typeFilter
-
-      // Recurring Filter
       let recurringMatch = true;
       if (recurringFilter === 'all') recurringMatch = true;
       else if (recurringFilter === 'non_recurring') recurringMatch = !r.isRecurring;
       else if (recurringFilter === 'recurring_all') recurringMatch = !!r.isRecurring;
+      else if (recurringFilter === 'active_recurring') recurringMatch = !!r.isRecurring && !!r.nextRecurringDate;
+      else if (recurringFilter === 'recurring_history') recurringMatch = !!r.isRecurring && !r.nextRecurringDate;
       else if (recurringFilter.startsWith('recurring_')) {
           const targetFreq = recurringFilter.replace('recurring_', '');
           recurringMatch = !!r.isRecurring && r.recurringFrequency === targetFreq;
       }
 
-      return (nameMatch || refMatch || vehicleMatch) && statusMatch && catMatch && typeMatch && recurringMatch
-    })
+      return matchesSearch && matchesType && matchesProgress && matchesCategory && recurringMatch;
+    });
+    return data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [records, showHistory, splits, search, status, typeFilter, categoryFilter, recurringFilter, dateRange]);
 
-    return data.sort((a, b) => {
-      const getAmount = (rec: ShareEntry) => 
-        rec.type === 'income' ? (rec as any).amount : (rec as any).totalCost;
-
-      if (sortOrder === 'newest') {
-        return new Date(b.date).getTime() - new Date(a.date).getTime()
-      } else if (sortOrder === 'oldest') {
-        return new Date(a.date).getTime() - new Date(b.date).getTime()
-      } else if (sortOrder === 'highest') {
-        return getAmount(b) - getAmount(a)
-      } else if (sortOrder === 'lowest') {
-        return getAmount(a) - getAmount(b)
-      }
-      return 0
-    })
-
-  }, [records, showHistory, splits, dateRange, search, status, categoryFilter, typeFilter, sortOrder, recurringFilter])
-
-
-  const filteredSplits = useMemo(() => {
-    if (!showHistory) { return [] }
-    return splits.filter(sp => {
-      if (!dateRange.start || !dateRange.end) return true
-      const s = new Date(dateRange.start)
-      const e = new Date(dateRange.end)
-      const ss = new Date(sp.startDate!)
-      const ee = new Date(sp.endDate!)
-      return !(ee < s || ss > e)
-    })
-  }, [splits, showHistory, dateRange])
+  const filteredSharesForSummary = useMemo(() => {
+    if (!showHistory) return [];
+    const { start, end } = dateRange;
+    if (start && end) {
+      const s = new Date(start).getTime();
+      const e = new Date(end).getTime();
+      return splits.filter(sp => {
+        const ss = new Date(sp.startDate).getTime();
+        const ee = new Date(sp.endDate).getTime();
+        return !(ee < s || ss > e);
+      });
+    }
+    return splits;
+  }, [splits, showHistory, dateRange]);
 
 
   const handleGenerateDocument = async (entry: ShareEntry) => {
@@ -313,7 +270,7 @@ export default function Share() {
   const handleGenerateBulkPDF = async () => {
     if (!companyDetails) { toast.error('Company details not found'); return }
     try {
-      const blob = await generateBulkDocuments(ShareBulkDocument, filteredEntries, { ...companyDetails, splits: filteredSplits })
+      const blob = await generateBulkDocuments(ShareBulkDocument, filteredEntries, { ...companyDetails, splits: filteredSharesForSummary })
       saveAs(blob, 'share_records.pdf')
       toast.success('Bulk PDF generated')
     } catch { }
@@ -353,77 +310,54 @@ export default function Share() {
       setDeleting(null)
     } catch { toast.error('Failed to delete') }
   }
+  
+  const handleEdit = (entry: ShareEntry) => {
+    setRecordBeingEdited(entry);
+    setIsCreatingRecurring(false); 
+    if (entry.type === 'income') setShowPay(true);
+    else setShowExp(true);
+  };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const clearModals = () => {
+    setShowPay(false);
+    setShowExp(false);
+    setShowSplit(false);
+    setShowRecurringSelect(false);
+    setViewing(null);
+    setRecordBeingEdited(null);
+    setShareToEdit(null);
+    setIsCreatingRecurring(false);
+  };
+
+  if (loading) return <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   return (
     <div className="space-y-6">
-      {!loading && (
-        <ShareSummary
-          entries={filteredEntries}
-          splits={filteredSplits}
-          startDate={showHistory ? dateRange.start : undefined}
-          endDate={showHistory ? dateRange.end : undefined}
-        />
-      )}
+      <ShareSummary entries={filteredEntries} splits={filteredSharesForSummary} startDate={dateRange.start} endDate={dateRange.end} />
 
-      {/* Buttons */}
       <div className="flex flex-wrap justify-end gap-2">
+        {can('share', 'create') && <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><Settings className="h-5 w-5 mr-2" /> Cats</button>}
+        
         {can('share', 'create') && (
-           <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
-             <Settings className="h-5 w-5 mr-2" /> Cats
-           </button>
+            <button onClick={() => setShowRecurringSelect(true)} className="inline-flex items-center px-4 py-2 border border-transparent bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow-sm"><Repeat className="h-5 w-5 mr-2" /> Recurring</button>
         )}
-        {can('share', 'create') && (
-          <button onClick={() => setShowPay(true)} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark shadow-sm">
-            <Plus className="h-5 w-5 mr-2" /> Add Income
-          </button>
-        )}
-        {can('share', 'create') && (
-          <button onClick={() => setShowExp(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
-            <FileText className="h-5 w-5 mr-2" /> Record Expense
-          </button>
-        )}
-        {can('share', 'share') && (
-          <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
-            <FileText className="h-5 w-5 mr-2" /> Split
-          </button>
-        )}
-        {user?.role === 'manager' && (
-          <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
-            <Download className="h-5 w-5 mr-2" /> PDF Report
-          </button>
-        )}
-        {can('share', 'export') && (
-          <button onClick={handleExport} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 shadow-sm">
-            <FileSpreadsheet className="h-5 w-5 mr-2" /> Export
-          </button>
-        )}
+
+        {can('share', 'create') && <button onClick={() => { setShowPay(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark shadow-sm"><Plus className="h-5 w-5 mr-2" /> Add Income</button>}
+        {can('share', 'create') && <button onClick={() => { setShowExp(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><FileText className="h-5 w-5 mr-2" /> Record Expense</button>}
+        {can('share', 'share') && <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><FileText className="h-5 w-5 mr-2" /> Split</button>}
+        {user?.role === 'manager' && <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><Download className="h-5 w-5 mr-2" /> PDF Report</button>}
+        {can('share', 'export') && <button onClick={handleExport} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 shadow-sm"><FileSpreadsheet className="h-5 w-5 mr-2" /> Export</button>}
       </div>
 
       <ShareFilters
-        search={search}
-        onSearch={setSearch}
-        status={status}
-        onStatus={setStatus}
-        typeFilter={typeFilter}
-        onTypeFilter={setTypeFilter}
-        sortOrder={sortOrder}
-        onSortOrder={setSortOrder}
-        recurringFilter={recurringFilter}
-        onRecurringFilter={setRecurringFilter}
-        dateRange={dateRange}
-        onDateRange={setDateRange}
-        showHistory={showHistory}
-        onToggleHistory={setShowHistory}
-        category={categoryFilter}
-        onCategory={setCategoryFilter}
+        search={search} onSearch={setSearch}
+        status={status} onStatus={setStatus}
+        typeFilter={typeFilter} onTypeFilter={setTypeFilter}
+        sortOrder={sortOrder} onSortOrder={setSortOrder}
+        recurringFilter={recurringFilter} onRecurringFilter={setRecurringFilter}
+        dateRange={dateRange} onDateRange={setDateRange}
+        showHistory={showHistory} onToggleHistory={setShowHistory}
+        category={categoryFilter} onCategory={setCategoryFilter}
       />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -432,66 +366,34 @@ export default function Share() {
           splits={splits} 
           isSplitted={(r) => isRecordSplitted(r, splits)}
           onView={setViewing}
-          onEdit={setEditing}
+          onEdit={handleEdit}
           onGenerateDocument={handleGenerateDocument}
           onDelete={setDeleting}
         />
         {filteredEntries.length === 0 && !showHistory && (
-          <div className="p-10 text-center">
-             <p className="text-gray-500 mb-2">No new records found.</p>
-             <button onClick={()=>setShowHistory(true)} className="text-primary hover:underline font-medium">
-               View History
-             </button>
-          </div>
+          <div className="p-10 text-center"><p className="text-gray-500 mb-2">No new records found.</p><button onClick={()=>setShowHistory(true)} className="text-primary hover:underline font-medium">View History</button></div>
         )}
       </div>
 
-      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Details" size="lg">
-        {viewing && <ShareDetails entry={viewing} />}
-      </Modal>
+      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Details" size="lg">{viewing && <ShareDetails entry={viewing} />}</Modal>
 
-      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Record" size="xl">
-        {editing?.type === 'income' ? (
-          <PaymentForm record={editing} onClose={() => setEditing(null)} />
-        ) : (
-          <ExpenseForm record={editing} onClose={() => setEditing(null)} />
-        )}
-      </Modal>
+      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Record" size="xl">{editing?.type === 'income' ? <PaymentForm record={editing} onClose={() => setEditing(null)} /> : <ExpenseForm record={editing} onClose={() => setEditing(null)} />}</Modal>
 
-      <Modal isOpen={showPay} onClose={() => setShowPay(false)} title="Add Income" size="xl">
-        <PaymentForm onClose={() => setShowPay(false)} />
-      </Modal>
-
-      <Modal isOpen={showExp} onClose={() => setShowExp(false)} title="Record Expense" size="xl">
-        <ExpenseForm onClose={() => setShowExp(false)} />
-      </Modal>
-
-      <Modal isOpen={showManageCats} onClose={() => setShowManageCats(false)} title="" size="md">
-        <ManageShareCategoriesModal onClose={() => setShowManageCats(false)} />
-      </Modal>
-
-      <Modal
-        isOpen={showSplit}
-        onClose={() => { setShowSplit(false); setEditingSplit(null) }}
-        title="Split Funds"
-        size="xl"
-      >
-        <SplitForm
-          onClose={() => { setShowSplit(false); setEditingSplit(null) }}
-          splitToEdit={splits.find(sp => sp.id === editingSplit) || null}
-          onEditRequested={sp => setEditingSplit(sp ? sp.id : null)}
-        />
-      </Modal>
-
-      <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Confirm Delete">
-        <div className="space-y-4">
-          <p className="text-gray-700">Are you sure?</p>
-          <div className="flex justify-end space-x-2">
-            <button onClick={() => setDeleting(null)} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
-            <button onClick={() => deleting && handleDeleteEntry(deleting)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
-          </div>
+      <Modal isOpen={showRecurringSelect} onClose={() => setShowRecurringSelect(false)} title="Add Recurring Transaction" size="sm">
+        <div className="space-y-4 p-2">
+            <p className="text-sm text-gray-600">What type of recurring transaction would you like to create?</p>
+            <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => { setShowRecurringSelect(false); setIsCreatingRecurring(true); setShowPay(true); }} className="flex flex-col items-center justify-center p-4 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"><span className="text-green-700 font-bold">Income</span></button>
+                <button onClick={() => { setShowRecurringSelect(false); setIsCreatingRecurring(true); setShowExp(true); }} className="flex flex-col items-center justify-center p-4 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><span className="text-red-700 font-bold">Expense</span></button>
+            </div>
         </div>
       </Modal>
+
+      <Modal isOpen={showPay} onClose={() => setShowPay(false)} title={isCreatingRecurring ? "Add Recurring Income" : "Add Income"} size="xl"><PaymentForm onClose={() => setShowPay(false)} /></Modal>
+      <Modal isOpen={showExp} onClose={() => setShowExp(false)} title={isCreatingRecurring ? "Add Recurring Expense" : "Record Expense"} size="xl"><ExpenseForm onClose={() => setShowExp(false)} /></Modal>
+      <Modal isOpen={showManageCats} onClose={() => setShowManageCats(false)} title="" size="md"><ManageShareCategoriesModal onClose={() => setShowManageCats(false)} /></Modal>
+      <Modal isOpen={showSplit} onClose={() => { setShowSplit(false); setEditingSplit(null) }} title="Split Funds" size="xl"><SplitForm onClose={() => { setShowSplit(false); setEditingSplit(null) }} splitToEdit={splits.find(sp => sp.id === editingSplit) || null} onEditRequested={sp => setEditingSplit(sp ? sp.id : null)} /></Modal>
+      <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Confirm Delete"><div className="space-y-4"><p className="text-gray-700">Are you sure?</p><div className="flex justify-end space-x-2"><button onClick={() => setDeleting(null)} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button><button onClick={() => deleting && handleDeleteEntry(deleting)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button></div></div></Modal>
     </div>
   )
 }

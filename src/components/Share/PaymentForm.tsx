@@ -26,7 +26,6 @@ export default function PaymentForm({ onClose, record }: Props) {
   const { customers } = useCustomers()
   const { vehicles } = useVehicles()
 
-  // -- Helper for datetime-local --
   const toDateTimeLocal = (val: any) => {
     let d = new Date()
     if(val) {
@@ -48,14 +47,9 @@ export default function PaymentForm({ onClose, record }: Props) {
   const [vehicleName, setVehicleName] = useState(record?.vehicleName || '')
 
   const [claimRef, setClaimRef]       = useState(record?.claimRef   || '')
-  
-  // Date with Time Support
   const [date, setDate]               = useState(toDateTimeLocal(record?.date))
-  
   const [reasons, setReasons]         = useState<string[]>(record?.reasons || [])
   const [notes, setNotes]             = useState(record?.notes || '')
-  
-  // New Category State
   const [category, setCategory]       = useState(record?.category || '')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
 
@@ -63,12 +57,10 @@ export default function PaymentForm({ onClose, record }: Props) {
   const [isRecurring, setIsRecurring] = useState(!!record?.isRecurring)
   const [frequency, setFrequency]     = useState<string>(record?.recurringFrequency || 'monthly')
 
-  // Financials
   const [vdProfit,    setVdProfit]    = useState<number>((record as any)?.vdProfit    || 0)
   const [actualPaid,  setActualPaid]  = useState<number>((record as any)?.actualPaid  || 0)
   const [legalFeePct, setLegalFeePct] = useState<number>((record as any)?.legalFeePct || 0)
   const [legalFeeCost,setLegalFeeCost]= useState<number>((record as any)?.legalFeeCost|| 0)
-
   const [storageCost,  setStorageCost]  = useState<number>((record as any)?.storageCost  || 0)
   const [recoveryCost, setRecoveryCost] = useState<number>((record as any)?.recoveryCost || 0)
   const [piCost,       setPiCost]       = useState<number>((record as any)?.piCost       || 0)
@@ -76,51 +68,33 @@ export default function PaymentForm({ onClose, record }: Props) {
   const [progress, setProgress] = useState<'in-progress'|'completed'>(record?.progress || 'in-progress')
   const [loading,  setLoading]  = useState(false)
 
-  // Fetch categories on mount
   useEffect(() => {
     getDocs(collection(db, 'shareCategories')).then(snap => {
       setAvailableCategories(snap.docs.map(d => d.data().name).sort())
     })
   }, [])
 
-  // Handle Client Selection
   const handleClientChange = (id: string) => {
     setCustId(id)
     const c = customers.find(cx => cx.id === id)
     if (c) {
-      setClientName(c.name)
-      setClientPhone(c.mobile || '')
-      setClientEmail(c.email || '')
-      setClientAddr(c.address || '')
-    } else {
-      if(id === '') {
-        setClientName('')
-        setClientPhone('')
-        setClientEmail('')
-        setClientAddr('')
-      }
-    }
+      setClientName(c.name); setClientPhone(c.mobile || ''); setClientEmail(c.email || ''); setClientAddr(c.address || '')
+    } else if(id === '') { setClientName(''); setClientPhone(''); setClientEmail(''); setClientAddr('') }
   }
 
-  // Handle Vehicle Selection
   const handleVehicleChange = (id: string) => {
     setVehicleId(id)
     const v = vehicles.find(vx => vx.id === id)
-    if (v) {
-      setVehicleName(`${v.make} ${v.model} (${v.registrationNumber})`)
-    } else {
-      if(id === '') setVehicleName('')
-    }
+    if (v) setVehicleName(`${v.make} ${v.model} (${v.registrationNumber})`)
+    else if(id === '') setVehicleName('')
   }
 
   useEffect(() => {
     setLegalFeeCost(Math.round((actualPaid * legalFeePct/100)*100)/100)
   }, [actualPaid, legalFeePct])
 
-  const toggleReason = (r:string) =>
-    setReasons(rs => rs.includes(r) ? rs.filter(x=>x!==r) : [...rs, r])
+  const toggleReason = (r:string) => setReasons(rs => rs.includes(r) ? rs.filter(x=>x!==r) : [...rs, r])
 
-  // --- Date Calculation for Recurring ---
   const calculateNextDate = (dateStr: string, freq: string): string => {
     const d = new Date(dateStr);
     let next: Date;
@@ -139,63 +113,48 @@ export default function PaymentForm({ onClose, record }: Props) {
   const handleSubmit = async (e:React.FormEvent) => {
     e.preventDefault()
     if (!user) return toast.error('Must be signed in')
-
-    // FIX: Safe User ID
     const userId = (user as any).uid || user.id || 'unknown';
-
     setLoading(true)
-    const amount =
-      vdProfit +
-      actualPaid +
-      legalFeeCost +
-      (reasons.includes('S') ? storageCost  : 0) +
-      (reasons.includes('R') ? recoveryCost : 0) +
-      (reasons.includes('PI')? piCost       : 0)
+
+    const amount = vdProfit + actualPaid + legalFeeCost + (reasons.includes('S') ? storageCost : 0) + (reasons.includes('R') ? recoveryCost : 0) + (reasons.includes('PI')? piCost : 0)
 
     const payment: any = {
       type:        'income' as const,
-      clientName,
-      clientId:    custId,
-      clientPhone,
-      clientEmail,
-      clientAddress,
-      vehicleId,
-      vehicleName,
-      category, 
-      claimRef,
-      date: new Date(date).toISOString(), // Ensure ISO for DB
-      reasons,
-      notes,
-      vdProfit,
-      actualPaid,
-      legalFeePct,
-      legalFeeCost,
+      clientName, clientId: custId, clientPhone, clientEmail, clientAddress,
+      vehicleId, vehicleName, category, claimRef,
+      date: new Date(date).toISOString(), 
+      reasons, notes,
+      vdProfit, actualPaid, legalFeePct, legalFeeCost,
       ...(reasons.includes('S') ? { storageCost }  : {}),
       ...(reasons.includes('R') ? { recoveryCost } : {}),
       ...(reasons.includes('PI')? { piCost }       : {}),
-      amount,
-      progress,
+      amount, progress,
       updatedAt:   new Date(),
       createdBy:   userId,
     }
 
-    // --- RECURRING LOGIC ---
+    // --- RECURRING LOGIC FIX ---
     if (isRecurring) {
         payment.isRecurring = true;
         payment.recurringFrequency = frequency;
-        payment.nextRecurringDate = calculateNextDate(date, frequency);
+        
+        // Only set next date if it's a NEW record OR it wasn't recurring before
+        // This prevents resetting the cycle on edit
+        if (!record || !record.isRecurring) {
+            payment.nextRecurringDate = calculateNextDate(date, frequency);
+        }
     } else {
         payment.isRecurring = false;
         payment.recurringFrequency = null;
         payment.nextRecurringDate = null;
     }
+    // ---------------------------
 
     try {
       if (isEdit && record?.id) {
         await updateDoc(doc(db,'shares',record.id), {
           ...payment,
-          // Update the array wrapper too for consistency if needed, though most views use flattened
-          payments: [payment]
+          payments: [payment] // Update wrapper
         })
         toast.success('Income updated')
       } else {
@@ -204,7 +163,6 @@ export default function PaymentForm({ onClose, record }: Props) {
           { name:'AbdulAziz',   percentage:0, amount:0 },
           { name:'JAY',         percentage:0, amount:0 },
         ]
-        // Save flattened fields AND the array wrapper
         await addDoc(collection(db,'shares'), {
           ...payment,
           payments:    [payment],
@@ -240,181 +198,77 @@ export default function PaymentForm({ onClose, record }: Props) {
           <div className="animate-fadeIn">
             <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
             <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly (3 Months)</option>
-              <option value="biannually">Biannually (6 Months)</option>
-              <option value="yearly">Yearly</option>
+              <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly (3 Months)</option><option value="biannually">Biannually (6 Months)</option><option value="yearly">Yearly</option>
             </select>
           </div>
         )}
       </div>
 
-      {/* Row 1: Client & Vehicle */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SearchableSelect
-          label="Client"
-          options={customers.map(c => ({ 
-            id: c.id, 
-            label: c.name, 
-            subLabel: `${c.mobile || ''} ${c.email ? '- ' + c.email : ''}` 
-          }))}
-          value={custId}
-          onChange={handleClientChange}
-          placeholder="Search client..."
-          isClearable
-          required
-        />
-        
-        <SearchableSelect
-          label="Related Vehicle (Optional)"
-          options={vehicles.map(v => ({ 
-            id: v.id, 
-            label: `${v.make} ${v.model}`, 
-            subLabel: v.registrationNumber 
-          }))}
-          value={vehicleId}
-          onChange={handleVehicleChange}
-          placeholder="Search vehicle..."
-          isClearable
-        />
+        <SearchableSelect label="Client" options={customers.map(c => ({ id: c.id, label: c.name, subLabel: c.mobile }))} value={custId} onChange={handleClientChange} placeholder="Search client..." isClearable required />
+        <SearchableSelect label="Related Vehicle (Optional)" options={vehicles.map(v => ({ id: v.id, label: `${v.make} ${v.model}`, subLabel: v.registrationNumber }))} value={vehicleId} onChange={handleVehicleChange} placeholder="Search vehicle..." isClearable />
       </div>
 
-      {/* Row 2: Category, Ref, Date */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="">Select Category...</option>
-              {availableCategories.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+              <option value="">Select Category...</option>{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
          </div>
-         <FormField 
-            label="Claim Ref"
-            value={claimRef}
-            onChange={e=>setClaimRef(e.target.value)}
-            required
-         />
-         {/* Date Time Local Input */}
+         <FormField label="Claim Ref" value={claimRef} onChange={e=>setClaimRef(e.target.value)} required />
+         
          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-            <input 
-              type="datetime-local" 
-              value={date} 
-              onChange={e=>setDate(e.target.value)} 
-              required 
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            />
+            <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} required className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" />
          </div>
       </div>
 
-      {/* Reasons */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Reason(s)</label>
         <div className="flex flex-wrap gap-3">
             {REASONS.map(r=>(
             <label key={r} className="inline-flex items-center space-x-2 bg-white px-3 py-1 rounded border border-gray-300 cursor-pointer hover:border-primary">
-                <input
-                type="checkbox"
-                checked={reasons.includes(r)}
-                onChange={()=>toggleReason(r)}
-                className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-                />
+                <input type="checkbox" checked={reasons.includes(r)} onChange={()=>toggleReason(r)} className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary" />
                 <span className="text-sm font-medium">{r}</span>
             </label>
             ))}
         </div>
       </div>
 
-      {/* Financials */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="VD Profit" type="number"
-          value={vdProfit}
-          onChange={e=>setVdProfit(+e.target.value)}
-        />
-        <FormField label="Actual Paid" type="number"
-          value={actualPaid}
-          onChange={e=>setActualPaid(+e.target.value)}
-        />
+        <FormField label="VD Profit" type="number" value={vdProfit} onChange={e=>setVdProfit(+e.target.value)} />
+        <FormField label="Actual Paid" type="number" value={actualPaid} onChange={e=>setActualPaid(+e.target.value)} />
       </div>
       
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Legal Fee (%)" type="number"
-          min={0} max={100}
-          value={legalFeePct}
-          onChange={e=>setLegalFeePct(+e.target.value)}
-        />
-        <FormField label="Legal Fee Cost" type="number"
-          value={legalFeeCost}
-          readOnly
-          className="bg-gray-100"
-        />
+        <FormField label="Legal Fee (%)" type="number" min={0} max={100} value={legalFeePct} onChange={e=>setLegalFeePct(+e.target.value)} />
+        <FormField label="Legal Fee Cost" type="number" value={legalFeeCost} readOnly className="bg-gray-100" />
       </div>
 
       {(reasons.includes('S') || reasons.includes('R') || reasons.includes('PI')) && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-          {reasons.includes('S') && (
-            <FormField label="Storage Cost" type="number"
-              value={storageCost}
-              onChange={e=>setStorageCost(+e.target.value)}
-            />
-          )}
-          {reasons.includes('R') && (
-            <FormField label="Recovery Cost" type="number"
-              value={recoveryCost}
-              onChange={e=>setRecoveryCost(+e.target.value)}
-            />
-          )}
-          {reasons.includes('PI') && (
-            <FormField label="PI Cost" type="number"
-              value={piCost}
-              onChange={e=>setPiCost(+e.target.value)}
-            />
-          )}
+          {reasons.includes('S') && <FormField label="Storage Cost" type="number" value={storageCost} onChange={e=>setStorageCost(+e.target.value)} />}
+          {reasons.includes('R') && <FormField label="Recovery Cost" type="number" value={recoveryCost} onChange={e=>setRecoveryCost(+e.target.value)} />}
+          {reasons.includes('PI') && <FormField label="PI Cost" type="number" value={piCost} onChange={e=>setPiCost(+e.target.value)} />}
         </div>
       )}
 
-      {/* Notes */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Notes</label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={3}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-          placeholder="Notes..."
-        />
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary" placeholder="Notes..." />
       </div>
 
-      {/* Progress */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Progress</label>
-        <select
-          value={progress}
-          onChange={e=>setProgress(e.target.value as any)}
-          className="mt-1 block w-full rounded-md border-gray-300 focus:border-primary focus:ring-primary"
-        >
-          <option value="in-progress">In Progress</option>
-          <option value="completed">Completed</option>
+        <select value={progress} onChange={e=>setProgress(e.target.value as any)} className="mt-1 block w-full rounded-md border-gray-300 focus:border-primary focus:ring-primary">
+          <option value="in-progress">In Progress</option><option value="completed">Completed</option>
         </select>
       </div>
 
       <div className="flex justify-end space-x-3 pt-4 border-t">
-        <button type="button" onClick={onClose} className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">
-          Cancel
-        </button>
-        <button type="submit" disabled={loading}
-          className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50 shadow-sm"
-        >
-          {loading ? 'Saving…' : isEdit ? 'Update Income' : 'Save Income'}
-        </button>
+        <button type="button" onClick={onClose} className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button type="submit" disabled={loading} className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50 shadow-sm">{loading ? 'Saving…' : isEdit ? 'Update Income' : 'Save Income'}</button>
       </div>
     </form>
   )

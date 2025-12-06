@@ -1,6 +1,6 @@
 // src/components/finance/FinancialSummary.tsx
-import React, { useMemo } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Percent, Wallet, Banknote } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { DollarSign, TrendingUp, TrendingDown, Percent, Wallet, Banknote, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Account, Transaction } from '../../types';
@@ -26,15 +26,14 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 }) => {
   const { formatCurrency, formatPercentage } = useFormattedDisplay();
   const { can } = usePermissions();
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
 
-  // --- UPDATED: Calculate balances based on Arrays (Debit/Credit) not just Type ---
   const accountBalances = useMemo(() => {
     if (!accounts || accounts.length === 0) return [];
 
     const balances = new Map<string, number>();
     const accountNames = new Map<string, string>();
 
-    // Initialize all accounts with 0
     accounts.forEach(acc => {
         balances.set(acc.id, 0);
         accountNames.set(acc.id, acc.name);
@@ -42,32 +41,22 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 
     transactions.forEach(txn => {
         const fullAmount = txn.amount; 
-
         let processed = false;
 
-        // 1. Process CREDITS (Money In)
-        // accountsTo always receives money, regardless if it's Income or Expense (3rd account)
         if (txn.accountsTo && txn.accountsTo.length > 0) {
             txn.accountsTo.forEach(accId => {
-                if (balances.has(accId)) {
-                    balances.set(accId, (balances.get(accId) || 0) + fullAmount);
-                }
+                if (balances.has(accId)) balances.set(accId, (balances.get(accId) || 0) + fullAmount);
             });
             processed = true;
         }
 
-        // 2. Process DEBITS (Money Out)
-        // accountsFrom always loses money, regardless if it's Expense or Income (3rd account)
         if (txn.accountsFrom && txn.accountsFrom.length > 0) {
              txn.accountsFrom.forEach(accId => {
-                if (balances.has(accId)) {
-                    balances.set(accId, (balances.get(accId) || 0) - fullAmount);
-                }
+                if (balances.has(accId)) balances.set(accId, (balances.get(accId) || 0) - fullAmount);
             });
             processed = true;
         }
 
-        // 3. Handle legacy or unassigned (Fallbacks for old data)
         if (!processed) {
             const defaultAccount = accounts.find(a => a.name === 'AIE SKYLINE ACCOUNT' || a.name === 'AIE Skyline Limited');
             if (defaultAccount && balances.has(defaultAccount.id)) {
@@ -83,11 +72,10 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         name: accountNames.get(id)!,
         balance,
       }))
-      .sort((a,b) => a.name.localeCompare(b.name));
+      // SORT: Lowest balance (negative) first, Highest balance last
+      .sort((a,b) => a.balance - b.balance);
 
   }, [accounts, transactions]); 
-  // --- End Balance Calculation Update ---
-
 
   if (!can('finance', 'cards')) return null;
 
@@ -102,13 +90,16 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     { key: 'owing', label: 'Owing from Owners', value: formatCurrency(totalOwingFromOwners), tone: 'text-orange-600', icon: <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" /> },
   ] as const;
 
-  const accountCards = accountBalances.map(acc => ({
+  const allAccountCards = accountBalances.map(acc => ({
       key: acc.id,
-      label: `${acc.name} Balance`,
+      label: `${acc.name}`,
       value: formatCurrency(acc.balance),
       tone: acc.balance >= 0 ? 'text-green-700' : 'text-red-700',
       icon: <Banknote className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-500" />
   }));
+
+  // Limit logic
+  const displayedAccountCards = showAllAccounts ? allAccountCards : allAccountCards.slice(0, 4);
 
   return (
     <div className="space-y-4 mb-6">
@@ -117,11 +108,23 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
           {summaryCards.map((c) => (<div key={c.key} className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"><div className="flex items-center gap-3"><div className="rounded-md p-2 bg-gray-50">{c.icon}</div><div className="min-w-0"><p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">{c.label}</p><p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>{c.value}</p></div></div></div>))}
         </div>
 
-        <h3 className="text-base font-medium text-gray-600 pt-4">Filtered Account Balances</h3>
+        <div className="flex justify-between items-end pt-4">
+            <h3 className="text-base font-medium text-gray-600">Filtered Account Balances</h3>
+            {allAccountCards.length > 4 && (
+                <button 
+                    onClick={() => setShowAllAccounts(!showAllAccounts)}
+                    className="text-xs text-indigo-600 font-medium hover:text-indigo-800 flex items-center"
+                >
+                    {showAllAccounts ? 'Show Less' : `Show All (${allAccountCards.length})`}
+                    {showAllAccounts ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                </button>
+            )}
+        </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-          {accountCards.map((c) => (<div key={c.key} className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"><div className="flex items-center gap-3"><div className="rounded-md p-2 bg-indigo-50">{c.icon}</div><div className="min-w-0"><p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">{c.label}</p><p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>{c.value}</p></div></div></div>))}
-          {accounts.length > 0 && accountCards.length === 0 && <p className="text-sm text-gray-500 col-span-full">All account balances are zero or no transactions found.</p>}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          {displayedAccountCards.map((c) => (<div key={c.key} className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-100"><div className="flex items-center gap-3"><div className="rounded-md p-2 bg-indigo-50">{c.icon}</div><div className="min-w-0"><p className="text-[11px] sm:text-xs font-medium text-gray-500 truncate">{c.label}</p><p className={`mt-1 text-xl sm:text-2xl font-semibold ${c.tone}`}>{c.value}</p></div></div></div>))}
+          
+          {accounts.length > 0 && allAccountCards.length === 0 && <p className="text-sm text-gray-500 col-span-full">All account balances are zero or no transactions found.</p>}
           {accounts.length === 0 && <p className="text-sm text-gray-500 col-span-full">Loading accounts...</p>}
         </div>
     </div>

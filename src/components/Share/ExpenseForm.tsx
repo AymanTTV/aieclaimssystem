@@ -30,7 +30,6 @@ export default function ExpenseForm({ onClose, record }: Props) {
   const hireItem  = origItems.find(i => i.type === 'Hire')
   const nonHire   = origItems.filter(i => i.type !== 'Hire')
 
-  // -- Helper for datetime-local --
   const toDateTimeLocal = (val: any) => {
     let d = new Date()
     if(val) {
@@ -41,21 +40,15 @@ export default function ExpenseForm({ onClose, record }: Props) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
-  // -- State --
   const [custId, setCustId]           = useState(record?.clientId   || '')
   const [clientName, setClientName]   = useState(record?.clientName || '')
   const [clientPhone, setClientPhone] = useState(record?.clientPhone || '')
   const [clientEmail, setClientEmail] = useState(record?.clientEmail || '')
   const [clientAddress, setClientAddr]= useState(record?.clientAddress || '')
-
   const [vehicleId, setVehicleId]     = useState(record?.vehicleId || '')
   const [vehicleName, setVehicleName] = useState(record?.vehicleName || '')
-
   const [claimRef,    setClaimRef]    = useState(record?.claimRef   || '')
-  
-  // Date with Time Support
   const [date,        setDate]        = useState(toDateTimeLocal(record?.date))
-  
   const [notes,       setNotes]       = useState(record?.notes || '')
   const [category, setCategory]       = useState(record?.category || '')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
@@ -65,7 +58,6 @@ export default function ExpenseForm({ onClose, record }: Props) {
   const [frequency, setFrequency]     = useState<string>(record?.recurringFrequency || 'monthly')
 
   const [items,       setItems]       = useState<ExpenseItem[]>(nonHire)
-
   const [includeHire, setIncludeHire] = useState(!!hireItem)
   const [hireStart,   setHireStart]   = useState(hireItem?.description.split(' → ')[0] || '')
   const [hireEnd,     setHireEnd]     = useState(hireItem?.description.split(' → ')[1]?.split(' (')[0] || '') 
@@ -73,11 +65,9 @@ export default function ExpenseForm({ onClose, record }: Props) {
   const [hireReg, setHireReg]         = useState(existingRegMatch ? existingRegMatch[1] : '')
   const [hireQty, setHireQty]         = useState<number>(hireItem ? hireItem.quantity : 1)
   const [hireUnitCost, setHireUnitCost] = useState(0)
-
   const [progress,    setProgress]    = useState<'in-progress'|'completed'>(record?.progress || 'in-progress')
   const [loading,     setLoading]     = useState(false)
 
-  // Fetch categories
   useEffect(() => {
     getDocs(collection(db, 'shareCategories')).then(snap => {
       setAvailableCategories(snap.docs.map(d => d.data().name).sort())
@@ -111,7 +101,6 @@ export default function ExpenseForm({ onClose, record }: Props) {
   const addRow = () => setItems(it => [...it, { type:'', description:'', quantity:1, unitPrice:0, vat:false }])
   const removeRow = (i:number) => setItems(it => it.filter((_, idx) => idx !== i))
 
-  // --- RECURRING DATE CALC ---
   const calculateNextDate = (dateStr: string, freq: string): string => {
     const d = new Date(dateStr);
     let next: Date;
@@ -130,10 +119,7 @@ export default function ExpenseForm({ onClose, record }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return toast.error('Please sign in first')
-    
-    // FIX: Safe Auth ID
     const userId = (user as any).uid || user.id || 'unknown';
-
     setLoading(true)
 
     const allItems: ExpenseItem[] = [...items]
@@ -148,28 +134,32 @@ export default function ExpenseForm({ onClose, record }: Props) {
       type:      'expense' as const,
       clientName, clientId: custId, clientPhone, clientEmail, clientAddress,
       vehicleId, vehicleName, category, claimRef, 
-      date: new Date(date).toISOString(), // Ensure ISO for DB
+      date: new Date(date).toISOString(),
       notes, items: allItems, totalCost, progress,
       updatedAt: new Date(),
       createdBy: userId,
     }
 
-    // --- RECURRING LOGIC ---
+    // --- RECURRING LOGIC FIX ---
     if (isRecurring) {
         expenseRec.isRecurring = true;
         expenseRec.recurringFrequency = frequency;
-        expenseRec.nextRecurringDate = calculateNextDate(date, frequency);
+        
+        // Only set next date if it's NEW or wasn't recurring before
+        if (!record || !record.isRecurring) {
+            expenseRec.nextRecurringDate = calculateNextDate(date, frequency);
+        }
     } else {
         expenseRec.isRecurring = false;
         expenseRec.recurringFrequency = null;
         expenseRec.nextRecurringDate = null;
     }
+    // ---------------------------
 
     try {
       if (isEdit && record!.id) {
         await updateDoc(doc(db, 'shares', record!.id), {
           ...expenseRec,
-          // FIX: Must update the array wrapper too, as hooks/exports rely on it
           expenses: [expenseRec] 
         })
         toast.success('Expense updated')
@@ -200,7 +190,6 @@ export default function ExpenseForm({ onClose, record }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      
       {/* Recurring Box */}
       <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
         <div className="flex items-center">
@@ -214,12 +203,7 @@ export default function ExpenseForm({ onClose, record }: Props) {
           <div className="animate-fadeIn">
             <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
             <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly (3 Months)</option>
-              <option value="biannually">Biannually (6 Months)</option>
-              <option value="yearly">Yearly</option>
+              <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="biannually">Biannually</option><option value="yearly">Yearly</option>
             </select>
           </div>
         )}
@@ -234,26 +218,16 @@ export default function ExpenseForm({ onClose, record }: Props) {
          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
-              <option value="">Select...</option>
-              {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="">Select...</option>{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
          </div>
          <FormField label="Claim Ref" value={claimRef} onChange={e=>setClaimRef(e.target.value)} required/>
-         
-         {/* Datetime Input */}
          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-            <input 
-              type="datetime-local" 
-              value={date} 
-              onChange={e=>setDate(e.target.value)} 
-              required 
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            />
+            <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} required className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" />
          </div>
       </div>
 
-      {/* Hire & Items & Notes & Progress sections... */}
       <div className="border rounded-lg p-4 bg-gray-50">
         <label className="inline-flex items-center space-x-2 mb-4">
           <input type="checkbox" checked={includeHire} onChange={e => setIncludeHire(e.target.checked)} className="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary" />
@@ -265,10 +239,7 @@ export default function ExpenseForm({ onClose, record }: Props) {
             <FormField label="Hire End"   type="date" value={hireEnd  } onChange={e=>setHireEnd(e.target.value)}   required/>
             <FormField label="Reg No." value={hireReg} onChange={e=>setHireReg(e.target.value)} />
             <FormField label="Qty" type="number" min={1} value={hireQty} onChange={e=>setHireQty(+e.target.value)} />
-            <div>
-               <label className="block text-sm font-medium text-gray-700 mb-1">Total</label>
-               <div className="px-3 py-2 bg-gray-200 rounded border border-gray-300 text-gray-700 font-semibold">£{(hireUnitCost * hireQty).toLocaleString()}</div>
-            </div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Total</label><div className="px-3 py-2 bg-gray-200 rounded border border-gray-300 text-gray-700 font-semibold">£{(hireUnitCost * hireQty).toLocaleString()}</div></div>
           </div>
         )}
       </div>

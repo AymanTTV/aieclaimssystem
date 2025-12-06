@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Transaction, Vehicle, Customer, Account } from '../../types';
 import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { Car, User, Mail, Phone, Link2, RefreshCw, Square, StopCircle } from 'lucide-react';
+import { Car, User, Mail, Phone, Link2, RefreshCw, StopCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { Timestamp, doc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../../lib/firebase'; 
@@ -54,7 +54,7 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
   );
 
   const getAccountNames = (ids?: string[]): string => {
-      if (!ids || ids.length === 0) return 'N/A';
+      if (!ids || ids.length === 0) return 'Unassigned';
       return ids.map(id => accounts.find(a => a.id === id)?.name || 'Unknown Account')
                  .join(', ');
   };
@@ -155,30 +155,65 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
         </div>
       )}
 
-      {/* Account Information */}
+      {/* --- NEW ACCOUNT FLOW SECTION --- */}
       <Section title="Account Flow">
-        <div className="grid grid-cols-1 gap-4">
-          {transaction.accountsTo && transaction.accountsTo.length > 0 && (
-             <div className="bg-green-50 p-3 rounded border border-green-100">
-              <h4 className="text-sm font-semibold text-green-800">Money Entering (Credit)</h4>
-              <p className="mt-1 text-sm text-gray-900">{getAccountNames(transaction.accountsTo)}</p>
-            </div>
+        <div className="space-y-3">
+          
+          {/* INCOME DISPLAY */}
+          {transaction.type === 'income' && (
+             <div className="flex flex-col gap-2">
+                <div className="flex items-center p-3 bg-green-50 border border-green-100 rounded-md">
+                    <div className="flex-shrink-0 bg-green-100 p-2 rounded-full"><ArrowLeft className="h-5 w-5 text-green-700" /></div>
+                    <div className="ml-3">
+                        <h4 className="text-sm font-semibold text-green-900">Money In (Credited To)</h4>
+                        <p className="text-sm text-green-800 font-medium">
+                            {transaction.accountsTo && transaction.accountsTo.length > 0 
+                                ? getAccountNames(transaction.accountsTo) 
+                                : 'Unassigned'}
+                        </p>
+                    </div>
+                </div>
+                {/* Check for "Debited From" (Transfer Source) */}
+                {(transaction.relatedAccountName || (transaction.accountsFrom && transaction.accountsFrom.length > 0)) && (
+                    <div className="flex items-center p-2 bg-gray-50 border border-gray-100 rounded-md ml-4">
+                        <span className="text-xs font-semibold text-gray-500 uppercase mr-2">Transfer Source:</span>
+                        <span className="text-sm text-gray-700 font-medium">
+                            {transaction.relatedAccountName || getAccountNames(transaction.accountsFrom)}
+                        </span>
+                    </div>
+                )}
+             </div>
           )}
-          {transaction.accountsFrom && transaction.accountsFrom.length > 0 && (
-            <div className="bg-red-50 p-3 rounded border border-red-100">
-              <h4 className="text-sm font-semibold text-red-800">Money Leaving (Debit)</h4>
-              <p className="mt-1 text-sm text-gray-900">{getAccountNames(transaction.accountsFrom)}</p>
-            </div>
+
+          {/* EXPENSE DISPLAY */}
+          {transaction.type === 'expense' && (
+             <div className="flex flex-col gap-2">
+                <div className="flex items-center p-3 bg-red-50 border border-red-100 rounded-md">
+                    <div className="flex-shrink-0 bg-red-100 p-2 rounded-full"><ArrowRight className="h-5 w-5 text-red-700" /></div>
+                    <div className="ml-3">
+                        <h4 className="text-sm font-semibold text-red-900">Money Out (Debited From)</h4>
+                        <p className="text-sm text-red-800 font-medium">
+                            {transaction.accountsFrom && transaction.accountsFrom.length > 0 
+                                ? getAccountNames(transaction.accountsFrom) 
+                                : 'Unassigned'}
+                        </p>
+                    </div>
+                </div>
+                {/* Check for "Credited To" (Transfer Dest) */}
+                {(transaction.relatedAccountName || (transaction.accountsTo && transaction.accountsTo.length > 0)) && (
+                    <div className="flex items-center p-2 bg-gray-50 border border-gray-100 rounded-md ml-4">
+                        <span className="text-xs font-semibold text-gray-500 uppercase mr-2">Transfer Dest:</span>
+                        <span className="text-sm text-gray-700 font-medium">
+                            {transaction.relatedAccountName || getAccountNames(transaction.accountsTo)}
+                        </span>
+                    </div>
+                )}
+             </div>
           )}
-          {(!transaction.accountsFrom || transaction.accountsFrom.length === 0) &&
-           (!transaction.accountsTo || transaction.accountsTo.length === 0) && (
-             <div>
-              <h4 className="text-sm font-medium text-gray-500">Account</h4>
-              <p className="mt-1 text-sm text-gray-400">Unassigned</p>
-            </div>
-          )}
+
         </div>
       </Section>
+      {/* --------------------------- */}
 
 
       {/* Customer Information */}

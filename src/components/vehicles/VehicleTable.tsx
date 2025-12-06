@@ -110,7 +110,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       ),
     },
 
-    // ▶ Owner column wrapped by 'vehicles.owner' permission
+    // Owner column wrapped by 'vehicles.owner' permission
     can('vehicles', 'owner') && {
       header: 'Owner',
       cell: ({ row }: any) => (
@@ -121,50 +121,47 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     },
 
     {
-  header: 'Status',
-  cell: ({ row }: any) => {
-    const vehicle = row.original;
-    const statuses = vehicle.activeStatuses || [];
+      header: 'Status',
+      cell: ({ row }: any) => {
+        const vehicle = row.original;
+        const statuses = vehicle.activeStatuses || [];
 
-    const getDisplayStatus = (status: string) => {
-      switch (status) {
-        case 'rented':
-          return 'hired';
-        case 'scheduled-rental':
-          return 'scheduled for hire';
-        default:
-          return status.replace('-', ' ');
-      }
-    };
+        const getDisplayStatus = (status: string) => {
+          switch (status) {
+            case 'rented':
+              return 'hired';
+            case 'scheduled-rental':
+              return 'scheduled for hire';
+            default:
+              return status.replace('-', ' ');
+          }
+        };
 
-    // Always show SOLD if the vehicle status is sold
-    if (vehicle.status === 'sold') {
-      return (
-        <div className="flex flex-col space-y-1">
-          <StatusBadge status="sold" />
-        </div>
-      );
-    }
+        if (vehicle.status === 'sold') {
+          return (
+            <div className="flex flex-col space-y-1">
+              <StatusBadge status="sold" />
+            </div>
+          );
+        }
 
-    // If we have explicit active statuses, render them
-    if (statuses.length > 0) {
-      return (
-        <div className="flex flex-col space-y-1">
-          {statuses.map((s: string, i: number) => (
-            <StatusBadge key={i} status={getDisplayStatus(s)} />
-          ))}
-        </div>
-      );
-    }
+        if (statuses.length > 0) {
+          return (
+            <div className="flex flex-col space-y-1">
+              {statuses.map((s: string, i: number) => (
+                <StatusBadge key={i} status={getDisplayStatus(s)} />
+              ))}
+            </div>
+          );
+        }
 
-    // Fallback to the single vehicle.status (e.g., 'available', 'maintenance', etc.)
-    return (
-      <div className="flex flex-col space-y-1">
-        <StatusBadge status={getDisplayStatus(vehicle.status || 'available')} />
-      </div>
-    );
-  },
-},
+        return (
+          <div className="flex flex-col space-y-1">
+            <StatusBadge status={getDisplayStatus(vehicle.status || 'available')} />
+          </div>
+        );
+      },
+    },
 
     {
       header: 'Rental Rates',
@@ -204,7 +201,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       },
     },
     {
-      header: 'Mileage',
+      header: 'Mileage & Maintenance', // Renamed Header
       cell: ({ row }: any) => {
         const vehicle = row.original;
         const currentMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
@@ -233,6 +230,14 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               )}
             </div>
             <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
+            
+            {/* Added Last and Next Maintenance Dates */}
+            <div className="pt-2 mt-1 border-t border-gray-100 text-xs">
+               <div className="text-gray-600">Last Maint: {formatDate(vehicle.lastMaintenance)}</div>
+               <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                 Next Maint: {formatDate(vehicle.nextMaintenance)}
+               </div>
+            </div>
           </div>
         );
       },
@@ -340,7 +345,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         </div>
       ),
     },
-  ].filter(Boolean); // filter out falsey (Owner column when not permitted)
+  ].filter(Boolean);
 
   return (
     <DataTable

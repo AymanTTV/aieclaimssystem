@@ -144,15 +144,26 @@ export default function IncomeForm({ onClose, record, collectionName, categories
         updatedAt: new Date().toISOString()
       };
 
+      // --- RECURRING LOGIC FIX ---
       if (isRecurring) {
         payload.isRecurring = true;
         payload.recurringFrequency = frequency;
-        payload.nextRecurringDate = calculateNextDate(form.date, frequency);
+        
+        // Only reset nextRecurringDate if:
+        // 1. It's a NEW transaction (!record)
+        // 2. OR if it was NOT recurring before (!record.isRecurring)
+        if (!record || !record.isRecurring) {
+             payload.nextRecurringDate = calculateNextDate(form.date, frequency);
+        }
+        // If editing an existing recurring transaction, do NOT include nextRecurringDate in payload
+        // This preserves the schedule tracked by the engine.
+        
       } else {
         payload.isRecurring = false;
         payload.recurringFrequency = null;
         payload.nextRecurringDate = null;
       }
+      // ---------------------------
 
       if (isEdit && record?.id) {
         await updateDoc(doc(db, collectionName, record.id), payload);
