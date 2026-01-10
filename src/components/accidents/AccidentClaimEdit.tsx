@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import { Upload } from 'lucide-react';
-import { validateImage } from '../../utils/imageUpload';
 import { X } from 'lucide-react';
 
 interface AccidentClaimEditProps {
@@ -21,7 +20,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const [loading, setLoading] = useState(false);
   const [passengerCount, setPassengerCount] = useState(accident.passengers?.length || 0);
   const [witnessCount, setWitnessCount] = useState(accident.witnesses?.length || 0);
-  const [manualVehicleEntry, setManualVehicleEntry] = useState(false);
   const [images, setImages] = useState<FileList | null>(null);
   const [existingImages] = useState<string[]>(accident.images || []);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -34,7 +32,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     referenceName: accident.referenceName || '',
     driverName: accident.driverName,
     driverAddress: accident.driverAddress,
-    driverPostCode: accident.driverPostCode,
+    // driverPostCode removed
     driverDOB: accident.driverDOB,
     driverPhone: accident.driverPhone,
     driverMobile: accident.driverMobile,
@@ -49,7 +47,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     policyExcess: accident.policyExcess || '',
     faultPartyName: accident.faultPartyName,
     faultPartyAddress: accident.faultPartyAddress || '',
-    faultPartyPostCode: accident.faultPartyPostCode || '',
+    // faultPartyPostCode removed
     faultPartyPhone: accident.faultPartyPhone || '',
     faultPartyVehicle: accident.faultPartyVehicle || '',
     faultPartyVRN: accident.faultPartyVRN,
@@ -74,14 +72,14 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     passengers: accident.passengers || Array(4).fill({
       name: '',
       address: '',
-      postCode: '',
+      // postCode removed
       dob: '',
       contactNumber: ''
     }),
     witnesses: accident.witnesses || Array(3).fill({
       name: '',
       address: '',
-      postCode: '',
+      // postCode removed
       dob: '',
       contactNumber: ''
     })
@@ -133,58 +131,54 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
   const handleAmountBlur = () => {
     const parsedValue = parseFloat(displayAmount);
     if (!isNaN(parsedValue)) {
-      const roundedAmount = Math.round(parsedValue * 100) / 100; // Round to 2 decimal places
+      const roundedAmount = Math.round(parsedValue * 100) / 100;
       setFormData({ ...formData, amount: roundedAmount });
-      setDisplayAmount(roundedAmount.toFixed(2)); // Update display with rounded value
+      setDisplayAmount(roundedAmount.toFixed(2));
     } else {
-      setDisplayAmount(formData.amount.toFixed(2)); // Reset to last valid amount
+      setDisplayAmount(formData.amount.toFixed(2));
     }
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) return;
-  setLoading(true);
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
 
-  try {
-    const newImageUrls = await Promise.all(
-      imageFiles.map(async (file) => {
-        const timestamp = Date.now();
-        const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        return getDownloadURL(snapshot.ref);
-      })
-    );
+    try {
+      const newImageUrls = await Promise.all(
+        imageFiles.map(async (file) => {
+          const timestamp = Date.now();
+          const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          return getDownloadURL(snapshot.ref);
+        })
+      );
 
-    // Keep any images the user didn’t remove, then add newly uploaded ones:
-    const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
-    const allImages = [...updatedImages, ...newImageUrls];
+      const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
+      const allImages = [...updatedImages, ...newImageUrls];
 
-    // normalize reference number
-    const refNoValueRaw = (formData.referenceNo ?? '').toString().trim();
-    const refNoValue = refNoValueRaw ? Number(refNoValueRaw) : null; // null if empty
+      const refNoValueRaw = (formData.referenceNo ?? '').toString().trim();
+      const refNoValue = refNoValueRaw ? Number(refNoValueRaw) : null;
 
-    const accidentRef = doc(db, 'accidents', accident.id);
-    await updateDoc(accidentRef, {
-      ...formData,
-      refNo: refNoValue,
-      referenceNo: refNoValue,
-      images: allImages,
-      updatedAt: new Date(),
-      updatedBy: user.id,
-    });
+      const accidentRef = doc(db, 'accidents', accident.id);
+      await updateDoc(accidentRef, {
+        ...formData,
+        refNo: refNoValue,
+        referenceNo: refNoValue,
+        images: allImages,
+        updatedAt: new Date(),
+        updatedBy: user.id,
+      });
 
-    toast.success('Accident claim updated successfully');
-    onClose();
-  } catch (error) {
-    console.error('Error updating accident claim:', error);
-    toast.error('Failed to update accident claim');
-  } finally {
-    setLoading(false);
-  }
-};
-
+      toast.success('Accident claim updated successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error updating accident claim:', error);
+      toast.error('Failed to update accident claim');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -263,12 +257,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
             required
           />
-          <FormField
-            label="Post Code"
-            value={formData.driverPostCode}
-            onChange={(e) => setFormData({ ...formData, driverPostCode: e.target.value })}
-            required
-          />
+          {/* Post Code Field Removed */}
           <FormField
             type="date"
             label="Date of Birth"
@@ -335,13 +324,11 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             label="Insurance Company"
             value={formData.insuranceCompany}
             onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-            
           />
           <FormField
             label="Policy Number"
             value={formData.policyNumber}
             onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-            
           />
           <FormField
             type="number"
@@ -368,11 +355,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             value={formData.faultPartyAddress}
             onChange={(e) => setFormData({ ...formData, faultPartyAddress: e.target.value })}
           />
-          <FormField
-            label="Post Code"
-            value={formData.faultPartyPostCode}
-            onChange={(e) => setFormData({ ...formData, faultPartyPostCode: e.target.value })}
-          />
+          {/* Post Code Field Removed */}
           <FormField
             type="tel"
             label="Phone Number"
@@ -501,11 +484,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
                 value={formData.passengers[index].address}
                 onChange={(e) => handlePassengerChange(index, 'address', e.target.value)}
               />
-              <FormField
-                label="Post Code"
-                value={formData.passengers[index].postCode}
-                onChange={(e) => handlePassengerChange(index, 'postCode', e.target.value)}
-              />
+              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -551,11 +530,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
                 value={formData.witnesses[index].address}
                 onChange={(e) => handleWitnessChange(index, 'address', e.target.value)}
               />
-              <FormField
-                label="Post Code"
-                value={formData.witnesses[index].postCode}
-                onChange={(e) => handleWitnessChange(index, 'postCode', e.target.value)}
-              />
+              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"

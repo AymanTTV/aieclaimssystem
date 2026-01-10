@@ -3,6 +3,7 @@ import React from 'react';
 import { Text, View, Page, Document, Image, StyleSheet } from '@react-pdf/renderer';
 import { MaintenanceLog, Vehicle } from '../../../types';
 import { formatDate } from '../../../utils/dateHelpers';
+import { format } from 'date-fns'; // ADD: Import format
 import { styles } from '../styles';
 
 interface EnrichedPart {
@@ -130,7 +131,10 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
           </View>
           <View style={styles.flexRow}>
             <Text style={styles.label}>Date:</Text>
-            <Text style={styles.value}>{formatDate(data.date)}</Text>
+            {/* UPDATED: Show Date AND Time */}
+            <Text style={styles.value}>
+              {data.date ? format(new Date(data.date), 'dd/MM/yyyy HH:mm') : 'N/A'}
+            </Text>
           </View>
           <View style={styles.flexRow}>
             <Text style={styles.label}>Service Provider:</Text>

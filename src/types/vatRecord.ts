@@ -1,5 +1,7 @@
 // src/types/vatRecord.ts
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly';
+
 export interface VATRecordDescription {
   id: string;
   description: string;
@@ -7,7 +9,7 @@ export interface VATRecordDescription {
   includeVAT: boolean;
   vat: number;
   gross: number;
-  vType?: string; // Change to string
+  vType?: string; 
 }
 
 export interface VATRecord {
@@ -33,7 +35,12 @@ export interface VATRecord {
   createdBy: string;
   vatReceived?: number;
   documentUrl?: string;
-  // New Fields
   accountNo?: string;
   dueDate?: Date;
+
+  // --- NEW: Recurring Fields ---
+  isRecurring?: boolean;
+  recurringFrequency?: RecurringFrequency;
+  nextRecurringDate?: Date | any; // Timestamp or Date
+  // ---------------------------
 }

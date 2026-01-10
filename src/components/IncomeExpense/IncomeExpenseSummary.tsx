@@ -1,14 +1,10 @@
+// src/components/IncomeExpense/IncomeExpenseSummary.tsx
 import React, { useMemo } from 'react';
 import { IncomeExpenseEntry, ProfitShare } from '../../types/incomeExpense';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { RolePermissions } from '../../types/roles';
-import {
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Wallet
-} from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Wallet } from 'lucide-react';
 
 interface Props {
   entries?: IncomeExpenseEntry[];
@@ -30,49 +26,47 @@ export default function IncomeExpenseSummary({
 
   if (!can(permissionScope, 'cards')) return null;
 
-  // 1. Compute totals
-  const totalIncome = useMemo(
-    () =>
-      entries
-        .filter((e) => e.type === 'income')
-        .reduce((sum, e) => sum + (e.total ?? 0), 0),
-    [entries]
-  );
+  // 1) Totals (IMPORTANT: income is commissionAmount)
+  const totalIncome = useMemo(() => {
+    return entries
+      .filter((e) => e.type === 'income')
+      .reduce((sum, e) => sum + (e.commissionAmount ?? 0), 0);
+  }, [entries]);
 
-  const totalExpense = useMemo(
-    () =>
-      entries
-        .filter((e) => e.type === 'expense')
-        .reduce(
-          (sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0),
-          0
-        ),
-    [entries]
-  );
+  const totalExpense = useMemo(() => {
+    return entries
+      .filter((e) => e.type === 'expense')
+      .reduce((sum, e) => sum + (e.total ?? (e as any).totalCost ?? 0), 0);
+  }, [entries]);
 
-  const totalShared = useMemo(
-    () => shares.reduce((sum, sp) => sum + (sp.totalSplitAmount ?? 0), 0),
-    [shares]
-  );
+  const totalShared = useMemo(() => {
+    return shares.reduce((sum, sp) => sum + (sp.totalSplitAmount ?? 0), 0);
+  }, [shares]);
 
-  const balance = useMemo(
-    () => totalIncome - totalExpense - totalShared,
-    [totalIncome, totalExpense, totalShared]
-  );
+  const balance = useMemo(() => {
+    return totalIncome - totalExpense - totalShared;
+  }, [totalIncome, totalExpense, totalShared]);
 
-  // 2. Per-recipient breakdown for the Shared card
+  // 2) Per-recipient breakdown for the Shared card
   const breakdown: Record<string, number> = useMemo(() => {
     return shares.reduce<Record<string, number>>((acc, sp) => {
-      sp.recipients?.forEach((rec) => {
-        acc[rec.name] = (acc[rec.name] || 0) + rec.amount;
+      (sp.recipients || []).forEach((rec: any) => {
+        const name = rec?.name || 'Unknown';
+        const amount = Number(rec?.amount ?? 0) || 0;
+        acc[name] = (acc[name] || 0) + amount;
       });
       return acc;
     }, {});
   }, [shares]);
 
+  // Optional: show biggest recipients first (nice UX)
+  const breakdownSorted = useMemo(() => {
+    return Object.entries(breakdown).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0));
+  }, [breakdown]);
+
   const cards = [
     {
-      label: 'Total Income',
+      label: 'Total Commission (Income)',
       amount: totalIncome,
       icon: TrendingUp,
       colorClass: 'text-green-600',
@@ -133,11 +127,12 @@ export default function IncomeExpenseSummary({
                     {startDate} → {endDate}
                   </div>
                 )}
-                
+
                 <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
-                  {Object.entries(breakdown).map(([name, amt]) => {
+                  {breakdownSorted.map(([name, amt]) => {
                     const pct =
                       totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0;
+
                     return (
                       <div
                         key={name}
@@ -145,9 +140,7 @@ export default function IncomeExpenseSummary({
                       >
                         <span className="text-gray-600 truncate max-w-[60%]">
                           {name}{' '}
-                          <span className="text-gray-400 text-[10px]">
-                            ({pct}%)
-                          </span>
+                          <span className="text-gray-400 text-[10px]">({pct}%)</span>
                         </span>
                         <span className="font-medium text-gray-800">
                           {formatCurrency(amt)}
@@ -155,8 +148,8 @@ export default function IncomeExpenseSummary({
                       </div>
                     );
                   })}
-                  
-                  {Object.keys(breakdown).length === 0 && (
+
+                  {breakdownSorted.length === 0 && (
                     <span className="text-xs text-gray-400">
                       No splits in this period
                     </span>

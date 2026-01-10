@@ -106,8 +106,8 @@ const IncomeExpenseDocument: React.FC<Props> = ({ data, companyDetails }) => (
         </View>
 
         <View style={styles.flexRow}>
-          <Text style={styles.label}>Unit:</Text>
-          <Text style={styles.value}>{data.unit}</Text>
+          <Text style={styles.label}>Unit Price:</Text>
+          <Text style={styles.value}>{fmt(Number(data.unit))}</Text>
         </View>
 
         <View style={styles.flexRow}>
@@ -119,6 +119,15 @@ const IncomeExpenseDocument: React.FC<Props> = ({ data, companyDetails }) => (
           <Text style={styles.label}>VAT:</Text>
           <Text style={styles.value}>{data.vat ? '20%' : '0%'}</Text>
         </View>
+
+        {/* --- NEW COMMISSION ROW --- */}
+        {data.commissionAmount ? (
+            <View style={styles.flexRow}>
+              <Text style={styles.label}>Commission ({data.commissionPct}%):</Text>
+              <Text style={[styles.value, { color: '#DC2626' }]}>- {fmt(data.commissionAmount)}</Text>
+            </View>
+        ) : null}
+        {/* -------------------------- */}
 
         <View style={[styles.flexRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 4 }]}>
           <Text style={styles.label}>Total:</Text>

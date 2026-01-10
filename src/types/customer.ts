@@ -13,6 +13,10 @@ export interface Customer {
   email: string;
   address: string;
 
+  // New Company Fields
+  accountNumber?: string;
+  vatNumber?: string;
+
   // Optional fields not applicable to 'company' type
   gender?: Gender;
   dateOfBirth?: Date;

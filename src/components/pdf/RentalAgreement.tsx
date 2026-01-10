@@ -3,9 +3,8 @@ import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types/rental';
 import { format, addDays } from 'date-fns';
-import logo from '../../assets/logo.png';
 import { formatDate } from '../../utils/dateHelpers';
-import { styles } from './styles'; // ← your existing styles.ts
+import { styles } from './styles';
 
 // Local style for the absolutely‐positioned signature section
 const localStyles = StyleSheet.create({
@@ -27,10 +26,13 @@ const RentalAgreement: React.FC<{
   customer: Customer;
   companyDetails: any;
 }> = ({ rental, vehicle, customer, companyDetails = {} }) => {
+  
+  // Helper to handle Firestore Timestamps or JS Dates including TIME
   const formatDateTime = (date: Date | string | null | undefined): string => {
     if (!date) return 'N/A';
     try {
       let processed: any = date;
+      // Handle Firestore Timestamp .toDate()
       if (typeof (date as any)?.toDate === 'function') {
         processed = (date as any).toDate();
       }
@@ -67,7 +69,6 @@ const RentalAgreement: React.FC<{
       )
     : null;
 
-    // --- MODIFIED: Helper for Service Type ---
   const getServiceType = (type: Rental['type']): string => {
     switch (type) {
       case 'claim':
@@ -77,9 +78,42 @@ const RentalAgreement: React.FC<{
       case 'weekly':
         return 'Weekly Hire';
       default:
-        return type.toUpperCase(); // Fallback for any other types
+        return type.toUpperCase();
     }
   };
+
+  // --- Logic to find Active Substitute ---
+  const getActiveSubstitute = () => {
+    if (!rental.hireSubstitutionDetails || rental.hireSubstitutionDetails.length === 0) return null;
+    
+    // Get the latest one
+    const latestSub = rental.hireSubstitutionDetails[rental.hireSubstitutionDetails.length - 1];
+    
+    // Check dates
+    if (!latestSub.expectedReturnAt) return null;
+    
+    const now = new Date();
+    let returnDate: Date;
+    
+    // Parse the return date safely
+    if (typeof (latestSub.expectedReturnAt as any)?.toDate === 'function') {
+      returnDate = (latestSub.expectedReturnAt as any).toDate();
+    } else {
+      returnDate = new Date(latestSub.expectedReturnAt);
+    }
+
+    // Only show if the return date is in the future (or today)
+    if (returnDate >= now) {
+      return latestSub;
+    }
+    
+    return null;
+  };
+
+  const activeSub = getActiveSubstitute();
+
+  // Determine the date to show on signature (Latest updated date)
+  const signatureDate = rental.updatedAt || rental.createdAt || rental.startDate;
 
   return (
     <Document>
@@ -122,7 +156,7 @@ const RentalAgreement: React.FC<{
             <View style={styles.row}>
               <Text style={styles.label}>Date of Birth:</Text>
               <Text style={styles.value}>
-                {formatDateTime(customer.dateOfBirth)}
+                {formatDate(customer.dateOfBirth)}
               </Text>
             </View>
             <View style={styles.row}>
@@ -136,7 +170,7 @@ const RentalAgreement: React.FC<{
             <View style={styles.row}>
               <Text style={styles.label}>License Valid Until:</Text>
               <Text style={styles.value}>
-                {formatDateTime(customer.licenseExpiry)}
+                {formatDate(customer.licenseExpiry)}
               </Text>
             </View>
             <View style={styles.row}>
@@ -164,13 +198,40 @@ const RentalAgreement: React.FC<{
                 {vehicle.mileage?.toLocaleString() ?? 'N/A'} miles
               </Text>
             </View>
-            
-            {/* --- HIRE SUBSTITUTION DETAILS REMOVED FROM HERE --- */}
 
+            {/* --- ACTIVE SUBSTITUTE VEHICLE SECTION --- */}
+            {activeSub && (
+              <View style={{ marginTop: 5 }}>
+                <Text style={{
+                  backgroundColor: '#FEF08A', // Yellow-200
+                  color: '#854D0E', // Yellow-800
+                  padding: 4,
+                  fontSize: 9,
+                  fontWeight: 'bold',
+                  marginTop: 5,
+                  marginBottom: 5,
+                  textAlign: 'center',
+                  textTransform: 'uppercase'
+                }}>
+                  Active Substitute Vehicle
+                </Text>
+                
+                <View style={styles.row}>
+                  <Text style={styles.label}>Make & Model:</Text>
+                  <Text style={styles.value}>
+                    {activeSub.make} {activeSub.model}
+                  </Text>
+                </View>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Registration:</Text>
+                  <Text style={styles.value}>{activeSub.registration}</Text>
+                </View>
+                {/* Note: Mileage is not currently stored on the sub object in your type definition, so it is omitted to prevent errors */}
+              </View>
+            )}
           </View>
         </View>
 
-        {/* --- WRAP={FALSE} REMOVED FROM THIS VIEW --- */}
         <View>
           {/* RENTAL DETAILS */}
           <View style={{ marginBottom: 15 }} wrap={false}>
@@ -192,15 +253,9 @@ const RentalAgreement: React.FC<{
                 <Text style={[styles.tableCell, { flex: 1 }]}>
                   {formatDateTime(rental.startDate)}
                 </Text>
-                {/* <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {rental.status === 'completed' && rental.endDate
-                    ? formatDateTime(rental.endDate)
-                    : formatDateTime(defaultEndDate)}
-                </Text> */}
                 <Text style={[styles.tableCell, { flex: 1 }]}>
-  {formatDateTime(rental.endDate ?? defaultEndDate)}
-</Text>
-
+                  {formatDateTime(rental.endDate ?? defaultEndDate)}
+                </Text>
               </View>
             </View>
           </View>
@@ -211,16 +266,16 @@ const RentalAgreement: React.FC<{
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Service Type {/* MODIFIED */}
+                  Service Type
                 </Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rate</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Billing Cycle {/* MODIFIED */}
+                  Billing Cycle
                 </Text>
               </View>
               <View style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {getServiceType(rental.type)} {/* MODIFIED */}
+                  {getServiceType(rental.type)}
                 </Text>
                 <Text style={[styles.tableCell, { flex: 1 }]}>
                   £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
@@ -232,7 +287,7 @@ const RentalAgreement: React.FC<{
             </View>
           </View>
 
-          {/* --- NEW: HIRE SUBSTITUTION VEHICLES TABLE --- */}
+          {/* HIRE SUBSTITUTION VEHICLES TABLE */}
           {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 && (
             <View style={{ marginBottom: 15 }} wrap={false}>
               <Text style={styles.sectionTitle}>Hire Substitution Vehicles</Text>
@@ -266,10 +321,7 @@ const RentalAgreement: React.FC<{
               </View>
             </View>
           )}
-          {/* --- END: HIRE SUBSTITUTION VEHICLES TABLE --- */}
-
         </View>
-        {/* --- END OF UNWRAPPED VIEW --- */}
 
         <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
 
@@ -357,49 +409,48 @@ const RentalAgreement: React.FC<{
         )}
 
         {rental.returnCondition && (
-  <View style={[styles.sectionBreak]} wrap={false}>
-    <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
-    <View style={styles.card}>
-      {/* Grid of return details */}
-      <View style={styles.grid}>
-        <View style={styles.gridItem}>
-          <Text style={styles.subLabel}>Return Date & Time:</Text>
-          <Text style={styles.subValue}>
-            {formatDateTime(rental.returnCondition.date)}
-          </Text>
-        </View>
-        <View style={styles.gridItem}>
-          <Text style={styles.subLabel}>Mileage:</Text>
-          <Text style={styles.subValue}>
-            {rental.returnCondition.mileage.toLocaleString()} miles
-          </Text>
-        </View>
-        {/* Fuel, Clean, Damage… */}
-        <View style={styles.gridItem}>
-          <Text style={styles.subLabel}>Total Additional Charges:</Text>
-          <Text style={styles.subValue}>
-            £{rental.returnCondition.totalCharges.toFixed(2)}
-          </Text>
-        </View>
-      </View>
-      {/* Images grid, 3 per row */}
-      <View style={styles.grid} /* or your custom image-grid style */>
-        {rental.returnCondition.images.map((img, i) => (
-          <Image key={i} src={img} style={{ width: '30%', margin: '1%' }} />
-        ))}
-      </View>
-    </View>
-  </View>
-)}
+          <View style={[styles.sectionBreak]} wrap={false}>
+            <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
+            <View style={styles.card}>
+              <View style={styles.grid}>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Return Date & Time:</Text>
+                  <Text style={styles.subValue}>
+                    {formatDateTime(rental.returnCondition.date)}
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Mileage:</Text>
+                  <Text style={styles.subValue}>
+                    {rental.returnCondition.mileage.toLocaleString()} miles
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.subLabel}>Total Additional Charges:</Text>
+                  <Text style={styles.subValue}>
+                    £{rental.returnCondition.totalCharges.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+              {rental.returnCondition.images && rental.returnCondition.images.length > 0 && (
+                <View style={styles.grid}>
+                  {rental.returnCondition.images.map((img, i) => (
+                    <Image key={i} src={img} style={{ width: '30%', margin: '1%' }} />
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* TERMS AND CONDITIONS */}
-       <View style={[styles.section, styles.sectionBreak, { marginBottom: 20 }]}> {/* Or even 0 */}
-  <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-  <Text style={styles.text}>
-    {companyDetails.termsAndConditions ||
-      'Standard terms and conditions apply.'}
-  </Text>
-</View>
+        <View style={[styles.section, styles.sectionBreak, { marginBottom: 20 }]}>
+          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
+          <Text style={styles.text}>
+            {companyDetails.termsAndConditions ||
+              'Standard terms and conditions apply.'}
+          </Text>
+        </View>
 
         <View style={[localStyles.signatureSectionPositioning]} wrap={false}>
           {/* Hirer’s Signature Box */}
@@ -409,7 +460,7 @@ const RentalAgreement: React.FC<{
             )}
             <Text style={styles.signatureLine}>Hirer’s Signature</Text>
             <Text>{customer.name}</Text>
-            <Text>Date: {formatDate(rental.startDate, true)}</Text>
+            <Text>Date: {formatDate(signatureDate)}</Text>
           </View>
 
           {/* Authorized Signature Box */}
@@ -419,11 +470,11 @@ const RentalAgreement: React.FC<{
             )}
             <Text style={styles.signatureLine}>Authorized Signature</Text>
             <Text>{companyDetails.name || 'AIE SKYLINE'}</Text>
-            <Text>Date: {formatDate(rental.startDate, true)}</Text>
+            <Text>Date: {formatDate(signatureDate)}</Text>
           </View>
         </View>
 
-        {/* NEW STANDARDIZED FOOTER - NOT fixed here, so it flows with content */}
+        {/* FOOTER */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875

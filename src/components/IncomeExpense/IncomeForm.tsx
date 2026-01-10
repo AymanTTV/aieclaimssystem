@@ -43,8 +43,12 @@ export default function IncomeForm({ onClose, record, collectionName, categories
     customerEmail: '',
     customerAddress: '',
     reference: '',
-    // Use toDateTimeLocal for initial state
-    date: record?.date ? toDateTimeLocal(record.date) : toDateTimeLocal(new Date()),
+    
+    // Dates
+    date: record?.date ? toDateTimeLocal(record.date) : toDateTimeLocal(new Date()), // Main Transaction Date
+    fromDate: record?.fromDate ? toDateTimeLocal(record.fromDate) : '', // Informational
+    toDate: record?.toDate ? toDateTimeLocal(record.toDate) : '',       // Informational
+
     type: '',
     category: '',
     description: '',
@@ -52,6 +56,10 @@ export default function IncomeForm({ onClose, record, collectionName, categories
     unit: '',
     net: 0,
     vat: false,
+    
+    commissionPct: record?.commissionPct ?? 6, 
+    commissionAmount: record?.commissionAmount ?? 0,
+
     total: 0,
     status: 'Paid' as const,
     note: ''
@@ -68,7 +76,11 @@ export default function IncomeForm({ onClose, record, collectionName, categories
         customerEmail: record.customerEmail || '',
         customerAddress: record.customerAddress || '',
         reference: record.reference,
+        
         date: toDateTimeLocal(record.date),
+        fromDate: record.fromDate ? toDateTimeLocal(record.fromDate) : '',
+        toDate: record.toDate ? toDateTimeLocal(record.toDate) : '',
+        
         type: record.type || '',
         category: record.category || '',
         description: record.description,
@@ -76,6 +88,10 @@ export default function IncomeForm({ onClose, record, collectionName, categories
         unit: record.unit,
         net: record.net,
         vat: record.vat,
+        
+        commissionPct: record.commissionPct ?? 6,
+        commissionAmount: record.commissionAmount ?? 0,
+        
         total: record.total,
         status: record.status,
         note: record.note || ''
@@ -103,13 +119,25 @@ export default function IncomeForm({ onClose, record, collectionName, categories
     }));
   };
 
+  // --- CALCULATION LOGIC ---
   useEffect(() => {
     const quantity = Number(form.quantity) || 0;
     const unit = parseFloat(form.unit) || 0;
     const net = quantity * unit;
-    const total = form.vat ? Math.round(net * 1.2 * 100) / 100 : net;
-    setForm(prev => ({ ...prev, net, total }));
-  }, [form.quantity, form.unit, form.vat]);
+    
+    // VAT (Addition)
+    const vatAmount = form.vat ? net * 0.20 : 0;
+    
+    // Commission (Deduction based on Net)
+    const commPct = Number(form.commissionPct) || 0;
+    const commissionAmount = net * (commPct / 100);
+
+    // Total = Net + VAT - Commission
+    const total = Math.round((net + vatAmount - commissionAmount) * 100) / 100;
+
+    setForm(prev => ({ ...prev, net, total, commissionAmount }));
+  }, [form.quantity, form.unit, form.vat, form.commissionPct]);
+  // -------------------------
 
   const handleChange = (field: string, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -127,7 +155,7 @@ export default function IncomeForm({ onClose, record, collectionName, categories
       case 'yearly': nextDate = addYears(date, 1); break;
       default: nextDate = addMonths(date, 1);
     }
-    return nextDate.toISOString(); // Store as ISO
+    return nextDate.toISOString();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,32 +166,27 @@ export default function IncomeForm({ onClose, record, collectionName, categories
     try {
       const payload: any = {
         ...form,
-        // Ensure we save a proper ISO string for the main date
-        date: new Date(form.date).toISOString(), 
+        date: new Date(form.date).toISOString(), // Main Date
+        
+        // Save new informational fields if present
+        fromDate: form.fromDate ? new Date(form.fromDate).toISOString() : null,
+        toDate: form.toDate ? new Date(form.toDate).toISOString() : null,
+        
         type: 'income' as const,
         updatedAt: new Date().toISOString()
       };
 
-      // --- RECURRING LOGIC FIX ---
       if (isRecurring) {
         payload.isRecurring = true;
         payload.recurringFrequency = frequency;
-        
-        // Only reset nextRecurringDate if:
-        // 1. It's a NEW transaction (!record)
-        // 2. OR if it was NOT recurring before (!record.isRecurring)
         if (!record || !record.isRecurring) {
              payload.nextRecurringDate = calculateNextDate(form.date, frequency);
         }
-        // If editing an existing recurring transaction, do NOT include nextRecurringDate in payload
-        // This preserves the schedule tracked by the engine.
-        
       } else {
         payload.isRecurring = false;
         payload.recurringFrequency = null;
         payload.nextRecurringDate = null;
       }
-      // ---------------------------
 
       if (isEdit && record?.id) {
         await updateDoc(doc(db, collectionName, record.id), payload);
@@ -213,9 +236,8 @@ export default function IncomeForm({ onClose, record, collectionName, categories
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-         {/* --- TIME ENABLED DATE FIELD --- */}
          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
             <input 
               type="datetime-local" 
               value={form.date} 
@@ -224,20 +246,45 @@ export default function IncomeForm({ onClose, record, collectionName, categories
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
             />
          </div>
-         {/* ------------------------------- */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-          <select value={form.category} onChange={e => handleChange('category', e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
-            <option value="">Select Category...</option>{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+         <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <select value={form.category} onChange={e => handleChange('category', e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+              <option value="">Select Category...</option>{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+         </div>
       </div>
+
+      {/* --- INFORMATIONAL DATES --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+         <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">From Date (Optional)</label>
+            <input 
+              type="datetime-local" 
+              value={form.fromDate} 
+              onChange={e => handleChange('fromDate', e.target.value)} 
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            />
+         </div>
+         <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">To Date (Optional)</label>
+            <input 
+              type="datetime-local" 
+              value={form.toDate} 
+              onChange={e => handleChange('toDate', e.target.value)} 
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            />
+         </div>
+      </div>
+      {/* --------------------------- */}
 
       <FormField label="Description" value={form.description} onChange={e => handleChange('description', e.target.value)} required />
 
+      {/* --- FINANCIALS INPUTS --- */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
         <FormField label="Quantity" type="number" min={1} value={form.quantity} onChange={e => handleChange('quantity', +e.target.value)} />
         <FormField label="Unit Price (£)" type="number" value={form.unit} onChange={e => handleChange('unit', e.target.value)} />
+         
+         {/* VAT Checkbox */}
          <div className="flex flex-col justify-end">
            <div className="flex items-center space-x-2 h-10">
             <input type="checkbox" checked={form.vat} onChange={e => handleChange('vat', e.target.checked)} className="h-5 w-5 text-primary border-gray-300 rounded" />
@@ -246,10 +293,44 @@ export default function IncomeForm({ onClose, record, collectionName, categories
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-         <FormField label="Net Total" value={form.net.toFixed(2)} readOnly className="bg-gray-100 text-gray-600" />
-         <FormField label="Gross Total" value={form.total.toFixed(2)} readOnly className="bg-gray-100 font-bold text-gray-900" />
+      {/* --- TOTALS & COMMISSION SECTION --- */}
+      <div className="space-y-4 p-4 border border-blue-100 rounded-lg bg-blue-50/30">
+        
+        {/* 1. Net Total */}
+        <div className="grid grid-cols-1">
+             <FormField label="Net Total" value={form.net.toFixed(2)} readOnly className="bg-gray-100 text-gray-600 font-medium" />
+        </div>
+
+        {/* 2. Commission Row */}
+        <div className="grid grid-cols-2 gap-4 items-end">
+            <FormField 
+                label="Commission (%)" 
+                type="number" 
+                min={0} 
+                max={100} 
+                step="0.01" // <--- UPDATED: Allow decimals like 1.5
+                value={form.commissionPct} 
+                onChange={e => handleChange('commissionPct', +e.target.value)} 
+            />
+            <FormField 
+                label="Owner Gets (Commission Amt)" 
+                value={`- £${(form.commissionAmount || 0).toFixed(2)}`} 
+                readOnly 
+                className="bg-red-50 text-red-700 font-medium" 
+            />
+        </div>
+
+        {/* 3. Gross Total */}
+        <div className="grid grid-cols-1">
+             <FormField 
+                label="Gross Total (Net + VAT - Commission)" 
+                value={form.total.toFixed(2)} 
+                readOnly 
+                className="bg-green-50 font-bold text-green-800 text-lg" 
+            />
+        </div>
       </div>
+      {/* ----------------------------------- */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

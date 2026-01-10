@@ -1,6 +1,11 @@
 // src/components/rentals/RentalSummaryCards.tsx
 import React from 'react';
-import { Calendar, Clock, FileText } from 'lucide-react';
+import { 
+  Calendar, 
+  Clock, 
+  FileText, 
+  TrendingUp // New icon for Weekly
+} from 'lucide-react';
 import { Rental, Vehicle } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -11,16 +16,11 @@ type Bucket = 'daily' | 'weekly' | 'claim';
 
 type Totals = {
   count: number;
-  // breakdown for the base block (base+extras with/without overall VAT) BEFORE adding overdue/return
   net: number;
   vat: number;
   discount: number;
-
-  // add-ons
   ongoing: number;
   returnCharges: number;
-
-  // roll-ups
   total: number;
   paid: number;
   owing: number;
@@ -50,26 +50,17 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
 
   const now = new Date();
 
-  // Align with table logic:
-  // - r.cost  = (base + extras [+ overall VAT if includeVAT]) - discount
-  // - Add overdue (ongoing) charges and return charges on top of r.cost
-  // - For Net/VAT breakdown on the card, reconstruct from (r.cost + r.discountAmount)
+  // Logic matches your original file exactly
   const summary = rentals.reduce(
     (acc, r) => {
       const bucket = (r.type || 'daily') as Bucket;
-
-      // 1) Base AFTER discount (stored)
       const baseAfterDiscount = Number(r.cost || 0);
-
-      // 2) For Net/VAT lines on the card we need the pre-discount, post-overall-VAT subtotal:
       const discount = Number(r.discountAmount || 0);
       const subtotalWithOverallVAT = baseAfterDiscount + discount;
 
-      // Derive Net & VAT exactly like the table/modals
       const net = r.includeVAT ? subtotalWithOverallVAT / 1.2 : subtotalWithOverallVAT;
       const vat = r.includeVAT ? subtotalWithOverallVAT - net : 0;
 
-      // 3) Ongoing (overdue) charges (VAT-inclusive from util). Needs vehicle to compute accurately.
       const veh = vehicles.find(v => v.id === r.vehicleId);
       const end = r.endDate instanceof Date ? r.endDate : new Date(r.endDate);
       const ongoing =
@@ -77,18 +68,13 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
           ? calculateOverdueCost(r, now, veh)
           : 0;
 
-      // 4) Return charges (already VAT-inclusive in your flow)
       const returnCharges = Number(r.returnCondition?.totalCharges || 0);
-
-      // 5) Totals
       const total = baseAfterDiscount + ongoing + returnCharges;
       const paid = Number(r.paidAmount || 0);
       const owing = total - paid;
 
-      // ensure bucket exists
       if (!acc.byType[bucket]) acc.byType[bucket] = { ...emptyTotals };
 
-      // bump bucket sums
       acc.byType[bucket].count += 1;
       acc.byType[bucket].net += net;
       acc.byType[bucket].vat += vat;
@@ -99,7 +85,6 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
       acc.byType[bucket].paid += paid;
       acc.byType[bucket].owing += owing;
 
-      // status counters
       if (r.status === 'active') acc.status.active += 1;
       if (r.status === 'scheduled') acc.status.scheduled += 1;
       if (r.status === 'completed') acc.status.completed += 1;
@@ -112,21 +97,36 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
     }
   );
 
-  const card = (label: string, icon: React.ReactNode, t?: Totals) => {
-    const d = t ?? emptyTotals;
+  const SummaryCard = ({ 
+    label, 
+    icon, 
+    totals, 
+    colorClass 
+  }: { 
+    label: string, 
+    icon: React.ReactNode, 
+    totals?: Totals, 
+    colorClass: string 
+  }) => {
+    const d = totals ?? emptyTotals;
+    
     return (
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between">
+      <div className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 p-6 border-l-4 ${colorClass}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-sm font-medium text-gray-500">{label}</p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">{d.count}</p>
+            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+            <p className="mt-1 text-3xl font-bold text-gray-900">{d.count}</p>
           </div>
-          {icon}
+          <div className="p-2 bg-gray-50 rounded-full">
+            {icon}
+          </div>
         </div>
 
-        <div className="mt-3 space-y-1 text-sm">
+        {/* Content - EXACTLY matching your original text calculation display */}
+        <div className="mt-3 space-y-1 text-sm border-t pt-3 border-gray-100">
           <div className="flex justify-between">
-            <span>Net:</span>
+            <span className="text-gray-600">Net:</span>
             <span className="font-medium">{formatCurrency(d.net)}</span>
           </div>
 
@@ -150,15 +150,15 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
           )}
 
           {d.returnCharges > 0 && (
-            <div className="flex justify-between">
+            <div className="flex justify-between text-orange-700">
               <span>Return Charges:</span>
               <span className="font-medium">{formatCurrency(d.returnCharges)}</span>
             </div>
           )}
 
-          <div className="border-t my-1" />
+          <div className="border-t my-2 border-gray-100" />
 
-          <div className="flex justify-between font-semibold">
+          <div className="flex justify-between font-semibold text-gray-900">
             <span>Total:</span>
             <span>{formatCurrency(d.total)}</span>
           </div>
@@ -178,29 +178,46 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-      {card('Daily Rentals', <Calendar className="h-10 w-10 text-blue-500" />, summary.byType.daily)}
-      {card('Weekly Rentals', <Calendar className="h-10 w-10 text-green-500" />, summary.byType.weekly)}
-      {card('Claim Rentals', <FileText className="h-10 w-10 text-purple-500" />, summary.byType.claim)}
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <SummaryCard 
+        label="Daily Rentals" 
+        icon={<Calendar className="h-6 w-6 text-blue-500" />} 
+        totals={summary.byType.daily}
+        colorClass="border-blue-500"
+      />
+      <SummaryCard 
+        label="Weekly Rentals" 
+        icon={<TrendingUp className="h-6 w-6 text-green-500" />} 
+        totals={summary.byType.weekly}
+        colorClass="border-green-500"
+      />
+      <SummaryCard 
+        label="Claim Rentals" 
+        icon={<FileText className="h-6 w-6 text-purple-500" />} 
+        totals={summary.byType.claim}
+        colorClass="border-purple-500"
+      />
 
-      {/* Rental Status */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      {/* Status Card */}
+      <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 p-6 border-l-4 border-orange-500">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-medium text-gray-500">Rental Status</p>
-          <Clock className="h-10 w-10 text-orange-500" />
+          <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Rental Status</p>
+          <div className="p-2 bg-gray-50 rounded-full">
+            <Clock className="h-6 w-6 text-orange-500" />
+          </div>
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-blue-600">Active:</span>
-            <span className="font-medium">{summary.status.active}</span>
+        <div className="space-y-3 text-sm mt-4">
+          <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
+            <span className="text-blue-700 font-medium">Active</span>
+            <span className="font-bold text-blue-800 text-lg">{summary.status.active}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-yellow-600">Scheduled:</span>
-            <span className="font-medium">{summary.status.scheduled}</span>
+          <div className="flex justify-between items-center p-2 bg-yellow-50 rounded">
+            <span className="text-yellow-700 font-medium">Scheduled</span>
+            <span className="font-bold text-yellow-800 text-lg">{summary.status.scheduled}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-green-600">Completed:</span>
-            <span className="font-medium">{summary.status.completed}</span>
+          <div className="flex justify-between items-center p-2 bg-green-50 rounded">
+            <span className="text-green-700 font-medium">Completed</span>
+            <span className="font-bold text-green-800 text-lg">{summary.status.completed}</span>
           </div>
         </div>
       </div>

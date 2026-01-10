@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-
 import { Accident } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../StatusBadge';
-import { Car, Calendar, MapPin, User, Phone, FileText, Shield, AlertTriangle, Mail, Clock, PoundSterling } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions
-import { db } from '../../lib/firebase'; // Import your Firebase instance
+import { Car, Calendar, MapPin, User, Phone, Shield, AlertTriangle, PoundSterling } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { db } from '../../lib/firebase'; 
 
 interface AccidentClaimViewProps {
   accident: Accident;
@@ -18,9 +17,9 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
     const fetchSubmittedByName = async () => {
       if (accident.submittedBy) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', accident.submittedBy)); // Assuming 'users' collection
+          const userDoc = await getDoc(doc(db, 'users', accident.submittedBy)); 
           if (userDoc.exists()) {
-            setSubmittedByName(userDoc.data().name); // Assuming 'name' field in user document
+            setSubmittedByName(userDoc.data().name); 
           } else {
             setSubmittedByName('Unknown User');
           }
@@ -33,7 +32,6 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
 
     fetchSubmittedByName();
   }, [accident.submittedBy]);
-
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="border-t pt-4">
@@ -53,16 +51,16 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
     <div className="space-y-6">
 
       {/* Reference Details */}
-<Section title="Reference Details">
-  <div className="grid grid-cols-2 gap-4">
-    <div>
-      <Field label="Reference No" value={accident.refNo || accident.referenceNo} />
-    </div>
-    <div>
-      <Field label="Reference Name" value={accident.referenceName} />
-    </div>
-  </div>
-</Section>
+      <Section title="Reference Details">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Field label="Reference No" value={accident.refNo || accident.referenceNo} />
+          </div>
+          <div>
+            <Field label="Reference Name" value={accident.referenceName} />
+          </div>
+        </div>
+      </Section>
 
       {/* Status Information */}
       <div className="flex justify-between items-center">
@@ -98,7 +96,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
             <MapPin className="w-5 h-5 text-gray-400 mt-1" />
             <div>
               <Field label="Address" value={accident.driverAddress} />
-              <Field label="Post Code" value={accident.driverPostCode} />
+              {/* Post Code Display Removed */}
             </div>
           </div>
           <Field label="Date of Birth" value={accident.driverDOB} />
@@ -182,9 +180,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
           {accident.faultPartyAddress && (
             <div className="col-span-2">
               <Field label="Address" value={accident.faultPartyAddress} />
-              {accident.faultPartyPostCode && (
-                <Field label="Post Code" value={accident.faultPartyPostCode} />
-              )}
+              {/* Post Code Display Removed */}
             </div>
           )}
           {accident.faultPartyInsurance && (
@@ -204,7 +200,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
                   <Field label="Name" value={passenger.name} />
                   <Field label="Contact" value={passenger.contactNumber} />
                   <Field label="Address" value={passenger.address} />
-                  <Field label="Post Code" value={passenger.postCode} />
+                  {/* Post Code Display Removed */}
                   <Field label="Date of Birth" value={passenger.dob} />
                 </div>
               </div>
@@ -224,7 +220,7 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
                   <Field label="Name" value={witness.name} />
                   <Field label="Contact" value={witness.contactNumber} />
                   <Field label="Address" value={witness.address} />
-                  <Field label="Post Code" value={witness.postCode} />
+                  {/* Post Code Display Removed */}
                   <Field label="Date of Birth" value={witness.dob} />
                 </div>
               </div>
@@ -299,5 +295,8 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
     </div>
   );
 };
+
+// Add import for Clock in the beginning of file if not present (added above in imports)
+import { Clock } from 'lucide-react';
 
 export default AccidentClaimView;

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, MaintenanceLog, Part, VehicleOwner } from '../../types';
-import { addYears } from 'date-fns';
+import { addYears, format } from 'date-fns'; // Added format
 import { formatDateForInput } from '../../utils/dateHelpers';
 import toast from 'react-hot-toast';
 import FileUpload from '../ui/FileUpload';
@@ -69,6 +69,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
   const [maintenanceTypes, setMaintenanceTypes] = useState<string[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
+
   useEffect(() => {
     setLoadingTypes(true);
     maintenanceCategoryService.getAll()
@@ -80,18 +81,26 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       .finally(() => setLoadingTypes(false));
   }, []);
 
+  // Helper for datetime-local input (yyyy-MM-ddThh:mm)
+  const toDateTimeInput = (date?: Date | string) => {
+    if (!date) return format(new Date(), "yyyy-MM-dd'T'HH:mm");
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return format(d, "yyyy-MM-dd'T'HH:mm");
+  };
+
   const [formData, setFormData] = useState({
     type: editLog?.type || '',
     description: editLog?.description || '',
     serviceProvider: editLog?.serviceProvider || '',
     location: editLog?.location || '',
-    date: formatDateForInput(editLog?.date) || new Date().toISOString().split('T')[0],
+    // Use toDateTimeInput for initialization
+    date: toDateTimeInput(editLog?.date),
     currentMileage: editLog?.currentMileage || 0,
     laborHours: editLog?.laborHours || 0,
     laborRate: editLog?.laborRate || 75,
     nextServiceMileage: editLog?.nextServiceMileage || 0,
-    nextServiceDate:
-    formatDateForInput(editLog?.nextServiceDate) || addYears(new Date(), 1).toISOString().split('T')[0],
+    // Use toDateTimeInput for next service
+    nextServiceDate: toDateTimeInput(editLog?.nextServiceDate) || toDateTimeInput(addYears(new Date(), 1)),
     notes: editLog?.notes || '',
     status: editLog?.status || 'scheduled',
   });
@@ -158,10 +167,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     }
   }, [manualEntry, selectedVehicleId, vehicles]);
 
+  // Updated logic to ensure date object is handled for defaults
   useEffect(() => {
     if (!editLog) {
       const d = new Date(formData.date);
-      setFormData(prev => ({ ...prev, nextServiceDate: addYears(d, 1).toISOString().split('T')[0] }));
+      setFormData(prev => ({ ...prev, nextServiceDate: toDateTimeInput(addYears(d, 1)) }));
     }
   }, [formData.date, editLog]);
 
@@ -224,10 +234,10 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         description: formData.description,
         serviceProvider: formData.serviceProvider,
         location: formData.location,
-        date: new Date(formData.date),
+        date: new Date(formData.date), // Ensures time is captured
         currentMileage: formData.currentMileage,
         nextServiceMileage: formData.nextServiceMileage,
-        nextServiceDate: new Date(formData.nextServiceDate),
+        nextServiceDate: new Date(formData.nextServiceDate), // Ensures time is captured
         parts: parts.map(p => ({
           name: p.name,
           quantity: p.quantity,
@@ -470,9 +480,10 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
       {/* Date, Service Center, Mileage, Next Service, Status */}
       <div className="grid grid-cols-2 gap-4">
+        {/* UPDATED: Changed to datetime-local */}
         <FormField
-          type="date"
-          label="Date"
+          type="datetime-local"
+          label="Date & Time"
           value={formData.date}
           onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
           required
@@ -501,8 +512,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           required
           min={formData.currentMileage}
         />
+        {/* UPDATED: Changed to datetime-local */}
         <FormField
-          type="date"
+          type="datetime-local"
           label="Next Service Date"
           value={formData.nextServiceDate}
           onChange={e => setFormData(prev => ({ ...prev, nextServiceDate: e.target.value }))}

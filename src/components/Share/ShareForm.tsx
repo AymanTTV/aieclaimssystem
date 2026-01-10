@@ -37,6 +37,12 @@ export default function ShareForm({ record, onClose }: Props) {
   const [actualPaid, setActualPaid] = useState(pr.actualPaid)
   const [legalFeePct, setLegalFeePct] = useState(pr.legalFeePct)
   const [legalFeeCost, setLegalFeeCost] = useState(pr.legalFeeCost)
+  
+  // -- NEW COMMISSION STATE --
+  const [commissionPct, setCommissionPct] = useState(pr.commissionPct || 0)
+  const [commissionCost, setCommissionCost] = useState(pr.commissionCost || 0)
+  // --------------------------
+
   const [startDate, setStartDate] = useState(pr.startDate ?? '')
   const [endDate, setEndDate] = useState(pr.endDate ?? '')
   const [vHireAmount, setVHireAmount] = useState(pr.vHireAmount ?? 0)
@@ -64,6 +70,13 @@ export default function ShareForm({ record, onClose }: Props) {
   useEffect(()=> {
     setLegalFeeCost(Math.round((actualPaid * legalFeePct/100)*100)/100)
   },[actualPaid,legalFeePct])
+
+  // -- NEW EFFECT: Calculate Commission Cost --
+  useEffect(()=> {
+    setCommissionCost(Math.round((actualPaid * commissionPct/100)*100)/100)
+  },[actualPaid,commissionPct])
+  // ------------------------------------------
+
   useEffect(()=>{
     if(reasons.includes('H')&& startDate && endDate) {
       const s=new Date(startDate), e=new Date(endDate)
@@ -104,6 +117,10 @@ export default function ShareForm({ record, onClose }: Props) {
         actualPaid,
         legalFeePct,
         legalFeeCost,
+        // -- SAVE NEW FIELDS --
+        commissionPct,
+        commissionCost,
+        // ---------------------
         startDate: reasons.includes('H')? startDate:undefined,
         endDate: reasons.includes('H')? endDate:undefined,
         vHireAmount: reasons.includes('H')? vHireAmount:undefined,
@@ -162,10 +179,19 @@ export default function ShareForm({ record, onClose }: Props) {
           <FormField label="VD Profit" type="number" value={vdProfit} onChange={e=>setVdProfit(+e.target.value)} />
           <FormField label="Actual Paid/Hire" type="number" value={actualPaid} onChange={e=>setActualPaid(+e.target.value)} />
         </div>
+        
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Legal Fee %" type="number" value={legalFeePct} onChange={e=>setLegalFeePct(+e.target.value)} min={0} max={100}/>
           <FormField label="Legal Fee Cost" type="number" value={legalFeeCost} readOnly/>
         </div>
+
+        {/* --- NEW COMMISSION ROW --- */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Commission %" type="number" value={commissionPct} onChange={e=>setCommissionPct(+e.target.value)} min={0} max={100}/>
+          <FormField label="Commission Cost" type="number" value={commissionCost} readOnly className="text-red-600 bg-red-50"/>
+        </div>
+        {/* -------------------------- */}
+
         {reasons.includes('H') && (
           <div className="grid grid-cols-3 gap-4">
             <FormField label="Hire Start" type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} />

@@ -70,14 +70,41 @@ const IncomeExpenseTable: React.FC<Props> = ({
       header: 'Type', accessorKey: 'type',
       cell: ({ row }) => <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${row.original.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.original.type}</span>
     },
+    // --- UPDATED TOTAL COLUMN ---
     {
-      header: 'Total',
+      header: 'Financials',
       cell: ({ row }) => {
         const isIncome = row.original.type === 'income';
-        const total = isIncome ? row.original.total : (row.original as any).totalCost;
-        return <span className={`font-semibold ${isIncome ? 'text-green-700' : 'text-red-700'}`}>{typeof total === 'number' ? formatCurrency(total) : '—'}</span>;
+        const data = row.original;
+
+        if (isIncome) {
+          return (
+             <div className="flex flex-col items-start text-xs space-y-0.5">
+                {/* Commission - Green & Noticed */}
+                <div className="font-bold text-green-700 text-sm">
+                   Comm: {formatCurrency(data.commissionAmount)}
+                </div>
+                {/* Net - Standard */}
+                <div className="text-gray-700 font-medium">
+                   Net: {formatCurrency(data.net)}
+                </div>
+                {/* Gross - Grey/Muted */}
+                <div className="text-gray-400 line-through decoration-transparent">
+                   Gross: {formatCurrency(data.total)}
+                </div>
+             </div>
+          );
+        } else {
+          // Expense
+          return (
+             <span className="font-semibold text-red-700">
+               {formatCurrency((row.original as any).totalCost)}
+             </span>
+          );
+        }
       }
     },
+    // ----------------------------
     {
       header: 'Status', accessorKey: 'status',
       cell: ({ row }) => <span className={`text-xs px-2 py-1 rounded-full ${row.original.status === 'Paid' ? 'bg-green-50 text-green-700' : row.original.status === 'Unpaid' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>{row.original.status}</span>

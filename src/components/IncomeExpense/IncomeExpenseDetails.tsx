@@ -32,6 +32,8 @@ const IncomeExpenseDetails: React.FC<Props> = ({ entry, collectionName = 'income
     }
   };
 
+  const safeFormat = (d: string | undefined) => d ? format(new Date(d), 'dd/MM/yyyy HH:mm') : '—';
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -47,10 +49,17 @@ const IncomeExpenseDetails: React.FC<Props> = ({ entry, collectionName = 'income
          <div className="bg-white p-2">
              <div className="grid grid-cols-2 gap-4">
                 <div><dt className="text-xs font-medium text-gray-500 uppercase">Reference</dt><dd className="text-sm font-medium text-gray-900">{entry.reference}</dd></div>
-                {/* Updated Date Format to include Time */}
-                <div><dt className="text-xs font-medium text-gray-500 uppercase">Date</dt><dd className="text-sm font-medium text-gray-900">{format(new Date(entry.date), 'dd/MM/yyyy HH:mm')}</dd></div>
+                <div><dt className="text-xs font-medium text-gray-500 uppercase">Trans. Date</dt><dd className="text-sm font-medium text-gray-900">{safeFormat(entry.date)}</dd></div>
                 <div><dt className="text-xs font-medium text-gray-500 uppercase">Type</dt><dd className={`text-sm font-bold uppercase ${entry.type==='income'?'text-green-600':'text-red-600'}`}>{entry.type}</dd></div>
                 <div><dt className="text-xs font-medium text-gray-500 uppercase">Category</dt><dd className="text-sm font-medium text-gray-900">{entry.category || '—'}</dd></div>
+                
+                {/* Optional Dates */}
+                {(entry.fromDate || entry.toDate) && (
+                    <div className="col-span-2 grid grid-cols-2 gap-4 mt-2 pt-2 border-t border-gray-100">
+                         {entry.fromDate && <div><dt className="text-xs font-medium text-gray-500 uppercase">From Date</dt><dd className="text-sm text-gray-800">{safeFormat(entry.fromDate)}</dd></div>}
+                         {entry.toDate && <div><dt className="text-xs font-medium text-gray-500 uppercase">To Date</dt><dd className="text-sm text-gray-800">{safeFormat(entry.toDate)}</dd></div>}
+                    </div>
+                )}
              </div>
          </div>
       </div>
@@ -80,9 +89,18 @@ const IncomeExpenseDetails: React.FC<Props> = ({ entry, collectionName = 'income
            <h3 className="text-sm font-bold text-gray-900 mb-3">Income Details</h3>
            <div className="bg-white border rounded-lg p-4">
                <div className="mb-4"><span className="text-gray-500 text-sm">Description:</span><span className="ml-2 text-gray-900 text-sm font-medium">{entry.description}</span></div>
-               <div className="grid grid-cols-3 gap-4 border-t pt-4">
+               
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t pt-4">
                     <div><dt className="text-xs text-gray-500">Net</dt><dd className="text-sm font-medium">{formatCurrency(entry.net)}</dd></div>
+                    
                     <div><dt className="text-xs text-gray-500">VAT</dt><dd className="text-sm font-medium">{entry.vat ? '20%' : '0%'}</dd></div>
+                    
+                    {/* COMMISSION DISPLAY */}
+                    <div>
+                        <dt className="text-xs text-gray-500">Commission ({entry.commissionPct || 0}%)</dt>
+                        <dd className="text-sm font-medium text-red-600">- {formatCurrency(entry.commissionAmount || 0)}</dd>
+                    </div>
+                    
                     <div><dt className="text-xs text-gray-500">Total</dt><dd className="text-lg text-green-700 font-bold">{formatCurrency(entry.total)}</dd></div>
                </div>
            </div>

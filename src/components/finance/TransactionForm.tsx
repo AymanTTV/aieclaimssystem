@@ -263,95 +263,77 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         const contraAccName = getAccName(formData.accountThird); // The money source/destination
 
         // 2. Construct "Credit Side" names (where money went)
-        // If income: Money went to Main (+ Secondary)
-        // If expense: Money went to Contra (if exists)
         const creditSideNames = [];
         if (currentType === 'income') {
              if (mainAccName) creditSideNames.push(mainAccName);
              if (secondaryAccName) creditSideNames.push(secondaryAccName);
         } else {
-             // For expense, money leaves Main/Secondary and goes to Contra (if defined as 'transfer dest')
-             // But usually Expense just leaves. If accountThird is set, it acts as "Paid To".
+             // For expense: If accountThird is set, it acts as "Paid To".
              if (contraAccName) creditSideNames.push(contraAccName);
         }
-        const creditSideString = creditSideNames.join(' & ');
+        const creditSideString = creditSideNames.filter(Boolean).join(' & ');
 
         // 3. Construct "Debit Side" names (where money came from)
-        // If income: Money came from Contra (if exists)
-        // If expense: Money came from Main (+ Secondary)
         const debitSideNames = [];
         if (currentType === 'expense') {
             if (mainAccName) debitSideNames.push(mainAccName);
             if (secondaryAccName) debitSideNames.push(secondaryAccName);
         } else {
+            // For income: If accountThird is set, it acts as Source
             if (contraAccName) debitSideNames.push(contraAccName);
         }
-        const debitSideString = debitSideNames.join(' & ');
+        const debitSideString = debitSideNames.filter(Boolean).join(' & ');
 
 
-        // --- A. PRIMARY RECORD ---
-        if (currentType === 'income' && formData.accountTo) {
-            const ref = doc(collection(db, 'transactions'));
-            batch.set(ref, {
-                ...basePayload,
-                id: ref.id,
-                type: 'income',
-                createdAt: new Date(),
-                createdBy: user.name || user.email || '',
-                accountsTo: [formData.accountTo],
-                accountsFrom: [],
-                // Income needs to know "From where?" -> The Debit Side
-                relatedAccountName: debitSideString || null 
-            });
-            operationCount++;
-        }
-        if (currentType === 'expense' && formData.accountFrom) {
-            const ref = doc(collection(db, 'transactions'));
-            batch.set(ref, {
-                ...basePayload,
-                id: ref.id,
-                type: 'expense',
-                createdAt: new Date(),
-                createdBy: user.name || user.email || '',
-                accountsFrom: [formData.accountFrom],
-                accountsTo: [],
-                // Expense needs to know "To where?" -> The Credit Side (if it's a transfer/payment to account)
-                relatedAccountName: creditSideString || null
-            });
-            operationCount++;
+        // --- A. PRIMARY RECORD (COMBINED MAIN + SECONDARY) ---
+        // For Income: Combines Account To & To 2
+        // For Expense: Combines Account From & From 2
+        
+        if (currentType === 'income') {
+            const incomeAccounts = [];
+            if (formData.accountTo) incomeAccounts.push(formData.accountTo);
+            if (formData.accountTo2) incomeAccounts.push(formData.accountTo2);
+            
+            if (incomeAccounts.length > 0) {
+                const ref = doc(collection(db, 'transactions'));
+                batch.set(ref, {
+                    ...basePayload,
+                    id: ref.id,
+                    type: 'income',
+                    createdAt: new Date(),
+                    createdBy: user.name || user.email || '',
+                    accountsTo: incomeAccounts, // COMBINED HERE
+                    accountsFrom: [],
+                    // Income needs to know "From where?" -> The Debit Side (Contra)
+                    relatedAccountName: debitSideString || null 
+                });
+                operationCount++;
+            }
+        } 
+        else if (currentType === 'expense') {
+            const expenseAccounts = [];
+            if (formData.accountFrom) expenseAccounts.push(formData.accountFrom);
+            if (formData.accountFrom2) expenseAccounts.push(formData.accountFrom2);
+
+            if (expenseAccounts.length > 0) {
+                const ref = doc(collection(db, 'transactions'));
+                batch.set(ref, {
+                    ...basePayload,
+                    id: ref.id,
+                    type: 'expense',
+                    createdAt: new Date(),
+                    createdBy: user.name || user.email || '',
+                    accountsFrom: expenseAccounts, // COMBINED HERE
+                    accountsTo: [],
+                    // Expense needs to know "To where?" -> The Credit Side (Contra)
+                    relatedAccountName: creditSideString || null
+                });
+                operationCount++;
+            }
         }
 
-        // --- B. SECONDARY RECORD ---
-        if (currentType === 'income' && formData.accountTo2) {
-            const ref = doc(collection(db, 'transactions'));
-            batch.set(ref, {
-                ...basePayload,
-                id: ref.id,
-                type: 'income',
-                createdAt: new Date(),
-                createdBy: user.name || user.email || '',
-                accountsTo: [formData.accountTo2],
-                accountsFrom: [],
-                relatedAccountName: debitSideString || null
-            });
-            operationCount++;
-        }
-        if (currentType === 'expense' && formData.accountFrom2) {
-            const ref = doc(collection(db, 'transactions'));
-            batch.set(ref, {
-                ...basePayload,
-                id: ref.id,
-                type: 'expense',
-                createdAt: new Date(),
-                createdBy: user.name || user.email || '',
-                accountsFrom: [formData.accountFrom2],
-                accountsTo: [],
-                relatedAccountName: creditSideString || null
-            });
-            operationCount++;
-        }
-
-        // --- C. THIRD RECORD (CONTRA/TRANSFER) ---
+        // --- B. THIRD RECORD (CONTRA/TRANSFER) ---
+        // This remains separate as per requirements.
         if (formData.accountThird) {
             const ref = doc(collection(db, 'transactions'));
             // Invert type
@@ -367,15 +349,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             };
 
             if (contraType === 'income') {
-                // This is Income (money entering Account 3), so it came from the Expenses (Debit Side)
+                // This is Income (money entering Account 3), so it came from the Expenses (Debit Side: The Main/Secondary Accounts)
                 contraData.accountsTo = [formData.accountThird];
                 contraData.accountsFrom = [];
-                contraData.relatedAccountName = debitSideString; // Came from Main/Secondary
+                contraData.relatedAccountName = debitSideString; // "Debit Side" of the logic maps to Main+Secondary names here
             } else {
-                // This is Expense (money leaving Account 3), so it went to the Incomes (Credit Side)
+                // This is Expense (money leaving Account 3), so it went to the Incomes (Credit Side: The Main/Secondary Accounts)
                 contraData.accountsFrom = [formData.accountThird];
                 contraData.accountsTo = [];
-                contraData.relatedAccountName = creditSideString; // Went to Main/Secondary
+                contraData.relatedAccountName = creditSideString; // "Credit Side" maps to Main+Secondary names here
             }
 
             batch.set(ref, contraData);
@@ -441,7 +423,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
               <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account To (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
-              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Credit Account (Separate Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
+              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Credit Account (Merged into Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
           </div>
           <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
              <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
@@ -454,7 +436,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
               <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account From (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
-               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Debit From (Separate Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
+               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Debit From (Merged into Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
           </div>
           <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
              <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>

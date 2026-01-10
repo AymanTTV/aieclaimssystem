@@ -1,5 +1,8 @@
+// src/components/vehicles/VehicleFilters.tsx
+
 import React from 'react';
 import { Search } from 'lucide-react';
+import SearchableSelect from '../ui/SearchableSelect'; // Ensure this path matches your file structure
 
 interface VehicleFiltersProps {
   searchQuery: string;
@@ -13,7 +16,20 @@ interface VehicleFiltersProps {
   onShowSoldChange: (show: boolean) => void;
   showDueSoon: boolean;
   onShowDueSoonChange: (show: boolean) => void;
+  
+  // NEW PROPS
+  expiryFilter: string;
+  onExpiryFilterChange: (value: string) => void;
 }
+
+// Options for the searchable select
+const EXPIRY_OPTIONS = [
+  { id: 'mot', label: 'MOT Expiry' },
+  { id: 'nsl', label: 'NSL Expiry' },
+  { id: 'tax', label: 'Road Tax Expiry' },
+  { id: 'insurance', label: 'Insurance Expiry' },
+  { id: 'maintenance', label: 'Near Maintenance' },
+];
 
 const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   searchQuery,
@@ -27,50 +43,79 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   onShowSoldChange,
   showDueSoon,
   onShowDueSoonChange,
+  expiryFilter,
+  onExpiryFilterChange,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-      {/* Search */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
+      {/* Search - Spans 2 cols on Large screens */}
       <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+         <label className="block text-sm font-medium text-gray-700 mb-1">
+          Search
+        </label>
+        <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search vehicles (reg, make, model, owner)..."
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            />
         </div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search vehicles (reg, make, model, owner)..."
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-        />
       </div>
 
       {/* Status */}
-      <select
-        value={statusFilter}
-        onChange={(e) => onStatusFilterChange(e.target.value)}
-        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-      >
-        <option value="all">All Status</option>
-        <option value="available">Available</option>
-        <option value="hired">Hired</option>
-        <option value="scheduled-rental">Scheduled for Hire</option>
-        <option value="maintenance">Maintenance</option>
-      </select>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Status
+        </label>
+        <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        >
+            <option value="all">All Status</option>
+            <option value="available">Available</option>
+            <option value="hired">Hired</option>
+            <option value="scheduled-rental">Scheduled for Hire</option>
+            <option value="maintenance">Maintenance</option>
+        </select>
+      </div>
 
       {/* Make */}
-      <select
-        value={makeFilter}
-        onChange={(e) => onMakeFilterChange(e.target.value)}
-        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-      >
-        <option value="all">All Makes</option>
-        {makes.map((make) => (
-          <option key={make} value={make}>{make}</option>
-        ))}
-      </select>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Make
+        </label>
+        <select
+            value={makeFilter}
+            onChange={(e) => onMakeFilterChange(e.target.value)}
+            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+        >
+            <option value="all">All Makes</option>
+            {makes.map((make) => (
+            <option key={make} value={make}>{make}</option>
+            ))}
+        </select>
+      </div>
+      
+      {/* NEW: Expiring or Expired Filter */}
+      <div className="relative">
+        <SearchableSelect
+          label="Expiring or Expired"
+          options={EXPIRY_OPTIONS}
+          value={expiryFilter}
+          onChange={onExpiryFilterChange}
+          placeholder="Select expiry type..."
+          isClearable={true} 
+        />
+      </div>
 
       {/* Toggles */}
-      <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-1">
+      <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-3 pt-2">
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -88,7 +133,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
             onChange={(e) => onShowDueSoonChange(e.target.checked)}
             className="rounded border-gray-300 text-primary focus:ring-primary"
           />
-          <span className="text-sm text-gray-700">Due Soon</span>
+          <span className="text-sm text-gray-700">Due Soon (Quick View)</span>
         </label>
       </div>
     </div>

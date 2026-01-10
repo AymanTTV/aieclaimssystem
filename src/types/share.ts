@@ -65,6 +65,12 @@ export interface IncomeEntry extends BaseEntry {
   actualPaid: number
   legalFeePct: number
   legalFeeCost: number
+
+  // --- NEW FIELDS ---
+  commissionPct?: number
+  commissionCost?: number
+  // ------------------
+
   storageCost?: number
   recoveryCost?: number
   piCost?: number

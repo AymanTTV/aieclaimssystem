@@ -323,7 +323,14 @@ export default function IncomeExpense() {
     </Modal>
 
     <Modal isOpen={showShare} onClose={clearModals} title="Share Profit" size="xl">
-      <ProfitShareForm onClose={clearModals} shareToEdit={shareToEdit} onEditRequested={setShareToEdit} collectionName="profitShares" records={records} />
+      <ProfitShareForm
+  onClose={clearModals}
+  shareToEdit={shareToEdit}
+  onEditRequested={setShareToEdit}
+  collectionName="profitShares"
+  records={historicalFilteredEntries}  // ✅ SAME dataset used by summary/table
+/>
+
     </Modal>
   </div>
 );

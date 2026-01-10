@@ -1,8 +1,6 @@
-// src/components/pdf/documents/AccidentDocument.tsx
 import React from 'react';
-import { Document, Page, Text, View, Image } from '@react-pdf/renderer'; // Added Document and Page
+import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Accident } from '../../../types';
-// import BaseDocument from '../BaseDocument'; // Removed BaseDocument import
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
 
@@ -12,9 +10,9 @@ interface AccidentDocumentProps {
 }
 
 const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetails }) => (
-  <Document> {/* Added Document wrapper */}
-    <Page size="A4" style={styles.page}> {/* Added Page wrapper */}
-      {/* Header - Copied from VehicleDocument.tsx */}
+  <Document>
+    <Page size="A4" style={styles.page}>
+      {/* Header */}
       <View style={styles.header} fixed>
         <View style={styles.headerLeft}>
           {companyDetails?.logoUrl && (
@@ -31,7 +29,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
 
       {/* Title */}
       <View style={styles.titleContainer}>
-        <Text style={styles.title}>Accident Report</Text> {/* Hardcoded title as per BaseDocument usage */}
+        <Text style={styles.title}>Accident Report</Text>
       </View>
 
       <View style={styles.section}>
@@ -85,10 +83,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
               <Text style={styles.label}>Address:</Text>
               <Text style={styles.value}>{data.driverAddress}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Post Code:</Text>
-              <Text style={styles.value}>{data.driverPostCode}</Text>
-            </View>
+            {/* Post Code Removed */}
             <View style={styles.row}>
               <Text style={styles.label}>DOB:</Text>
               <Text style={styles.value}>{data.driverDOB}</Text>
@@ -109,7 +104,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
         </View>
       </View>
 
-      {/* ===== Accident Details (full-width, keep together) ===== */}
+      {/* ===== Accident Details ===== */}
       <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Accident Details</Text>
         <View style={styles.card}>
@@ -140,7 +135,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
         </View>
       </View>
 
-      {/* ===== Fault Party Details (full-width, keep together) ===== */}
+      {/* ===== Fault Party Details ===== */}
       <View style={[styles.section, styles.sectionBreak]}>
         <Text style={styles.sectionTitle}>Fault Party Details</Text>
         <View style={styles.infoCard}>
@@ -154,12 +149,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
               <Text style={styles.value}>{data.faultPartyAddress}</Text>
             </View>
           )}
-          {data.faultPartyPostCode && (
-            <View style={styles.row}>
-              <Text style={styles.label}>Post Code:</Text>
-              <Text style={styles.value}>{data.faultPartyPostCode}</Text>
-            </View>
-          )}
+          {/* Post Code Removed */}
           {data.faultPartyPhone && (
             <View style={styles.row}>
               <Text style={styles.label}>Phone:</Text>
@@ -183,7 +173,6 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
             </View>
           )}
 
-          {/* description field */}
           {data.faultPartyDescription && (
             <>
               <View style={[styles.row, { marginTop: 8 }]}>
@@ -207,7 +196,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
               {[
                 ['Name', p.name],
                 ['Address', p.address],
-                ['Post Code', p.postCode],
+                // Post Code Removed
                 ['DOB', p.dob],
                 ['Contact', p.contactNumber]
               ].map(([label, val]) => (
@@ -231,7 +220,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
               {[
                 ['Name', w.name],
                 ['Address', w.address],
-                ['Post Code', w.postCode],
+                // Post Code Removed
                 ['DOB', w.dob],
                 ['Contact', w.contactNumber]
               ].map(([label, val]) => (
@@ -307,7 +296,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
         </View>
       )}
 
-      {/* ===== Images (last) ===== */}
+      {/* ===== Images ===== */}
       {data.images?.length > 0 && (
         <View style={[styles.section, styles.pageBreak]}>
           <Text style={styles.sectionTitle}>Accident Images</Text>
@@ -321,7 +310,7 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
         </View>
       )}
 
-      {/* Footer - Copied from VehicleDocument.tsx */}
+      {/* Footer */}
       <View style={styles.footer} fixed>
         <Text style={styles.footerText}>
           AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875

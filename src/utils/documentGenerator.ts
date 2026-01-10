@@ -1,11 +1,33 @@
+// src/utils/documentGenerator.ts
 import { pdf } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, storage } from '../lib/firebase';
-import { getCompanyDetails } from './companyDetails';
 import toast from 'react-hot-toast';
-import { VehicleDocument, MaintenanceDocument, RentalDocument, AccidentDocument } from '../components/pdf/documents';
+
+// Import all Document Components
+import { 
+  VehicleDocument, 
+  MaintenanceDocument, 
+  RentalDocument, 
+  AccidentDocument,
+  ClaimDocument,       // Import standard Claim Document
+  ClaimBulkDocument,   // Import Bulk Document
+  ClaimProgressDocument // Import the new Progress Document
+} from '../components/pdf/documents';
+
+// Helper function to get company details
+export const getCompanyDetails = async () => {
+  const docRef = doc(db, 'companySettings', 'details');
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    throw new Error('Company details not found');
+  }
+  
+  return docSnap.data();
+};
 
 // Generic document generation function
 export const generateAndUploadDocument = async (
@@ -13,7 +35,8 @@ export const generateAndUploadDocument = async (
   data: any,
   path: string,
   recordId: string,
-  collectionName: string
+  collectionName: string,
+  urlFieldName: string = 'documentUrl' // Added optional field name parameter (defaults to documentUrl)
 ) => {
   try {
     // Get company details including terms and conditions
@@ -28,7 +51,9 @@ export const generateAndUploadDocument = async (
     ).toBlob();
 
     // Upload to storage
-    const storageRef = ref(storage, `${path}/${recordId}/document.pdf`);
+    // Use the field name in the filename to avoid overwriting if paths overlap
+    const storageRef = ref(storage, `${path}/${recordId}/${urlFieldName}.pdf`);
+    
     const snapshot = await uploadBytes(storageRef, pdfBlob, {
       contentType: 'application/pdf',
       customMetadata: {
@@ -39,9 +64,9 @@ export const generateAndUploadDocument = async (
     // Get download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
 
-    // Update record with document URL
+    // Update record with document URL in the specific field
     await updateDoc(doc(db, collectionName, recordId), {
-      documentUrl: downloadURL,
+      [urlFieldName]: downloadURL,
       updatedAt: new Date()
     });
 
@@ -77,20 +102,8 @@ export const generateBulkDocuments = async (
   }
 };
 
+// --- Specific Document Generators ---
 
-// Helper function to get company details
-export const getCompanyDetails = async () => {
-  const docRef = doc(db, 'companySettings', 'details');
-  const docSnap = await getDoc(docRef);
-  
-  if (!docSnap.exists()) {
-    throw new Error('Company details not found');
-  }
-  
-  return docSnap.data();
-};
-
-// Export specific document generators
 export const generateVehicleDocument = async (record: any) => {
   return generateAndUploadDocument(
     VehicleDocument,
@@ -128,5 +141,17 @@ export const generateAccidentDocument = async (record: any) => {
     'accidents',
     record.id,
     'accidents'
+  );
+};
+
+// New Generator for Claim Progress Document
+export const generateClaimProgressDocument = async (claim: any) => {
+  return generateAndUploadDocument(
+    ClaimProgressDocument,
+    claim,
+    'claims',                // storage path folder
+    claim.id,                // record ID
+    'claims',                // collection name
+    'progressDocumentUrl'    // NEW: Save URL to this field instead of documentUrl
   );
 };

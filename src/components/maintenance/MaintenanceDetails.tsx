@@ -1,3 +1,4 @@
+// src/components/maintenance/MaintenanceDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
@@ -6,6 +7,7 @@ import { Wrench, DollarSign, MapPin, Calendar, FileText } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { format } from 'date-fns'; // ADD: Import format
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
@@ -95,11 +97,13 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Service Date</h4>
-            <p className="mt-1">{formatDate(serviceDate)}</p>
+            {/* UPDATED: Display Date AND Time */}
+            <p className="mt-1">{format(serviceDate, 'dd/MM/yyyy HH:mm')}</p>
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Next Service Date</h4>
-            <p className="mt-1">{formatDate(nextServiceDate)}</p>
+            {/* UPDATED: Display Date AND Time */}
+            <p className="mt-1">{format(nextServiceDate, 'dd/MM/yyyy HH:mm')}</p>
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Service Provider</h4>

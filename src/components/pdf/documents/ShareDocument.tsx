@@ -30,10 +30,19 @@ const ShareDocument: React.FC<ShareDocumentProps> = ({ data, companyDetails }) =
     { label: 'VD Profit',     value: (data as any).vdProfit     || 0 },
     { label: 'Actual Paid',   value: (data as any).actualPaid   || 0 },
     { label: 'Legal Fee',     value: (data as any).legalFeeCost || 0 },
+    
+    // --- NEW: Commission (Displayed as negative to indicate deduction) ---
+    ...( (data as any).commissionCost 
+        ? [{ label: 'Commission', value: -((data as any).commissionCost) }] 
+        : []
+    ),
+    // -------------------------------------------------------------------
+
     // Conditional costs
     ...( (data as any).storageCost  ? [{ label: 'Storage Cost',  value: (data as any).storageCost }] : []),
     ...( (data as any).recoveryCost ? [{ label: 'Recovery Cost', value: (data as any).recoveryCost }] : []),
     ...( (data as any).piCost       ? [{ label: 'PI Cost',       value: (data as any).piCost }] : []),
+    
     { label: 'Net Total',     value: (data as any).amount      || 0 },
   ];
 

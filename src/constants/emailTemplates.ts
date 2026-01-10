@@ -1,12 +1,13 @@
 // src/constants/emailTemplates.ts
-export type EmailType = 'custom' | 'rental' | 'maintenance' | 'invoice' | 'claim';
+
+export type EmailType = 'custom' | 'rental' | 'maintenance' | 'invoice' | 'claim' | 'finance';
 
 export interface EmailTemplate {
   id: string;
   name: string;
   subjectTemplate: string;
   bodyTemplate: string;
-  requiredFields?: Array<'rental' | 'vehicle' | 'maintenance' | 'invoice' | 'claim'>;
+  requiredFields?: Array<'rental' | 'vehicle' | 'maintenance' | 'invoice' | 'claim' | 'transaction'>;
 }
 
 const aieSkylineSignature = `Kind regards,
@@ -25,8 +26,105 @@ AIE Claims Team
 ✉️ claims@aieclaims.co.uk
 🌐 www.aieclaims.co.uk`;
 
-
 export const emailTemplates: Record<EmailType, EmailTemplate[]> = {
+  /* ───────── FINANCE (NEW) ───────── */
+  finance: [
+    {
+      id: 'finance_payment_received',
+      name: 'Payment Received Confirmation',
+      subjectTemplate: 'Payment Received - [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Recipient Name],
+
+We are writing to confirm that we have received your payment of £[Amount Paid] on [Date Received].
+
+Thank you for your prompt payment. This amount has been credited to your account.
+
+Current Account Status:
+
+Payment Received: -£[Amount Paid]
+
+Remaining Balance: £[New Balance]
+
+Please ensure any remaining balance is cleared by the agreed due date.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction'] 
+    },
+    {
+      id: 'finance_overdue_account',
+      name: 'URGENT: Overdue Account',
+      subjectTemplate: 'URGENT: Overdue Account - [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Recipient Name],
+
+Our records indicate that your account is currently overdue.
+
+Despite previous reminders, we have not yet received payment for the outstanding balance. Please be advised that prompt payment is required to ensure the continued continuity of our services and your vehicle rental agreement.
+
+Outstanding Details:
+
+Total Overdue: £[Amount Owed]
+
+Due Date: [Date]
+
+Please make an immediate payment of £[Amount Owed] using the details below:
+
+Payment Details: 🏦 Bank: Lloyds Bank 💼 Account Name: AIE SKYLINE LIMITED 🔢 Account Number: 30513162 🔣 Sort Code: 30-99-50 📝 Reference: [Vehicle Reg]
+
+If you have already made this payment in the last 24 hours, please disregard this message and send us the proof of payment via WhatsApp (07552 553441).
+
+${aieSkylineSignature}`
+    },
+    {
+      id: 'finance_statement_account',
+      name: 'Statement of Account',
+      subjectTemplate: 'Statement of Account - [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Recipient Name],
+
+This is a gentle reminder regarding the current outstanding balance on your account with AIE Skyline Limited.
+
+As of [Today's Date], your total outstanding balance is £[Total Amount].
+
+Please arrange for this balance to be cleared by [Due Date] using the details below:
+
+Payment Details: 🏦 Bank: Lloyds Bank 💼 Account Name: AIE SKYLINE LIMITED 🔢 Account Number: 30513162 🔣 Sort Code: 30-99-50 📝 Reference: [Vehicle Reg]
+
+If you have any queries regarding these figures, please contact the office immediately.
+
+${aieSkylineSignature}`
+    },
+    {
+      id: 'finance_new_charge',
+      name: 'NEW CHARGE: Immediate Payment Required',
+      subjectTemplate: 'NEW CHARGE: Immediate Payment Required - [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Recipient Name],
+
+Please be advised that a new charge has been applied to your account which requires your immediate attention.
+
+Charge Details:
+
+Reason: [Reason]
+
+Date of Incident/Charge: [Date]
+
+Amount charged: £[Amount]
+
+Total Account Balance Now Due: £[New Total Balance]
+
+Please arrange for the payment of £[New Total Balance] to be made ASAP to the account below:
+
+Payment Details: 🏦 Bank: Lloyds Bank 💼 Account Name: AIE SKYLINE LIMITED 🔢 Account Number: 30513162 🔣 Sort Code: 30-99-50 📝 Reference: [Vehicle Reg]
+
+If you require a copy of the invoice or the PCN evidence, please reply to this email or request it via WhatsApp.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction']
+    }
+  ],
+
   /* ───────── RENTAL ───────── */
   rental: [
     {
@@ -186,8 +284,138 @@ ${aieSkylineSignature}`,
   /* ───────── MAINTENANCE ───────── */
   maintenance: [
     {
+      id: 'nsl_booking_confirmation_driver',
+      name: '📅 NSL Inspection Booking (Driver)',
+      subjectTemplate: '📅 NSL Inspection Booking Confirmation – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+We have booked your vehicle for its NSL (Taxi Licensing) Inspection.
+
+🔹 Appointment Details
+Vehicle: [Vehicle Reg]
+Date: [Date]
+Time: [Date & Time]
+Location: [Location]
+
+⚠ Mandatory Requirements
+
+Cleanliness: The vehicle must be professionally valeted (inside and out) prior to arrival. A dirty vehicle will fail inspection immediately.
+
+Punctuality: Arrive at least 20 minutes early. Late arrivals are often turned away.
+
+Failure to attend or failing due to cleanliness will result in a re-booking fee and potential suspension of the vehicle license.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'mot_booking_confirmation_driver',
+      name: '📅 MOT Booking (Driver)',
+      subjectTemplate: '📅 MOT Booking Confirmation – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+Your vehicle is booked for an MOT Test.
+
+🔹 Appointment Details
+Vehicle: [Vehicle Reg]
+Date: [Date]
+Time: [Date & Time]
+Location: [Location]
+
+⚠ Important Instructions
+
+Arrival: Please arrive 15 minutes before your slot.
+
+Condition: Ensure the vehicle is clean and free of unnecessary clutter to allow the tester access.
+
+Compliance: This test is required to keep the vehicle road-legal.
+
+If you cannot attend, please contact us immediately to avoid a missed booking fee.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'vehicle_service_booking_driver',
+      name: '🔧 Vehicle Service Booking (Driver)',
+      subjectTemplate: '🔧 Vehicle Service Confirmation – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+We have booked your vehicle in for a Scheduled Service.
+
+🔹 Appointment Details
+Vehicle: [Vehicle Reg]
+Date: [Date]
+Time: [Date & Time]
+Location: [Location]
+
+⚠ Instructions
+
+Please ensure you arrive on time so the technicians can complete the work promptly.
+
+The service usually takes approximately 2–3 hours.
+
+Please plan your work schedule accordingly.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'repair_booking_driver',
+      name: '🛠️ Repair Booking (Driver)',
+      subjectTemplate: '🛠️ Repair Booking Confirmation – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+We have arranged a booking to carry out Repairs on your vehicle.
+
+🔹 Appointment Details
+Vehicle: [Vehicle Reg]
+Date: [Date]
+Time: [Date & Time]
+Location: [Location]
+Issue to be fixed: [Additional Notes]
+
+⚠ Instructions
+
+Please drop the vehicle off promptly at the time stated above.
+
+If the vehicle is non-drivable before this date, please contact the breakdown line immediately.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'general_maintenance_booking_driver',
+      name: '🔧 General Maintenance Booking (Driver)',
+      subjectTemplate: '🔧 Maintenance Booking Confirmation – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+Your vehicle is booked in for General Maintenance.
+
+🔹 Appointment Details
+Vehicle: [Vehicle Reg]
+Date: [Date]
+Time: [Date & Time]
+Location: [Location]
+Work Required: [Additional Notes]
+
+⚠ Instructions
+
+Please arrive on time.
+
+Wait times may vary depending on the workshop schedule.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
       id: 'nsl_booking_request',
-      name: 'NSL Booking Request',
+      name: 'NSL Booking Request (Service Center)',
       subjectTemplate: 'NSL Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
 `Dear LEVC Service Team,
@@ -207,7 +435,7 @@ ${aieSkylineSignature}`,
     },
     {
       id: 'vehicle_service_request',
-      name: 'Vehicle Service Request',
+      name: 'Vehicle Service Request (Service Center)',
       subjectTemplate: 'Vehicle Service Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
 `Dear LEVC Service Team,
@@ -228,7 +456,7 @@ ${aieSkylineSignature}`,
     },
     {
       id: 'mot_failure_repair_request',
-      name: 'MOT Failure Repair Booking Request',
+      name: 'MOT Failure Repair Request (Service Center)',
       subjectTemplate: 'MOT Failure Repair Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
 `Dear LEVC Service Team,
@@ -248,7 +476,7 @@ ${aieSkylineSignature}`,
     },
     {
       id: 'maintenance_repair_request',
-      name: 'Maintenance Repair Booking Request',
+      name: 'Maintenance Repair Request (Service Center)',
       subjectTemplate: 'Maintenance Repair Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
 `Dear LEVC Service Team,
@@ -268,7 +496,7 @@ ${aieSkylineSignature}`,
     },
     {
       id: 'mot_booking_request',
-      name: 'MOT Booking Request',
+      name: 'MOT Booking Request (Service Center)',
       subjectTemplate: 'MOT Booking Request – Vehicle Registration: [Vehicle Reg]',
       bodyTemplate:
 `🚕 MOT Booking Request
@@ -291,7 +519,7 @@ ${aieSkylineSignature}`,
     },
     {
       id: 'parts_prices_availability_request',
-      name: 'Parts Prices & Availability Request',
+      name: 'Parts Prices Request (Service Center)',
       subjectTemplate: 'Parts Prices & Availability Request – [Vehicle Reg]',
       bodyTemplate:
 `🔧 Parts Prices & Availability Request
@@ -310,8 +538,6 @@ Please confirm availability, price, and estimated delivery/collection time.
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
     },
-
-    /* ✅ NEW: Road Tax Payment Confirmation */
     {
       id: 'road_tax_payment_confirmation',
       name: 'Road Tax Payment Confirmation',
@@ -446,6 +672,62 @@ ${aieSkylineSignature}`,
 
   /* ───────── CLAIM ───────── */
   claim: [
+    {
+      id: 'claim_urgent_docs_required',
+      name: 'Urgent - Documents Required for New Accident Claim',
+      subjectTemplate: 'Urgent - Documents Required for New Accident Claim',
+      bodyTemplate:
+`Dear [Client Name],
+
+Thank you for reporting your accident to AIE Claims. To proceed with setting up your file and managing your claim efficiently, we require copies of the following documents immediately.
+
+Please ensure all photos or scans are clear and readable.
+
+Required Documents Checklist:
+
+Driver Licence (Photocard – Front and Back)
+
+Driver TfL Licence (PCO/Bill)
+
+Logbook (V5C) (Pages 1, 2, and 3)
+
+NSL Licence (Vehicle Licence/Inspection Document)
+
+National Insurance Number
+
+Insurance Certificate (Current Policy)
+
+If we are providing a replacement vehicle, we also require:
+
+Bank Statements (3 months from the date of accident up until the end of hire)
+
+Tax Returns (Last 3 years)
+
+How to Send Your Documents:
+
+You can submit these documents via email or WhatsApp for an instant response.
+
+WhatsApp: 02080505337 or 07552 553441
+
+Email: claims@aieclaims.co.uk
+
+Please send these as soon as possible to avoid any delays in processing your claim or arranging your replacement vehicle.
+
+If you have any questions, please contact our Claims Team on 020 8050 5337 option 2 & 1.
+
+Best Regards,
+
+Claims Team
+AIE Claims
+United House, 39–41 North Road
+London, N7 9DP
+
+📞 Tel: 020 8050 5337
+📱 WhatsApp: 07552 553441
+✉️ Email: claims@aieclaims.co.uk
+🌐 Web: www.aieclaims.co.uk`,
+      requiredFields: ['claim']
+    },
     {
       id: 'claim_new_to_legal',
       name: 'New Claim – Send to Legal Team',
@@ -588,6 +870,49 @@ ${aieClaimsSignature}`,
 
   /* ───────── CUSTOM ───────── */
   custom: [
+    {
+      id: 'skyline_welcome_account_details',
+      name: 'Welcome to AIE Skyline - Important Account & Contact Details',
+      subjectTemplate: 'Welcome to AIE Skyline - Important Account & Contact Details',
+      bodyTemplate:
+`Dear [Driver Name],
+
+Welcome to AIE Skyline Limited. We are pleased to have you on board.
+
+For your records, please save the following important information regarding your account payments and how to contact our team.
+
+📞 Contacting Support
+Please save our office and WhatsApp numbers in your phone immediately.
+
+Office Landline: 020 8050 5337
+
+WhatsApp Support: 07552 553441
+
+Email: admin@aieskyline.co.uk
+
+Address: United House, 39-41 North Road, London, N7 9DP
+
+Please use WhatsApp for sending proof of payment or non-urgent queries.
+
+💷 Payment Information
+Rent is due on MONDAY. Please use the details below for all transfers.
+
+🏦 Bank: Lloyds Bank
+
+💼 Account Name: AIE SKYLINE LIMITED
+
+🔢 Account Number: 30513162
+
+🔣 Sort Code: 30-99-50
+
+📝 Reference: [Vehicle Reg]
+
+Important: You must quote your Vehicle Registration number as the payment reference so we can allocate your payment correctly to your account.
+
+We look forward to working with you.
+
+${aieSkylineSignature}`
+    },
     {
       id: 'claims_bank_tax_request',
       name: '📩 AIE Claims – Request for Bank Statements & Tax Returns',

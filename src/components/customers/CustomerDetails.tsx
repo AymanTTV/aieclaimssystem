@@ -2,7 +2,7 @@
 import React from 'react';
 import { Eye, FileText } from 'lucide-react';
 
-// --- Type Definitions (moved from external file to prevent path errors) ---
+// --- Type Definitions ---
 
 export type Gender = 'male' | 'female' | 'other';
 export type CustomerType = 'customer' | 'claim' | 'company';
@@ -14,6 +14,10 @@ export interface Customer {
   mobile: string;
   email: string;
   address: string;
+  // New Fields
+  accountNumber?: string;
+  vatNumber?: string;
+  
   gender?: Gender;
   dateOfBirth?: Date;
   nationalInsuranceNumber?: string;
@@ -32,7 +36,7 @@ export interface Customer {
   updatedAt: Date;
 }
 
-// --- Helper Functions (moved from external files to prevent path errors) ---
+// --- Helper Functions ---
 
 /**
  * Formats a Date object into a readable string (e.g., "5 Oct 2024").
@@ -62,7 +66,6 @@ interface CustomerDetailsProps {
 
 /**
  * A reusable component to display a document thumbnail.
- * It shows an image for image files and a generic icon for PDFs.
  */
 const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string) => void; }> = ({ title, url, onView }) => {
   const isPdf = url.toLowerCase().includes('.pdf');
@@ -131,7 +134,22 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
           <h3 className="text-sm font-medium text-gray-500">Address</h3>
           <p className="mt-1">{customer.address}</p>
         </div>
+
+        {/* Company Fields */}
+        {isCompany && (
+          <>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Account Number</h3>
+              <p className="mt-1">{customer.accountNumber || 'N/A'}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">VAT Number</h3>
+              <p className="mt-1">{customer.vatNumber || 'N/A'}</p>
+            </div>
+          </>
+        )}
         
+        {/* Individual Fields */}
         {!isCompany && (
           <>
             <div>
@@ -213,4 +231,3 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
 };
 
 export default CustomerDetails;
-

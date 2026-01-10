@@ -1,12 +1,14 @@
 // src/components/finance/FinanceHeader.tsx
 import React from 'react';
-import { Download, Plus, Search, FileText, Settings, Repeat } from 'lucide-react';
+import { Download, Plus, Search, FileText, Settings, Repeat, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface FinanceHeaderProps {
   onSearch: (query: string) => void;
-  onImport: (file: File) => void;
+  // Changed to () => void because the Header just triggers the click, 
+  // the Parent component handles the actual file input change event.
+  onImport: () => void; 
   onExport: () => void;
   onAddIncome: () => void;
   onAddExpense: () => void;
@@ -20,13 +22,12 @@ interface FinanceHeaderProps {
   onManageGroups: () => void;
   onManageAccounts: () => void;
   
-  // --- NEW PROP ---
   onAddRecurring: () => void;
-  // ----------------
 }
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onSearch,
+  onImport, // <--- Destructured here
   onExport,
   onAddIncome,
   onAddExpense,
@@ -34,7 +35,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onManageGroups,
   onManageCategories,
   onManageAccounts,
-  onAddRecurring, // <-- Destructured
+  onAddRecurring,
 }) => {
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -88,6 +89,17 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
         
         {/* Functional Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+            {/* Import Button */}
+            {can('finance', 'create') && (
+                <button
+                    onClick={onImport}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                >
+                    <Upload className="h-5 w-5 mr-2" />
+                    Import
+                </button>
+            )}
+
             {can('finance', 'export') && (
                 <button
                     onClick={onExport}
@@ -108,7 +120,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                 </button>
             )}
 
-             {/* --- NEW RECURRING BUTTON --- */}
+             {/* Recurring Button */}
              {can('finance', 'create') && (
                 <button
                     onClick={onAddRecurring}
@@ -118,7 +130,6 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                     Recurring
                 </button>
             )}
-            {/* ---------------------------- */}
 
             {can('finance', 'create') && (
                 <button

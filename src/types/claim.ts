@@ -112,7 +112,8 @@ export interface Claim {
   locationOfEvent: string;
   referralType: 'Web' | 'Phone Call' | 'Existing Client' | 'Other';
   notes?: string;
-
+  // Add this new field near the other document fields
+  progressDocumentUrl?: string;
   // Submitter Details
   submitter: {
     type: SubmitterType;

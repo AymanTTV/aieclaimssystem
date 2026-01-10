@@ -1,7 +1,8 @@
 // src/components/finance/FinanceFilters.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Customer } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import SearchableSelect from '../ui/SearchableSelect'; 
 
 interface FinanceFiltersProps {
   searchQuery: string;
@@ -10,23 +11,30 @@ interface FinanceFiltersProps {
   type: 'all' | 'income' | 'expense';
   onTypeChange: (type: 'all' | 'income' | 'expense') => void;
   onStatusFilterChange: (status: string) => void;
-  categoryFilter: string;
-  onCategoryFilterChange: (category: string) => void;
+  
+  // Updated types to allow arrays
+  categoryFilter: string | string[];
+  onCategoryFilterChange: (category: string | string[]) => void;
+  
   dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
-  owner: string;
-  onOwnerChange: (owner: string) => void;
+  
+  owner: string | string[];
+  onOwnerChange: (owner: string | string[]) => void;
   owners: string[];
+  
   customers?: Customer[];
-  selectedCustomerId?: string;
-  onCustomerChange?: (customerId: string) => void;
-  accountFilter: string;
-  onAccountFilterChange: (accountId: string) => void;
+  selectedCustomerId?: string | string[];
+  onCustomerChange?: (customerId: string | string[]) => void;
+  
+  accountFilter: string | string[];
+  onAccountFilterChange: (accountId: string | string[]) => void;
   accounts: { id: string, name: string }[];
   accountSummary: { income: number, expense: number, balance: number } | null;
   categories: string[];
-  groupFilter: string;
-  onGroupFilterChange: (groupId: string) => void;
+  
+  groupFilter: string | string[];
+  onGroupFilterChange: (groupId: string | string[]) => void;
   groupOptions: { id: string; name: string }[];
   
   showLinked: 'all' | 'linked' | 'unlinked';
@@ -48,6 +56,40 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
 }) => {
   const { formatCurrency } = useFormattedDisplay();
 
+  const categoryOptions = useMemo(() => [
+    { id: 'all', label: 'All Categories' },
+    ...categories.map((cat) => ({ id: cat, label: cat }))
+  ], [categories]);
+
+  const groupSelectOptions = useMemo(() => [
+    { id: 'all', label: 'All Groups' },
+    { id: 'none', label: 'No Group Assigned' },
+    ...groupOptions.map((g) => ({ id: g.id, label: g.name }))
+  ], [groupOptions]);
+
+  const ownerOptions = useMemo(() => [
+    { id: 'all', label: 'All Owners' },
+    { id: 'no_owner_assigned', label: 'No Vehicle Assigned' },
+    ...owners.map((o) => ({ id: o, label: o }))
+  ], [owners]);
+
+  const customerOptions = useMemo(() => [
+    { id: 'all', label: 'All Customers' },
+    ...customers.map((c) => ({ id: c.id, label: c.name }))
+  ], [customers]);
+
+  const accountOptions = useMemo(() => [
+    { id: 'all', label: 'All Accounts' },
+    { id: 'no_account_assigned', label: 'No Account Assigned' },
+    ...accounts.map((acc) => ({ id: acc.id, label: acc.name }))
+  ], [accounts]);
+
+  // Helper to detect if a value is "All" (either string 'all' or array containing it/empty)
+  const isAll = (val: string | string[]) => {
+      if (Array.isArray(val)) return val.length === 0 || val.includes('all') || (val.length === 1 && val[0] === '');
+      return val === 'all' || val === '';
+  }
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -61,6 +103,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           <label className="block text-xs sm:text-sm font-medium text-gray-700">To</label>
           <input type="date" value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''} onChange={(e) => onDateRangeChange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })} min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined} className="form-input mt-1 w-full" />
         </div>
+        
         {/* Type */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700">Type</label>
@@ -68,6 +111,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             <option value="all">All Types</option><option value="income">Income</option><option value="expense">Expense</option>
           </select>
         </div>
+        
         {/* Payment Status */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700">Payment Status</label>
@@ -75,43 +119,59 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             <option value="all">All Status</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="partially_paid">Partially Paid</option>
           </select>
         </div>
-        {/* Category */}
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700">Category</label>
-          <select value={categoryFilter} onChange={(e) => onCategoryFilterChange(e.target.value)} className="form-select mt-1 w-full">
-            <option value="all">All Categories</option>{categories.map((catName) => <option key={catName} value={catName}>{catName}</option>)}
-          </select>
-        </div>
-        {/* Group */}
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700">Group</label>
-          <select value={groupFilter} onChange={(e) => onGroupFilterChange(e.target.value)} className="form-select mt-1 w-full">
-            <option value="all">All Groups</option><option value="none">No Group Assigned</option>{groupOptions.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </div>
-        {/* Owner */}
-        <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700">Owner</label>
-          <select value={owner} onChange={(e) => onOwnerChange(e.target.value)} className="form-select mt-1 w-full">
-            <option value="all">All Owners</option><option value="no_owner_assigned">No Vehicle Assigned</option>{owners.map((ownerName) => <option key={ownerName} value={ownerName}>{ownerName}</option>)}
-          </select>
-        </div>
-        {/* Customer */}
+
+        {/* Category (Multi) */}
+        <SearchableSelect
+          label="Category"
+          value={categoryFilter}
+          onChange={onCategoryFilterChange}
+          options={categoryOptions}
+          isClearable={!isAll(categoryFilter)}
+          isMulti={true}
+        />
+
+        {/* Group (Multi) */}
+        <SearchableSelect
+          label="Group"
+          value={groupFilter}
+          onChange={onGroupFilterChange}
+          options={groupSelectOptions}
+          isClearable={!isAll(groupFilter)}
+          isMulti={true}
+        />
+
+        {/* Owner (Multi) */}
+        <SearchableSelect
+          label="Owner"
+          value={owner}
+          onChange={onOwnerChange}
+          options={ownerOptions}
+          isClearable={!isAll(owner)}
+          isMulti={true}
+        />
+
+        {/* Customer (Multi) */}
         {onCustomerChange && (
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700">Customer</label>
-            <select value={selectedCustomerId} onChange={(e) => onCustomerChange(e.target.value)} className="form-select mt-1 w-full">
-              <option value="">All Customers</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Customer"
+            value={selectedCustomerId || 'all'} 
+            onChange={onCustomerChange}
+            options={customerOptions}
+            isClearable={!isAll(selectedCustomerId || 'all')}
+            isMulti={true}
+          />
         )}
-        {/* Account */}
-        <div>
-            <label className="block text-xs sm:text-sm font-medium text-gray-700">Account</label>
-            <select value={accountFilter} onChange={(e) => onAccountFilterChange(e.target.value)} className="form-select mt-1 w-full">
-                <option value="all">All Accounts</option><option value="no_account_assigned">No Account Assigned</option>{accounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-            </select>
-        </div>
+
+        {/* Account (Multi) */}
+        <SearchableSelect
+            label="Account"
+            value={accountFilter}
+            onChange={onAccountFilterChange}
+            options={accountOptions}
+            isClearable={!isAll(accountFilter)}
+            isMulti={true}
+        />
+
         {/* Linked Status */}
         <div>
             <label className="block text-xs sm:text-sm font-medium text-gray-700">Linked Status</label>
@@ -131,7 +191,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </select>
         </div>
 
-        {/* --- PERIOD FILTER --- */}
+        {/* Period */}
         {recurringFilter !== 'non_recurring' && (
           <div>
             <label className="block text-xs sm:text-sm font-medium text-gray-700">Period</label>
@@ -146,7 +206,6 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </select>
           </div>
         )}
-        {/* --------------------- */}
       </div>
     </div>
   );

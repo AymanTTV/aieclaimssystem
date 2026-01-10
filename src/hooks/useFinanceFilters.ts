@@ -12,19 +12,29 @@ export const useFinanceFilters = (
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [type, setType] = useState<'all' | 'income' | 'expense'>('all');
-  const [category, setCategory] = useState('all');
-  const [paymentStatus, setPaymentStatus] = useState<'all' | 'paid' | 'unpaid' | 'partially_paid'>('all');
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [selectedOwner, setSelectedOwner] = useState('all');
-  const [accountFilter, setAccountFilter] = useState('all');
-  const [groupFilter, setGroupFilter] = useState<string>('all');
-  const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   
-  // --- RECURRING FILTERS ---
+  const [type, setType] = useState<'all' | 'income' | 'expense'>('all');
+  const [paymentStatus, setPaymentStatus] = useState<'all' | 'paid' | 'unpaid' | 'partially_paid'>('all');
+  
+  // --- Updated: Allow string | string[] for Multi-Select ---
+  const [category, setCategory] = useState<string | string[]>('all');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | string[]>('');
+  const [selectedOwner, setSelectedOwner] = useState<string | string[]>('all');
+  const [accountFilter, setAccountFilter] = useState<string | string[]>('all');
+  const [groupFilter, setGroupFilter] = useState<string | string[]>('all');
+  // ---------------------------------------------------------
+
+  const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [recurringFilter, setRecurringFilter] = useState<string>('all');
   const [recurringFrequency, setRecurringFrequency] = useState<string>('all');
-  // -------------------------
+
+  // Helper: Normalize filters to array for consistent logic
+  const normalizeFilter = (val: string | string[], defaultVal = 'all') => {
+     if (Array.isArray(val)) {
+         return (val.length === 0 || val.includes(defaultVal)) ? ['all'] : val;
+     }
+     return (!val || val === defaultVal) ? ['all'] : [val];
+  };
 
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -53,10 +63,18 @@ export const useFinanceFilters = (
     };
 
   const filteredTransactions = useMemo(() => {
+    // Normalize filters once
+    const catFilters = normalizeFilter(category);
+    const ownerFilters = normalizeFilter(selectedOwner);
+    const customerFilters = normalizeFilter(selectedCustomerId, ''); // '' is default for customer
+    const accFilters = normalizeFilter(accountFilter);
+    const groupFilters = normalizeFilter(groupFilter);
+
     return transactions.filter(transaction => {
       const transactionDate = safeParseDate(transaction.date);
       if (!transactionDate) return false;
 
+      // 1. Search Query
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find(v => v.id === transaction.vehicleId);
       const customer = customers.find(c => c.id === transaction.customerId);
@@ -67,22 +85,55 @@ export const useFinanceFilters = (
         customer?.name, transaction.customerName
       ].some(field => field && field.toLowerCase().includes(searchLower));
 
+      // 2. Simple Filters
       const matchesType = type === 'all' || transaction.type === type;
-      const matchesCategory = category === 'all' || (transaction.category || '').toLowerCase() === category.toLowerCase();
       const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
-      const matchesCustomer = !selectedCustomerId || transaction.customerId === selectedCustomerId;
 
-      const matchesAccount = accountFilter === 'all' ||
-        (accountFilter === 'no_account_assigned' && (!transaction.accountsFrom?.length && !transaction.accountsTo?.length)) ||
-        (transaction.accountsFrom?.includes(accountFilter)) ||
-        (transaction.accountsTo?.includes(accountFilter));
+      // 3. Multi-Select Filters
 
-      let matchesOwner = false;
-      if (selectedOwner === 'all') matchesOwner = true;
-      else if (selectedOwner === 'no_owner_assigned') matchesOwner = !transaction.vehicleId && !transaction.vehicleOwner?.name;
-      else matchesOwner = transaction.vehicleOwner?.name === selectedOwner || (!transaction.vehicleOwner?.name && transaction.vehicleId && selectedOwner === 'AIE Skyline Limited');
-      if (selectedOwner === 'AIE SKYLINE ACCOUNT') matchesOwner = transaction.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT';
+      // Category
+      const matchesCategory = catFilters.includes('all') || catFilters.some(c => (transaction.category || '').toLowerCase() === c.toLowerCase());
 
+      // Customer
+      // Note: customerFilters normalized uses 'all' internally if empty, but incoming ID is usually specific uuid
+      const matchesCustomer = customerFilters.includes('all') || customerFilters.includes(transaction.customerId || '');
+
+      // Group
+      const matchesGroup = groupFilters.includes('all') || groupFilters.some(g => {
+          if (g === 'none') return !transaction.groupId;
+          return transaction.groupId === g;
+      });
+
+      // Account (Multi-Select Logic)
+      // Check if ANY of the transaction's accounts match ANY of the selected filters
+      const matchesAccount = accFilters.includes('all') || accFilters.some(filterId => {
+          if (filterId === 'no_account_assigned') {
+              return (!transaction.accountsFrom?.length && !transaction.accountsTo?.length);
+          }
+          return (transaction.accountsFrom?.includes(filterId)) || (transaction.accountsTo?.includes(filterId));
+      });
+
+      // Owner (Complex Multi-Select Logic)
+      const matchesOwner = ownerFilters.includes('all') || ownerFilters.some(filterOwner => {
+        if (filterOwner === 'no_owner_assigned') {
+            const hasVehicleId = !!transaction.vehicleId;
+            const vehicleExists = hasVehicleId && vehicles.some(v => v.id === transaction.vehicleId);
+            const hasSnapshotName = !!transaction.vehicleName;
+            return !hasVehicleId || (!vehicleExists && !hasSnapshotName);
+        }
+        if (filterOwner === 'AIE SKYLINE ACCOUNT') {
+            return transaction.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT';
+        }
+        // Standard match
+        let isMatch = transaction.vehicleOwner?.name === filterOwner;
+        // Legacy fallback
+        if (!isMatch && !transaction.vehicleOwner?.name && transaction.vehicleId && filterOwner === 'AIE Skyline Limited') {
+             isMatch = true;
+        }
+        return isMatch;
+      });
+
+      // 4. Date Range
       let matchesDateRange = true;
       if (startDate && endDate) {
           const endOfDay = new Date(endDate); endOfDay.setHours(23, 59, 59, 999);
@@ -90,10 +141,9 @@ export const useFinanceFilters = (
       } else if (startDate) matchesDateRange = transactionDate >= startDate;
       else if (endDate) { const endOfDay = new Date(endDate); endOfDay.setHours(23, 59, 59, 999); matchesDateRange = transactionDate <= endOfDay; }
 
-      const matchesGroup = groupFilter === 'all' || (groupFilter === 'none' && !transaction.groupId) || transaction.groupId === groupFilter;
+      // 5. Other Filters
       const matchesLinked = showLinked === 'all' || (showLinked === 'linked' && !!transaction.referenceId) || (showLinked === 'unlinked' && !transaction.referenceId);
 
-      // --- RECURRING STATUS LOGIC ---
       let matchesRecurring = true;
       if (recurringFilter === 'all') {
           matchesRecurring = true;
@@ -105,14 +155,11 @@ export const useFinanceFilters = (
           matchesRecurring = !!transaction.isRecurring && !transaction.nextRecurringDate;
       }
 
-      // --- FREQUENCY LOGIC (FIXED) ---
       let matchesFrequency = true;
       if (recurringFrequency !== 'all') {
-          // Only check frequency if the transaction IS recurring
           if (transaction.isRecurring) {
               matchesFrequency = transaction.recurringFrequency === recurringFrequency;
           } else {
-              // Non-recurring transactions don't match any specific frequency filter
               matchesFrequency = false; 
           }
       }
@@ -134,26 +181,97 @@ export const useFinanceFilters = (
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
-    const ownerNetIncomes: { [ownerName: string]: number } = {};
+    const ownerBalances: { [ownerName: string]: number } = {};
+    const ownerFilters = normalizeFilter(selectedOwner);
+
     transactions.forEach(t => {
       let effectiveOwnerName: string | null = t.vehicleOwner?.name || (t.vehicleId ? 'AIE Skyline Limited' : null);
       if (t.vehicleOwner?.name === 'AIE SKYLINE ACCOUNT') effectiveOwnerName = 'AIE SKYLINE ACCOUNT';
+      
       if (effectiveOwnerName) {
-        if (!ownerNetIncomes[effectiveOwnerName]) ownerNetIncomes[effectiveOwnerName] = 0;
-        ownerNetIncomes[effectiveOwnerName] += (t.type === 'income' ? t.amount : -t.amount);
+        if (!ownerBalances[effectiveOwnerName]) ownerBalances[effectiveOwnerName] = 0;
+        ownerBalances[effectiveOwnerName] += (t.type === 'income' ? t.amount : -t.amount);
       }
     });
+
     let totalOwing = 0;
-    for (const ownerName in ownerNetIncomes) { if (ownerName !== 'AIE Skyline Limited' && ownerName !== 'AIE SKYLINE ACCOUNT' && ownerNetIncomes[ownerName] < 0) totalOwing += Math.abs(ownerNetIncomes[ownerName]); }
+    
+    for (const ownerName in ownerBalances) {
+      const balance = ownerBalances[ownerName];
+      if (balance >= 0) continue; 
+
+      if (ownerFilters.includes('all')) {
+        if (ownerName === 'AIE Skyline Limited' || ownerName === 'AIE SKYLINE ACCOUNT') continue;
+        totalOwing += Math.abs(balance);
+      } 
+      else if (ownerFilters.includes(ownerName)) {
+        totalOwing += Math.abs(balance);
+      }
+    }
     return totalOwing;
-  }, [transactions]);
+  }, [transactions, selectedOwner]);
+
+  const totalOwingFromAccounts = useMemo(() => {
+    if (!accounts || accounts.length === 0) return 0;
+    
+    const balances = new Map<string, number>();
+    accounts.forEach(acc => balances.set(acc.id, 0));
+
+    transactions.forEach(txn => {
+        const amt = txn.amount;
+        if (txn.type === 'income' && txn.accountsTo) {
+            txn.accountsTo.forEach(id => {
+                if (balances.has(id)) balances.set(id, (balances.get(id) || 0) + amt);
+            });
+        }
+        else if (txn.type === 'expense' && txn.accountsFrom) {
+             txn.accountsFrom.forEach(id => {
+                if (balances.has(id)) balances.set(id, (balances.get(id) || 0) - amt);
+            });
+        }
+    });
+
+    let totalOwing = 0;
+    const accFilters = normalizeFilter(accountFilter);
+
+    balances.forEach((balance, id) => {
+        if (balance >= 0) return; 
+
+        const acc = accounts.find(a => a.id === id);
+        if (!acc) return;
+
+        if (accFilters.includes('all')) {
+            if (acc.name === 'AIE SKYLINE ACCOUNT' || acc.name === 'AIE Skyline Limited' || acc.name === 'AIE SKYLINE ACCOUNTS') return;
+            totalOwing += Math.abs(balance);
+        } else {
+            if (accFilters.includes(id)) {
+                totalOwing += Math.abs(balance);
+            }
+        }
+    });
+
+    return totalOwing;
+  }, [transactions, accounts, accountFilter]);
 
   const accountSummary = useMemo(() => {
-    if (accountFilter === 'all' || accountFilter === 'no_account_assigned') return null;
+    // If 'all' or empty, return null (global summary is handled elsewhere)
+    // If multiple specific accounts selected, sum them up
+    const accFilters = normalizeFilter(accountFilter);
+    if (accFilters.includes('all')) return null;
+
     let income = 0; let expense = 0;
     filteredTransactions.forEach(t => {
-        if (t.type === 'income' && t.accountsTo?.includes(accountFilter)) income += t.amount;
-        else if (t.type === 'expense' && t.accountsFrom?.includes(accountFilter)) expense += t.amount;
+        // Only count if this transaction touches one of the selected filter accounts
+        // And strictly sum the amounts relevant to those accounts? 
+        // Or just sum the whole transaction if it matches? 
+        // Usually, summary reflects the filtered list.
+        if (t.type === 'income') {
+             // Check if any To account is in our filter list
+             if (t.accountsTo?.some(id => accFilters.includes(id))) income += t.amount;
+        }
+        else if (t.type === 'expense') {
+             if (t.accountsFrom?.some(id => accFilters.includes(id))) expense += t.amount;
+        }
     });
     return { income, expense, balance: income - expense };
   }, [filteredTransactions, accountFilter]);
@@ -180,5 +298,6 @@ export const useFinanceFilters = (
     filteredTransactions,
     accountSummary,
     totalOwingFromOwners,
+    totalOwingFromAccounts, 
   };
 };

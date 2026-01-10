@@ -19,6 +19,7 @@ export const useCustomerFilters = (customers: Customer[]) => {
         customer.name.toLowerCase().includes(searchLower) ||
         customer.email.toLowerCase().includes(searchLower) ||
         customer.mobile.includes(searchLower) ||
+        (customer.accountNumber && customer.accountNumber.toLowerCase().includes(searchLower)) || // Added Account Number Search
         (customer.badgeNumber && customer.badgeNumber.includes(searchLower)) ||
         (customer.driverLicenseNumber && customer.driverLicenseNumber.includes(searchLower)) ||
         (customer.nationalInsuranceNumber && customer.nationalInsuranceNumber.includes(searchLower));
@@ -42,7 +43,7 @@ export const useCustomerFilters = (customers: Customer[]) => {
       const passesAgeFilter = !ageRange || 
         (customer.age !== undefined && customer.age >= ageRange.min && customer.age <= ageRange.max);
 
-      // Type filter (Updated Logic)
+      // Type filter
       const passesTypeFilter = (() => {
         if (selectedType === 'all') {
           return true;

@@ -13,7 +13,7 @@ export { default as ProfitSharesDocument } from './ProfitSharesDocument';
 export { default as ShareDocument } from './ShareDocument';
 export { default as VDInvoiceDocument } from './VDInvoiceDocument';
 export { default as ShareBulkDocument } from './ShareBulkDocument';
-
+export { default as ClaimProgressDocument } from './ClaimProgressDocument';
 export { default as ClaimDocument } from './ClaimDocument';
 export { default as ClaimBulkDocument } from './ClaimBulkDocument';
 

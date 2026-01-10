@@ -1,7 +1,6 @@
 // src/utils/emailService.ts
 
 import emailjs from '@emailjs/browser';
-import { format } from 'date-fns';
 
 export interface EmailParams {
   to_email: string;
@@ -25,9 +24,10 @@ export const sendEmail = async (params: EmailParams) => {
       message: params.message,
       show_bank_details: params.show_bank_details || false,
       reference: params.reference || '',
-      reply_to: params.reply_to || 'admin@aieskyline.co.uk',
+      // FIX: Changed from .co.uk to .com to match your SMTP User credentials
+      reply_to: params.reply_to || 'admin@aieskyline.com',
       from_name: 'AIE Fleet System',
-      from_email: 'admin@aieskyline.co.uk',
+      from_email: 'admin@aieskyline.com',
     };
 
     const resp = await emailjs.send(

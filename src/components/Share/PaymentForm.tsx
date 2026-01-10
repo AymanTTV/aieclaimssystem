@@ -59,8 +59,15 @@ export default function PaymentForm({ onClose, record }: Props) {
 
   const [vdProfit,    setVdProfit]    = useState<number>((record as any)?.vdProfit    || 0)
   const [actualPaid,  setActualPaid]  = useState<number>((record as any)?.actualPaid  || 0)
+  
   const [legalFeePct, setLegalFeePct] = useState<number>((record as any)?.legalFeePct || 0)
   const [legalFeeCost,setLegalFeeCost]= useState<number>((record as any)?.legalFeeCost|| 0)
+
+  // -- NEW COMMISSION STATE --
+  const [commissionPct, setCommissionPct] = useState<number>((record as any)?.commissionPct || 0)
+  const [commissionCost, setCommissionCost] = useState<number>((record as any)?.commissionCost || 0)
+  // --------------------------
+
   const [storageCost,  setStorageCost]  = useState<number>((record as any)?.storageCost  || 0)
   const [recoveryCost, setRecoveryCost] = useState<number>((record as any)?.recoveryCost || 0)
   const [piCost,       setPiCost]       = useState<number>((record as any)?.piCost       || 0)
@@ -93,6 +100,12 @@ export default function PaymentForm({ onClose, record }: Props) {
     setLegalFeeCost(Math.round((actualPaid * legalFeePct/100)*100)/100)
   }, [actualPaid, legalFeePct])
 
+  // -- Calculate Commission Cost --
+  useEffect(() => {
+    setCommissionCost(Math.round((actualPaid * commissionPct/100)*100)/100)
+  }, [actualPaid, commissionPct])
+  // ------------------------------
+
   const toggleReason = (r:string) => setReasons(rs => rs.includes(r) ? rs.filter(x=>x!==r) : [...rs, r])
 
   const calculateNextDate = (dateStr: string, freq: string): string => {
@@ -116,7 +129,11 @@ export default function PaymentForm({ onClose, record }: Props) {
     const userId = (user as any).uid || user.id || 'unknown';
     setLoading(true)
 
-    const amount = vdProfit + actualPaid + legalFeeCost + (reasons.includes('S') ? storageCost : 0) + (reasons.includes('R') ? recoveryCost : 0) + (reasons.includes('PI')? piCost : 0)
+    // Formula: Total = VD + Actual + Legal - Commission + (Extras)
+    const amount = vdProfit + actualPaid + legalFeeCost - commissionCost + 
+                   (reasons.includes('S') ? storageCost : 0) + 
+                   (reasons.includes('R') ? recoveryCost : 0) + 
+                   (reasons.includes('PI')? piCost : 0)
 
     const payment: any = {
       type:        'income' as const,
@@ -124,7 +141,9 @@ export default function PaymentForm({ onClose, record }: Props) {
       vehicleId, vehicleName, category, claimRef,
       date: new Date(date).toISOString(), 
       reasons, notes,
-      vdProfit, actualPaid, legalFeePct, legalFeeCost,
+      vdProfit, actualPaid, 
+      legalFeePct, legalFeeCost,
+      commissionPct, commissionCost, // Save commission fields
       ...(reasons.includes('S') ? { storageCost }  : {}),
       ...(reasons.includes('R') ? { recoveryCost } : {}),
       ...(reasons.includes('PI')? { piCost }       : {}),
@@ -245,6 +264,13 @@ export default function PaymentForm({ onClose, record }: Props) {
         <FormField label="Legal Fee (%)" type="number" min={0} max={100} value={legalFeePct} onChange={e=>setLegalFeePct(+e.target.value)} />
         <FormField label="Legal Fee Cost" type="number" value={legalFeeCost} readOnly className="bg-gray-100" />
       </div>
+
+      {/* --- NEW COMMISSION SECTION --- */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Commission (%)" type="number" min={0} max={100} value={commissionPct} onChange={e=>setCommissionPct(+e.target.value)} />
+        <FormField label="Commission Cost (Deducted)" type="number" value={commissionCost} readOnly className="bg-red-50 text-red-700" />
+      </div>
+      {/* ----------------------------- */}
 
       {(reasons.includes('S') || reasons.includes('R') || reasons.includes('PI')) && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">

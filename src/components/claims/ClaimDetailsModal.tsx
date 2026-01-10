@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react'; // Import useMemo
+// src/components/claims/ClaimDetailsModal.tsx
+import React, { useState, useEffect, useMemo } from 'react';
 import { Claim } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, DollarSign, Activity } from 'lucide-react';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Activity } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { isLegacyClaimProgress, deriveDisplayStatus, PROGRESS_OPTIONS } from '../../utils/claimProgress';
-
+import { isLegacyClaimProgress, deriveDisplayStatus } from '../../utils/claimProgress';
 import clsx from 'clsx';
 
 interface ClaimDetailsProps {
@@ -25,86 +24,68 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
   const [serverHistory, setServerHistory] = useState(claim.progressHistory || []);
   const historyToShow = (serverHistory?.length ? serverHistory : (claim.progressHistory || []));
 
-
   useEffect(() => {
-  (async () => {
-    try {
-      const snap = await getDoc(doc(db, 'claims', claim.id));
-      if (!snap.exists()) return;
-      const data = snap.data() as any;
-      const hist = (data.progressHistory || []).map((h: any) => ({
-        ...h,
-        date: h?.date?.toDate ? h.date.toDate() : new Date(h.date),
-      }));
-      setServerHistory(hist);
-    } catch (e) {
-      console.warn('Failed to refresh progress history:', e);
-    }
-  })();
-}, [claim.id]);
-
-
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'claims', claim.id));
+        if (!snap.exists()) return;
+        const data = snap.data() as any;
+        const hist = (data.progressHistory || []).map((h: any) => ({
+          ...h,
+          date: h?.date?.toDate ? h.date.toDate() : new Date(h.date),
+        }));
+        setServerHistory(hist);
+      } catch (e) {
+        console.warn('Failed to refresh progress history:', e);
+      }
+    })();
+  }, [claim.id]);
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
-      // Only attempt to fetch if claim.createdBy is a truthy string
       if (claim.createdBy) {
         try {
           const userDoc = await getDoc(doc(db, 'users', claim.createdBy));
           if (userDoc.exists()) {
-            // Set the name from the user document
             setCreatedByName(userDoc.data().name);
           } else {
-            // If user not found, set a specific status
             console.warn(`User with ID ${claim.createdBy} not found.`);
             setCreatedByName('Unknown User');
           }
         } catch (error) {
-          // If fetch fails, log error and set a specific status
           console.error(`Error fetching user ${claim.createdBy}:`, error);
           setCreatedByName('Unknown User');
         }
       } else {
-        // If claim.createdBy is falsy, set createdByName to null immediately
         setCreatedByName(null);
       }
     };
-
-    // Call the async fetch function
     fetchCreatedByName();
-
-    // Add claim.createdBy and db to dependency array
-  }, [claim.createdBy, db]);
-
+  }, [claim.createdBy]);
 
   // helper to coerce either a Date or Firestore Timestamp into a JS Date
-function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
-  if (!v) return null;
-  // Check if it's a Firestore Timestamp object with a toDate method
-  if (typeof (v as any).toDate === 'function') {
-      try {
-          return (v as any).toDate();
-      } catch (e) {
-          console.error('Error converting Firestore Timestamp:', e);
-          return null;
-      }
+  function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
+    if (!v) return null;
+    if (typeof (v as any).toDate === 'function') {
+        try {
+            return (v as any).toDate();
+        } catch (e) {
+            console.error('Error converting Firestore Timestamp:', e);
+            return null;
+        }
+    }
+    if (v instanceof Date && !isNaN(v.getTime())) {
+        return v;
+    }
+     const date = new Date(v as any);
+     if (!isNaN(date.getTime())) {
+        return date;
+     }
+    console.warn('Could not convert value to Date:', v);
+    return null;
   }
-  // Check if it's already a Date object
-  if (v instanceof Date && !isNaN(v.getTime())) {
-      return v;
-  }
-   // Attempt to convert from other types (like ISO strings from raw data)
-   const date = new Date(v as any);
-   if (!isNaN(date.getTime())) {
-      return date;
-   }
 
-  console.warn('Could not convert value to Date:', v);
-  return null;
-}
-
-
- const formatDate = (date: Date | null | undefined): string => {
+  const formatDate = (date: Date | null | undefined): string => {
     const jsDate = toJsDate(date);
     if (!jsDate) return 'N/A';
     return format(jsDate, 'dd/MM/yyyy');
@@ -116,10 +97,9 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
     return format(jsDate, 'dd/MM/yyyy HH:mm');
   };
 
-
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  const Section = ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
     <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
+      <div className="text-lg font-medium text-gray-900 mb-4">{title}</div>
       {children}
     </div>
   );
@@ -127,7 +107,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
   const Field = ({ label, value }: { label: string; value: string | number | React.ReactNode | null | undefined }) => (
     <div className="mb-4">
       <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900">{value ?? 'N/A'}</dd> {/* Use ?? 'N/A' for display */}
+      <dd className="mt-1 text-sm text-gray-900">{value ?? 'N/A'}</dd>
     </div>
   );
 
@@ -147,7 +127,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
     )
   );
 
-
   return (
     <div className="space-y-6">
       {/* Header with Status */}
@@ -165,21 +144,20 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
         </div>
         <div className="space-y-1">
-  <StatusBadge status={claim.claimType} />
-  {Array.isArray(claim.claimReason) && claim.claimReason.map(reason => (
-    <StatusBadge key={reason} status={reason} />
-  ))}
-  <StatusBadge status={claim.caseProgress} />
-  <div className="flex items-center gap-2">
-    <StatusBadge status={displayStatus} />
-    {legacy && (
-      <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">
-        Legacy
-      </span>
-    )}
-  </div>
-</div>
-
+          <StatusBadge status={claim.claimType} />
+          {Array.isArray(claim.claimReason) && claim.claimReason.map(reason => (
+            <StatusBadge key={reason} status={reason} />
+          ))}
+          <StatusBadge status={claim.caseProgress} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={displayStatus} />
+            {legacy && (
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                Legacy
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Client Information */}
@@ -189,7 +167,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
             <User className="h-5 w-5 text-gray-400 mr-2" />
             <div>
               <p className="font-medium">{claim.clientInfo.name}</p>
-              <p className="text-sm text-gray-500">{formatDate(claim.clientInfo.dateOfBirth)}</p> {/* Changed to formatDate */}
+              <p className="text-sm text-gray-500">{formatDate(claim.clientInfo.dateOfBirth)}</p>
             </div>
           </div>
           <div className="flex items-center">
@@ -214,9 +192,8 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
           <div className="flex items-center">
             <MapPin className="h-5 w-5 text-gray-400 mr-2" />
-            <div>{claim.clientInfo.address ?? 'N/A'}</div> {/* Use ?? 'N/A' */}
+            <div>{claim.clientInfo.address ?? 'N/A'}</div>
           </div>
-           {/* Add driverLicenseNumber and licenseExpiry */}
            <div className="flex items-center">
             <Car className="h-5 w-5 text-gray-400 mr-2" />
             <div>
@@ -231,8 +208,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                <p className="font-medium">{formatDate(claim.clientInfo.licenseExpiry)}</p>
              </div>
            </div>
-          {/* only show these two when PI is selected */}
-          {Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && ( // Check if claimReason is array
+          {Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
             <>
               <div className="col-span-2">
                 <Field
@@ -252,7 +228,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       </Section>
 
       {/* Vehicle Details */}
-       {/* Conditionally render Vehicle Details section if VD is a claim reason */}
       {Array.isArray(claim.claimReason) && claim.claimReason.includes('VD') && (
         <Section title="Vehicle Details">
           <div className="grid grid-cols-2 gap-4">
@@ -262,24 +237,21 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
             </div>
             <div>
               <p className="text-sm text-gray-500">MOT Expiry</p>
-              <p className="font-medium">{formatDate(claim.clientVehicle.motExpiry)}</p> {/* Changed to formatDate */}
+              <p className="font-medium">{formatDate(claim.clientVehicle.motExpiry)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Road Tax Expiry</p>
-              <p className="font-medium">{formatDate(claim.clientVehicle.roadTaxExpiry)}</p> {/* Changed to formatDate */}
+              <p className="font-medium">{formatDate(claim.clientVehicle.roadTaxExpiry)}</p>
             </div>
           </div>
         </Section>
       )}
 
-
       {/* Vehicle Documents */}
-       {/* Conditionally render Vehicle Documents section if VD is a claim reason */}
        {Array.isArray(claim.claimReason) && claim.claimReason.includes('VD') && (
         <Section title="Vehicle Documents">
-          {Object.entries(claim.clientVehicle?.documents || {}).length > 0 ? ( // Added ?. for safety
+          {Object.entries(claim.clientVehicle?.documents || {}).length > 0 ? (
             <div className="grid grid-cols-3 gap-4">
-              {/* Ensure url is a string before passing */}
               {Object.entries(claim.clientVehicle.documents).map(([key, url]) => (
                  <DocumentLink key={key} url={typeof url === 'string' ? url : undefined} label={key} />
               ))}
@@ -290,7 +262,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
         </Section>
       )}
 
-
+      {/* Register Keeper */}
       {claim.registerKeeper?.enabled && (
         <Section title="Register Keeper">
           <div className="grid grid-cols-2 gap-4">
@@ -335,7 +307,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
             <div>
               <p className="text-sm text-gray-500">Date & Time</p>
               <p className="font-medium">
-                {formatDate(claim.incidentDetails.date)} {claim.incidentDetails.time ?? 'N/A'} {/* Changed to formatDate */}
+                {formatDate(claim.incidentDetails.date)} {claim.incidentDetails.time ?? 'N/A'}
               </p>
             </div>
           </div>
@@ -396,17 +368,16 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       </Section>
 
       {/* Hire Details */}
-      {/* Conditionally render Hire Details section if H is a claim reason */}
       {claim.hireDetails?.enabled && Array.isArray(claim.claimReason) && claim.claimReason.includes('H') && (
         <Section title="Hire Details">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-sm text-gray-500">Start Date & Time</div>
-              <div>{formatDate(claim.hireDetails.startDate)} {claim.hireDetails.startTime ?? 'N/A'}</div> {/* Changed to formatDate */}
+              <div>{formatDate(claim.hireDetails.startDate)} {claim.hireDetails.startTime ?? 'N/A'}</div>
             </div>
             <div>
               <div className="text-sm text-gray-500">End Date & Time</div>
-              <div>{formatDate(claim.hireDetails.endDate)} {claim.hireDetails.endTime ?? 'N/A'}</div> {/* Changed to formatDate */}
+              <div>{formatDate(claim.hireDetails.endDate)} {claim.hireDetails.endTime ?? 'N/A'}</div>
             </div>
             <div>
               <div className="text-sm text-gray-500">Days of Hire</div>
@@ -420,7 +391,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
               <div className="text-sm text-gray-500">Total Cost</div>
               <div>{formatCurrency(claim.hireDetails.totalCost || 0)}</div>
             </div>
-             {/* Optional: Vehicle on Hire */}
             {claim.hireDetails.vehicle && (
               <div className="col-span-2">
                 <div className="text-sm font-medium text-gray-500 mb-1">Vehicle on Hire</div>
@@ -437,8 +407,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       )}
 
       {/* Recovery Details */}
-      {/* Conditionally render Recovery Details section if R (implied from S?) is a claim reason */}
-      {claim.recovery?.enabled && Array.isArray(claim.claimReason) && (claim.claimReason.includes('S') || claim.claimReason.includes('VD')) && ( // Assuming Recovery often linked to VD or Storage
+      {claim.recovery?.enabled && Array.isArray(claim.claimReason) && (claim.claimReason.includes('S') || claim.claimReason.includes('VD')) && (
         <Section title="Recovery Details">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -462,7 +431,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       )}
 
       {/* Storage Details */}
-       {/* Conditionally render Storage Details section if S is a claim reason */}
       {claim.storage?.enabled && Array.isArray(claim.claimReason) && claim.claimReason.includes('S') && (
         <Section title="Storage Details">
           <div className="grid grid-cols-2 gap-4">
@@ -487,7 +455,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       )}
 
       {/* GP Information */}
-      {/* Conditionally render GP Information section if PI is a claim reason */}
       {claim.gpInformation && Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
         <Section title="GP Information">
           <div className="space-y-4">
@@ -523,7 +490,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                 {claim.gpInformation.gpDate && (
                   <div>
                     <p className="text-sm text-gray-500">Visit Date</p>
-                    <p className="font-medium">{formatDate(claim.gpInformation.gpDate)}</p> {/* Changed to formatDate */}
+                    <p className="font-medium">{formatDate(claim.gpInformation.gpDate)}</p>
                   </div>
                 )}
                 {claim.gpInformation.gpContactNumber && (
@@ -551,7 +518,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       )}
 
        {/* Hospital Information */}
-       {/* Conditionally render Hospital Information section if PI is a claim reason */}
        {claim.hospitalInformation && Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
         <Section title="Hospital Information">
           <div className="space-y-4">
@@ -587,7 +553,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
                 {claim.hospitalInformation.hospitalDate && (
                   <div>
                     <p className="text-sm text-gray-500">Visit Date</p>
-                    <p className="font-medium">{formatDate(claim.hospitalInformation.hospitalDate)}</p> {/* Changed to formatDate */}
+                    <p className="font-medium">{formatDate(claim.hospitalInformation.hospitalDate)}</p>
                   </div>
                 )}
                 {claim.hospitalInformation.hospitalContactNumber && (
@@ -618,7 +584,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       {/* Evidence */}
       <Section title="Evidence">
         {/* Images */}
-        {claim.evidence?.images && claim.evidence.images.length > 0 && ( // Added ?. for safety
+        {claim.evidence?.images && claim.evidence.images.length > 0 && (
           <div className="mb-4">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Images</h4>
             <div className="grid grid-cols-3 gap-4">
@@ -636,7 +602,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
         )}
 
         {/* Videos */}
-        {claim.evidence?.videos && claim.evidence.videos.length > 0 && ( // Added ?. for safety
+        {claim.evidence?.videos && claim.evidence.videos.length > 0 && (
           <div className="mb-4">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Videos</h4>
             <div className="grid grid-cols-3 gap-4">
@@ -660,7 +626,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
         )}
 
         {/* Vehicle Photos */}
-        {claim.evidence?.clientVehiclePhotos && claim.evidence.clientVehiclePhotos.length > 0 && ( // Added ?. for safety
+        {claim.evidence?.clientVehiclePhotos && claim.evidence.clientVehiclePhotos.length > 0 && (
           <div className="mb-4">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Vehicle Photos</h4>
             <div className="grid grid-cols-3 gap-4">
@@ -679,7 +645,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
 
         {/* Documents */}
         <div className="space-y-2">
-           {/* Ensure the evidence arrays exist before mapping */}
           {claim.evidence?.engineerReport?.length > 0 && claim.evidence.engineerReport.map((url, index) => (
             <button
               key={index}
@@ -710,7 +675,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
               <span>Admin Document {index + 1}</span>
             </button>
           ))}
-           {/* Check if any documents are present, otherwise show a message */}
           {!(claim.evidence?.engineerReport?.length > 0 || claim.evidence?.bankStatement?.length > 0 || claim.evidence?.adminDocuments?.length > 0) && (
              <p className="text-gray-400">No documents uploaded</p>
           )}
@@ -720,7 +684,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       {/* Passengers */}
       {claim.passengers && claim.passengers.length > 0 && (
         <Section title="Passenger Details">
-          <div className="space-y-4"> {/* Added spacing */}
+          <div className="space-y-4">
             {claim.passengers.map((passenger, index) => (
               <div key={index} className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Passenger {index + 1}</h4>
@@ -740,7 +704,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       {/* Witnesses */}
       {claim.witnesses && claim.witnesses.length > 0 && (
         <Section title="Witness Details">
-          <div className="space-y-4"> {/* Added spacing */}
+          <div className="space-y-4">
             {claim.witnesses.map((witness, index) => (
               <div key={index} className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Witness {index + 1}</h4>
@@ -758,7 +722,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
       )}
 
       {/* Police Information */}
-      {/* Conditionally render Police Information section if any police details exist */}
       {(claim.policeOfficerName || claim.policeBadgeNumber || claim.policeStation || claim.policeIncidentNumber || claim.policeContactInfo) && (
         <Section title="Police Information">
           <div className="grid grid-cols-2 gap-4">
@@ -773,9 +736,7 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
         </Section>
       )}
 
-
       {/* Paramedic Information */}
-       {/* Conditionally render Paramedic Information section if any paramedic details exist */}
       {(claim.paramedicNames || claim.ambulanceReference || claim.ambulanceService) && (
         <Section title="Paramedic Information">
           <div className="grid grid-cols-2 gap-4">
@@ -785,7 +746,6 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           </div>
         </Section>
       )}
-
 
        {/* File Handlers */}
       <Section title="File Handlers">
@@ -834,58 +794,42 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
           <div className="space-y-4">
             {claim.notes
               .sort((a, b) => {
-                 // Ensure dates are valid before sorting
                  const dateA = toJsDate(a.createdAt);
                  const dateB = toJsDate(b.createdAt);
-                 if (!dateA || !dateB) return 0; // Handle invalid dates by not sorting them relative to others
-                 return dateB.getTime() - dateA.getTime(); // Sort by creation date, newest first
+                 if (!dateA || !dateB) return 0;
+                 return dateB.getTime() - dateA.getTime();
               })
               .map(n => {
                 const created = toJsDate(n.createdAt);
                 const dueDate = toJsDate(n.dueDate);
-
-                 // Ensure both dates are valid before rendering
                 if (!created || !dueDate) {
                      console.warn('Skipping note with invalid dates:', n);
-                     return null; // Skip rendering this note
+                     return null;
                 }
-
-                 // Correctly use dueDate for overdue check
                 const isOverdue = dueDate < new Date();
 
                 return (
-                  // Use flexbox for layout within each note item
                   <div key={n.id} className="border rounded-lg p-4 bg-gray-50 flex flex-col">
-                    {/* Note Header: File Handler, Note Title, Created At */}
                     <div className="flex items-center justify-between mb-2">
-                       {/* Left side: File Handler and Note Title */}
-                      <div className="flex-grow mr-4"> {/* Allow left side to grow, add margin */}
-                        <p className="text-sm"><span className="font-medium">File Handler:</span> {n.author}</p> {/* Changed label */}
-                        {n.noteTitle && ( // Only show title if it exists
-                           <p className="text-sm"><span className="font-medium">Title:</span> {n.noteTitle}</p> // Corrected comment placement
+                      <div className="flex-grow mr-4">
+                        <p className="text-sm"><span className="font-medium">File Handler:</span> {n.author}</p>
+                        {n.noteTitle && (
+                           <p className="text-sm"><span className="font-medium">Title:</span> {n.noteTitle}</p>
                         )}
                       </div>
-                       {/* Right side: Created At */}
                       <div className="flex flex-col items-end text-right">
-                         {/* Created At */}
-                        <div className="text-xs text-gray-500 mb-1"> {/* Add margin bottom */}
+                        <div className="text-xs text-gray-500 mb-1">
                          {format(created, 'dd/MM/yyyy HH:mm')}
                         </div>
-                         {/* Actions (Edit/Delete) - These are handled by the NotesModal itself, not displayed here */}
-                         {/* If you intended to show actions here, you would need to pass handlers down */}
                       </div>
                     </div>
-
-                    {/* Note Text */}
-                    <div className="text-sm whitespace-pre-wrap mb-2">{n.text}</div> {/* Add margin bottom */}
-
-                    {/* Due Date */}
+                    <div className="text-sm whitespace-pre-wrap mb-2">{n.text}</div>
                     <div className="flex items-center text-xs">
-                       <Calendar className="h-3 w-3 text-gray-500 mr-1" /> {/* Added Calendar icon */}
+                       <Calendar className="h-3 w-3 text-gray-500 mr-1" />
                       <span className="font-medium mr-1">Due:</span>
                       <span
                         className={clsx(
-                          'ml-1', // Still keep ml-1 for spacing after "Due:" label
+                          'ml-1',
                           dueDate < new Date() ? 'text-red-600 font-semibold' : 'text-gray-700'
                         )}
                       >
@@ -904,38 +848,48 @@ function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
         </Section>
       )}
 
-
       {/* Progress History */}
-<Section title={legacy ? 'Legacy Progress History (read‑only)' : 'Claim Progress History'}>
-  <div className="space-y-6">
-    {historyToShow.length > 0 ? (
-      historyToShow.map((h, i) => {
-        const historyDate = toJsDate(h.date);
-        if (!historyDate) return null;
-        return (
-          <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center">
-              <StatusBadge status={h.status} />
-              <span className="text-xs text-gray-500">{formatDateTime(historyDate)}</span>
-            </div>
-            <div className="mt-4">
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{h.note ?? 'N/A'}</p>
-            </div>
-            <div className="mt-3 text-xs text-gray-400 text-right">— {h.author ?? 'N/A'}</div>
-          </div>
-        );
-      })
-    ) : (
-      <p className="text-sm text-gray-500">No progress updates yet.</p>
-    )}
-  </div>
-</Section>
-
+      <Section title={
+        <div className="flex justify-between items-center w-full">
+          <span>{legacy ? 'Legacy Progress History (read‑only)' : 'Claim Progress History'}</span>
+          {(claim as any).progressDocumentUrl && (
+              <button
+                  onClick={() => onDownloadDocument?.((claim as any).progressDocumentUrl)}
+                  className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
+              >
+                  <FileText className="w-4 h-4 mr-1" />
+                  View Progress Record
+              </button>
+          )}
+        </div>
+      }>
+        <div className="space-y-6">
+          {historyToShow.length > 0 ? (
+            historyToShow.map((h, i) => {
+              const historyDate = toJsDate(h.date);
+              if (!historyDate) return null;
+              return (
+                <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-center">
+                    <StatusBadge status={h.status} />
+                    <span className="text-xs text-gray-500">{formatDateTime(historyDate)}</span>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{h.note ?? 'N/A'}</p>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-400 text-right">— {h.author ?? 'N/A'}</div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-gray-500">No progress updates yet.</p>
+          )}
+        </div>
+      </Section>
 
       {/* Audit Information */}
       <div className="text-sm text-gray-500 border-t pt-4">
         <div className="flex justify-between">
-           {/* Display createdByName if available, otherwise fallback to updatedBy, otherwise 'N/A' */}
           <div>Created by: {createdByName ?? claim.updatedBy ?? 'N/A'}</div>
           <div>Last Updated: {formatDateTime(claim.updatedAt)}</div>
         </div>

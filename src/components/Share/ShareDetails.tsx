@@ -117,7 +117,6 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
         </div>
       )}
       
-      {/* ... (Rest of the component content remains as previously provided) ... */}
       
       <Section icon={User} title="Client & Vehicle">
         <div className="grid grid-cols-2 gap-4">
@@ -161,7 +160,16 @@ const ShareDetails: React.FC<Props> = ({ entry }) => {
             <div className="grid grid-cols-2 gap-4">
               <Field label="VD Profit" value={`£${formatCurrency((entry as any).vdProfit)}`}/>
               <Field label="Actual Paid" value={`£${formatCurrency((entry as any).actualPaid)}`}/>
-              <Field label={`Legal Fee (${(entry as any).legalFeePct}%)`} value={`£${formatCurrency((entry as any).legalFeeCost)}`}/>
+              <Field label={`Legal Fee (${(entry as any).legalFeePct || 0}%)`} value={`£${formatCurrency((entry as any).legalFeeCost)}`}/>
+              
+              {/* COMMISSION DISPLAY */}
+              <Field 
+                 label={`Commission (${(entry as any).commissionPct || 0}%)`} 
+                 value={`- £${formatCurrency((entry as any).commissionCost || 0)}`} 
+                 color="text-red-600"
+              />
+              {/* ------------------ */}
+
               { (entry as any).storageCost != 0 && (
                 <Field label="Storage Cost" value={`£${formatCurrency((entry as any).storageCost)}`}/>
               )}

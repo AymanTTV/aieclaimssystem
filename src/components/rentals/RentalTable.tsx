@@ -4,13 +4,14 @@ import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
 import {
   Eye,
-  Edit,
+  Pencil,
   Trash2,
-  FileText,
-  Download,
-  RotateCw,
-  DollarSign,
-  Tag
+  FileSignature,
+  Receipt,
+  CheckCircle2,
+  CreditCard,
+  Percent,
+  CalendarClock
 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -148,15 +149,57 @@ const RentalTable: React.FC<RentalTableProps> = ({
     return isBefore(a.endDate, b.endDate) ? -1 : 1;
   });
 
+  // Helper for consistent Action Buttons (Vertical Stack)
+  const ActionBtn = ({ 
+    onClick, 
+    icon: Icon, 
+    colorClass, 
+    title 
+  }: { 
+    onClick: (e: React.MouseEvent) => void, 
+    icon: any, 
+    colorClass: string, 
+    title: string 
+  }) => (
+    <button 
+      onClick={e => { e.stopPropagation(); onClick(e); }} 
+      title={title}
+      className={`p-1.5 rounded-md hover:bg-white hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+
   const columns = [
     {
       header: 'Vehicle',
       cell: ({ row }) => {
-        const v = vehicles.find(v => v.id === row.original.vehicleId);
+        const r = row.original as Rental;
+        const v = vehicles.find(v => v.id === r.vehicleId);
+        
+        // --- NEW LOGIC: Get latest substitute vehicle ---
+        const subs = r.hireSubstitutionDetails || [];
+        const latestSub = subs.length > 0 ? subs[subs.length - 1] : null;
+
         return v ? (
           <div>
             <div className="font-medium">{v.make} {v.model}</div>
-            <div className="text-sm text-gray-500">{v.registrationNumber}</div>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {/* Main Vehicle Registration */}
+              <div className="inline-block px-2 py-0.5 rounded text-xs font-mono bg-gray-200/60 text-gray-700 border border-gray-200">
+                {v.registrationNumber}
+              </div>
+
+              {/* Substitute Vehicle Registration (Orange Badge) */}
+              {latestSub && latestSub.registration && (
+                <div 
+                  className="inline-block px-2 py-0.5 rounded text-xs font-mono bg-orange-100 text-orange-800 border border-orange-200"
+                  title={`Substitute: ${latestSub.make} ${latestSub.model}`}
+                >
+                  Substitute: {latestSub.registration}
+                </div>
+              )}
+            </div>
           </div>
         ) : 'N/A';
       },
@@ -352,96 +395,101 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const r = row.original as Rental;
         const v = vehicles.find(v => v.id === r.vehicleId)!;
 
+        // Recalculate remaining just to check if payment/discount buttons should show
         const start = ensureValidDate(r.startDate);
         const end = ensureValidDate(r.endDate);
-
         const baseCost = calculateRentalCost(
-          start,
-          end,
-          r.type,
-          v,
-          r.reason,
-          r.negotiatedRate ?? undefined,
-          0, 0, 0, 0, 0,
-          false, false, false, false, false
+          start, end, r.type, v, r.reason, r.negotiatedRate ?? undefined,
+          0, 0, 0, 0, 0, false, false, false, false, false
         );
-
         const now = new Date();
-        const ongoingCharges =
-          r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
-
+        const ongoingCharges = r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
         const returnCharges = r.returnCondition?.totalCharges ?? 0;
         const discountedBaseWithVAT = (baseCost * (r.includeVAT ? 1.2 : 1)) - (r.discountAmount ?? 0);
         const totalAmountDue = discountedBaseWithVAT + ongoingCharges + returnCharges;
-
-        const paid = r.paidAmount || 0;
-        const remaining = totalAmountDue - paid;
+        const remaining = totalAmountDue - (r.paidAmount || 0);
 
         return (
-          <div className="flex space-x-2">
+          <div className="flex flex-col gap-1 items-center justify-center py-1">
             {can('rentals','view') && (
-              <button onClick={e => { e.stopPropagation(); onView(r); }} title="View">
-                <Eye className="h-4 w-4 text-blue-600 hover:text-blue-800"/>
-              </button>
+              <ActionBtn 
+                onClick={() => onView(r)} 
+                icon={Eye} 
+                colorClass="text-blue-600" 
+                title="View Details" 
+              />
             )}
 
             {can('rentals','update') && (
               <>
-                <button onClick={e => { e.stopPropagation(); onEdit(r); }} title="Edit">
-                  <Edit className="h-4 w-4 text-blue-600 hover:text-blue-800"/>
-                </button>
+                <ActionBtn 
+                  onClick={() => onEdit(r)} 
+                  icon={Pencil} 
+                  colorClass="text-indigo-600" 
+                  title="Edit Rental" 
+                />
 
                 {remaining > 0 && (
-                  <>
-                    <button
-                      onClick={e => { e.stopPropagation(); onRecordPayment(r); }}
-                      title="Record Payment"
-                    >
-                      <DollarSign className="h-4 w-4 text-primary hover:text-primary-600"/>
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); onApplyDiscount(r); }}
-                      title="Apply Discount"
-                    >
-                      <Tag className="h-4 w-4 text-green-600 hover:text-green-800"/>
-                    </button>
-                  </>
+                  <div className="flex gap-1">
+                    <ActionBtn 
+                      onClick={() => onRecordPayment(r)} 
+                      icon={CreditCard} 
+                      colorClass="text-emerald-600" 
+                      title="Record Payment" 
+                    />
+                    <ActionBtn 
+                      onClick={() => onApplyDiscount(r)} 
+                      icon={Percent} 
+                      colorClass="text-purple-600" 
+                      title="Apply Discount" 
+                    />
+                  </div>
                 )}
 
-                <button
-                  onClick={e => { e.stopPropagation(); onComplete(r); }}
-                  title="Complete Return"
-                >
-                  <RotateCw className="h-4 w-4 text-green-600 hover:text-green-800"/>
-                </button>
+                <ActionBtn 
+                  onClick={() => onComplete(r)} 
+                  icon={CheckCircle2} 
+                  colorClass="text-orange-600" 
+                  title="Complete / Return" 
+                />
 
-                <button
-                  onClick={e => { e.stopPropagation(); onGenerate90DayAgreement?.(r); }}
-                  title="Generate 90-day Agreement"
-                >
-                  <FileText className="h-4 w-4 text-purple-600 hover:text-purple-800"/>
-                </button>
+                <ActionBtn 
+                  onClick={() => onGenerate90DayAgreement?.(r)} 
+                  icon={CalendarClock} 
+                  colorClass="text-fuchsia-600" 
+                  title="Generate 90-day Agreement" 
+                />
               </>
             )}
 
+            {/* Document Buttons Group */}
+            <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-100">
+                {r.documents?.agreements && Object.keys(r.documents.agreements).length > 0 && (
+                  <ActionBtn 
+                    onClick={() => onDownloadAgreement(r)} 
+                    icon={FileSignature} 
+                    colorClass="text-blue-700" 
+                    title="Download Agreement" 
+                  />
+                )}
+
+                {r.documents?.invoice && (
+                  <ActionBtn 
+                    onClick={() => onDownloadInvoice(r)} 
+                    icon={Receipt} 
+                    colorClass="text-green-700" 
+                    title="Download Invoice" 
+                  />
+                )}
+            </div>
+
             {can('rentals','delete') && r.status !== 'active' && (
-              <button onClick={e => { e.stopPropagation(); onDelete(r); }} title="Delete">
-                <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800"/>
-              </button>
-            )}
-
-            {/* ----------------- ✅ FIX 5: Check the correct 'agreements' map ----------------- */}
-            {r.documents?.agreements && Object.keys(r.documents.agreements).length > 0 && (
-              <button onClick={e => { e.stopPropagation(); onDownloadAgreement(r); }} title="Agreement">
-                <FileText className="h-4 w-4 text-blue-600 hover:text-blue-800"/>
-              </button>
-            )}
-            {/* ----------------- END OF FIX 5 ----------------- */}
-
-            {r.documents?.invoice && (
-              <button onClick={e => { e.stopPropagation(); onDownloadInvoice(r); }} title="Invoice">
-                <Download className="h-4 w-4 text-green-600 hover:text-green-800"/>
-              </button>
+              <ActionBtn 
+                onClick={() => onDelete(r)} 
+                icon={Trash2} 
+                colorClass="text-red-600 hover:bg-red-50" 
+                title="Delete Rental" 
+              />
             )}
           </div>
         );

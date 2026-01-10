@@ -18,25 +18,36 @@ export interface IncomeExpenseEntry {
   customerAddress?: string;
   category?: string;
   reference: string;
-  date: string; // ISO string
+  
+  date: string;       // Main Transaction Date (ISO string)
+  fromDate?: string;  // NEW: Informational From Date
+  toDate?: string;    // NEW: Informational To Date
+
   status: 'Paid' | 'Unpaid' | 'Partially Paid' | 'Pending';
   description: string;
   unit: string;
   note: string;
   quantity: number;
+  
+  // Financials
   net: number;
   vat: boolean;
+  
+  // Commission
+  commissionPct?: number;
+  commissionAmount?: number;
+
   total: number;
+  
   progress?: 'in-progress' | 'completed';
   createdBy: string;
   updatedAt: string;
   createdAt?: string; 
 
-  // --- NEW: Recurring Fields ---
+  // Recurring Fields
   isRecurring?: boolean;
   recurringFrequency?: RecurringFrequency;
-  nextRecurringDate?: string | null; // Storing as string (YYYY-MM-DD) or ISO
-  // ---------------------------
+  nextRecurringDate?: string | null; 
 }
 
 export interface ExpenseItem {

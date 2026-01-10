@@ -1,4 +1,3 @@
-// src/components/pdf/documents/CustomerDocument.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Customer } from '../../../types/customer';
@@ -63,6 +62,15 @@ const CustomerDocument: React.FC<CustomerDocumentProps> = ({ data, companyDetail
             <Text style={styles.sectionTitle}>{isCompany ? 'Company Information' : 'Personal Information'}</Text>
             <LabelValue label="Type:" value={data.type} />
             <LabelValue label="Name:" value={data.name} />
+            
+            {/* ADDED: Show Account & VAT Number for Companies */}
+            {isCompany && (
+              <>
+                 <LabelValue label="Account Number:" value={data.accountNumber} />
+                 <LabelValue label="VAT Number:" value={data.vatNumber} />
+              </>
+            )}
+
             {!isCompany && (
               <>
                 <LabelValue label="Gender:" value={data.gender} />
@@ -100,18 +108,15 @@ const CustomerDocument: React.FC<CustomerDocumentProps> = ({ data, companyDetail
               </ColCard>
             </View>
 
-           
+            {/* Terms & Conditions (unchanged) */}
+            {companyDetails.customerTerms && (
+              <View style={[styles.section, { breakInside: 'avoid' }]}>
+                <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+                <Text style={styles.termsText}>{companyDetails.customerTerms}</Text>
+              </View>
+            )}
 
-        {/* Terms & Conditions (unchanged) */}
-        {companyDetails.customerTerms && (
-          <View style={[styles.section, { breakInside: 'avoid' }]}>
-            <Text style={styles.sectionTitle}>Terms & Conditions</Text>
-            <Text style={styles.termsText}>{companyDetails.customerTerms}</Text>
-          </View>
-        )}
-
-
-         {/* Signature section (kept as it is, avoid splitting) */}
+            {/* Signature section */}
             {data.signature && (
               <>
                 <View style={{ height: 12 }} />

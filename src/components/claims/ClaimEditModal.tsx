@@ -12,7 +12,7 @@ import { uploadFile } from '../../utils/uploadFile';
 import { uploadAllFiles } from '../../utils/uploadAllFiles';
 import { format } from 'date-fns';
 import { ensureValidDate } from '../../utils/dateHelpers';
-
+import { generateClaimProgressDocument } from '../../utils/documentGenerator';
 import RegisterKeeperDetails from './ClaimForm/sections/RegisterKeeperDetails';
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
 import DriverDetails from './ClaimForm/sections/DriverDetails';
@@ -379,6 +379,9 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
         : null;
 
       await updateDoc(doc(db, 'claims', claim.id), payload);
+      // Since edit modal might change progress status (via dropdown) or other details used in the doc
+      const updatedClaimForDoc = { ...claim, ...payload, id: claim.id };
+      await generateClaimProgressDocument(updatedClaimForDoc);
       toast.success('Claim updated');
       onClose();
     } catch (err: any) {

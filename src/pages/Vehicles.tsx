@@ -53,6 +53,9 @@ const Vehicles: React.FC = () => {
     setShowSold,
     filteredVehicles,
     uniqueMakes,
+    // Extract new props
+    expiryFilter,
+    setExpiryFilter,
   } = useVehicleFilters(vehicles);
 
   const [showForm, setShowForm] = React.useState(false);
@@ -273,6 +276,9 @@ const Vehicles: React.FC = () => {
         onShowSoldChange={setShowSold}
         showDueSoon={showDueSoon}
         onShowDueSoonChange={setShowDueSoon}
+        // Pass new props
+        expiryFilter={expiryFilter}
+        onExpiryFilterChange={setExpiryFilter}
       />
 
       {/* Table */}

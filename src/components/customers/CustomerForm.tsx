@@ -22,6 +22,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
     mobile: customer?.mobile || '',
     email: customer?.email || '',
     address: customer?.address || '',
+    // New fields
+    accountNumber: customer?.accountNumber || '',
+    vatNumber: customer?.vatNumber || '',
+    
     gender: customer?.gender || 'male' as Gender,
     dateOfBirth: customer?.dateOfBirth ? customer.dateOfBirth.toISOString().split('T')[0] : '',
     nationalInsuranceNumber: customer?.nationalInsuranceNumber || '',
@@ -85,7 +89,15 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
       let customerData: any = baseData;
       const documentUrls: Record<string, string> = {};
 
-      if (!isCompany) {
+      if (isCompany) {
+        // Add company specific fields
+        customerData = {
+          ...baseData,
+          accountNumber: formData.accountNumber,
+          vatNumber: formData.vatNumber,
+        };
+      } else {
+        // Add individual specific fields
         customerData = {
           ...baseData,
           gender: formData.gender,
@@ -158,6 +170,14 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
         <div className="md:col-span-2">
           <FormField label="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} required />
         </div>
+
+        {/* Company Specific Fields */}
+        {isCompany && (
+          <>
+            <FormField label="Account Number" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} />
+            <FormField label="VAT No" value={formData.vatNumber} onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })} />
+          </>
+        )}
         
         {!isCompany && (
           <>

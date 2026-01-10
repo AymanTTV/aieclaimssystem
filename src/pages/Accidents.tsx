@@ -15,6 +15,7 @@ import AccidentTable from '../components/accidents/AccidentClaimTable';
 import AccidentClaimForm from '../components/accidents/AccidentClaimForm';
 import AccidentClaimView from '../components/accidents/AccidentClaimView';
 import AccidentClaimEdit from '../components/accidents/AccidentClaimEdit';
+import StatusUpdateModal from '../components/accidents/StatusUpdateModal'; // Imported new modal
 
 import Modal from '../components/ui/Modal';
 import { useVehicles } from '../hooks/useVehicles';
@@ -46,8 +47,11 @@ const Accidents = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-// new: toggles showing only resolved
+  const [showStatusModal, setShowStatusModal] = useState(false); // New state for status modal
+
+  // new: toggles showing only resolved
   const [showResolvedOnly, setShowResolvedOnly] = useState(false);
+
   const handleAdd = () => {
     setShowAddModal(true);
   };
@@ -60,6 +64,12 @@ const Accidents = () => {
   const handleEdit = (accident: Accident) => {
     setSelectedAccident(accident);
     setShowEditModal(true);
+  };
+
+  // New handler for Status Update
+  const handleUpdateStatus = (accident: Accident) => {
+    setSelectedAccident(accident);
+    setShowStatusModal(true);
   };
 
   const handleDelete = async (accident: Accident) => {
@@ -118,7 +128,7 @@ const Accidents = () => {
     }
   };
 
-if (loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -127,8 +137,8 @@ if (loading) {
   }
 
   const displayedAccidents = showResolvedOnly
-  ? filteredAccidents.filter(a => a.status === 'resolved')
-  : filteredAccidents;
+    ? filteredAccidents.filter(a => a.status === 'resolved')
+    : filteredAccidents;
 
   return (
     <div className="space-y-6">
@@ -155,7 +165,7 @@ if (loading) {
         onDateRangeChange={setDateRange}
       />
 
-<div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2">
         <input
           id="showResolved"
           type="checkbox"
@@ -173,6 +183,7 @@ if (loading) {
         vehicles={vehicles}
         onView={handleView}
         onEdit={handleEdit}
+        onUpdateStatus={handleUpdateStatus} // Passed new handler
         onDelete={acc => {
           setSelectedAccident(acc);
           setShowDeleteModal(true);
@@ -204,6 +215,27 @@ if (loading) {
           size="xl"
         >
           <AccidentClaimView accident={selectedAccident} />
+        </Modal>
+      )}
+
+      {/* Status Update Modal */}
+      {selectedAccident && (
+        <Modal
+          isOpen={showStatusModal}
+          onClose={() => {
+            setShowStatusModal(false);
+            setSelectedAccident(null);
+          }}
+          title="Update Status"
+          size="md"
+        >
+          <StatusUpdateModal
+            accident={selectedAccident}
+            onClose={() => {
+              setShowStatusModal(false);
+              setSelectedAccident(null);
+            }}
+          />
         </Modal>
       )}
 

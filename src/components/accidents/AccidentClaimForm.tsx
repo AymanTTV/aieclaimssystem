@@ -18,7 +18,7 @@ interface AccidentClaimFormProps {
 
 const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
   const { customers } = useCustomers();
-const { vehicles } = useVehicles();
+  const { vehicles } = useVehicles();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [passengerCount, setPassengerCount] = useState(0);
@@ -34,65 +34,13 @@ const { vehicles } = useVehicles();
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
-  const [driverDetailsVisible, setDriverDetailsVisible] = useState(false); // New state
-  const [vehicleDetailsVisible, setVehicleDetailsVisible] = useState(false); // New state
-
+  const [driverDetailsVisible, setDriverDetailsVisible] = useState(false);
+  const [vehicleDetailsVisible, setVehicleDetailsVisible] = useState(false);
 
   const [errors, setErrors] = useState({
     refNo: '',
     referenceName: '',
   });
-
-  
-  
-  const handleRefNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFormData({ ...formData, refNo: value });
-
-    // Clear error when user starts typing
-    if (value && !isNaN(Number(value)) && Number(value) > 0) {
-      setErrors({ ...errors, refNo: '' });
-    } else {
-      setErrors({ ...errors, refNo: 'Ref No must be a valid number greater than 0.' });
-    }
-  };
-
-  const handleReferenceNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFormData({ ...formData, referenceName: value });
-
-    // Clear error when user starts typing
-    if (value.trim()) {
-      setErrors({ ...errors, referenceName: '' });
-    } else {
-      setErrors({ ...errors, referenceName: 'Reference Name cannot be empty.' });
-    }
-  };
-
-  const validateForm = (): boolean => {
-    let isValid = true;
-
-    // Validate Ref No - should be a valid number and greater than 0
-    if (!formData.refNo || isNaN(Number(formData.refNo)) || Number(formData.refNo) <= 0) {
-      isValid = false;
-      setErrors((prevErrors) => ({
-        ...prevErrors,
-        refNo: "Ref No must be a valid number greater than 0.",
-      }));
-    }
-
-    // Validate Reference Name - should not be empty
-    if (!formData.referenceName.trim()) {
-      isValid = false;
-      setErrors((prevErrors) => ({
-        ...prevErrors,
-        referenceName: "Reference Name cannot be empty.",
-      }));
-    }
-
-    return isValid;
-  };
-
 
   const [formData, setFormData] = useState({
     refNo: '',
@@ -100,7 +48,7 @@ const { vehicles } = useVehicles();
     // Driver Details
     driverName: '',
     driverAddress: '',
-    driverPostCode: '',
+    // driverPostCode removed
     driverDOB: '',
     driverPhone: '',
     driverMobile: '',
@@ -119,7 +67,7 @@ const { vehicles } = useVehicles();
     // Fault Party Details
     faultPartyName: '',
     faultPartyAddress: '',
-    faultPartyPostCode: '',
+    // faultPartyPostCode removed
     faultPartyPhone: '',
     faultPartyVehicle: '',
     faultPartyVRN: '',
@@ -148,89 +96,123 @@ const { vehicles } = useVehicles();
     passengers: Array(4).fill({
       name: '',
       address: '',
-      postCode: '',
+      // postCode removed
       dob: '',
       contactNumber: ''
     }),
     witnesses: Array(3).fill({
       name: '',
       address: '',
-      postCode: '',
+      // postCode removed
       dob: '',
       contactNumber: ''
     })
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (e.target.files) {
-    const filesArray = Array.from(e.target.files);
-    setImageFiles(filesArray);
+  const handleRefNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, refNo: value });
 
-    // Create previews
-    const previews = filesArray.map(file => URL.createObjectURL(file));
-    setImagePreviews(previews);
-  }
-};
+    if (value && !isNaN(Number(value)) && Number(value) > 0) {
+      setErrors({ ...errors, refNo: '' });
+    } else {
+      setErrors({ ...errors, refNo: 'Ref No must be a valid number greater than 0.' });
+    }
+  };
+
+  const handleReferenceNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, referenceName: value });
+
+    if (value.trim()) {
+      setErrors({ ...errors, referenceName: '' });
+    } else {
+      setErrors({ ...errors, referenceName: 'Reference Name cannot be empty.' });
+    }
+  };
+
+  const validateForm = (): boolean => {
+    let isValid = true;
+
+    if (!formData.refNo || isNaN(Number(formData.refNo)) || Number(formData.refNo) <= 0) {
+      isValid = false;
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        refNo: "Ref No must be a valid number greater than 0.",
+      }));
+    }
+
+    if (!formData.referenceName.trim()) {
+      isValid = false;
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        referenceName: "Reference Name cannot be empty.",
+      }));
+    }
+
+    return isValid;
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setImageFiles(filesArray);
+      const previews = filesArray.map(file => URL.createObjectURL(file));
+      setImagePreviews(previews);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user) return;
+    e.preventDefault();
+    if (!user) return;
 
-  setLoading(true);
+    setLoading(true);
 
-  // If validation fails, turn off loading and exit early
-  if (!validateForm()) {
-    setLoading(false);
-    return;
-  }
+    if (!validateForm()) {
+      setLoading(false);
+      return;
+    }
 
-  try {
-    // Upload images to Firebase Storage and collect their download URLs
-    const imageUrls = await Promise.all(
-      imageFiles.map(async (file) => {
-        const timestamp = Date.now();
-        const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        return getDownloadURL(snapshot.ref);
-      })
-    );
+    try {
+      const imageUrls = await Promise.all(
+        imageFiles.map(async (file) => {
+          const timestamp = Date.now();
+          const storageRef = ref(storage, `accidents/${timestamp}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          return getDownloadURL(snapshot.ref);
+        })
+      );
 
-    // Build the accident claim object to save
-    const accidentData = {
-      ...formData,
-      refNo: Number(formData.refNo),
-      referenceName: formData.referenceName,
-      passengers: formData.passengers.slice(0, passengerCount),
-      witnesses: formData.witnesses.slice(0, witnessCount),
-      images: imageUrls,
-      status: 'reported',
-      submittedBy: user.id,
-      submittedAt: new Date(),
-      updatedAt: new Date(),
-    };
+      const accidentData = {
+        ...formData,
+        refNo: Number(formData.refNo),
+        referenceName: formData.referenceName,
+        passengers: formData.passengers.slice(0, passengerCount),
+        witnesses: formData.witnesses.slice(0, witnessCount),
+        images: imageUrls,
+        status: 'reported',
+        submittedBy: user.id,
+        submittedAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    // Add a new document to the "accidents" collection
-    await addDoc(collection(db, 'accidents'), accidentData);
+      await addDoc(collection(db, 'accidents'), accidentData);
 
-    toast.success('Accident claim submitted successfully');
-    onClose();
-  } catch (error) {
-    console.error('Error submitting claim:', error);
-    toast.error('Failed to submit claim');
-  } finally {
-    setLoading(false);
-  }
-};
-
+      toast.success('Accident claim submitted successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error submitting claim:', error);
+      toast.error('Failed to submit claim');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePassengerChange = (index: number, field: string, value: string) => {
     const newPassengers = [...formData.passengers];
     newPassengers[index] = { ...newPassengers[index], [field]: value };
     setFormData({ ...formData, passengers: newPassengers });
   };
-
-  
-
 
   const handleWitnessChange = (index: number, field: string, value: string) => {
     const newWitnesses = [...formData.witnesses];
@@ -250,81 +232,75 @@ const { vehicles } = useVehicles();
             value={formData.refNo}
             onChange={handleRefNoChange}
             required
-            
           />
-          {/* errorMessage={errors.refNo} */}
           <FormField
             label="Reference Name"
             value={formData.referenceName}
             onChange={handleReferenceNameChange}
             required
-            
           />
         </div>
-        {/* errorMessage={errors.referenceName} */}
       </div>
       
       {/* Driver Details */}
       <div className="space-y-4">
-  <div>
-    <label className="flex items-center space-x-2">
-      <input
-        type="checkbox"
-        checked={manualEntry}
-        onChange={(e) => {
-          setManualEntry(e.target.checked);
-          if (!e.target.checked) {
-            // Clear driver details if switching back to selection
-            setFormData(prev => ({
-              ...prev,
-              driverName: '',
-              driverAddress: '',
-              driverPostCode: '',
-              driverDOB: '',
-              driverPhone: '',
-              driverMobile: '',
-              driverNIN: ''
-            }));
-          }
-        }}
-        className="rounded border-gray-300 text-primary focus:ring-primary"
-      />
-      <span className="text-sm text-gray-700">Enter Driver Details Manually</span>
-    </label>
-  </div>
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={manualEntry}
+              onChange={(e) => {
+                setManualEntry(e.target.checked);
+                if (!e.target.checked) {
+                  setFormData(prev => ({
+                    ...prev,
+                    driverName: '',
+                    driverAddress: '',
+                    // driverPostCode reset removed
+                    driverDOB: '',
+                    driverPhone: '',
+                    driverMobile: '',
+                    driverNIN: ''
+                  }));
+                }
+              }}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-700">Enter Driver Details Manually</span>
+          </label>
+        </div>
 
-  {!manualEntry ? (
-    <SearchableSelect
-      label="Select Customer"
-      options={customers.map(c => ({
-        id: c.id,
-        label: c.name,
-        subLabel: `${c.mobile} - ${c.email}`
-      }))}
-      value={selectedCustomerId}
-      onChange={(id) => {
+        {!manualEntry ? (
+          <SearchableSelect
+            label="Select Customer"
+            options={customers.map(c => ({
+              id: c.id,
+              label: c.name,
+              subLabel: `${c.mobile} - ${c.email}`
+            }))}
+            value={selectedCustomerId}
+            onChange={(id) => {
               const customer = customers.find(c => c.id === id);
               setSelectedCustomer(customer);
-              setDriverDetailsVisible(!!customer); // Show if customer is selected
+              setDriverDetailsVisible(!!customer);
 
               if (customer) {
                 setFormData(prev => ({
                   ...prev,
                   driverName: customer.name,
                   driverAddress: customer.address,
-                  driverPostCode: '', // Leave empty as requested
+                  // driverPostCode setting removed
                   driverDOB: customer.dateOfBirth.toISOString().split('T')[0],
                   driverPhone: customer.mobile,
                   driverMobile: customer.mobile,
                   driverNIN: customer.nationalInsuranceNumber
                 }));
               } else {
-                // Clear and hide if customer is not found
                 setFormData(prev => ({
                   ...prev,
                   driverName: '',
                   driverAddress: '',
-                  driverPostCode: '',
+                  // driverPostCode removed
                   driverDOB: '',
                   driverPhone: '',
                   driverMobile: '',
@@ -333,145 +309,126 @@ const { vehicles } = useVehicles();
                 setDriverDetailsVisible(false);
               }
             }}
-      placeholder="Search customers..."
-    />
-  ) : (
-    // Existing manual entry fields
-      
-    <div className="grid grid-cols-2 gap-4">
-      
-          <FormField
-            label="Name"
-            value={formData.driverName}
-            onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
-            required
+            placeholder="Search customers..."
           />
-          <FormField
-            label="Address"
-            value={formData.driverAddress}
-            onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
-            required
-          />
-          <FormField
-            label="Post Code"
-            value={formData.driverPostCode}
-            onChange={(e) => setFormData({ ...formData, driverPostCode: e.target.value })}
-            required
-          />
-          <FormField
-            type="date"
-            label="Date of Birth"
-            value={formData.driverDOB}
-            onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Telephone Number"
-            value={formData.driverPhone}
-            onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Mobile Number"
-            value={formData.driverMobile}
-            onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
-            required
-          />
-          <FormField
-            label="National Insurance Number"
-            value={formData.driverNIN}
-            onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
-            required
-          />
-        </div>
-      
-      
-  )}
-  {driverDetailsVisible && !manualEntry && ( 
-      <div className="grid grid-cols-2 gap-4">
-      
-          <FormField
-            label="Name"
-            value={formData.driverName}
-            onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
-            required
-          />
-          <FormField
-            label="Address"
-            value={formData.driverAddress}
-            onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
-            required
-          />
-          <FormField
-            label="Post Code"
-            value={formData.driverPostCode}
-            onChange={(e) => setFormData({ ...formData, driverPostCode: e.target.value })}
-            required
-          />
-          <FormField
-            type="date"
-            label="Date of Birth"
-            value={formData.driverDOB}
-            onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Telephone Number"
-            value={formData.driverPhone}
-            onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Mobile Number"
-            value={formData.driverMobile}
-            onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
-            required
-          />
-          <FormField
-            label="National Insurance Number"
-            value={formData.driverNIN}
-            onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
-            required
-          />
-        </div>
-  
-      )}
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Name"
+              value={formData.driverName}
+              onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Address"
+              value={formData.driverAddress}
+              onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
+              required
+            />
+            {/* Post Code Field Removed */}
+            <FormField
+              type="date"
+              label="Date of Birth"
+              value={formData.driverDOB}
+              onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Telephone Number"
+              value={formData.driverPhone}
+              onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Mobile Number"
+              value={formData.driverMobile}
+              onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
+              required
+            />
+            <FormField
+              label="National Insurance Number"
+              value={formData.driverNIN}
+              onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
+              required
+            />
+          </div>
+        )}
         
-</div>
-      
-        
+        {driverDetailsVisible && !manualEntry && ( 
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Name"
+              value={formData.driverName}
+              onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Address"
+              value={formData.driverAddress}
+              onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
+              required
+            />
+            {/* Post Code Field Removed */}
+            <FormField
+              type="date"
+              label="Date of Birth"
+              value={formData.driverDOB}
+              onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Telephone Number"
+              value={formData.driverPhone}
+              onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Mobile Number"
+              value={formData.driverMobile}
+              onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
+              required
+            />
+            <FormField
+              label="National Insurance Number"
+              value={formData.driverNIN}
+              onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
+              required
+            />
+          </div>
+        )}
+      </div>
 
       {/* Vehicle Details */}
       <div className="space-y-4">
-  <div>
-    <label className="flex items-center space-x-2">
-      <input
-        type="checkbox"
-        checked={manualVehicleEntry}
-        onChange={(e) => setManualVehicleEntry(e.target.checked)}
-        className="rounded border-gray-300 text-primary focus:ring-primary"
-      />
-      <span className="text-sm text-gray-700">Enter Vehicle Details Manually</span>
-    </label>
-  </div>
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={manualVehicleEntry}
+              onChange={(e) => setManualVehicleEntry(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-700">Enter Vehicle Details Manually</span>
+          </label>
+        </div>
 
-  {!manualVehicleEntry ? (
-    <SearchableSelect
-      label="Select Vehicle"
-      options={vehicles.map(v => ({
-        id: v.id,
-        label: `${v.make} ${v.model}`,
-        subLabel: v.registrationNumber
-      }))}
-      value={selectedVehicleId}
-      onChange={(id) => {
+        {!manualVehicleEntry ? (
+          <SearchableSelect
+            label="Select Vehicle"
+            options={vehicles.map(v => ({
+              id: v.id,
+              label: `${v.make} ${v.model}`,
+              subLabel: v.registrationNumber
+            }))}
+            value={selectedVehicleId}
+            onChange={(id) => {
               const vehicle = vehicles.find(v => v.id === id);
               setSelectedVehicle(vehicle);
-              setVehicleDetailsVisible(!!vehicle); // Show if vehicle is selected
+              setVehicleDetailsVisible(!!vehicle);
 
               if (vehicle) {
                 setFormData(prev => ({
@@ -483,7 +440,6 @@ const { vehicles } = useVehicles();
                   vehicleVRN: vehicle.registrationNumber
                 }));
               } else {
-                // Clear and hide if vehicle is not found
                 setFormData(prev => ({
                    ...prev,
                   registeredKeeperName: '',
@@ -495,122 +451,111 @@ const { vehicles } = useVehicles();
                 setVehicleDetailsVisible(false);
               }
             }}
-      placeholder="Search vehicles..."
-    />
-  ) : (
-    // Existing manual entry fields
-    <div className="grid grid-cols-2 gap-4">
-     
-          <FormField
-            label="Registered Keeper Name"
-            value={formData.registeredKeeperName}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
-            required
+            placeholder="Search vehicles..."
           />
-          <FormField
-            label="Registered Keeper Address"
-            value={formData.registeredKeeperAddress}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
-          />
-          <FormField
-            label="Vehicle Make"
-            value={formData.vehicleMake}
-            onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle Model"
-            value={formData.vehicleModel}
-            onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle VRN"
-            value={formData.vehicleVRN}
-            onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
-            required
-          />
-          <FormField
-            label="Insurance Company"
-            value={formData.insuranceCompany}
-            onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-            
-          />
-          <FormField
-            label="Policy Number"
-            value={formData.policyNumber}
-            onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-            
-          />
-          <FormField
-            type="number"
-            label="Policy Excess (£)"
-            value={formData.policyExcess}
-            onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
-            min="0"
-            step="0.01"
-          />
-        </div>
-  )}
-        {vehicleDetailsVisible && !manualVehicleEntry && (
-        <div className="grid grid-cols-2 gap-4">
-     
-          <FormField
-            label="Registered Keeper Name"
-            value={formData.registeredKeeperName}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
-            required
-          />
-          <FormField
-            label="Registered Keeper Address"
-            value={formData.registeredKeeperAddress}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
-          />
-          <FormField
-            label="Vehicle Make"
-            value={formData.vehicleMake}
-            onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle Model"
-            value={formData.vehicleModel}
-            onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle VRN"
-            value={formData.vehicleVRN}
-            onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
-            required
-          />
-          <FormField
-            label="Insurance Company"
-            value={formData.insuranceCompany}
-            onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-            
-          />
-          <FormField
-            label="Policy Number"
-            value={formData.policyNumber}
-            onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-            
-          />
-          <FormField
-            type="number"
-            label="Policy Excess (£)"
-            value={formData.policyExcess}
-            onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
-            min="0"
-            step="0.01"
-          />
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Registered Keeper Name"
+              value={formData.registeredKeeperName}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Registered Keeper Address"
+              value={formData.registeredKeeperAddress}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
+            />
+            <FormField
+              label="Vehicle Make"
+              value={formData.vehicleMake}
+              onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle Model"
+              value={formData.vehicleModel}
+              onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle VRN"
+              value={formData.vehicleVRN}
+              onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
+              required
+            />
+            <FormField
+              label="Insurance Company"
+              value={formData.insuranceCompany}
+              onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
+            />
+            <FormField
+              label="Policy Number"
+              value={formData.policyNumber}
+              onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
+            />
+            <FormField
+              type="number"
+              label="Policy Excess (£)"
+              value={formData.policyExcess}
+              onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
+              min="0"
+              step="0.01"
+            />
+          </div>
         )}
-</div>
-      
-     
-        
-      
+        {vehicleDetailsVisible && !manualVehicleEntry && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Registered Keeper Name"
+              value={formData.registeredKeeperName}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Registered Keeper Address"
+              value={formData.registeredKeeperAddress}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
+            />
+            <FormField
+              label="Vehicle Make"
+              value={formData.vehicleMake}
+              onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle Model"
+              value={formData.vehicleModel}
+              onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle VRN"
+              value={formData.vehicleVRN}
+              onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
+              required
+            />
+            <FormField
+              label="Insurance Company"
+              value={formData.insuranceCompany}
+              onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
+            />
+            <FormField
+              label="Policy Number"
+              value={formData.policyNumber}
+              onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
+            />
+            <FormField
+              type="number"
+              label="Policy Excess (£)"
+              value={formData.policyExcess}
+              onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
+              min="0"
+              step="0.01"
+            />
+          </div>
+        )}
+      </div>
 
       {/* Fault Party Details */}
       <div className="space-y-4">
@@ -627,11 +572,7 @@ const { vehicles } = useVehicles();
             value={formData.faultPartyAddress}
             onChange={(e) => setFormData({ ...formData, faultPartyAddress: e.target.value })}
           />
-          <FormField
-            label="Post Code"
-            value={formData.faultPartyPostCode}
-            onChange={(e) => setFormData({ ...formData, faultPartyPostCode: e.target.value })}
-          />
+          {/* Post Code Field Removed */}
           <FormField
             type="tel"
             label="Phone Number"
@@ -731,11 +672,7 @@ const { vehicles } = useVehicles();
                 value={formData.passengers[index].address}
                 onChange={(e) => handlePassengerChange(index, 'address', e.target.value)}
               />
-              <FormField
-                label="Post Code"
-                value={formData.passengers[index].postCode}
-                onChange={(e) => handlePassengerChange(index, 'postCode', e.target.value)}
-              />
+              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -782,11 +719,7 @@ const { vehicles } = useVehicles();
                 value={formData.witnesses[index].address}
                 onChange={(e) => handleWitnessChange(index, 'address', e.target.value)}
               />
-              <FormField
-                label="Post Code"
-                value={formData.witnesses[index].postCode}
-                onChange={(e) => handleWitnessChange(index, 'postCode', e.target.value)}
-              />
+              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -859,35 +792,32 @@ const { vehicles } = useVehicles();
           />
         </div>
       </div>
+      
       {/* Image preview section */}
-
-  {imagePreviews.map((preview, index) => (
-    <div key={index} className="relative w-24 h-24">
-      <img
-        src={preview}
-        alt={`Selected ${index}`}
-        className="w-full h-full object-cover rounded-md"
-      />
-      <button
-        type="button"
-        onClick={() => {
-          setImageFiles(prev => prev.filter((_, i) => i !== index));
-          setImagePreviews(prev => prev.filter((_, i) => i !== index));
-        }}
-        className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-      >
-        <X className="h-4 w-4 text-red-600" />
-      </button>
-    </div>
-  ))}
-
+      {imagePreviews.map((preview, index) => (
+        <div key={index} className="relative w-24 h-24">
+          <img
+            src={preview}
+            alt={`Selected ${index}`}
+            className="w-full h-full object-cover rounded-md"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setImageFiles(prev => prev.filter((_, i) => i !== index));
+              setImagePreviews(prev => prev.filter((_, i) => i !== index));
+            }}
+            className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+          >
+            <X className="h-4 w-4 text-red-600" />
+          </button>
+        </div>
+      ))}
 
       {/* Images */}
       <div>
-        
         <label className="block text-sm font-medium text-gray-700">Images</label>
         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          
           <div className="space-y-1 text-center">
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
             <div className="flex text-sm text-gray-600">
@@ -901,7 +831,6 @@ const { vehicles } = useVehicles();
                 className="hidden"
                 id="fileInput"
               />
-
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
@@ -931,5 +860,3 @@ const { vehicles } = useVehicles();
 };
 
 export default AccidentClaimForm;
-
-

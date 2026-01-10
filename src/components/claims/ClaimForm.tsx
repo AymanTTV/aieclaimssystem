@@ -9,6 +9,8 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { claimFormSchema, type ClaimFormData } from './ClaimForm/schema';
 import RegisterKeeperDetails from './ClaimForm/sections/RegisterKeeperDetails';
+// Import generator
+import { generateClaimProgressDocument } from '../../utils/documentGenerator';
 
 // Import all other sections
 import SubmitterDetails from './ClaimForm/sections/SubmitterDetails';
@@ -204,6 +206,12 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         adminDocuments: await uploadAllFiles(data.evidence.adminDocuments.filter(f=>f instanceof File) as File[], 'claims/admin-documents')
       };
 
+      // --- FIX: Normalize Dates to Minute Precision ---
+      // This prevents the initial claim (with seconds) from appearing "newer"
+      // than a manual update made in the same minute (00 seconds).
+      const now = new Date();
+      now.setSeconds(0, 0); 
+
       const claimPayload: any = {
         ...data,
         clientVehicle: {
@@ -223,14 +231,14 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         storage: showStorageDetails && data.storage?.enabled ? { ...data.storage, enabled:true } : null,
         recovery: data.recovery?.enabled ? { ...data.recovery, enabled:true } : null,
         createdBy: user.id,
-        submittedAt: new Date(),
-        updatedAt: new Date(),
+        submittedAt: now, // Use normalized time
+        updatedAt: now,   // Use normalized time
         progressHistory: [{
           id: Date.now().toString(),
-          date: new Date(),
+          date: now,      // Use normalized time
           note: 'Claim submitted',
           author: user.name,
-          status: 'submitted'
+          status: 'Your Claim Has Started' // Match the exact string in PROGRESS_OPTIONS
         }]
       };
 
@@ -244,7 +252,18 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         claimPayload.registerKeeper = null;
       }
 
-      await addDoc(collection(db, 'claims'), claimPayload);
+      // 1. Create the Claim Document
+      const docRef = await addDoc(collection(db, 'claims'), claimPayload);
+      
+      // 2. Generate Initial Progress Document immediately
+      const newClaimData = { id: docRef.id, ...claimPayload };
+      
+      try {
+        await generateClaimProgressDocument(newClaimData);
+      } catch (genError) {
+        console.error("Failed to generate initial progress document:", genError);
+      }
+
       toast.success('Claim submitted successfully');
       onClose();
     } catch (err: any) {
