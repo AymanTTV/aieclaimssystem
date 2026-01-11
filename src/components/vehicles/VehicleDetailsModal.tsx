@@ -125,6 +125,11 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
   const createdAt = useMemo(() => toDate(vehicle.createdAt), [vehicle.createdAt]);
   const soldDate = useMemo(() => toDate(vehicle.soldDate), [vehicle.soldDate]);
 
+  const money3 = (n: unknown) =>
+  typeof n === 'number'
+    ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+    : '-';
+
   // Prefer saved motExpiry if present; else compute 6 months from motTestDate
   const motExpiry = useMemo(() => {
     if (motExpirySaved) return motExpirySaved;
@@ -229,6 +234,60 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             isExpiring={isExpiringOrExpired(nextMaintenance)}
           />
         </div>
+
+        <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
+  <DetailItem
+    label="Weekly Rate"
+    value={
+      typeof vehicle.weeklyRentalPrice === 'number'
+        ? `£${money3(vehicle.weeklyRentalPrice)}`
+        : '-'
+    }
+  />
+  <DetailItem
+    label="Weekly Insurance"
+    value={
+      typeof (vehicle as any).weeklyInsuranceAmount === 'number'
+        ? `£${money3((vehicle as any).weeklyInsuranceAmount)}`
+        : '-'
+    }
+  />
+
+  <DetailItem
+    label="Daily Rate"
+    value={
+      typeof vehicle.dailyRentalPrice === 'number'
+        ? `£${money3(vehicle.dailyRentalPrice)}`
+        : '-'
+    }
+  />
+  <DetailItem
+    label="Daily Insurance"
+    value={
+      typeof (vehicle as any).dailyInsuranceAmount === 'number'
+        ? `£${money3((vehicle as any).dailyInsuranceAmount)}`
+        : '-'
+    }
+  />
+
+  <DetailItem
+    label="Claim Rate"
+    value={
+      typeof vehicle.claimRentalPrice === 'number'
+        ? `£${money3(vehicle.claimRentalPrice)}`
+        : '-'
+    }
+  />
+  <DetailItem
+    label="Claim Insurance"
+    value={
+      typeof (vehicle as any).claimInsuranceAmount === 'number'
+        ? `£${money3((vehicle as any).claimInsuranceAmount)}`
+        : '-'
+    }
+  />
+</div>
+
 
         {/* UPDATED: Mileage Updates History Section */}
         <div className="border-b border-gray-200 pb-4">

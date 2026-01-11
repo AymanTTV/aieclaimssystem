@@ -61,6 +61,11 @@ export interface Vehicle {
   dailyRentalPrice: number;
   claimRentalPrice: number;
 
+  // NEW: Rental insurance amounts
+  weeklyInsuranceAmount?: number;
+  dailyInsuranceAmount?: number;
+  claimInsuranceAmount?: number;
+
   // Ownership
   owner?: VehicleOwner;
 
@@ -87,6 +92,13 @@ export const DEFAULT_RENTAL_PRICES = {
   weekly: 360,
   daily: 60,
   claim: 340,
+} as const;
+
+// Defaults (insurance amounts)
+export const DEFAULT_INSURANCE_AMOUNTS = {
+  weekly: 0,
+  daily: 0,
+  claim: 0,
 } as const;
 
 export const DEFAULT_OWNER_ADDRESS = '39-41 North Road, London, N7 9DP';

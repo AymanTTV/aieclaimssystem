@@ -84,6 +84,12 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     return aEarliestExpiry - bEarliestExpiry;
   });
 
+  // Put this helper somewhere in the file (top-level)
+const money3 = (n: unknown) =>
+  typeof n === 'number'
+    ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+    : '-';
+
   const columns = [
     {
       header: 'Vehicle',
@@ -164,15 +170,37 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     },
 
     {
-      header: 'Rental Rates',
-      cell: ({ row }: any) => (
-        <div className="space-y-1 text-sm">
-          <div>Weekly: £{Math.round(row.original.weeklyRentalPrice)}</div>
-          <div>Daily: £{Math.round(row.original.dailyRentalPrice)}</div>
-          <div>Claim: £{Math.round(row.original.claimRentalPrice)}</div>
+  header: 'Rental Rates',
+  cell: ({ row }: any) => {
+    const v = row.original;
+
+    return (
+      <div className="space-y-1 text-sm">
+        <div>
+          Weekly: £{money3(v.weeklyRentalPrice)}
+          {typeof v.weeklyInsuranceAmount === 'number' && (
+            <> <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span></>
+          )}
         </div>
-      ),
-    },
+
+        <div>
+          Daily: £{money3(v.dailyRentalPrice)}
+          {typeof v.dailyInsuranceAmount === 'number' && (
+            <> <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span></>
+          )}
+        </div>
+
+        <div>
+          Claim: £{money3(v.claimRentalPrice)}
+          {typeof v.claimInsuranceAmount === 'number' && (
+            <> <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span></>
+          )}
+        </div>
+      </div>
+    );
+  },
+},
+
     {
       header: 'Vehicle Documents',
       cell: ({ row }: any) => {
