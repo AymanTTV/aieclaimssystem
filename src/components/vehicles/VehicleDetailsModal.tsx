@@ -9,6 +9,7 @@ import {
   User,
   MapPin,
   Calendar,
+  Wallet // Added Wallet icon
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -343,16 +344,28 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
         <div className="border-b border-gray-200 pb-4">
           <div className="flex items-start space-x-3">
             <User className="w-5 h-5 text-gray-400 mt-1" />
-            <div>
+            <div className="flex-1">
               <h3 className="text-lg font-medium text-gray-900">Owner Information</h3>
               <p className="text-gray-900 font-medium mt-2">
                 {vehicle.owner?.name || 'AIE Skyline'}
               </p>
+              
+              {/* Owner Address */}
               {vehicle.owner?.address && !vehicle.owner?.isDefault && (
                 <div className="flex items-center mt-1 text-gray-500">
                   <MapPin className="w-4 h-4 mr-1" />
                   {vehicle.owner.address}
                 </div>
+              )}
+              
+              {/* NEW: Finance Account Display */}
+              {vehicle.owner?.accountName && (
+                 <div className="flex items-center mt-2 text-indigo-600 bg-indigo-50 p-2 rounded-md w-fit">
+                    <Wallet className="w-4 h-4 mr-2" />
+                    <span className="text-sm font-medium">
+                       Linked Account: {vehicle.owner.accountName}
+                    </span>
+                 </div>
               )}
             </div>
           </div>

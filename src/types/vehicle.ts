@@ -14,6 +14,9 @@ export interface VehicleOwner {
   name: string;
   address: string;
   isDefault?: boolean;
+  // NEW: Link to Finance Account
+  accountId?: string;
+  accountName?: string;
 }
 
 export interface VehicleDocuments {

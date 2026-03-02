@@ -1,5 +1,4 @@
 // src/components/auth/ForgotPassword.tsx
-
 import React, { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { passwordResetSettings } from '../../lib/firebase/config';
@@ -73,9 +72,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <div className="rounded-md shadow-sm -space-y-px">
             <div className="relative">
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
+              <label htmlFor="email" className="sr-only">Email address</label>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-400" />
               </div>
@@ -99,11 +96,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
                 loading ? 'bg-gray-400' : 'bg-primary hover:bg-primary-600'
               } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors`}
             >
-              {loading ? (
-                <Loader className="animate-spin h-5 w-5" />
-              ) : (
-                'Send Reset Link'
-              )}
+              {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Send Reset Link'}
             </button>
           </div>
         </form>
@@ -118,6 +111,18 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
               Sign in
             </button>
           </p>
+        </div>
+
+        {/* Privacy Policy Link */}
+        <div className="mt-6 text-center text-sm">
+          <a 
+            href="https://www.aieskyline.co.uk/privacy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-gray-500 hover:text-primary transition-colors"
+          >
+            Read our Privacy Policy
+          </a>
         </div>
       </div>
     </div>

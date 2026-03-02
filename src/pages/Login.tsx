@@ -16,39 +16,35 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
 
-    if (!userDoc.exists()) {
-      toast.error('User profile not found');
-      await auth.signOut();
-      return;
+      if (!userDoc.exists()) {
+        toast.error('User profile not found');
+        await auth.signOut();
+        return;
+      }
+
+      const { role } = userDoc.data() as any;
+
+      if (role === 'member') {
+        await auth.signOut();
+        toast.error('Please sign in via the Member Portal.');
+        return navigate('/members/login', { replace: true });
+      }
+
+      toast.success('Welcome back!');
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast.error('Invalid email or password');
+    } finally {
+      setLoading(false);
     }
-
-    const { role } = userDoc.data() as any;
-
-    // HARD STOP: members cannot use the admin login
-    if (role === 'member') {
-      await auth.signOut();
-      toast.error('Please sign in via the Member Portal.');
-      // optional: guide them directly
-      return navigate('/members/login', { replace: true });
-    }
-
-    // Non-member → proceed to admin
-    toast.success('Welcome back!');
-    navigate('/', { replace: true });
-  } catch (error: any) {
-    console.error('Login error:', error);
-    toast.error('Invalid email or password');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   if (showForgotPassword) {
     return (
@@ -80,9 +76,7 @@ const Login: React.FC = () => {
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="rounded-md shadow-sm space-y-4">
               <div>
-                <label htmlFor="email-address" className="sr-only">
-                  Email address
-                </label>
+                <label htmlFor="email-address" className="sr-only">Email address</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-gray-400" />
@@ -102,9 +96,7 @@ const Login: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="password" className="sr-only">
-                  Password
-                </label>
+                <label htmlFor="password" className="sr-only">Password</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-gray-400" />
@@ -144,11 +136,7 @@ const Login: React.FC = () => {
                   loading ? 'bg-gray-400' : 'bg-primary hover:bg-primary-600'
                 } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors`}
               >
-                {loading ? (
-                  <Loader className="animate-spin h-5 w-5" />
-                ) : (
-                  'Sign in'
-                )}
+                {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Sign in'}
               </button>
             </div>
           </form>
@@ -160,6 +148,18 @@ const Login: React.FC = () => {
                 Go to Members Portal
               </button>
             </Link>
+          </div>
+
+          {/* Privacy Policy Link */}
+          <div className="mt-6 text-center text-sm">
+            <a 
+              href="https://www.aieskyline.co.uk/privacy" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-gray-500 hover:text-primary transition-colors"
+            >
+              Read our Privacy Policy
+            </a>
           </div>
         </div>
       </div>

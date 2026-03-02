@@ -1,3 +1,4 @@
+// src/components/vehicles/VehicleTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
@@ -40,10 +41,10 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     const countExpiringDocs = (vehicle: Vehicle) => {
       let count = 0;
 
-      if (vehicle.motExpiry < now) count += 10;
-      if (vehicle.insuranceExpiry < now) count += 10;
-      if (vehicle.nslExpiry < now) count += 10;
-      if (vehicle.roadTaxExpiry < now) count += 10;
+      if (vehicle.motExpiry && new Date(vehicle.motExpiry) < now) count += 10;
+      if (vehicle.insuranceExpiry && new Date(vehicle.insuranceExpiry) < now) count += 10;
+      if (vehicle.nslExpiry && new Date(vehicle.nslExpiry) < now) count += 10;
+      if (vehicle.roadTaxExpiry && new Date(vehicle.roadTaxExpiry) < now) count += 10;
 
       const aMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
       const aNextServiceMileage =
@@ -52,10 +53,17 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       if (aMileage >= aNextServiceMileage) count += 15;
       if (aMileage < aNextServiceMileage && aNextServiceMileage - aMileage <= 1000) count += 7;
 
-      if (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) count += 5;
-      if (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) count += 5;
-      if (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry >= now) count += 5;
-      if (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry >= now) count += 5;
+      // Check expiring soon
+      const checkSoon = (d: Date | null | undefined) => {
+         if (!d) return false;
+         const dt = new Date(d);
+         return dt <= thirtyDays && dt >= now;
+      };
+
+      if (checkSoon(vehicle.motExpiry)) count += 5;
+      if (checkSoon(vehicle.insuranceExpiry)) count += 5;
+      if (checkSoon(vehicle.nslExpiry)) count += 5;
+      if (checkSoon(vehicle.roadTaxExpiry)) count += 5;
 
       return count;
     };
@@ -67,28 +75,13 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       return bCount - aCount;
     }
 
-    const aEarliestExpiry = Math.min(
-      new Date(a.motExpiry).getTime(),
-      new Date(a.insuranceExpiry).getTime(),
-      new Date(a.nslExpiry).getTime(),
-      new Date(a.roadTaxExpiry).getTime()
-    );
-
-    const bEarliestExpiry = Math.min(
-      new Date(b.motExpiry).getTime(),
-      new Date(b.insuranceExpiry).getTime(),
-      new Date(b.nslExpiry).getTime(),
-      new Date(b.roadTaxExpiry).getTime()
-    );
-
-    return aEarliestExpiry - bEarliestExpiry;
+    return (a.make || '').localeCompare(b.make || '');
   });
 
-  // Put this helper somewhere in the file (top-level)
-const money3 = (n: unknown) =>
-  typeof n === 'number'
-    ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-    : '-';
+  const money3 = (n: unknown) =>
+    typeof n === 'number'
+      ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+      : '-';
 
   const columns = [
     {
@@ -107,6 +100,10 @@ const money3 = (n: unknown) =>
             </div>
           )}
           <div>
+            {/* UPDATED: Show Assigned Account Name */}
+            <div className={`text-xs font-semibold mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-gray-400 italic'}`}>
+                {row.original.owner?.accountName || 'No Account Assigned'}
+            </div>
             <div className="font-medium">
               {row.original.make} {row.original.model}
             </div>
@@ -116,7 +113,7 @@ const money3 = (n: unknown) =>
       ),
     },
 
-    // Owner column wrapped by 'vehicles.owner' permission
+    // Owner column (kept for explicit ownership details if permission allows)
     can('vehicles', 'owner') && {
       header: 'Owner',
       cell: ({ row }: any) => (
@@ -170,36 +167,33 @@ const money3 = (n: unknown) =>
     },
 
     {
-  header: 'Rental Rates',
-  cell: ({ row }: any) => {
-    const v = row.original;
-
-    return (
-      <div className="space-y-1 text-sm">
-        <div>
-          Weekly: £{money3(v.weeklyRentalPrice)}
-          {typeof v.weeklyInsuranceAmount === 'number' && (
-            <> <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span></>
-          )}
-        </div>
-
-        <div>
-          Daily: £{money3(v.dailyRentalPrice)}
-          {typeof v.dailyInsuranceAmount === 'number' && (
-            <> <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span></>
-          )}
-        </div>
-
-        <div>
-          Claim: £{money3(v.claimRentalPrice)}
-          {typeof v.claimInsuranceAmount === 'number' && (
-            <> <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span></>
-          )}
-        </div>
-      </div>
-    );
-  },
-},
+      header: 'Rental Rates',
+      cell: ({ row }: any) => {
+        const v = row.original;
+        return (
+          <div className="space-y-1 text-sm">
+            <div>
+              Weekly: £{money3(v.weeklyRentalPrice)}
+              {typeof v.weeklyInsuranceAmount === 'number' && (
+                <> <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span></>
+              )}
+            </div>
+            <div>
+              Daily: £{money3(v.dailyRentalPrice)}
+              {typeof v.dailyInsuranceAmount === 'number' && (
+                <> <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span></>
+              )}
+            </div>
+            <div>
+              Claim: £{money3(v.claimRentalPrice)}
+              {typeof v.claimInsuranceAmount === 'number' && (
+                <> <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span></>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
 
     {
       header: 'Vehicle Documents',
@@ -229,7 +223,7 @@ const money3 = (n: unknown) =>
       },
     },
     {
-      header: 'Mileage & Maintenance', // Renamed Header
+      header: 'Mileage & Maintenance',
       cell: ({ row }: any) => {
         const vehicle = row.original;
         const currentMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
@@ -259,7 +253,6 @@ const money3 = (n: unknown) =>
             </div>
             <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
             
-            {/* Added Last and Next Maintenance Dates */}
             <div className="pt-2 mt-1 border-t border-gray-100 text-xs">
                <div className="text-gray-600">Last Maint: {formatDate(vehicle.lastMaintenance)}</div>
                <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>
@@ -388,20 +381,23 @@ const money3 = (n: unknown) =>
         if (isServiceOverdue(vehicle)) return 'bg-red-100';
         if (isServiceDueSoon(vehicle)) return 'bg-yellow-100';
 
+        const checkExp = (d?: Date | null) => d && new Date(d) < now;
+        const checkSoon = (d?: Date | null) => d && new Date(d) <= thirtyDays && new Date(d) >= now;
+
         if (
-          vehicle.motExpiry < now ||
-          vehicle.insuranceExpiry < now ||
-          vehicle.nslExpiry < now ||
-          vehicle.roadTaxExpiry < now
+          checkExp(vehicle.motExpiry) ||
+          checkExp(vehicle.insuranceExpiry) ||
+          checkExp(vehicle.nslExpiry) ||
+          checkExp(vehicle.roadTaxExpiry)
         ) {
           return 'bg-red-50';
         }
 
         if (
-          (vehicle.motExpiry <= thirtyDays && vehicle.motExpiry >= now) ||
-          (vehicle.insuranceExpiry <= thirtyDays && vehicle.insuranceExpiry >= now) ||
-          (vehicle.nslExpiry <= thirtyDays && vehicle.nslExpiry >= now) ||
-          (vehicle.roadTaxExpiry <= thirtyDays && vehicle.roadTaxExpiry >= now)
+          checkSoon(vehicle.motExpiry) ||
+          checkSoon(vehicle.insuranceExpiry) ||
+          checkSoon(vehicle.nslExpiry) ||
+          checkSoon(vehicle.roadTaxExpiry)
         ) {
           return 'bg-yellow-50';
         }

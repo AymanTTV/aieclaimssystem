@@ -17,11 +17,19 @@ export interface Customer {
   accountNumber?: string;
   vatNumber?: string;
 
+  // Add this new field:
+  signatureRequestToken?: string;
+
   // Optional fields not applicable to 'company' type
   gender?: Gender;
   dateOfBirth?: Date;
   nationalInsuranceNumber?: string;
+  
+  // License Details
   driverLicenseNumber?: string;
+  issueNumber?: string; // [NEW]
+  countryOfIssue?: string; // [NEW]
+  
   licenseValidFrom?: Date;
   licenseExpiry?: Date;
   badgeNumber?: string;

@@ -1,8 +1,9 @@
 // src/pages/WhatsappCommunication.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { format, addDays } from 'date-fns';
-import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet } from 'lucide-react'; 
+import { format, addDays, isAfter } from 'date-fns';
+import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
+import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
 import {
   collection,
   query,
@@ -14,7 +15,8 @@ import {
   orderBy,
   limit as fbLimit,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import { useCustomers } from '../hooks/useCustomers';
@@ -219,6 +221,10 @@ export default function WhatsappCommunication() {
   // Preview modal
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  // ── Attachments State
+  const [selectedRentalDocs, setSelectedRentalDocs] = useState<{name: string, url: string}[]>([]);
+  const [customFiles, setCustomFiles] = useState<File[]>([]);
+
   // ── Data hooks
   const { customers } = useCustomers();
   const { vehicles } = useVehicles();
@@ -242,11 +248,8 @@ export default function WhatsappCommunication() {
 
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
 
-  // On-demand claim options + docs cache
-  const [claimOptionsByRecipient, setClaimOptionsByRecipient] =
-    useState<Record<string, { id: string; label: string }[]>>({});
-  const [claimDocById, setClaimDocById] =
-    useState<Record<string, any>>({});
+  // On-demand claim docs cache
+  const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
 
   // Templates for selected type
   const templates = emailTemplates[emailType] || [];
@@ -261,36 +264,39 @@ export default function WhatsappCommunication() {
     }
   }, [emailType]);
 
-  // ── ON-DEMAND CLAIM LOADING (LEGAL HANDLER) ─────────────────────
-  async function loadClaimsForLegalHandler(handlerId: string) {
-    const lh = legalHandlers.find(h => h.id === handlerId);
-    if (!lh) { setClaimOptionsByRecipient(p => ({ ...p, [handlerId]: [] })); return; }
-    
-    // Quick simplified fetch for brevity in this response, 
-    // ensuring the file isn't truncated. Real app should use the robust multi-query.
-    const q = query(collection(db, 'claims'), where('legalHandler.id', '==', handlerId), fbLimit(50));
-    const snap = await getDocs(q);
-    const opts = snap.docs.map(d => toClaimOption({ id: d.id, ...d.data() }));
-    setClaimOptionsByRecipient(prev => ({ ...prev, [handlerId]: opts }));
-    setClaimDocById(prev => {
-        const next = { ...prev };
-        snap.docs.forEach(d => { next[d.id] = { id: d.id, ...d.data() }; });
-        return next;
-    });
-  }
+  // Clear attachments when context changes
+  useEffect(() => {
+    setSelectedRentalDocs([]);
+    setCustomFiles([]);
+  }, [selectedRecordId, emailType]);
 
-  // ── ON-DEMAND CLAIM LOADING (CUSTOMER) ──────────────────────────
-  async function loadClaimsForCustomer(customerId: string) {
-    const q = query(collection(db, 'claims'), where('customerId', '==', customerId), fbLimit(50));
-    const snap = await getDocs(q);
-    const opts = snap.docs.map(d => toClaimOption({ id: d.id, ...d.data() }));
-    setClaimOptionsByRecipient(prev => ({ ...prev, [customerId]: opts }));
-    setClaimDocById(prev => {
-        const next = { ...prev };
-        snap.docs.forEach(d => { next[d.id] = { id: d.id, ...d.data() }; });
-        return next;
-    });
-  }
+  // Determine available rental docs for the selected rental
+  const availableRentalDocs = useMemo(() => {
+    if (emailType !== 'rental' || !selectedRecordId) return [];
+    const r = rentals.find(x => x.id === selectedRecordId);
+    if (!r || !r.documents) return [];
+
+    const docs: { name: string; url: string }[] = [];
+    if (r.documents.invoice) docs.push({ name: 'Invoice.pdf', url: r.documents.invoice });
+    if (r.documents.permit) docs.push({ name: 'Parking_Permit.pdf', url: r.documents.permit });
+    
+    if (r.documents.agreements) {
+      const keys = Object.keys(r.documents.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
+      const latest = keys.pop();
+      if (latest) {
+        docs.push({ name: 'Rental_Agreement.pdf', url: r.documents.agreements[latest] });
+      }
+    }
+    return docs;
+  }, [emailType, selectedRecordId, rentals]);
+
+  const toggleRentalDoc = (doc: {name: string, url: string}) => {
+    setSelectedRentalDocs(prev => 
+      prev.some(d => d.url === doc.url) 
+        ? prev.filter(d => d.url !== doc.url)
+        : [...prev, doc]
+    );
+  };
 
   // recipients (null-safe)
   const filteredRecipients = useMemo(() => {
@@ -330,7 +336,8 @@ export default function WhatsappCommunication() {
             const manualPhone = getInvoiceManualPhone(inv);
             if (hasSavedCustomer || !manualName || !manualPhone) return null;
             const id = `invoice:${inv.id}`; 
-            const label = [`INV-${String(inv.id || '').slice(-8).toUpperCase()}`, manualName, manualPhone].filter(Boolean).join(' • ');
+            const invNo = inv.invoiceNumber || `INV-${String(inv.id || '').slice(-8).toUpperCase()}`;
+            const label = [invNo, manualName, manualPhone].filter(Boolean).join(' • ');
             return { id, name: manualName, email: '', phone: manualPhone, type: 'invoiceManual' as const, _label: label };
         }).filter(Boolean as any);
 
@@ -368,34 +375,6 @@ export default function WhatsappCommunication() {
 
   }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, isManager, accounts, vehicles, transactions]);
 
-  useEffect(() => {
-    if (emailType !== 'claim') return;
-    const rid = selectedRecipients[0];
-    if (!rid) return;
-
-    const isHandler = legalHandlers.some(h => h.id === rid);
-    if (isHandler) {
-      if (!claimOptionsByRecipient[rid]) loadClaimsForLegalHandler(rid);
-      return;
-    }
-
-    const isCustomer = customers.some(c => c.id === rid);
-    if (isCustomer) {
-      if (!claimOptionsByRecipient[rid]) loadClaimsForCustomer(rid);
-      return;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emailType, selectedRecipients, legalHandlers, customers]);
-
-  // Claim option label builder
-  const toClaimOption = (c: any): { id: string; label: string } => {
-    const ref = (c.claimId?.toUpperCase?.() || (c.id || '').slice(-8).toUpperCase());
-    const clientReg = c.clientVehicle?.registration || c.vehicle?.registration || '';
-    const clientName = c.clientInfo?.name || c.submitter?.fullName || c.driver?.fullName || '';
-    const date = safeFmt(c.dateOfEvent ?? c.incidentDetails?.date);
-    return { id: c.id, label: [ref, clientReg, clientName, date].filter(Boolean).join(' • ') };
-  };
-
   // Related records provider (all labels use safeFmt now)
   function getRelatedRecords(recipientId: string) {
     switch (emailType) {
@@ -428,11 +407,15 @@ export default function WhatsappCommunication() {
           const invId = recipientId.split(':')[1];
           const inv = invoices.find(i => i.id === invId);
           if (!inv) return [];
-          return [{ id: inv.id, label: `INV-${inv.id.slice(-8).toUpperCase()} (${safeFmt(inv.date, 'dd/MM/yyyy')})` }];
+          const invNo = inv.invoiceNumber || `INV-${inv.id.slice(-8).toUpperCase()}`;
+          return [{ id: inv.id, label: `${invNo} (${safeFmt(inv.date, 'dd/MM/yyyy')})` }];
         }
         return invoices
           .filter(inv => inv.customerId === recipientId)
-          .map(inv => ({ id: inv.id, label: `INV-${inv.id.slice(-8).toUpperCase()} (${safeFmt(inv.date, 'dd/MM/yyyy')})` }));
+          .map(inv => {
+            const invNo = inv.invoiceNumber || `INV-${inv.id.slice(-8).toUpperCase()}`;
+            return { id: inv.id, label: `${invNo} (${safeFmt(inv.date, 'dd/MM/yyyy')})` };
+          });
       }
 
       case 'finance': {
@@ -457,11 +440,19 @@ export default function WhatsappCommunication() {
       }
 
       case 'claim': {
-        const isCustomer = customers.some(c => c.id === recipientId);
-        if (isCustomer) {
-          return claimOptionsByRecipient[recipientId] || [];
-        }
-        return claimOptionsByRecipient[recipientId] || [];
+        // Direct local filtering of claims (Fixes the empty dropdown bug)
+        return claims.filter(c => 
+            c.customerId === recipientId || 
+            c.clientId === recipientId || 
+            c.client?.id === recipientId || 
+            c.clientInfo?.customerId === recipientId || 
+            c.fileHandlers?.legalHandler?.id === recipientId || 
+            c.fileHandlers?.aieHandler === recipientId
+          ).map(c => {
+            const ref = c.claimId || c.id.slice(-8).toUpperCase();
+            const reg = c.clientVehicle?.registration || c.vehicle?.registration || 'N/A';
+            return { id: c.id, label: `${ref} • ${reg} • ${safeFmt(c.dateOfEvent)}` };
+          });
       }
 
       default:
@@ -500,7 +491,7 @@ export default function WhatsappCommunication() {
     const alias: Record<string, string> = {};
 
     // Vehicle Reg aliases
-    const reg = ctx['Vehicle Registration Number'] || ctx['Client Registration'] || ctx['TP Registration'];
+    const reg = ctx['Vehicle Registration Number'] || ctx['Client Registration'] || ctx['TP Registration'] || ctx['Vehicle Reg'];
     if (reg) {
       alias['Insert Reg No.'] = reg;
       alias['Vehicle Reg'] = reg;
@@ -527,6 +518,7 @@ export default function WhatsappCommunication() {
       alias['Customer Name'] = cn;
       alias["Driver's Name"] = cn;
       alias['Driver Name'] = cn;
+      alias['Client Name'] = cn;
     }
 
     // Agreement Ref aliases
@@ -543,6 +535,7 @@ export default function WhatsappCommunication() {
     if (ctx['Claim Reference']) {
       alias['Insert Claim Reference'] = ctx['Claim Reference'];
       alias['Claim Ref'] = ctx['Claim Reference'];
+      alias['Claim Number'] = ctx['Claim Reference'];
     }
 
     // Description alias (claims)
@@ -610,18 +603,15 @@ export default function WhatsappCommunication() {
   }
 
   function normalizeWhatsAppSignature(body: string): string {
-    const sigRegex =
-      /(?:(?:Kind|Best) regards,?\s*|AIE (?:Skyline Limited|Claims Ltd))[\s\S]*?(?:www\.aieskyline\.co\.uk|www\.aieclaims\.co\.uk|AIE Skyline Admin Team|Admin Team\s*– AIE Skyline Limited|Claims Team\s*AIE Claims Ltd|admin@aieskyline\.co\.uk|claims@aieskyline\.co\.uk)/gi;
-
-    const matches = [...body.matchAll(sigRegex)];
-    if (!matches.length) return body;
-
-    const preferred =
-      matches.map(m => m[0]).find(block => /^Best regards/i.test(block)) ??
-      matches[matches.length - 1][0];
-
-    let stripped = body.replace(sigRegex, '').trim();
-    const result = `${stripped}\n\n${preferred}`.replace(/\n{3,}/g, '\n\n');
+    let result = body;
+    
+    // ✅ ONLY remove the website URLs so WhatsApp doesn't create the Link Preview bubble.
+    // The rest of the signature (Best regards, Company Name, Address, Phone) remains fully intact.
+    result = result.replace(/\n?🌐\s*www\.aieskyline\.co\.uk/gi, '');
+    result = result.replace(/\n?🌐\s*www\.aieclaims\.co\.uk/gi, '');
+    result = result.replace(/\n?www\.aieskyline\.co\.uk/gi, '');
+    result = result.replace(/\n?www\.aieclaims\.co\.uk/gi, '');
+    
     return result.trim();
   }
 
@@ -635,6 +625,8 @@ export default function WhatsappCommunication() {
     // Today (fallback date)
     ctx['DD/MM/YYYY'] = format(new Date(), 'dd/MM/yyyy');
     ctx["Today's Date"] = format(new Date(), 'dd/MM/yyyy');
+    ctx['the current date'] = format(new Date(), 'dd/MM/yyyy');
+    ctx['current Date'] = format(new Date(), 'dd/MM/yyyy');
 
     // Base recipient
     if (emailType === 'maintenance') {
@@ -667,10 +659,12 @@ export default function WhatsappCommunication() {
             const acc = accounts.find(a => a.id === rid);
             ctx["Recipient's Name"] = acc?.name || 'Account Holder';
             ctx['Driver Name'] = acc?.name || 'Account Holder';
+            ctx['selected account name'] = acc?.name || 'Account Holder';
         } else if (recipientFilter === 'owner') {
              ctx["Recipient's Name"] = rid; // ID is name for owner
              ctx['Driver Name'] = rid;
              ctx['Owner Name'] = rid;
+             ctx['selected account name'] = rid;
         } else {
             // Customer
             const cust = customers.find(c => c.id === rid);
@@ -679,6 +673,7 @@ export default function WhatsappCommunication() {
                 ctx['Customer Name'] = cust.name;
                 ctx['Driver Name'] = cust.name;
                 ctx["Recipient's Name"] = cust.name;
+                ctx['selected account name'] = cust.name;
             }
         }
     } else {
@@ -781,11 +776,17 @@ export default function WhatsappCommunication() {
         ctx['Service Type'] = (m as any).type || 'Vehicle Service';
         ctx['Date & Time'] = `${safeFmt(m.date, 'dd/MM/yyyy HH:mm')}`;
         ctx['Date'] = `${safeFmt(m.date, 'dd/MM/yyyy')}`;
+        ctx['the maintenance date'] = `${safeFmt(m.date, 'dd/MM/yyyy')}`;
         ctx['Time'] = `${safeFmt(m.date, 'HH:mm')}`;
         ctx['Location'] = (m as any).location || '';
+        ctx['Garage Name'] = (m as any).serviceProvider || (m as any).location || '';
         ctx['Additional Notes'] = (m as any).description || '';
+        ctx['Maintenance Type'] = (m as any).type || '';
 
-        if ((m as any)?.mileage != null) ctx['Insert Mileage'] = String((m as any).mileage);
+        // Safe mapped currentMileage
+        ctx['Mileage'] = String((m as any).currentMileage || (m as any).mileage || 'N/A');
+        ctx['NextMileage'] = String((m as any).nextServiceMileage || 'N/A');
+        ctx['Insert Mileage'] = ctx['Mileage'];
 
         const parts = ((m as any).parts || []).filter(Boolean);
         if (parts.length) {
@@ -809,25 +810,90 @@ export default function WhatsappCommunication() {
       if (r) {
         const v = vehicles.find(vx => vx.id === r.vehicleId);
         if (v) {
-          ctx['Vehicle Registration Number'] = v.registrationNumber;
-          ctx['Vehicle Reg'] = v.registrationNumber;
+          ctx['Vehicle Registration Number'] = v.registrationNumber || '';
+          ctx['Vehicle Reg'] = v.registrationNumber || '';
+          ctx['Main Reg the rental main vehicle registration number'] = v.registrationNumber || '';
         }
 
-        ctx['Start Date']  = `${safeFmt((r as any).startDate, 'dd/MM/yyyy HH:mm')}`;
-        ctx['End Date']    = `${safeFmt((r as any).endDate, 'dd/MM/yyyy HH:mm')}`;
+        const start = safeToDate((r as any).startDate) || new Date();
+        const end = safeToDate((r as any).endDate) || new Date();
+
+        ctx['Start Date']  = `${safeFmt(start, 'dd/MM/yyyy HH:mm')}`;
+        ctx['End Date']    = `${safeFmt(end, 'dd/MM/yyyy HH:mm')}`;
+        ctx['Date']        = `${safeFmt(end, 'dd/MM/yyyy')}`; // fallback
+        
         ctx['Rental Type'] = (r as any).type || '';
+        ctx['rental type (daily weekly or claim)'] = String((r as any).type || '').toUpperCase();
 
-        const total = Number((r as any).cost ?? 0).toFixed(2);
-        const paid  = Number((r as any).paidAmount ?? 0).toFixed(2);
-        const rem   = Number((r as any).remainingAmount ?? 0).toFixed(2);
+        const vehicleRate = r.type === 'daily' ? (v?.dailyRentalPrice ?? 0) : r.type === 'weekly' ? (v?.weeklyRentalPrice ?? 0) : (v?.claimRentalPrice ?? 0);
+        const fallback = RENTAL_RATES[r.type as keyof typeof RENTAL_RATES] ?? 0;
+        const effectiveRate = r.negotiatedRate ?? vehicleRate ?? fallback;
+        ctx['vehicle rate (if daily weekly or claim)'] = effectiveRate.toFixed(2);
 
-        ctx['Total Amount']        = total;
-        ctx['Amount Paid']         = paid;
-        ctx['Outstanding Balance'] = rem;
-        ctx['Outstanding Amount']  = rem;
+        const subs = r.hireSubstitutionDetails || [];
+        const activeSub = subs.find((s: any) => !s.returnCondition) || subs[subs.length - 1];
+        if (activeSub) {
+           ctx['Sub Reg'] = activeSub.registration || '';
+           ctx['Date the date from of the substitute vehicle start date'] = safeFmt(activeSub.givenAt);
+           ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
+        }
+
+        // --- ACCURATE COST CALCULATION (Includes Return & Overdue Charges) ---
+        const totalWithAllVAT = calculateRentalCost(
+          start, end, (r as any).type, v, (r as any).reason, (r as any).negotiatedRate ?? undefined,
+          (r as any).storageCost || 0, (r as any).recoveryCost || 0, 
+          (r as any).deliveryCharge || 0, (r as any).collectionCharge || 0,
+          (r as any).insurancePerDay || 0, (r as any).insurancePerWeek || 0,
+          (r as any).includeVAT, false, false,
+          (r as any).insurancePerDayIncludeVAT, (r as any).insurancePerWeekIncludeVAT, (r as any).includeRecoveryCostVAT
+        );
+
+        const discountedTotal = totalWithAllVAT - ((r as any).discountAmount ?? 0);
+        const now = new Date();
+        
+        const ongoingCharges = (r as any).status === 'active' && isAfter(now, end) ? calculateOverdueCost(r as any, now, v) : 0;
+        const subCharges = ((r as any).hireSubstitutionDetails || []).reduce((acc: number, sub: any) => acc + (sub.returnCondition?.totalCharges || 0), 0);
+        const returnCharges = ((r as any).returnCondition?.totalCharges ?? 0) + subCharges;
+
+        const totalAmountDue = discountedTotal + ongoingCharges + returnCharges;
+        const paid = (r as any).paidAmount || 0;
+        const remaining = totalAmountDue - paid;
+
+        let subtotalNum = totalAmountDue;
+        let vatNum = 0;
+
+        // Calculate VAT accurately if the rental includes VAT
+        if ((r as any).includeVAT || (r as any).type === 'claim') {
+          subtotalNum = totalAmountDue / 1.2;
+          vatNum = totalAmountDue - subtotalNum;
+        }
+
+        const totalStr = totalAmountDue.toFixed(2);
+        const subtotalStr = subtotalNum.toFixed(2);
+        const vatStr = vatNum.toFixed(2);
+        const paidStr = paid.toFixed(2);
+        const remStr = Math.max(0, remaining).toFixed(2);
+
+        ctx['Subtotal']            = subtotalStr;
+        ctx['VAT']                 = vatStr;
+        ctx['Total Amount']        = totalStr;
+        ctx['Amount Paid']         = paidStr;
+        ctx['Outstanding Balance'] = remStr;
+        ctx['Outstanding Amount']  = remStr;
+        ctx['owing Balance']       = remStr;
+        ctx['owing balance']       = remStr;
+        ctx['Balance']             = remStr;
+        ctx['Balance (like the rental owing balance)'] = remStr;
 
         if (currentTemplate.id === 'rental_payment_received') {
-          ctx['Amount'] = paid;
+          // Fallback to total paid, but try to find the absolute latest payment amount
+          let latestPaymentAmount = paidStr;
+          const payments = (r as any).payments || [];
+          if (payments.length > 0) {
+            const sortedPayments = [...payments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            latestPaymentAmount = Number(sortedPayments[0].amount).toFixed(2);
+          }
+          ctx['Amount'] = latestPaymentAmount;
         }
 
         if (!ctx["Driver's Name"]) {
@@ -844,14 +910,22 @@ export default function WhatsappCommunication() {
     if (emailType === 'invoice' && selectedRecordId) {
       const inv = invoices.find(i => i.id === selectedRecordId);
       if (inv) {
-        const invNo = `INV-${inv.id.slice(-8).toUpperCase()}`;
+        // ✅ Pull precise invoiceNumber, else fallback securely to INV-xxxxx
+        const invNo = inv.invoiceNumber || `INV-${inv.id.slice(-8).toUpperCase()}`;
         ctx['Invoice Number'] = invNo;
         ctx['Invoice Date'] = `${safeFmt((inv as any).date, 'dd/MM/yyyy')}`;
-        ctx['Amount'] = Number((inv as any).amount ?? 0).toFixed(2);
+        
+        // ✅ Use "total" correctly instead of legacy "amount"
+        const totalAmount = Number((inv as any).remainingAmount ?? (inv as any).total ?? 0).toFixed(2);
+        ctx['Amount'] = totalAmount;
+        ctx['Total Amount'] = totalAmount;
+        ctx['Outstanding Balance'] = Number((inv as any).remainingAmount ?? 0).toFixed(2);
+        ctx['Paid Balance'] = Number((inv as any).paidAmount ?? 0).toFixed(2);
+        
         ctx['Due Date'] = `${safeFmt((inv as any).dueDate, 'dd/MM/yyyy')}`;
         ctx['Invoice No.'] = invNo;
 
-        // NEW: set Customer Name from invoice manual fields if not set yet
+        // set Customer Name from invoice manual fields if not set yet
         if (!ctx['Customer Name']) {
           const fromInv = getInvoiceManualName(inv);
           if (fromInv) ctx['Customer Name'] = String(fromInv);
@@ -879,6 +953,7 @@ export default function WhatsappCommunication() {
         const tpReg = tp.vehicleRegistration || tp.registration || tp.vehicleReg || '';
 
         ctx['Claim Reference'] = ref;
+        ctx['Claim Number'] = ref;
         ctx['Client Name'] = clientName;
         ctx['Customer Name'] = ctx['Customer Name'] || clientName;
         ctx['Client Registration'] = clientReg;
@@ -889,6 +964,7 @@ export default function WhatsappCommunication() {
         ctx['Time'] = time || 'N/A';
         ctx['Location'] = loc || 'N/A';
         ctx['Description'] = descr || 'N/A';
+        ctx['Garage Name'] = (c as any).repairDetails?.garageName || (c as any).thirdPartyDetails?.repairer || 'Approved Repairer';
 
         const reasonCodes: string[] = Array.isArray(c.claimReason) ? c.claimReason : [];
         const codeMap: Record<string, string> = { 'VD': 'Vehicle Damage', 'H':  'Credit Hire', 'S':  'Storage', 'PI': 'PI' };
@@ -973,39 +1049,75 @@ export default function WhatsappCommunication() {
     setLoading(true);
     let sent = 0;
 
-    const rawText = buildWhatsAppMessage({
-      type: `AIE Skyline ${emailType.charAt(0).toUpperCase() + emailType.slice(1)}`, 
-      subject: subject?.trim(),
-      body: (message || '').trim(),
-    });
-
-    const text = normalizeWhatsAppSignature(rawText);
-
-    for (const rid of selectedRecipients) {
-      const { phone, name } = getRecipientPhoneEmailAndName(rid);
-      if (!phone) { toast.error(`Missing/invalid phone for ${name || 'recipient'}`); continue; }
-      try {
-        sendWhatsAppMessage({ phone, message: text });
-        sent++;
-      } catch (e: any) {
-        console.error(e);
-        toast.error(`Couldn’t open WhatsApp for ${name || phone}`);
+    try {
+      // 1. Upload custom files to storage first to get URLs
+      const uploadedCustomDocs: { name: string; url: string }[] = [];
+      if (customFiles.length > 0) {
+        toast.loading('Uploading attachments...');
+        for (const file of customFiles) {
+          const fileRef = ref(storage, `whatsapp_attachments/${Date.now()}_${file.name}`);
+          await uploadBytes(fileRef, file);
+          const url = await getDownloadURL(fileRef);
+          uploadedCustomDocs.push({ name: file.name, url });
+        }
+        toast.dismiss();
       }
-    }
 
-    if (sent) {
-      toast.success(`Opened ${sent} WhatsApp ${sent !== 1 ? 'chats' : 'chat'}`);
-      await logWhatsappHistory({
-        sentBy: user?.uid || 'unknown',
-        type: emailType,
-        templateId: selectedTemplateId,
-        recipients: selectedRecipients,
-        subject,
-        body: text,
-        timestamp: new Date()
+      // 2. Combine all attachments
+      const allAttachments = [...selectedRentalDocs, ...uploadedCustomDocs];
+
+      // 3. Prepare the final text
+      let rawText = buildWhatsAppMessage({
+        type: `AIE Skyline ${emailType.charAt(0).toUpperCase() + emailType.slice(1)}`, 
+        subject: subject?.trim(),
+        body: (message || '').trim(),
       });
+
+      let text = normalizeWhatsAppSignature(rawText);
+
+      // Append attachment links if any exist
+      if (allAttachments.length > 0) {
+        text += '\n\n📎 *Attachments:*';
+        allAttachments.forEach(att => {
+          text += `\n📄 ${att.name}: ${att.url}`;
+        });
+      }
+
+      for (const rid of selectedRecipients) {
+        const { phone, name } = getRecipientPhoneEmailAndName(rid);
+        if (!phone) { toast.error(`Missing/invalid phone for ${name || 'recipient'}`); continue; }
+        try {
+          sendWhatsAppMessage({ phone, message: text });
+          sent++;
+        } catch (e: any) {
+          console.error(e);
+          toast.error(`Couldn’t open WhatsApp for ${name || phone}`);
+        }
+      }
+
+      if (sent) {
+        toast.success(`Opened ${sent} WhatsApp ${sent !== 1 ? 'chats' : 'chat'}`);
+        await logWhatsappHistory({
+          sentBy: user?.uid || 'unknown',
+          type: emailType,
+          templateId: selectedTemplateId,
+          recipients: selectedRecipients,
+          subject,
+          body: text,
+          timestamp: new Date()
+        });
+        
+        // Clear files after successful send
+        setCustomFiles([]);
+        setSelectedRentalDocs([]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.dismiss();
+      toast.error('Failed to prepare attachments or send message.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // History filters
@@ -1265,6 +1377,67 @@ export default function WhatsappCommunication() {
           />
         </div>
 
+        {/* --- ATTACHMENTS SECTION --- */}
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+            <Paperclip className="w-4 h-4" /> Attachments
+          </h3>
+          
+          {/* Rental Pre-generated Docs */}
+          {availableRentalDocs.length > 0 && (
+            <div className="mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Rental Documents</span>
+              <div className="flex flex-wrap gap-2">
+                {availableRentalDocs.map((doc, idx) => {
+                  const isSelected = selectedRentalDocs.some(d => d.url === doc.url);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => toggleRentalDoc(doc)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                        isSelected 
+                          ? 'bg-green-100 border-green-500 text-green-800' 
+                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {doc.name}
+                      {isSelected && <X className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Upload */}
+          <div>
+            <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Upload Files</span>
+            <input 
+              type="file" 
+              multiple 
+              onChange={(e) => {
+                if (e.target.files) {
+                  setCustomFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                }
+              }}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+            />
+            {customFiles.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {customFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-sm bg-white border px-3 py-1.5 rounded">
+                    <span className="truncate max-w-[80%]">{file.name}</span>
+                    <button onClick={() => setCustomFiles(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* --- END ATTACHMENTS SECTION --- */}
+
         <div className="flex items-center gap-2">
           <button
             className="bg-green-600 text-white px-4 py-2 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -1293,12 +1466,23 @@ export default function WhatsappCommunication() {
         ) : (
           <div className="space-y-3">
             {(() => {
-              const rawPreviewText = buildWhatsAppMessage({
+              // Note: The preview shows what text will look like, including attachment links
+              const allAttachments = [...selectedRentalDocs, ...customFiles.map(f => ({ name: f.name, url: '[Link generated upon sending]' }))];
+              
+              let rawPreviewText = buildWhatsAppMessage({
                 type: `AIE Skyline ${emailType.charAt(0).toUpperCase() + emailType.slice(1)}`,
                 subject: subject?.trim(),
                 body: (message || '').trim(),
               });
-              const composedPreviewText = normalizeWhatsAppSignature(rawPreviewText);
+              let composedPreviewText = normalizeWhatsAppSignature(rawPreviewText);
+
+              if (allAttachments.length > 0) {
+                composedPreviewText += '\n\n📎 *Attachments:*';
+                allAttachments.forEach(att => {
+                  composedPreviewText += `\n📄 ${att.name}: ${att.url}`;
+                });
+              }
+
               return (
                 <>
                   <div className="text-xs text-gray-500">

@@ -1,3 +1,4 @@
+// src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
 import { Rental, Vehicle, Customer, RentalReason } from '../types';
 
@@ -31,37 +32,55 @@ export const useRentalFilters = (
         customer?.mobile?.toLowerCase().includes(searchLower) ||
         customer?.email?.toLowerCase().includes(searchLower) ||
         rental.type?.toLowerCase().includes(searchLower) ||
+        rental.status?.toLowerCase().includes(searchLower) ||
         rental.reason?.toLowerCase().includes(searchLower) ||
-        false;
+        // ✅ ADDED: Allow search by Rental Agreement Number
+        (rental.rentalAgreementNumber && rental.rentalAgreementNumber.toLowerCase().includes(searchLower));
 
-      // Status filter
-      let matchesStatus: boolean;
-      if (statusFilter === 'all') {
-        // hide "completed" in the 'all' view
-        matchesStatus = rental.status !== 'completed';
-      } else {
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
         matchesStatus = rental.status === statusFilter;
       }
 
-      // Type & vehicle & reason filters
-      const matchesType = typeFilter === 'all' || rental.type === typeFilter;
-      const matchesVehicle = !vehicleFilter || rental.vehicleId === vehicleFilter;
+      let matchesType = true;
+      if (typeFilter !== 'all') {
+        matchesType = rental.type === typeFilter;
+      }
+
+      let matchesVehicle = true;
+      if (vehicleFilter) {
+        matchesVehicle = rental.vehicleId === vehicleFilter;
+      }
+
       let matchesReason = true;
       if (reasonFilter !== 'all') {
         matchesReason = rental.reason === reasonFilter;
       }
 
-      // --- OVERLAP DATE LOGIC ---
-      const rentalStartMs = rental.startDate?.getTime() ?? null;
-      const rentalEndMs   = rental.endDate?.getTime()   ?? null;
-
-      let filterStartMs: number | null = null;
-      let filterEndMs:   number | null = null;
-      if (startDateFilter) filterStartMs = Date.parse(startDateFilter + 'T00:00:00Z');
-      if (endDateFilter)   filterEndMs   = Date.parse(endDateFilter   + 'T23:59:59.999Z');
-
       let matchesDateRange = true;
-      if (filterStartMs !== null || filterEndMs !== null) {
+      if (startDateFilter || endDateFilter) {
+        const rentalStartMs = rental.startDate instanceof Date
+          ? rental.startDate.getTime()
+          : (rental.startDate as any)?.toDate?.().getTime() || null;
+        const rentalEndMs = rental.endDate instanceof Date
+          ? rental.endDate.getTime()
+          : (rental.endDate as any)?.toDate?.().getTime() || null;
+
+        const filterStartMs = startDateFilter ? new Date(startDateFilter).getTime() : null;
+        const filterEndMs   = endDateFilter   ? new Date(endDateFilter).getTime()   : null;
+
+        // Effective range for "overlap" check or simple bounds?
+        // Usually: (StartA <= EndB) and (EndA >= StartB) for overlap
+        // Here implementing a simpler inclusion check:
+        // if StartFilter exists, rental must start on/after it
+        // if EndFilter exists, rental must end on/before it
+        
+        // However, user might want overlap. Let's stick to strict bounds based on UI labels "From" / "To"
+        // Adjusting logic to standard "inclusive range":
+        //   Rental is within range if:
+        //   (rentalStart >= filterStart) AND (rentalEnd <= filterEnd)
+        //   But let's keep it robust for partial inputs.
+
         const effectiveFilterStartMs =
           filterStartMs ?? new Date('1900-01-01T00:00:00Z').getTime();
         const effectiveFilterEndMs   =

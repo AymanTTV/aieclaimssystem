@@ -8,7 +8,6 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer';
-import BaseDocument from './BaseDocument';
 import { styles as globalStyles } from './styles';
 import logo from '../../assets/logo.png';
 import logoBlur from '../../assets/logo.png'; // blurred logo for watermark
@@ -27,7 +26,7 @@ interface ParkingPermitLetterProps {
     website: string;
     registrationNumber: string;
     vatNumber: string;
-    logoUrl?: string; // MODIFIED: Added optional logoUrl
+    logoUrl?: string;
   };
 }
 
@@ -37,6 +36,8 @@ const localStyles = StyleSheet.create({
     top: '30%',
     left: '20%',
     width: '60%',
+    height: 400, // FIXED: Constrain height to prevent overflow
+    objectFit: 'contain', // FIXED: Ensure aspect ratio doesn't break layout
     opacity: 0.05,
   },
   blueLine: {
@@ -68,20 +69,10 @@ const localStyles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     marginBottom: 6,
   },
-  bulletRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-    paddingLeft: 12, // Original padding
-  },
-  // MODIFIED: Simplified bulletRow for no-bullet list
   infoRow: {
     flexDirection: 'row',
     marginBottom: 4,
-    paddingLeft: 0, // No indent
-  },
-  bullet: {
-    width: 8,
-    lineHeight: 1.3,
+    paddingLeft: 0,
   },
   bulletText: {
     flex: 1,
@@ -134,10 +125,11 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
 
   return (
     <Document>
-      <Page size="A4" style={globalStyles.page}>
+      {/* FIXED: Overriding global paddingBottom (was 90) to 60 to prevent blank page */}
+      <Page size="A4" style={[globalStyles.page, { paddingBottom: 60 }]}>
         {/* Watermark */}
         <Image
-          src={companyDetails.logoUrl || logoBlur} // MODIFIED
+          src={companyDetails.logoUrl || logoBlur}
           style={localStyles.watermark}
         />
 
@@ -145,8 +137,9 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
         <View style={globalStyles.header}>
           <View style={globalStyles.headerLeft}>
             <Image
-              src={companyDetails.logoUrl || logo} // MODIFIED
+              src={companyDetails.logoUrl || logo}
               style={globalStyles.logo}
+              cache={false}
             />
           </View>
           <View style={globalStyles.headerRight}>
@@ -166,11 +159,10 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
         {/* Title Lines */}
         <Text style={localStyles.centeredBold}>To Whom It May Concern</Text>
         <Text style={localStyles.subject}>
-          {/* MODIFIED: Subject line text */}
           Subject: Parking Permit Support for Hired Vehicle {vehicle.registrationNumber}
         </Text>
 
-        {/* --- MODIFIED: Body Text --- */}
+        {/* Body Text */}
         <Text style={localStyles.paragraph}>
           We are writing to support the application for a parking permit for {customer.name} at his residential address.
         </Text>
@@ -178,7 +170,6 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
           {customer.name} has the vehicle detailed below on a long-term hire agreement with our company, and we understand he requires a permit to park at his home.
         </Text>
 
-        {/* --- MODIFIED: Info sections (no bullets) --- */}
         {/* Driver Info */}
         <Text style={localStyles.listTitle}>Driver Information:</Text>
         <View style={localStyles.infoRow}>
@@ -205,9 +196,8 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
             Registered Owner: {companyDetails.fullName}
           </Text>
         </View>
-        {/* --- END: MODIFIED Info sections --- */}
 
-        {/* --- MODIFIED: Concluding Text --- */}
+        {/* Concluding Text */}
         <Text style={[localStyles.paragraph, { marginTop: 8 }]}>
           We confirm that {customer.name} is the legitimate user of this vehicle under an active hire agreement with {companyDetails.fullName}.
         </Text>
@@ -215,7 +205,7 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
           Please let us know if any further information or documentation is required from us as the vehicle's registered owner.
         </Text>
 
-        {/* --- MODIFIED: Signature --- */}
+        {/* Signature */}
         <View style={localStyles.signatureSection}>
           <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Yours faithfully,</Text>
           <Image src={signatureImg} style={localStyles.signatureImage} />

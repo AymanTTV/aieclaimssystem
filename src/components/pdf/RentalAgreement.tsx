@@ -1,4 +1,4 @@
-// src/components/pdf/documents/RentalAgreement.tsx
+// src/components/pdf/RentalAgreement.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types/rental';
@@ -6,33 +6,91 @@ import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
 import { styles } from './styles';
 
-// Local style for the absolutely‐positioned signature section
 const localStyles = StyleSheet.create({
-  signatureSectionPositioning: {
-    position: 'absolute',
-    bottom: 50,
-    left: 40,
-    right: 40,
+  content: {
+    flexDirection: 'column',
+  },
+  // Horizontal Hirer Card Styles
+  hirerInfoCard: {
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 15,
+  },
+  hirerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    breakInside: 'avoid',
-    pageBreakInside: 'avoid',
+    marginBottom: 4,
   },
+  hirerItem: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
+  },
+  hirerLabel: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#1E40AF',
+    marginBottom: 1,
+  },
+  hirerValue: {
+    fontSize: 9,
+    color: '#1F2937',
+  },
+  termsSection: {
+    marginBottom: 5,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  signatureSection: {
+    marginTop: 5,
+    marginBottom: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    breakInside: 'avoid',
+  },
+  compactBox: {
+    padding: 5,
+    width: '48%',
+  },
+  compactImage: {
+    height: 25,
+    marginVertical: 2,
+    objectFit: 'contain',
+  },
+  compactLine: {
+    marginTop: 2,
+    marginBottom: 2,
+    paddingTop: 2,
+    fontSize: 9,
+  },
+  compactText: {
+    fontSize: 9,
+  }
 });
+
+const isValidPdfImageSrc = (v: any): v is string => {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (!s) return false;
+  if (s.includes('undefined') || s.includes('null')) return false;
+  return s.startsWith('data:image/') || s.startsWith('http://') || s.startsWith('https://');
+};
 
 const RentalAgreement: React.FC<{
   rental: Rental;
   vehicle: Vehicle;
   customer: Customer;
   companyDetails: any;
-}> = ({ rental, vehicle, customer, companyDetails = {} }) => {
-  
-  // Helper to handle Firestore Timestamps or JS Dates including TIME
+  includeImages?: boolean;
+}> = ({ rental, vehicle, customer, companyDetails = {}, includeImages = true }) => {
   const formatDateTime = (date: Date | string | null | undefined): string => {
     if (!date) return 'N/A';
     try {
       let processed: any = date;
-      // Handle Firestore Timestamp .toDate()
       if (typeof (date as any)?.toDate === 'function') {
         processed = (date as any).toDate();
       }
@@ -43,6 +101,20 @@ const RentalAgreement: React.FC<{
       return 'N/A';
     } catch {
       return 'N/A';
+    }
+  };
+
+  const getDateObj = (date: Date | string | null | undefined): Date | null => {
+    if (!date) return null;
+    try {
+      let processed: any = date;
+      if (typeof (date as any)?.toDate === 'function') {
+        processed = (date as any).toDate();
+      }
+      const dateObj = typeof processed === 'string' ? new Date(processed) : processed;
+      return dateObj instanceof Date && !isNaN(dateObj.getTime()) ? dateObj : null;
+    } catch {
+      return null;
     }
   };
 
@@ -60,14 +132,9 @@ const RentalAgreement: React.FC<{
   };
 
   const rentalRate = getRentalRate(rental.type, vehicle);
-  const defaultEndDate = rental.startDate
-    ? addDays(
-        new Date(
-          rental.startDate instanceof Date ? rental.startDate : String(rental.startDate)
-        ),
-        90
-      )
-    : null;
+  const rentalStartDate = getDateObj(rental.startDate) || new Date();
+  const defaultEndDate = addDays(rentalStartDate, 90);
+  const rentalEndDate = getDateObj(rental.endDate) || defaultEndDate;
 
   const getServiceType = (type: Rental['type']): string => {
     switch (type) {
@@ -82,404 +149,595 @@ const RentalAgreement: React.FC<{
     }
   };
 
-  // --- Logic to find Active Substitute ---
-  const getActiveSubstitute = () => {
-    if (!rental.hireSubstitutionDetails || rental.hireSubstitutionDetails.length === 0) return null;
-    
-    // Get the latest one
-    const latestSub = rental.hireSubstitutionDetails[rental.hireSubstitutionDetails.length - 1];
-    
-    // Check dates
-    if (!latestSub.expectedReturnAt) return null;
-    
-    const now = new Date();
-    let returnDate: Date;
-    
-    // Parse the return date safely
-    if (typeof (latestSub.expectedReturnAt as any)?.toDate === 'function') {
-      returnDate = (latestSub.expectedReturnAt as any).toDate();
-    } else {
-      returnDate = new Date(latestSub.expectedReturnAt);
-    }
+  const getDisplayVehicle = () => {
+    const agreementStartMs = rentalStartDate.getTime();
+    const agreementEndMs = rentalEndDate.getTime();
 
-    // Only show if the return date is in the future (or today)
-    if (returnDate >= now) {
-      return latestSub;
+    let targetVehicle = {
+      title: 'MAIN VEHICLE DETAILS',
+      make: vehicle.make,
+      model: vehicle.model,
+      reg: vehicle.registrationNumber,
+      mileage: (rental.checkOutCondition?.mileage ?? vehicle.mileage).toLocaleString() + ' miles',
+    };
+
+    if (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0) {
+      for (const sub of rental.hireSubstitutionDetails) {
+        const subStart = getDateObj(sub.givenAt);
+        const subEnd = getDateObj(sub.returnCondition?.date || sub.expectedReturnAt);
+
+        if (subStart) {
+          const subStartMs = subStart.getTime();
+          const subEndMs = subEnd ? subEnd.getTime() : Number.MAX_SAFE_INTEGER;
+
+          if (agreementStartMs >= subStartMs - 60000 && agreementEndMs <= subEndMs + 60000) {
+            targetVehicle = {
+              title: 'SUBSTITUTE VEHICLE DETAILS',
+              make: sub.make,
+              model: sub.model,
+              reg: sub.registration,
+              mileage: (sub.mileage || 0).toLocaleString() + ' miles',
+            };
+            break;
+          }
+        }
+      }
     }
-    
+    return targetVehicle;
+  };
+
+  const displayVehicle = getDisplayVehicle();
+
+  const getActiveSubstitute = () => {
+    if (displayVehicle.title.includes('SUBSTITUTE')) return null;
+    if (!rental.hireSubstitutionDetails || rental.hireSubstitutionDetails.length === 0) return null;
+    const latestSub = rental.hireSubstitutionDetails[rental.hireSubstitutionDetails.length - 1];
+    if (!latestSub.expectedReturnAt) return null;
+    const now = new Date();
+    const returnDate = getDateObj(latestSub.expectedReturnAt);
+    if (returnDate && returnDate >= now) return latestSub;
     return null;
   };
 
   const activeSub = getActiveSubstitute();
+  const signatureDate = rental.startDate;
 
-  // Determine the date to show on signature (Latest updated date)
-  const signatureDate = rental.updatedAt || rental.createdAt || rental.startDate;
+  const getUsageHistory = () => {
+    const history: Array<{ vehicle: string; reg: string; start: Date; end: Date }> = [];
+    const subs = (rental.hireSubstitutionDetails || []).slice().sort((a, b) => {
+      const dA = getDateObj(a.givenAt)?.getTime() || 0;
+      const dB = getDateObj(b.givenAt)?.getTime() || 0;
+      return dA - dB;
+    });
+
+    let currentCursor = rentalStartDate;
+
+    if (subs.length === 0) {
+      history.push({
+        vehicle: `${vehicle.make} ${vehicle.model} (Main)`,
+        reg: vehicle.registrationNumber,
+        start: currentCursor,
+        end: rentalEndDate,
+      });
+    } else {
+      for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        const subGiven = getDateObj(sub.givenAt);
+        if (!subGiven) continue;
+
+        if (subGiven > currentCursor) {
+          history.push({
+            vehicle: `${vehicle.make} ${vehicle.model} (Main)`,
+            reg: vehicle.registrationNumber,
+            start: currentCursor,
+            end: subGiven,
+          });
+        }
+
+        const subReturnRaw = sub.returnCondition?.date || sub.expectedReturnAt;
+        let subEnd = getDateObj(subReturnRaw) || addDays(subGiven, 1);
+        if (subEnd <= subGiven) subEnd = addDays(subGiven, 1);
+
+        history.push({
+          vehicle: `${sub.make} ${sub.model} (Sub)`,
+          reg: sub.registration,
+          start: subGiven,
+          end: subEnd,
+        });
+        currentCursor = subEnd;
+      }
+      if (currentCursor < rentalEndDate) {
+        history.push({
+          vehicle: `${vehicle.make} ${vehicle.model} (Main)`,
+          reg: vehicle.registrationNumber,
+          start: currentCursor,
+          end: rentalEndDate,
+        });
+      }
+    }
+    return history;
+  };
+
+  const usageHistory = getUsageHistory();
+
+  const renderUsageTimeline = () => {
+    const safeFirstBatch = usageHistory.slice(0, 1);
+    const rest = usageHistory.slice(1);
+
+    return (
+      <View style={{ marginBottom: 15 }}>
+        <View wrap={false}>
+          <Text style={styles.sectionTitle}>VEHICLE USAGE TIMELINE</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Vehicle</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Registration</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>From</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>To</Text>
+            </View>
+            {safeFirstBatch.map((usage, idx) => (
+              <View style={styles.tableRow} key={`first_${idx}`}>
+                <Text style={[styles.tableCell, { flex: 2 }]}>{usage.vehicle}</Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{usage.reg}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(usage.start)}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(usage.end)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {rest.length > 0 && (
+          <View style={[styles.table, { marginTop: -5 }]}>
+            {rest.map((usage, idx) => (
+              <View style={styles.tableRow} key={`rest_${idx}`}>
+                <Text style={[styles.tableCell, { flex: 2 }]}>{usage.vehicle}</Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{usage.reg}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(usage.start)}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(usage.end)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderSubstitutionVehicles = () => {
+    if (!rental.hireSubstitutionDetails || rental.hireSubstitutionDetails.length === 0) return null;
+    const safeFirstBatch = rental.hireSubstitutionDetails.slice(0, 1);
+    const rest = rental.hireSubstitutionDetails.slice(1);
+
+    return (
+      <View style={{ marginBottom: 15 }}>
+        <View wrap={false}>
+          <Text style={styles.sectionTitle}>Hire Substitution Vehicles</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Vehicle</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Reg</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Provider</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Given</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Return</Text>
+            </View>
+            {safeFirstBatch.map((sub, index) => (
+              <View style={styles.tableRow} key={`sub_first_${index}`}>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{`Vehicle ${index + 1}`}</Text>
+                <Text style={[styles.tableCell, { flex: 1.2 }]}>{sub.registration}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{sub.loaner}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(sub.givenAt)}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(sub.expectedReturnAt)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {rest.length > 0 && (
+          <View style={[styles.table, { marginTop: -5 }]}>
+            {rest.map((sub, index) => (
+              <View style={styles.tableRow} key={`sub_rest_${index}`}>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{`Vehicle ${index + 2}`}</Text>
+                <Text style={[styles.tableCell, { flex: 1.2 }]}>{sub.registration}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{sub.loaner}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(sub.givenAt)}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formatDateTime(sub.expectedReturnAt)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {companyDetails?.logoUrl && (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            )}
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
-            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
-          </View>
-        </View>
-
-        {/* TITLE */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>VEHICLE RENTAL AGREEMENT</Text>
-        </View>
-
-        {/* HIRER & VEHICLE DETAILS */}
-        <View
-          style={{
-            marginBottom: 15,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-          }}
-        >
-          {/* HIRER DETAILS */}
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.sectionTitle}>HIRER DETAILS</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Name:</Text>
-              <Text style={styles.value}>{customer.name}</Text>
+      <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
+        <View style={localStyles.content}>
+          {/* HEADER */}
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(companyDetails?.logoUrl) && (
+                <Image src={companyDetails.logoUrl} style={styles.logo} />
+              )}
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>
-                {formatDate(customer.dateOfBirth)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Address:</Text>
-              <Text style={styles.value}>{customer.address}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>License Number:</Text>
-              <Text style={styles.value}>{customer.driverLicenseNumber}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>License Valid Until:</Text>
-              <Text style={styles.value}>
-                {formatDate(customer.licenseExpiry)}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Badge Number:</Text>
-              <Text style={styles.value}>{customer.badgeNumber}</Text>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
             </View>
           </View>
 
-          {/* VEHICLE DETAILS */}
-          <View style={[styles.card, { width: '48%' }]}>
-            <Text style={styles.sectionTitle}>VEHICLE DETAILS</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Make & Model:</Text>
-              <Text style={styles.value}>
-                {vehicle.make} {vehicle.model}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Registration:</Text>
-              <Text style={styles.value}>{vehicle.registrationNumber}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Current Mileage:</Text>
-              <Text style={styles.value}>
-                {vehicle.mileage?.toLocaleString() ?? 'N/A'} miles
-              </Text>
-            </View>
+          {/* TITLE */}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>
+              RENTAL AGREEMENT {rental.rentalAgreementNumber ? `#${rental.rentalAgreementNumber}` : ''}
+            </Text>
+          </View>
 
-            {/* --- ACTIVE SUBSTITUTE VEHICLE SECTION --- */}
-            {activeSub && (
-              <View style={{ marginTop: 5 }}>
-                <Text style={{
-                  backgroundColor: '#FEF08A', // Yellow-200
-                  color: '#854D0E', // Yellow-800
-                  padding: 4,
-                  fontSize: 9,
-                  fontWeight: 'bold',
-                  marginTop: 5,
-                  marginBottom: 5,
-                  textAlign: 'center',
-                  textTransform: 'uppercase'
-                }}>
-                  Active Substitute Vehicle
+          {/* NEW HORIZONTAL HIRER DETAILS CARD */}
+          <View style={localStyles.hirerInfoCard}>
+            <View style={localStyles.hirerRow}>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Hirer Name</Text>
+                <Text style={localStyles.hirerValue}>{customer.name}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Date of Birth</Text>
+                <Text style={localStyles.hirerValue}>{formatDate(customer.dateOfBirth)}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>License Number</Text>
+                <Text style={localStyles.hirerValue}>{customer.driverLicenseNumber}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Badge Number</Text>
+                <Text style={localStyles.hirerValue}>{customer.badgeNumber || 'N/A'}</Text>
+              </View>
+            </View>
+            <View style={localStyles.hirerRow}>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Address</Text>
+                <Text style={localStyles.hirerValue}>{customer.address}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>License Valid From</Text>
+                <Text style={localStyles.hirerValue}>{formatDate(customer.licenseValidFrom)}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>License Expiry</Text>
+                <Text style={localStyles.hirerValue}>{formatDate(customer.licenseExpiry)}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Country of Issue</Text>
+                <Text style={localStyles.hirerValue}>{customer.countryOfIssue || 'UK'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* VEHICLE & RENTAL DETAILS (SIDE BY SIDE) */}
+          <View
+            style={{
+              marginBottom: 15,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+            }}
+            wrap={false}
+          >
+            {/* Main Vehicle Details (Left) */}
+            <View style={[styles.card, { width: '48%' }]}>
+              <Text style={styles.sectionTitle}>{displayVehicle.title}</Text>
+              <View style={styles.row}>
+                <Text style={styles.label}>Make & Model:</Text>
+                <Text style={styles.value}>
+                  {displayVehicle.make} {displayVehicle.model}
                 </Text>
-                
-                <View style={styles.row}>
-                  <Text style={styles.label}>Make & Model:</Text>
-                  <Text style={styles.value}>
-                    {activeSub.make} {activeSub.model}
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Registration:</Text>
+                <Text style={styles.value}>{displayVehicle.reg}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Mileage:</Text>
+                <Text style={styles.value}>{displayVehicle.mileage}</Text>
+              </View>
+
+              {activeSub && (
+                <View style={{ marginTop: 5 }}>
+                  <Text
+                    style={{
+                      backgroundColor: '#FEF08A',
+                      color: '#854D0E',
+                      padding: 4,
+                      fontSize: 9,
+                      fontWeight: 'bold',
+                      marginTop: 5,
+                      marginBottom: 5,
+                      textAlign: 'center',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Active Substitute Vehicle
                   </Text>
-                </View>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Registration:</Text>
-                  <Text style={styles.value}>{activeSub.registration}</Text>
-                </View>
-                {/* Note: Mileage is not currently stored on the sub object in your type definition, so it is omitted to prevent errors */}
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View>
-          {/* RENTAL DETAILS */}
-          <View style={{ marginBottom: 15 }} wrap={false}>
-            <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rental Type</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Start Date & Time
-                </Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  End Date & Time
-                </Text>
-              </View>
-              <View style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {rental.type.toUpperCase()}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {formatDateTime(rental.startDate)}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {formatDateTime(rental.endDate ?? defaultEndDate)}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* PAYMENT DETAILS */}
-          <View style={{ marginBottom: 15 }} wrap={false}>
-            <Text style={styles.sectionTitle}>PAYMENT DETAILS</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Service Type
-                </Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Rate</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>
-                  Billing Cycle
-                </Text>
-              </View>
-              <View style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {getServiceType(rental.type)}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  £{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
-                  {rental.type === 'weekly' ? 'Every Monday' : 'Daily'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* HIRE SUBSTITUTION VEHICLES TABLE */}
-          {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 && (
-            <View style={{ marginBottom: 15 }} wrap={false}>
-              <Text style={styles.sectionTitle}>Hire Substitution Vehicles</Text>
-              <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                  <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Vehicle</Text>
-                  <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Registration</Text>
-                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Loaner (Provider)</Text>
-                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Date & Time Given</Text>
-                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Date & Time Expected Return</Text>
-                </View>
-                {rental.hireSubstitutionDetails.map((sub, index) => (
-                  <View style={styles.tableRow} key={index}>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>
-                      Vehicle {index + 1}
-                    </Text>
-                    <Text style={[styles.tableCell, { flex: 1.2 }]}>
-                      {sub.registration}
-                    </Text>
-                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                      {sub.loaner}
-                    </Text>
-                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                      {formatDateTime(sub.givenAt)}
-                    </Text>
-                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                      {formatDateTime(sub.expectedReturnAt)}
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Make & Model:</Text>
+                    <Text style={styles.value}>
+                      {activeSub.make} {activeSub.model}
                     </Text>
                   </View>
-                ))}
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Registration:</Text>
+                    <Text style={styles.value}>{activeSub.registration}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Rental Details (Right - Now a Card) */}
+            <View style={[styles.card, { width: '48%' }]}>
+              <Text style={styles.sectionTitle}>RENTAL DETAILS</Text>
+              <View style={styles.row}>
+                <Text style={styles.label}>Type:</Text>
+                <Text style={styles.value}>{rental.type.toUpperCase()}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Start:</Text>
+                <Text style={styles.value}>{formatDateTime(rental.startDate)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>End:</Text>
+                <Text style={styles.value}>{formatDateTime(rental.endDate ?? defaultEndDate)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Rate:</Text>
+                <Text style={styles.value}>£{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Service:</Text>
+                <Text style={styles.value}>{getServiceType(rental.type)}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* USAGE TIMELINE */}
+          <View>
+            {renderUsageTimeline()}
+          </View>
+
+          <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
+
+          {/* CHECK-OUT CONDITION */}
+          {rental.checkOutCondition && (
+            <View style={[styles.sectionBreak]} wrap={false}>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoCardTitle}>Main Vehicle Condition at Check-Out</Text>
+                <View style={styles.grid}>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Check-Out Date & Time:</Text>
+                    <Text style={styles.subValue}>{formatDateTime(rental.startDate)}</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Mileage:</Text>
+                    <Text style={styles.subValue}>
+                      {rental.checkOutCondition.mileage?.toLocaleString() ?? 'N/A'} miles
+                    </Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Fuel Level:</Text>
+                    <Text style={styles.subValue}>{rental.checkOutCondition.fuelLevel}%</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Vehicle Condition:</Text>
+                    <Text style={styles.subValue}>
+                      {rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}
+                    </Text>
+                  </View>
+                </View>
+                {rental.checkOutCondition.hasDamage && (
+                  <View style={styles.highlight}>
+                    <Text style={styles.highlightText}>Existing Damage:</Text>
+                    <Text>{rental.checkOutCondition.damageDescription}</Text>
+                  </View>
+                )}
+                {includeImages && (rental.checkOutCondition.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={{ ...styles.subLabel, marginBottom: 5 }}>Vehicle Images:</Text>
+                    <View style={styles.grid}>
+                      {(rental.checkOutCondition.images || [])
+                        .filter(isValidPdfImageSrc)
+                        .slice(0, 7)
+                        .map((url, idx) => (
+                          <View key={idx} style={styles.gridItem}>
+                            <View style={styles.imageContainer}>
+                              <Image
+                                src={url}
+                                style={{ width: '100%', height: 80, objectFit: 'contain' }}
+                              />
+                            </View>
+                            <Text style={styles.imageCaption}>{`Image ${idx + 1}`}</Text>
+                          </View>
+                        ))}
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           )}
-        </View>
 
-        <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
-
-        {/* VEHICLE CONDITION AT CHECK-OUT */}
-        {rental.checkOutCondition && (
-          <View style={[styles.sectionBreak]} wrap={false}>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoCardTitle}>
-                Vehicle Condition at Check-Out
-              </Text>
-
-              <View style={styles.grid}>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Check-Out Date & Time:</Text>
-                  <Text style={styles.subValue}>
-                    {formatDateTime(rental.checkOutCondition.date)}
-                  </Text>
-                </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Mileage:</Text>
-                  <Text style={styles.subValue}>
-                    {rental.checkOutCondition.mileage?.toLocaleString() ??
-                      'N/A'}{' '}
-                    miles
-                  </Text>
-                </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Fuel Level:</Text>
-                  <Text style={styles.subValue}>
-                    {rental.checkOutCondition.fuelLevel}%
-                  </Text>
-                </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Vehicle Condition:</Text>
-                  <Text style={styles.subValue}>
-                    {rental.checkOutCondition.isClean
-                      ? 'Clean'
-                      : 'Needs Cleaning'}
-                  </Text>
-                </View>
-              </View>
-
-              {rental.checkOutCondition.hasDamage && (
-                <View style={styles.highlight}>
-                  <Text style={styles.highlightText}>Existing Damage:</Text>
-                  <Text>{rental.checkOutCondition.damageDescription}</Text>
-                </View>
-              )}
-
-              {/* Vehicle Images Grid */}
-              {rental.checkOutCondition.images?.length > 0 && (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={{ ...styles.subLabel, marginBottom: 5 }}>
-                    Vehicle Images:
-                  </Text>
-                  <View style={styles.grid}>
-                    {(rental.checkOutCondition.images || [])
-                      .filter(
-                        (url): url is string =>
-                          typeof url === 'string' && url.startsWith('http')
-                      )
-                      .slice(0, 6)
-                      .map((url, idx) => (
-                        <View key={idx} style={styles.gridItem}>
-                          <View style={styles.imageContainer}>
-                            <Image
-                              src={url}
-                              style={{ width: '100%', height: 120, objectFit: 'contain' }}
-                              onError={(err) =>
-                                console.error(
-                                  `PDF Image ${idx} failed to load:`,
-                                  err.message || err
-                                )
-                              }
-                            />
-                          </View>
-                          <Text style={styles.imageCaption}>{`Image ${idx + 1}`}</Text>
-                        </View>
-                      ))}
+          {/* RETURN CONDITION */}
+          {rental.returnCondition && (
+            <View style={[styles.sectionBreak]} wrap={false}>
+              <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
+              <View style={styles.card}>
+                <View style={styles.grid}>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Return Date & Time:</Text>
+                    <Text style={styles.subValue}>{formatDateTime(rental.returnCondition.date)}</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Mileage:</Text>
+                    <Text style={styles.subValue}>{rental.returnCondition.mileage.toLocaleString()} miles</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.subLabel}>Total Additional Charges:</Text>
+                    <Text style={styles.subValue}>£{rental.returnCondition.totalCharges.toFixed(2)}</Text>
                   </View>
                 </View>
-              )}
+                {includeImages && (rental.returnCondition.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                  <View style={styles.grid}>
+                    {(rental.returnCondition.images || [])
+                      .filter(isValidPdfImageSrc)
+                      .slice(0, 7)
+                      .map((img, i) => (
+                        <Image
+                          key={i}
+                          src={img}
+                          style={{
+                            width: '30%',
+                            margin: '1%',
+                            height: 70,
+                            objectFit: 'cover',
+                          }}
+                        />
+                      ))}
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {rental.returnCondition && (
-          <View style={[styles.sectionBreak]} wrap={false}>
-            <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
-            <View style={styles.card}>
-              <View style={styles.grid}>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Return Date & Time:</Text>
-                  <Text style={styles.subValue}>
-                    {formatDateTime(rental.returnCondition.date)}
+          {renderSubstitutionVehicles()}
+
+          {/* SUBSTITUTE CONDITION REPORTS */}
+          {rental.hireSubstitutionDetails &&
+            rental.hireSubstitutionDetails.map((sub, index) => (
+              <View key={`sub_card_${index}`} style={[styles.sectionBreak, { marginTop: 10 }]} wrap={false}>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>
+                    Condition Report: Substitution Vehicle {index + 1} ({sub.make} {sub.model})
                   </Text>
-                </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Mileage:</Text>
-                  <Text style={styles.subValue}>
-                    {rental.returnCondition.mileage.toLocaleString()} miles
+                  <Text style={[styles.subLabel, { marginTop: 5, marginBottom: 5, color: '#374151' }]}>
+                    Check-Out Details
                   </Text>
-                </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.subLabel}>Total Additional Charges:</Text>
-                  <Text style={styles.subValue}>
-                    £{rental.returnCondition.totalCharges.toFixed(2)}
-                  </Text>
+                  <View style={styles.grid}>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Date Out:</Text>
+                      <Text style={styles.subValue}>{formatDateTime(sub.givenAt)}</Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Mileage Out:</Text>
+                      <Text style={styles.subValue}>{sub.mileage?.toLocaleString() ?? 'N/A'}</Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Fuel Out:</Text>
+                      <Text style={styles.subValue}>{sub.fuelLevel ?? 'N/A'}%</Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.subLabel}>Clean Out:</Text>
+                      <Text style={styles.subValue}>{sub.isClean ? 'Yes' : 'No'}</Text>
+                    </View>
+                  </View>
+                  
+                  {sub.hasDamage && sub.damageDescription && (
+                    <View style={styles.highlight}>
+                      <Text style={styles.highlightText}>Recorded Damage (Out):</Text>
+                      <Text>{sub.damageDescription}</Text>
+                    </View>
+                  )}
+
+                  {includeImages && (sub.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                    <View style={{ marginTop: 5, marginBottom: 10 }}>
+                      <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out Images:</Text>
+                      <View style={styles.grid}>
+                        {(sub.images || [])
+                          .filter(isValidPdfImageSrc)
+                          .slice(0, 4)
+                          .map((url, i) => (
+                            <Image
+                              key={i}
+                              src={url}
+                              style={{ width: '23%', height: 50, objectFit: 'cover', margin: '1%' }}
+                            />
+                          ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 5, paddingTop: 5 }}>
+                    <Text style={[styles.subLabel, { marginBottom: 5, color: '#374151' }]}>
+                      Return Details (Check-In)
+                    </Text>
+                    
+                    {sub.returnCondition ? (
+                      <>
+                        <View style={styles.grid}>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Date In:</Text>
+                            <Text style={styles.subValue}>{formatDateTime(sub.returnCondition.date)}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Mileage In:</Text>
+                            <Text style={styles.subValue}>{sub.returnCondition.mileage.toLocaleString()}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Fuel In:</Text>
+                            <Text style={styles.subValue}>{sub.returnCondition.fuelLevel}%</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Return Charges:</Text>
+                            <Text style={styles.subValue}>£{sub.returnCondition.totalCharges.toFixed(2)}</Text>
+                          </View>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={{ padding: 5, backgroundColor: '#FEF3C7', borderRadius: 4 }}>
+                        <Text style={{ fontSize: 9, color: '#92400E', textAlign: 'center' }}>
+                          Vehicle currently active (Not returned)
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
-              {rental.returnCondition.images && rental.returnCondition.images.length > 0 && (
-                <View style={styles.grid}>
-                  {rental.returnCondition.images.map((img, i) => (
-                    <Image key={i} src={img} style={{ width: '30%', margin: '1%' }} />
-                  ))}
-                </View>
+            ))}
+
+          {/* TERMS AND CONDITIONS */}
+          <View style={[styles.section, localStyles.termsSection]}>
+            <Text style={styles.sectionTitle} minPresenceAhead={60}>TERMS AND CONDITIONS</Text>
+            <Text style={styles.text}>
+              {companyDetails.termsAndConditions || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement.'}
+            </Text>
+          </View>
+
+          {/* SIGNATURE SECTION */}
+          <View style={localStyles.signatureSection} wrap={false}>
+            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+              {isValidPdfImageSrc(rental.signature) && (
+                <Image src={rental.signature} style={[styles.signature, localStyles.compactImage]} />
               )}
+              <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
+              <Text style={localStyles.compactText}>{customer.name}</Text>
+              <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
             </View>
-          </View>
-        )}
 
-        {/* TERMS AND CONDITIONS */}
-        <View style={[styles.section, styles.sectionBreak, { marginBottom: 20 }]}>
-          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          <Text style={styles.text}>
-            {companyDetails.termsAndConditions ||
-              'Standard terms and conditions apply.'}
-          </Text>
-        </View>
-
-        <View style={[localStyles.signatureSectionPositioning]} wrap={false}>
-          {/* Hirer’s Signature Box */}
-          <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-            {rental.signature && (
-              <Image src={rental.signature} style={styles.signature} />
-            )}
-            <Text style={styles.signatureLine}>Hirer’s Signature</Text>
-            <Text>{customer.name}</Text>
-            <Text>Date: {formatDate(signatureDate)}</Text>
-          </View>
-
-          {/* Authorized Signature Box */}
-          <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-            {companyDetails.signature && (
-              <Image src={companyDetails.signature} style={styles.signature} />
-            )}
-            <Text style={styles.signatureLine}>Authorized Signature</Text>
-            <Text>{companyDetails.name || 'AIE SKYLINE'}</Text>
-            <Text>Date: {formatDate(signatureDate)}</Text>
+            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+              {isValidPdfImageSrc(companyDetails.signature) && (
+                <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
+              )}
+              <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
+              <Text style={localStyles.compactText}>{companyDetails.name || 'AIE SKYLINE'}</Text>
+              <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
+            </View>
           </View>
         </View>
 
         {/* FOOTER */}
-        <View style={styles.footer}>
+        <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639,
+            registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
           </Text>
           <Text
+            style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
           />
         </View>

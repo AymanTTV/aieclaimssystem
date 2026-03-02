@@ -2,11 +2,21 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
-import { Eye, Edit as EditIcon, Trash2, FileText, DollarSign } from 'lucide-react';
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  FileText,
+  CreditCard,
+  CheckCircle2,
+  Receipt,
+  FileSignature
+} from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { useAuth } from '../../context/AuthContext'; // ✅ NEW
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -17,6 +27,9 @@ interface MaintenanceTableProps {
   onGenerateDocument: (log: MaintenanceLog) => void;
   onViewDocument: (url: string) => void;
   onPay: (log: MaintenanceLog) => void;
+  onComplete: (log: MaintenanceLog) => void;
+  onGenerateInvoice: (log: MaintenanceLog) => void;
+  onStatusChange: (log: MaintenanceLog, newStatus: string) => void;
 }
 
 const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
@@ -27,140 +40,223 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onDelete,
   onGenerateDocument,
   onViewDocument,
-  onPay
+  onPay,
+  onComplete,
+  onGenerateInvoice,
+  onStatusChange
 }) => {
   const { can } = usePermissions();
+  const { user } = useAuth(); // ✅ NEW
   const { formatCurrency } = useFormattedDisplay();
+
+  // ✅ Manager-only status editing (still respects permission if you want)
+  const canEditStatusFromTable = user?.role === 'manager' && can('maintenance', 'update');
+
+  const ActionBtn = ({
+    onClick,
+    icon: Icon,
+    colorClass,
+    title
+  }: {
+    onClick: (e: React.MouseEvent) => void;
+    icon: any;
+    colorClass: string;
+    title: string;
+  }) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(e);
+      }}
+      title={title}
+      className={`p-1.5 rounded-md hover:bg-white hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-700 bg-green-50 border-green-200';
+      case 'in-progress':
+        return 'text-blue-700 bg-blue-50 border-blue-200';
+      case 'cancelled':
+        return 'text-gray-700 bg-gray-50 border-gray-200';
+      default:
+        return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+    }
+  };
 
   const columns = [
     {
-    header: 'Vehicle',
-    cell: ({ row }) => {
-      const log = row.original;
-
-      // Case 1: Manually entered vehicle details exist on the log
-      if (log.vehicleDetails) {
-        return (
-          <div>
-            <div className="font-medium">
-              {log.vehicleDetails.make} {log.vehicleDetails.model}
+      id: 'orderNumber',
+      header: <div className="w-16">Order #</div>,
+      cell: ({ row }: any) => (
+        <span className="font-mono text-xs font-medium text-gray-500 block truncate">
+          {row.original.orderNumber || '-'}
+        </span>
+      )
+    },
+    {
+      id: 'vehicle',
+      header: <div className="min-w-[140px]">Vehicle</div>,
+      cell: ({ row }: any) => {
+        const log = row.original;
+        if (log.vehicleDetails) {
+          return (
+            <div className="max-w-[180px]">
+              <div
+                className="font-medium text-gray-900 truncate"
+                title={`${log.vehicleDetails.make} ${log.vehicleDetails.model}`}
+              >
+                {log.vehicleDetails.make} {log.vehicleDetails.model}
+              </div>
+              <div className="text-sm text-gray-500 truncate">
+                {log.vehicleDetails.registrationNumber}
+              </div>
             </div>
-            <div className="text-sm text-gray-500">
-              {log.vehicleDetails.registrationNumber}
+          );
+        }
+        const vehicle = vehicles[log.vehicleId!];
+        return vehicle ? (
+          <div className="max-w-[180px]">
+            <div
+              className="font-medium text-gray-900 truncate"
+              title={`${vehicle.make} ${vehicle.model}`}
+            >
+              {vehicle.make} {vehicle.model}
+            </div>
+            <div className="text-sm text-gray-500 truncate">
+              {vehicle.registrationNumber}
             </div>
           </div>
+        ) : (
+          <span className="text-gray-400">N/A</span>
         );
       }
-
-      // Case 2 (Fallback): Vehicle from the main list
-      const vehicle = vehicles[log.vehicleId!]; // Use ! because we know vehicleId exists here
-      return vehicle ? (
-        <div>
-          <div className="font-medium">{vehicle.make} {vehicle.model}</div>
-          <div className="text-sm text-gray-500">{vehicle.registrationNumber}</div>
-        </div>
-      ) : (
-        'N/A'
-      );
     },
-  },
     {
-      header: 'Type',
-      cell: ({ row }) => (
-        <div>
-          <span className="capitalize">{row.original.type.replace('-', ' ')}</span>
+      id: 'type',
+      header: <div className="w-24">Type</div>,
+      cell: ({ row }: any) => (
+        <div className="w-24">
+          <span
+            className="capitalize text-gray-700 font-medium block truncate"
+            title={row.original.type.replace('-', ' ')}
+          >
+            {row.original.type.replace('-', ' ')}
+          </span>
           {(row.original.type === 'mot' || row.original.type === 'tfl') && (
-            <span className="ml-1 text-sm text-gray-500">Test</span>
+            <span className="ml-1 text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded border border-gray-200">
+              Test
+            </span>
           )}
         </div>
-      ),
+      )
     },
     {
-      header: 'Date',
-      cell: ({ row }) => {
+      id: 'date',
+      header: <div className="w-28">Date</div>,
+      cell: ({ row }: any) => {
         const d = row.original.date;
         const isScheduled = row.original.status === 'scheduled';
         const days = differenceInCalendarDays(d, new Date());
 
-        // Always RED for scheduled items that are overdue/today/<= 7 days away
         let badge: React.ReactNode = null;
         if (isScheduled) {
           if (days < 0) {
             badge = (
-              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
-                {`${Math.abs(days)}d overdue`}
+              <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
+                {`${Math.abs(days)}d O/D`}
               </span>
             );
           } else if (days === 0) {
             badge = (
-              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
+              <span className="inline-flex items-center rounded-full bg-orange-100 text-orange-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
                 Today
               </span>
             );
           } else if (days <= 7) {
             badge = (
-              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">
-                {days === 1 ? 'Tomorrow' : `In ${days} days`}
+              <span className="inline-flex items-center rounded-full bg-yellow-100 text-yellow-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
+                {days === 1 ? 'Tmrw' : `${days}d`}
               </span>
             );
           }
         }
 
         return (
-          <div className="flex items-center">
-            <span>{format(d, 'dd/MM/yyyy')}</span>
-            {badge}
+          <div className="flex flex-col w-28">
+            <span className="text-sm text-gray-700">{format(d, 'dd/MM/yyyy')}</span>
+            <div className="h-4">{badge}</div>
           </div>
         );
-      },
+      }
     },
     {
-      header: 'Status',
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.original.status} />
-          <StatusBadge status={row.original.paymentStatus} />
-        </div>
-      ),
-    },
-    {
-      header: 'Service Provider',
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">{row.original.serviceProvider}</div>
-          <div className="text-sm text-gray-500">{row.original.location}</div>
-        </div>
-      ),
-    },
-    {
-      header: 'Cost',
-      cell: ({ row }) => {
-        const {
-          netAmount,
-          vatAmount,
-          totalDiscount = 0,
-          cost,
-          paidAmount = 0,
-          remainingAmount,
-        } = row.original;
+      id: 'status',
+      header: <div className="w-28">Status</div>,
+      cell: ({ row }: any) => {
+        const log = row.original;
+
+        const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+          const val = e.target.value;
+          if (val === 'completed') {
+            onComplete(log);
+          } else {
+            onStatusChange(log, val);
+          }
+        };
 
         return (
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span>NET:</span>
-              <span>{formatCurrency(netAmount!)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>VAT:</span>
-              <span>{formatCurrency(vatAmount!)}</span>
-            </div>
-            {totalDiscount > 0 && (
-              <div className="flex justify-between text-red-600">
-                <span>Discount:</span>
-                <span>–{formatCurrency(totalDiscount)}</span>
-              </div>
+          <div className="space-y-1 w-28" onClick={(e) => e.stopPropagation()}>
+            {canEditStatusFromTable ? (
+              <select
+                value={log.status}
+                onChange={handleChange}
+                className={`block w-full text-xs font-medium rounded-md border-0 py-1 pl-2 pr-6 ring-1 ring-inset focus:ring-2 focus:ring-primary sm:text-xs sm:leading-6 ${getStatusColor(
+                  log.status
+                )}`}
+              >
+                <option value="scheduled">Scheduled</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            ) : (
+              <StatusBadge status={log.status} />
             )}
-            <div className="flex justify-between font-medium">
+
+            <div className="pl-1">
+              <StatusBadge status={log.paymentStatus} />
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      id: 'provider',
+      header: <div className="w-32">Provider</div>,
+      cell: ({ row }: any) => (
+        <div className="max-w-[140px]">
+          <div className="font-medium text-gray-900 truncate" title={row.original.serviceProvider}>
+            {row.original.serviceProvider}
+          </div>
+          <div className="text-xs text-gray-500 truncate" title={row.original.location}>
+            {row.original.location}
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'cost',
+      header: <div className="w-28">Cost</div>,
+      cell: ({ row }: any) => {
+        const { cost, paidAmount = 0, remainingAmount } = row.original;
+        return (
+          <div className="space-y-0.5 text-xs w-28">
+            <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
               <span>Total:</span>
               <span>{formatCurrency(cost)}</span>
             </div>
@@ -168,101 +264,107 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               <span>Paid:</span>
               <span>{formatCurrency(paidAmount)}</span>
             </div>
-            <div className="flex justify-between text-amber-600">
+            <div
+              className={`flex justify-between font-medium ${
+                remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'
+              }`}
+            >
               <span>Owing:</span>
               <span>{formatCurrency(remainingAmount)}</span>
             </div>
           </div>
         );
-      },
+      }
     },
     {
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
+      id: 'actions',
+      header: <div className="w-10 text-center">Actions</div>,
+      cell: ({ row }: any) => (
+        <div className="flex flex-col gap-1 items-center justify-center w-10">
           {can('maintenance', 'view') && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onView(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
+            <ActionBtn
+              onClick={() => onView(row.original)}
+              icon={Eye}
+              colorClass="text-blue-600"
               title="View Details"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
+            />
           )}
-          {can('maintenance','update') && (
-            <button
-              onClick={e=>{ e.stopPropagation(); onPay(row.original); }}
-              className="text-green-600 hover:text-green-800"
-              title="Record Payment"
-            >
-              <DollarSign className="h-4 w-4" />
-            </button>
-          )}
+
           {can('maintenance', 'update') && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onEdit(row.original);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Edit"
-            >
-              <EditIcon className="h-4 w-4" />
-            </button>
+            <>
+              <ActionBtn
+                onClick={() => onEdit(row.original)}
+                icon={Pencil}
+                colorClass="text-indigo-600"
+                title="Edit"
+              />
+
+              <div className="flex gap-1">
+                {row.original.status !== 'completed' && (
+                  <ActionBtn
+                    onClick={() => onComplete(row.original)}
+                    icon={CheckCircle2}
+                    colorClass="text-orange-600"
+                    title="Complete Maintenance"
+                  />
+                )}
+
+                <ActionBtn
+                  onClick={() => onPay(row.original)}
+                  icon={CreditCard}
+                  colorClass="text-emerald-600"
+                  title="Record Payment"
+                />
+              </div>
+            </>
           )}
+
           {can('maintenance', 'delete') && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onDelete(row.original);
-              }}
-              className="text-red-600 hover:text-red-800"
+            <ActionBtn
+              onClick={() => onDelete(row.original)}
+              icon={Trash2}
+              colorClass="text-red-600 hover:bg-red-50"
               title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            />
           )}
-          {can('maintenance', 'update') && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onGenerateDocument(row.original);
-              }}
-              className="text-green-600 hover:text-green-800"
-              title="Generate Document"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          {row.original.documentUrl && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onViewDocument(row.original.documentUrl!);
-              }}
-              className="text-blue-600 hover:text-blue-800"
-              title="View Document"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
+
+          <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-200">
+            {can('maintenance', 'update') && (
+              <>
+                {row.original.documentUrl ? (
+                  <ActionBtn
+                    onClick={() => onViewDocument(row.original.documentUrl!)}
+                    icon={FileText}
+                    colorClass="text-blue-700"
+                    title="View Work Order"
+                  />
+                ) : (
+                  <ActionBtn
+                    onClick={() => onGenerateDocument(row.original)}
+                    icon={FileSignature}
+                    colorClass="text-blue-600"
+                    title="Generate Work Order"
+                  />
+                )}
+                <ActionBtn
+                  onClick={() => onGenerateInvoice(row.original)}
+                  icon={Receipt}
+                  colorClass={row.original.invoiceUrl ? 'text-green-700' : 'text-gray-400 hover:text-green-600'}
+                  title="Generate/Regenerate Invoice"
+                />
+              </>
+            )}
+          </div>
         </div>
-      ),
-    },
+      )
+    }
   ];
 
-  // Optional whole-row highlighting (depends on DataTable support)
   const rowClassName = (row: { original: MaintenanceLog }) => {
     const { date, status } = row.original;
     if (status === 'scheduled') {
       const days = differenceInCalendarDays(date, new Date());
-      if (days <= 7) {
-        // includes overdue (negative), today (0), and next 7 days (1..7)
-        return 'bg-red-50 hover:bg-red-100';
-      }
+      if (days <= 7) return 'bg-red-50 hover:bg-red-100';
     }
     return '';
   };
@@ -270,9 +372,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   return (
     <DataTable
       data={logs}
-      columns={columns}
-      onRowClick={log => can('maintenance', 'view') && onView(log)}
-      // If your DataTable supports custom row classes, this will highlight the whole row:
+      columns={columns as any}
+      onRowClick={(log) => can('maintenance', 'view') && onView(log)}
       rowClassName={rowClassName as any}
     />
   );

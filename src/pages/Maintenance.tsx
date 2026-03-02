@@ -1,6 +1,7 @@
-// src/pages/maintenance.tsx
+// src/pages/Maintenance.tsx
 
 import React, { useState, useCallback, useEffect } from 'react';
+// ... (keep existing imports)
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
@@ -13,11 +14,11 @@ import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
-import { Plus, Download, FileText, Edit2, Trash2 } from 'lucide-react';
-import { startOfDay, differenceInCalendarDays } from 'date-fns'; // ⬅ add these
+import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock } from 'lucide-react'; // Added CalendarClock icon
+import { startOfDay, differenceInCalendarDays, format } from 'date-fns'; 
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
-import { MaintenanceLog, Vehicle, Customer } from '../types'; // IMPORT Customer type
-import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails } from '../utils/documentGenerator';
+import { MaintenanceLog, Vehicle, Customer } from '../types'; 
+import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails, generateMaintenanceInvoiceDocument } from '../utils/documentGenerator'; 
 import { MaintenanceDocument, MaintenanceBulkDocument } from '../components/pdf/documents';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
@@ -25,17 +26,20 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import maintenanceCategoryService from '../services/maintenanceCategory.service';
-import { useCustomers } from '../hooks/useCustomers'; // IMPORT useCustomers hook
+import { useCustomers } from '../hooks/useCustomers'; 
+import { updateDoc, doc } from 'firebase/firestore'; 
+import { db } from '../lib/firebase'; 
 
 const Maintenance: React.FC = () => {
+  // ... (keep existing hooks and state setup)
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
-  const { customers, loading: customersLoading } = useCustomers(); // FETCH customers
+  const { customers, loading: customersLoading } = useCustomers(); 
   const { can } = usePermissions();
   const { user } = useAuth();
   const { companyDetails } = useCompanyDetails();
 
-  // Build a map for quick vehicle lookups
+  // Maps
   const vehiclesMap = React.useMemo(() => {
     return vehicles.reduce((acc, vehicle) => {
       acc[vehicle.id] = vehicle;
@@ -43,7 +47,6 @@ const Maintenance: React.FC = () => {
     }, {} as Record<string, Vehicle>);
   }, [vehicles]);
 
-  // BUILD a map for quick customer lookups
   const customersMap = React.useMemo(() => {
     return customers.reduce((acc, customer) => {
       acc[customer.id] = customer;
@@ -62,26 +65,29 @@ const Maintenance: React.FC = () => {
     setVehicleFilter,
     paymentStatusFilter,
     setPaymentStatusFilter,
+    dateRange,
+    setDateRange,
     filteredLogs,
   } = useMaintenanceFilters(logs, vehiclesMap);
 
-  // State for “Add / Edit / Delete” maintenance
   const [showForm, setShowForm] = useState(false);
   const [selectedLog, setSelectedLog] = useState<MaintenanceLog | null>(null);
   const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
   const [deletingLog, setDeletingLog] = useState<MaintenanceLog | null>(null);
+  
+  // NEW: State for completion modal
+  const [completingLog, setCompletingLog] = useState<MaintenanceLog | null>(null);
+  const [completionDate, setCompletionDate] = useState<string>(''); // NEW State
 
-  // State for “Manage Categories”
   const [showCatModal, setShowCatModal] = useState(false);
   const [maintCategories, setMaintCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
   const [editCat, setEditCat] = useState<{ id: string; name: string } | null>(null);
   const [catName, setCatName] = useState<string>('');
 
-  const [payLog, setPayLog] = useState<MaintenanceLog|null>(null);
+  const [payLog, setPayLog] = useState<MaintenanceLog | null>(null);
   
-
-  // Load maintenance categories from Firestore
+  // ... (keep existing category loading logic and effects)
   const loadCategories = useCallback(() => {
     setLoadingCats(true);
     maintenanceCategoryService
@@ -98,6 +104,7 @@ const Maintenance: React.FC = () => {
     loadCategories();
   }, [loadCategories]);
 
+  // ... (keep category handlers: openCatForm, handleCatSubmit, handleCatDelete)
   const openCatForm = (cat?: { id: string; name: string }) => {
     if (cat) {
       setEditCat(cat);
@@ -145,7 +152,7 @@ const Maintenance: React.FC = () => {
     }
   };
 
-  // Delete callback for a log
+
   const handleDelete = useCallback(
     (log: MaintenanceLog) => {
       if (!can('maintenance', 'delete')) {
@@ -156,71 +163,56 @@ const Maintenance: React.FC = () => {
     },
     [can]
   );
-const orderedLogs = React.useMemo(() => {
-  const now = startOfDay(new Date());
 
-  const priority = (log: MaintenanceLog) => {
-    // 0 = scheduled (overdue/today/soon), 1 = in-progress, 2 = completed, 3 = anything else
-    if (log.status === 'scheduled') return 0;
-    if (log.status === 'in-progress') return 1;
-    if (log.status === 'completed') return 2;
-    return 3;
-  };
+  const orderedLogs = React.useMemo(() => {
+    // ... (keep existing sorting logic)
+    const now = startOfDay(new Date());
+    const priority = (log: MaintenanceLog) => {
+      if (log.status === 'scheduled') return 0;
+      if (log.status === 'in-progress') return 1;
+      if (log.status === 'completed') return 2;
+      return 3;
+    };
+    return [...filteredLogs].sort((a, b) => {
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
+      if (pa === 0) {
+        const da = differenceInCalendarDays(a.date, now);
+        const db = differenceInCalendarDays(b.date, now);
+        if (da !== db) return da - db;
+      }
+      return (b.date?.getTime?.() ?? 0) - (a.date?.getTime?.() ?? 0);
+    });
+  }, [filteredLogs]);
 
-  return [...filteredLogs].sort((a, b) => {
-    const pa = priority(a);
-    const pb = priority(b);
-    if (pa !== pb) return pa - pb;
-
-    // Within "scheduled": sort by closeness to now — overdue first, then today, then soonest
-    if (pa === 0) {
-      const da = differenceInCalendarDays(a.date, now);
-      const db = differenceInCalendarDays(b.date, now);
-      // Ascending puts negative (overdue) first, then 0 (today), then 1, 2, ...
-      if (da !== db) return da - db;
-    }
-
-    // Tie-break for other statuses: newest first
-    return (b.date?.getTime?.() ?? 0) - (a.date?.getTime?.() ?? 0);
-  });
-}, [filteredLogs]);
-
-  // Export all logs to Excel
+  // ... (keep export, document generation handlers)
   const handleExport = useCallback(() => {
-    try {
-      exportMaintenanceLogs(logs);
-      toast.success('Maintenance logs exported successfully');
-    } catch (error) {
-      console.error('Error exporting maintenance logs:', error);
-      toast.error('Failed to export maintenance logs');
-    }
-  }, [logs]);
+  try {
+    // Pass both logs AND the vehiclesMap to the utility
+    exportMaintenanceLogs(logs, vehiclesMap);
+    toast.success('Maintenance logs exported successfully');
+  } catch (error) {
+    console.error('Error exporting maintenance logs:', error);
+    toast.error('Failed to export maintenance logs');
+  }
+}, [logs, vehiclesMap]); // Added vehiclesMap to the dependency array
 
-  // Generate document for a single log
   const handleGenerateDocument = useCallback(
     async (log: MaintenanceLog) => {
       try {
-        toast.loading('Generating maintenance document...');
-        const vehicle = vehiclesMap[log.vehicleId];
-        if (!vehicle) {
-          throw new Error('Vehicle not found');
-        }
-        const companyDetailsData = await getCompanyDetails();
-        if (!companyDetailsData) {
-          throw new Error('Company details not found');
-        }
-
-        await generateAndUploadDocument(
+        toast.loading('Generating work order...');
+        const vehicle = vehiclesMap[log.vehicleId!] || (log.vehicleDetails as unknown as Vehicle);
+        const url = await generateAndUploadDocument(
           MaintenanceDocument,
           { ...log, vehicle },
           'maintenance',
           log.id,
-          'maintenanceLogs',
-          companyDetailsData
+          'maintenanceLogs'
         );
-
         toast.dismiss();
         toast.success('Document generated successfully');
+        if (url) window.open(url, '_blank');
       } catch (error) {
         console.error('Error generating document:', error);
         toast.dismiss();
@@ -234,7 +226,6 @@ const orderedLogs = React.useMemo(() => {
     window.open(url, '_blank');
   }, []);
 
-  // Generate a bulk PDF of all filtered logs
   const handleGenerateBulkPDF = useCallback(
     async () => {
       try {
@@ -243,15 +234,13 @@ const orderedLogs = React.useMemo(() => {
         if (!companyDetailsData) {
           throw new Error('Company details not found');
         }
-
         const pdfBlob = await generateBulkDocuments(
           MaintenanceBulkDocument,
           filteredLogs,
           companyDetailsData,
           vehiclesMap,
-          customersMap // PASS customersMap here
+          customersMap
         );
-
         saveAs(pdfBlob, 'maintenance_records.pdf');
         toast.dismiss();
         toast.success('Maintenance records PDF generated successfully');
@@ -261,10 +250,73 @@ const orderedLogs = React.useMemo(() => {
         toast.error('Failed to generate PDF');
       }
     },
-    [filteredLogs, vehiclesMap, customersMap] // ADD customersMap to dependency array
+    [filteredLogs, vehiclesMap, customersMap] 
   );
 
-  // UPDATE loading check to include customers
+  const handleGenerateInvoice = async (log: MaintenanceLog) => {
+     try {
+       toast.loading("Generating Maintenance Invoice...");
+       const vehicle = vehiclesMap[log.vehicleId!] || (log.vehicleDetails as unknown as Vehicle);
+       const url = await generateMaintenanceInvoiceDocument({ ...log, vehicle });
+       toast.dismiss();
+       toast.success("Invoice generated");
+       if (url) window.open(url, '_blank');
+     } catch(e) {
+       console.error(e);
+       toast.dismiss();
+       toast.error("Failed to generate invoice");
+     }
+  };
+
+  // --- CHANGED: Completion Handlers ---
+
+  // UPDATED: Initialize Date when opening modal
+  const handleCompleteMaintenance = (log: MaintenanceLog) => {
+     setCompletionDate(format(new Date(), "yyyy-MM-dd'T'HH:mm")); // Default to now
+     setCompletingLog(log);
+  };
+
+  // UPDATED: Use the specific date from the input
+  const confirmCompleteMaintenance = async () => {
+     if (!completingLog) return;
+     try {
+       const dateToSave = completionDate ? new Date(completionDate) : new Date();
+
+       await updateDoc(doc(db, 'maintenanceLogs', completingLog.id), {
+         status: 'completed',
+         completedDate: dateToSave, 
+         updatedAt: new Date(),
+         updatedBy: user?.id
+       });
+       toast.success("Maintenance marked as completed");
+       setCompletingLog(null);
+       setCompletionDate('');
+     } catch(e) {
+       console.error(e);
+       toast.error("Failed to update status");
+     }
+  };
+
+  // NEW: Handle direct status changes from table (other than 'completed')
+  const handleStatusChange = async (log: MaintenanceLog, newStatus: string) => {
+    try {
+      const updates: any = {
+        status: newStatus,
+        updatedAt: new Date(),
+        updatedBy: user?.id
+      };
+      // If moving away from completed, maybe clear the completion date?
+      // For now, let's keep it simple. If moving TO completed, the table logic
+      // calls handleCompleteMaintenance instead of this function.
+      
+      await updateDoc(doc(db, 'maintenanceLogs', log.id), updates);
+      toast.success(`Status updated to ${newStatus}`);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to update status');
+    }
+  };
+
   if (vehiclesLoading || logsLoading || customersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -276,63 +328,57 @@ const orderedLogs = React.useMemo(() => {
   return (
     <div className="space-y-6">
 
-      {/* ── Summary Cards ── */}
       <MaintenanceSummaryCards logs={filteredLogs} />
 
-     {/* ── Top Bar (Responsive) ── */}
-<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance</h1>
+      {/* Header Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {user?.role === 'manager' && (
+            <button
+              onClick={handleGenerateBulkPDF}
+              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <FileText className="h-5 w-5 mr-1 sm:mr-2" />
+              <span className="truncate">PDF</span>
+              <span className="hidden sm:inline">&nbsp;Report</span>
+            </button>
+          )}
 
-  {/* Actions (Responsive with labels) */}
-  <div className="flex flex-wrap items-center gap-2">
-    {user?.role === 'manager' && (
-      <button
-        onClick={handleGenerateBulkPDF}
-        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <FileText className="h-5 w-5 mr-1 sm:mr-2" />
-        <span className="truncate">PDF</span>
-        <span className="hidden sm:inline">&nbsp;Report</span>
-      </button>
-    )}
+          {can('maintenance', 'export') && (
+            <button
+              onClick={handleExport}
+              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-5 w-5 mr-1 sm:mr-2" />
+              <span className="truncate">Export</span>
+            </button>
+          )}
 
-    {can('maintenance', 'export') && (
-      <button
-        onClick={handleExport}
-        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <Download className="h-5 w-5 mr-1 sm:mr-2" />
-        <span className="truncate">Export</span>
-      </button>
-    )}
+          {can('maintenance', 'create') && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+            >
+              <Plus className="h-5 w-5 mr-1 sm:mr-2" />
+              <span className="truncate">Schedule</span>
+              <span className="hidden sm:inline">&nbsp;Maintenance</span>
+            </button>
+          )}
 
-    {can('maintenance', 'create') && (
-      <button
-        onClick={() => setShowForm(true)}
-        className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-      >
-        <Plus className="h-5 w-5 mr-1 sm:mr-2" />
-        <span className="truncate">Schedule</span>
-        <span className="hidden sm:inline">&nbsp;Maintenance</span>
-      </button>
-    )}
+          {user?.role === 'manager' && (
+            <button
+              onClick={() => setShowCatModal(true)}
+              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Edit2 className="h-5 w-5 mr-1 sm:mr-2" />
+              <span className="truncate">Categories</span>
+              <span className="hidden sm:inline">&nbsp;Manage</span>
+            </button>
+          )}
+        </div>
+      </div>
 
-    {user?.role === 'manager' && (
-      <button
-        onClick={() => setShowCatModal(true)}
-        className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-      >
-        <Edit2 className="h-5 w-5 mr-1 sm:mr-2" />
-        <span className="truncate">Categories</span>
-        <span className="hidden sm:inline">&nbsp;Manage</span>
-      </button>
-    )}
-  </div>
-</div>
-
-
-
-      {/* ── Filters ── */}
       <MaintenanceFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -345,25 +391,27 @@ const orderedLogs = React.useMemo(() => {
         vehicles={vehicles}
         paymentStatusFilter={paymentStatusFilter}
         onPaymentStatusFilterChange={setPaymentStatusFilter}
-        /** Pass dynamic categories into the “Type” dropdown **/
         categories={maintCategories.map((c) => c.name)}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
       />
 
-      {/* ── Table ── */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
        <MaintenanceTable
-  logs={orderedLogs}
-  vehicles={vehiclesMap}
-  onView={setSelectedLog}
-  onEdit={setEditingLog}
-  onDelete={handleDelete}
-  onGenerateDocument={handleGenerateDocument}
-  onViewDocument={handleViewDocument}
-  onPay={setPayLog}
-/>
+          logs={orderedLogs}
+          vehicles={vehiclesMap}
+          onView={setSelectedLog}
+          onEdit={setEditingLog}
+          onDelete={handleDelete}
+          onGenerateDocument={handleGenerateDocument}
+          onViewDocument={handleViewDocument}
+          onPay={setPayLog}
+          onComplete={handleCompleteMaintenance}
+          onGenerateInvoice={handleGenerateInvoice}
+          onStatusChange={handleStatusChange} // NEW PROP
+        />
       </div>
 
-      {/* ── Add / Edit Maintenance Form Modal ── */}
       <Modal
         isOpen={showForm || !!editingLog}
         onClose={() => {
@@ -384,35 +432,33 @@ const orderedLogs = React.useMemo(() => {
       </Modal>
 
       <Modal
-  isOpen={!!payLog}
-  onClose={()=>setPayLog(null)}
-  title="Record Maintenance Payment"
->
-  {payLog && (
-    <MaintenancePaymentModal
-      log={payLog}
-      vehicle={vehiclesMap[payLog.vehicleId]}
-      onClose={()=>setPayLog(null)}
-    />
-  )}
-</Modal>
+        isOpen={!!payLog}
+        onClose={()=>setPayLog(null)}
+        title="Record Maintenance Payment"
+      >
+        {payLog && (
+          <MaintenancePaymentModal
+            log={payLog}
+            vehicle={vehiclesMap[payLog.vehicleId!]}
+            onClose={()=>setPayLog(null)}
+          />
+        )}
+      </Modal>
 
-      {/* ── View Maintenance Details Modal ── */}
       <Modal
         isOpen={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         title="Maintenance Details"
         size="lg"
       >
-        {selectedLog && vehiclesMap[selectedLog.vehicleId] && (
+        {selectedLog && (
           <MaintenanceDetails
             log={selectedLog}
-            vehicle={vehiclesMap[selectedLog.vehicleId]}
+            vehicle={vehiclesMap[selectedLog.vehicleId!] || (selectedLog.vehicleDetails as unknown as Vehicle)}
           />
         )}
       </Modal>
 
-      {/* ── Delete Maintenance Log Modal ── */}
       <Modal
         isOpen={!!deletingLog}
         onClose={() => setDeletingLog(null)}
@@ -426,7 +472,70 @@ const orderedLogs = React.useMemo(() => {
         )}
       </Modal>
 
-      {/* ── Manage Categories Modal ── */}
+      {/* CHANGED: Completion Confirmation Modal with Date Input */}
+      <Modal
+        isOpen={!!completingLog}
+        onClose={() => setCompletingLog(null)}
+        title="Complete Maintenance"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start">
+            <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+              <CheckCircle className="h-6 w-6 text-green-600" aria-hidden="true" />
+            </div>
+            <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
+              <h3 className="text-base font-semibold leading-6 text-gray-900">
+                Mark as Completed
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500 mb-3">
+                  Confirm completion details below.
+                </p>
+                
+                {/* NEW: Date Input */}
+                <div className="text-left">
+                  <label htmlFor="compDate" className="block text-xs font-medium text-gray-700 mb-1">
+                    Completion Date & Time
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <CalendarClock className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="datetime-local"
+                      id="compDate"
+                      value={completionDate}
+                      onChange={(e) => setCompletionDate(e.target.value)}
+                      className="block w-full rounded-md border-gray-300 pl-10 focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                    />
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              className="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 sm:ml-3 sm:w-auto"
+              onClick={confirmCompleteMaintenance}
+            >
+              Complete
+            </button>
+            <button
+              type="button"
+              className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+              onClick={() => setCompletingLog(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Category Modal - (Unchanged content) */}
       <Modal
         isOpen={showCatModal}
         onClose={() => {
@@ -493,7 +602,6 @@ const orderedLogs = React.useMemo(() => {
           )}
         </div>
       </Modal>
-      {/* ────────────────────────────────────────────────────────────────────────────── */}
     </div>
   );
 };

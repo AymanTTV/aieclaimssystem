@@ -10,15 +10,18 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import toast from 'react-hot-toast';
-import { InvoiceLineItem, Invoice } from '../../types/finance';
+import { InvoiceLineItem, Invoice, Account } from '../../types';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import productService from '../../services/product.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import ProductFormModal from '../products/ProductFormModal';
+import { PlusCircle } from 'lucide-react';
 
 interface InvoiceFormProps {
   vehicles: Vehicle[];
   customers: Customer[];
+  accounts?: Account[]; 
   onClose: () => void;
 }
 
@@ -26,7 +29,7 @@ interface ProductSuggestion {
   id: string;
   partNumber: string;
   name: string;
-  lastPrice: number; // from product.retailPrice (fallback to legacy price)
+  lastPrice: number; 
 }
 
 const getNextInvoiceNumber = async (): Promise<string> => {
@@ -50,13 +53,14 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
 
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
+  
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
     { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false }
   ]);
@@ -66,8 +70,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     dueDate: new Date().toISOString().split('T')[0],
     category: '',
     customCategory: '',
+    description: '', // <--- NEW STATE
     vehicleId: '',
-    vehicleName: '', // <-- ADDED
+    vehicleName: '',
     useCustomCustomer: false,
     customerId: '',
     customerName: '',
@@ -77,73 +82,125 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, onClose 
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
-    isLoan: false, // <-- NEW: Loan checkbox state
+    isLoan: false,
+    accountId: '',
+    isRecurring: false,
+    recurringFrequency: 'monthly',
     uploadedDocument: null as File | null
   });
 
   const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
 
-  // Fetch categories & product list
+  // --- Product Creation State ---
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [pendingLineIndex, setPendingLineIndex] = useState<number | null>(null);
+
+  // Fetch categories, accounts, & product list
   useEffect(() => {
-  (async () => {
-    try {
-      const snap = await getDocs(collection(db, 'invoiceCategories'));
-      const fetched: string[] = [];
-      snap.forEach(s => fetched.push((s.data() as any).name));
-      fetched.sort((a, b) => a.localeCompare(b));
-      setCategories(fetched);
-    } catch {
-      toast.error('Failed to load categories');
+    // 1. Categories
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'invoiceCategories'));
+        const fetched: string[] = [];
+        snap.forEach(s => fetched.push((s.data() as any).name));
+        fetched.sort((a, b) => a.localeCompare(b));
+        setCategories(fetched);
+      } catch {
+        toast.error('Failed to load categories');
+      }
+    })();
+
+    // 2. Accounts (if not provided)
+    if (financeAccounts.length === 0) {
+        (async () => {
+        try {
+            const snap = await getDocs(collection(db, 'accounts')); 
+            const accs: Account[] = [];
+            snap.forEach(doc => accs.push({ id: doc.id, ...doc.data() } as Account));
+            setFinanceAccounts(accs.sort((a, b) => a.name.localeCompare(b.name)));
+        } catch (e) {
+            console.error("Failed to load accounts", e);
+        }
+        })();
     }
-  })();
 
-  (async () => {
-    try {
-      const prods = await productService.getAll();
-      setProductSuggestions(
-        prods.map(p => ({
-          id: p.id,
-          partNumber: p.partNumber ?? '',
-          name: p.name ?? '',
-          lastPrice: Number(p.retailPrice ?? p.price ?? 0),
-        }))
-      );
-    } catch {
-      console.error('Error fetching products');
+    // 3. Products
+    (async () => {
+      try {
+        const prods = await productService.getAll();
+        setProductSuggestions(
+          prods.map(p => ({
+            id: p.id,
+            partNumber: p.partNumber ?? '',
+            name: p.name ?? '',
+            lastPrice: Number(p.retailPrice ?? p.price ?? 0),
+          }))
+        );
+      } catch {
+        console.error('Error fetching products');
+      }
+    })();
+  }, []);
+
+  // --- Handle Product Created ---
+  const handleProductCreated = (product: any) => {
+    const newSuggestion = {
+      id: product.id,
+      partNumber: product.partNumber ?? '',
+      name: product.name ?? '',
+      lastPrice: Number(product.retailPrice ?? 0),
+    };
+    
+    // Add to local suggestions immediately
+    setProductSuggestions(prev => [...prev, newSuggestion]);
+
+    // If we have a pending index, fill that line item
+    if (pendingLineIndex !== null) {
+      setLineItems(prev => {
+         const copy = [...prev];
+         copy[pendingLineIndex] = {
+           ...copy[pendingLineIndex],
+           description: newSuggestion.name,
+           unitPrice: newSuggestion.lastPrice
+         };
+         return copy;
+      });
+      // Close suggestions for this row
+      const arr = [...showSuggestions]; 
+      arr[pendingLineIndex] = false; 
+      setShowSuggestions(arr);
     }
-  })();
-}, []);
+    setPendingLineIndex(null);
+  };
 
-const filterMatches = (q: string) => {
-  const s = q.trim().toLowerCase();
-  if (!s) return [];
-  return productSuggestions.filter(ps =>
-    ps.name.toLowerCase().includes(s) || ps.partNumber.toLowerCase().includes(s)
-  );
-};
+  const filterMatches = (q: string) => {
+    const s = q.trim().toLowerCase();
+    if (!s) return [];
+    return productSuggestions.filter(ps =>
+      ps.name.toLowerCase().includes(s) || ps.partNumber.toLowerCase().includes(s)
+    );
+  };
 
-const tryAutofillUnitPrice = (desc: string, idx: number) => {
-  const q = desc.trim().toLowerCase();
-  if (!q) return;
-  const hit = productSuggestions.find(
-    ps => ps.name.toLowerCase() === q || ps.partNumber.toLowerCase() === q
-  );
-  if (hit) {
-    setLineItems(items => {
-      const copy = [...items];
-      copy[idx] = { ...copy[idx], unitPrice: hit.lastPrice };
-      return copy;
-    });
-  }
-};
-
+  const tryAutofillUnitPrice = (desc: string, idx: number) => {
+    const q = desc.trim().toLowerCase();
+    if (!q) return;
+    const hit = productSuggestions.find(
+      ps => ps.name.toLowerCase() === q || ps.partNumber.toLowerCase() === q
+    );
+    if (hit) {
+      setLineItems(items => {
+        const copy = [...items];
+        copy[idx] = { ...copy[idx], unitPrice: hit.lastPrice };
+        return copy;
+      });
+    }
+  };
 
   useEffect(() => {
     setShowSuggestions(new Array(lineItems.length).fill(false));
   }, [lineItems.length]);
 
-  // Totals calculation
   const computeTotals = () => {
     let subTotal = 0, vatAmount = 0, totalDiscount = 0;
     lineItems.forEach(item => {
@@ -214,7 +271,7 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
   const handleFieldBlur = (idx: number) => {
     setTimeout(() => {
       const arr = [...showSuggestions]; arr[idx] = false; setShowSuggestions(arr);
-    }, 100);
+    }, 200); 
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -222,7 +279,6 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
     if (!user) return;
     setLoading(true);
 
-    // NEW: Customer validation
     if (
       (!formData.useCustomCustomer && !formData.customerId) ||
       (formData.useCustomCustomer && !formData.customerName.trim())
@@ -247,8 +303,10 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
         const newInvoiceNumber = await getNextInvoiceNumber();
 
         const remaining = parseFloat((total - paidNow).toFixed(2));
-        let status = remaining <= 0.001 ? (paidNow > 0 ? 'paid' : 'unpaid') : 'partially_paid';
+        let status: 'paid' | 'unpaid' | 'partially_paid' = remaining <= 0.001 ? (paidNow > 0 ? 'paid' : 'unpaid') : 'partially_paid';
         if (Math.abs(total - paidNow) < 0.01 && total > 0) status = 'paid';
+
+        const selectedAccount = financeAccounts.find(a => a.id === formData.accountId);
 
         const payments: Invoice['payments'] = paidNow > 0 ? [{
           id: Date.now().toString(),
@@ -259,7 +317,7 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
           notes: formData.paymentNotes,
           createdAt: new Date(),
           createdBy: user.id,
-          document: null
+          document: undefined
         }] : [];
     
         const payload: Omit<Invoice, 'id'> = {
@@ -275,9 +333,12 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
           remainingAmount: remaining,
           paymentStatus: status,
           category: formData.category,
+          
+          description: formData.description, // <--- SAVE DESCRIPTION
+          
           customCategory: formData.category === 'Other' ? formData.customCategory : null,
           vehicleId: formData.vehicleId || null,
-          vehicleName: formData.vehicleName || null, // <-- ADDED
+          vehicleName: formData.vehicleName || null,
           customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
           customerName: formData.useCustomCustomer
             ? formData.customerName
@@ -285,23 +346,39 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
           customerPhone: formData.useCustomCustomer
             ? formData.customerPhone
             : customers.find(c => c.id === formData.customerId)?.mobile || '',
+            
           payments,
           isLoan: formData.isLoan,
+          
+          accountId: selectedAccount?.id || null,
+          accountName: selectedAccount?.name || null,
+
+          isRecurring: formData.isRecurring,
+          recurringFrequency: formData.isRecurring ? (formData.recurringFrequency as any) : null,
+
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          createdBy: user.id
         };
 
-        const docRef = await addDoc(collection(db, 'invoices'), payload);
+        const docRef = await addDoc(collection(db, 'invoices'), payload as any);
 
-        // generate & upload PDF
-        const blob = await generateInvoicePDF(
-            { id: docRef.id, ...payload } as any,
-            vehicles.find(v => v.id === formData.vehicleId)!
-        );
-        const stRef = ref(storage, `invoices/${docRef.id}/invoice.pdf`);
-        const snap = await uploadBytes(stRef, blob);
-        const url = await getDownloadURL(snap.ref);
-        await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: url });
+        let documentUrl = '';
+        if (formData.uploadedDocument) {
+             const stRef = ref(storage, `invoices/${docRef.id}/${formData.uploadedDocument.name}`);
+             const snap = await uploadBytes(stRef, formData.uploadedDocument);
+             documentUrl = await getDownloadURL(snap.ref);
+        } else {
+             // For PDF generation, we need the ID inside the object
+             const blob = await generateInvoicePDF(
+                { id: docRef.id, ...payload } as any,
+                vehicles.find(v => v.id === formData.vehicleId)!
+             );
+             const stRef = ref(storage, `invoices/${docRef.id}/invoice.pdf`);
+             const snap = await uploadBytes(stRef, blob);
+             documentUrl = await getDownloadURL(snap.ref);
+        }
+        await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: documentUrl });
 
         const vehicle = vehicles.find(v => v.id === formData.vehicleId);
         const vehicleOwner = vehicle?.owner
@@ -315,13 +392,14 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
             amount: total,
             description: `Loan for Invoice ${newInvoiceNumber}`,
             referenceId: docRef.id,
-            vehicleId: payload.vehicleId,
-            vehicleName: payload.vehicleName || undefined, // <-- UPDATED
+            vehicleId: payload.vehicleId || undefined,
+            vehicleName: payload.vehicleName || undefined,
             vehicleOwner,
-            customerId: payload.customerId,
+            customerId: payload.customerId || undefined,
             customerName: payload.customerName || undefined,
             paymentMethod: 'internal',
-            paymentStatus: 'paid'
+            paymentStatus: 'paid',
+            accountFrom: selectedAccount?.id || undefined
             });
         }
 
@@ -332,374 +410,442 @@ const tryAutofillUnitPrice = (desc: string, idx: number) => {
             amount: paidNow,
             description: formData.paymentNotes,
             referenceId: docRef.id,
-            vehicleId: payload.vehicleId,
-            vehicleName: payload.vehicleName || undefined, // <-- UPDATED
+            vehicleId: payload.vehicleId || undefined,
+            vehicleName: payload.vehicleName || undefined,
             vehicleOwner,
-            customerId: payload.customerId,
+            customerId: payload.customerId || undefined,
             customerName: payload.customerName || undefined,
             paymentMethod: formData.paymentMethod,
             paymentReference: formData.paymentReference,
-            paymentStatus: status
+            paymentStatus: status,
+            accountTo: selectedAccount?.id || undefined
             });
         }
 
         toast.success(`Invoice ${newInvoiceNumber} created successfully`);
         onClose();
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
-        toast.error('Failed to create invoice');
+        toast.error('Failed to create invoice: ' + err.message);
     } finally {
         setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* -- NEW: Loan Checkbox -- */}
-      <div className="flex justify-end">
-        <label className="flex items-center space-x-2 cursor-pointer">
+    <>
+      <ProductFormModal 
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        onProductCreated={handleProductCreated}
+      />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="flex justify-end">
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.isLoan}
+              onChange={e =>
+                setFormData(fd => ({ ...fd, isLoan: e.target.checked }))
+              }
+              className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">Is it a Loan?</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Customer */}
+            <div className="space-y-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={formData.useCustomCustomer}
+                  onChange={e =>
+                    setFormData(fd => ({
+                      ...fd,
+                      useCustomCustomer: e.target.checked,
+                      customerId: '',
+                      customerName: ''
+                    }))
+                  }
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700">Enter Customer Manually</span>
+              </label>
+              {formData.useCustomCustomer ? (
+                <>
+                  <FormField
+                    label="Customer Name"
+                    value={formData.customerName}
+                    onChange={e => setFormData(fd => ({ ...fd, customerName: e.target.value }))}
+                    required
+                  />
+                  <FormField
+                    type="tel"
+                    label="Phone Number"
+                    value={formData.customerPhone}
+                    onChange={e => setFormData(fd => ({ ...fd, customerPhone: e.target.value }))}
+                  />
+                </>
+              ) : (
+                <SearchableSelect
+                  label="Select Customer"
+                  options={customers.map(c => ({
+                    id: c.id,
+                    label: c.name,
+                    subLabel: `${c.mobile} • ${c.email}`
+                  }))}
+                  value={formData.customerId}
+                  onChange={id => {
+                    const c = customers.find(x => x.id === id)!;
+                    setFormData(fd => ({
+                      ...fd,
+                      customerId: id,
+                      customerName: c.name,
+                      customerPhone: c.mobile
+                    }));
+                  }}
+                  placeholder="Search…"
+                  required
+                />
+              )}
+            </div>
+
+            <SearchableSelect
+              label="Finance Account (Income To)"
+              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+              value={formData.accountId}
+              onChange={val => setFormData(fd => ({ ...fd, accountId: val }))}
+              placeholder="Select account..."
+            />
+        </div>
+
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            type="date"
+            label="Invoice Date"
+            value={formData.date}
+            onChange={e => setFormData(fd => ({ ...fd, date: e.target.value }))}
+            required
+          />
+          <FormField
+            type="date"
+            label="Due Date"
+            value={formData.dueDate}
+            onChange={e => setFormData(fd => ({ ...fd, dueDate: e.target.value }))}
+            required
+          />
+        </div>
+
+        {/* Category & Description */}
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Category</label>
+            <select
+              value={formData.category}
+              onChange={e => setFormData(fd => ({ ...fd, category: e.target.value }))}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="">Select…</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          {formData.category === 'Other' && (
+            <FormField
+              label="Custom Category"
+              value={formData.customCategory}
+              onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
+              required
+            />
+          )}
+
+           {/* --- NEW DESCRIPTION FIELD --- */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Description (Optional)</label>
+            <textarea
+              value={formData.description}
+              onChange={e => setFormData(fd => ({ ...fd, description: e.target.value }))}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              rows={2}
+              placeholder="General description or notes for this invoice..."
+            />
+          </div>
+        </div>
+
+        {/* Vehicle */}
+        <SearchableSelect
+          label="Related Vehicle (optional)"
+          options={vehicles.map(v => ({
+            id: v.id,
+            label: `${v.make} ${v.model}`,
+            subLabel: v.registrationNumber
+          }))}
+          value={formData.vehicleId}
+          onChange={id => { 
+            const v = vehicles.find(vh => vh.id === id);
+            setFormData(fd => ({
+              ...fd,
+              vehicleId: id || '',
+              vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+            }));
+          }}
+          placeholder="Search…"
+        />
+
+        {/* Recurring Settings */}
+        <div className="flex items-center space-x-2 pt-2">
           <input
             type="checkbox"
-            checked={formData.isLoan}
-            onChange={e =>
-              setFormData(fd => ({ ...fd, isLoan: e.target.checked }))
-            }
-            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+            id="isRecurring"
+            checked={formData.isRecurring}
+            onChange={e => setFormData(fd => ({ ...fd, isRecurring: e.target.checked }))}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
           />
-          <span className="text-sm font-medium text-gray-700">Is it a Loan?</span>
-        </label>
-      </div>
+          <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700">Recurring Invoice</label>
+        </div>
+        
+        {formData.isRecurring && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Frequency</label>
+            <select
+              value={formData.recurringFrequency}
+              onChange={e => setFormData(fd => ({ ...fd, recurringFrequency: e.target.value }))}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        )}
 
-      {/* Customer */}
-      <div className="space-y-4">
+        {/* Line Items */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-lg font-medium">Line Items</h3>
+            <button type="button" onClick={addLineItem} className="text-sm text-primary hover:text-primary-600">
+              + Add Line
+            </button>
+          </div>
+          <div className="space-y-3">
+            {lineItems.map((item, idx) => (
+              <div
+                key={item.id}
+                className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
+              >
+                <div className="sm:col-span-2 relative">
+                  <FormField
+                    label="Description"
+                    value={item.description}
+                    onChange={e => handleDescriptionChange(idx, e.target.value)}
+                    onFocus={() => handleFieldFocus(idx)}
+                    onBlur={() => {
+                      setTimeout(() => handleFieldBlur(idx), 120);
+                      tryAutofillUnitPrice(item.description, idx);
+                    }}
+                    required
+                  />
+                  {showSuggestions[idx] && item.description && (
+                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+                      {filterMatches(item.description).map(s => (
+                        <li
+                          key={s.id}
+                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                          onMouseDown={() => {
+                            handleSuggestionSelect(s, idx);
+                          }}
+                          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+                        >
+                          <span className="truncate">
+                            {s.name}
+                            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+                          </span>
+                          <span className="text-gray-500 text-sm ml-3">
+                            {formatCurrency(s.lastPrice)}
+                          </span>
+                        </li>
+                      ))}
+                      <li 
+                        className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
+                        onMouseDown={(e) => {
+                          e.preventDefault(); 
+                          setPendingLineIndex(idx);
+                          setShowProductModal(true);
+                        }}
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        Create New Product
+                      </li>
+                    </ul>
+                  )}
+                </div>
+                <FormField
+                  type="number"
+                  label="Quantity"
+                  value={item.quantity}
+                  onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
+                  min="1"
+                  inputClassName="w-full"
+                  required
+                />
+                <FormField
+                  type="number"
+                  label="Unit Price"
+                  value={item.unitPrice}
+                  onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
+                  min="0"
+                  step="0.01"
+                  inputClassName="w-full"
+                  required
+                />
+                <FormField
+                  type="number"
+                  label="Discount (%)"
+                  value={item.discount}
+                  onChange={e => handleLineChange(idx, 'discount', e.target.value)}
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  inputClassName="w-full"
+                />
+                <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={item.includeVAT}
+                      onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm text-gray-600">+ VAT</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeLineItem(idx)}
+                    className="text-red-600 hover:text-red-800"
+                    title="Remove Line"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cost Summary */}
+        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+          <div className="flex justify-between text-sm"><span>Net:</span><span>{formatCurrency(subTotal)}</span></div>
+          <div className="flex justify-between text-sm"><span>VAT:</span><span>{formatCurrency(vatAmount)}</span></div>
+          <div className="flex justify-between text-sm"><span>Discount:</span><span className="text-red-600">–{formatCurrency(totalDiscount)}</span></div>
+          <div className="flex justify-between text-lg font-bold pt-2 border-t"><span>Total:</span><span>{formatCurrency(total)}</span></div>
+          <div className="flex justify-between text-sm"><span>Paid:</span><span>{formatCurrency(paidNow)}</span></div>
+          <div className="flex justify-between text-sm"><span>Owing:</span><span>{formatCurrency(Math.max(0, owing))}</span></div>
+        </div>
+
+        {/* Mark as Paid */}
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
-            checked={formData.useCustomCustomer}
+            checked={formData.isPaid}
             onChange={e =>
               setFormData(fd => ({
                 ...fd,
-                useCustomCustomer: e.target.checked,
-                customerId: '',
-                customerName: ''
+                isPaid: e.target.checked,
+                amountToPay: e.target.checked ? total.toFixed(2) : '0'
               }))
             }
             className="rounded border-gray-300 text-primary focus:ring-primary"
           />
-          <span className="text-sm text-gray-700">Enter Customer Manually</span>
+          <span className="text-sm text-gray-700">Mark as Paid now</span>
         </label>
-        {formData.useCustomCustomer ? (
-          <>
+        <FormField
+          type="number"
+          label="Amount to Pay (£)"
+          value={formData.amountToPay}
+          onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))}
+          min="0"
+          max={total || 0}
+          step="0.01"
+          disabled={!formData.isPaid}
+        />
+
+        {/* Payment Details */}
+        {paidNow > 0 && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+              <select
+                value={formData.paymentMethod}
+                onChange={e => setFormData(fd => ({ ...fd, paymentMethod: e.target.value as any }))}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                required
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
             <FormField
-              label="Customer Name"
-              value={formData.customerName}
-              onChange={e => setFormData(fd => ({ ...fd, customerName: e.target.value }))}
-              required
+              label="Payment Reference"
+              value={formData.paymentReference}
+              onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))}
             />
-            <FormField
-              type="tel"
-              label="Phone Number"
-              value={formData.customerPhone}
-              onChange={e => setFormData(fd => ({ ...fd, customerPhone: e.target.value }))}
-            />
-          </>
-        ) : (
-          <SearchableSelect
-            label="Select Customer"
-            options={customers.map(c => ({
-              id: c.id,
-              label: c.name,
-              subLabel: `${c.mobile} • ${c.email}`
-            }))}
-            value={formData.customerId}
-            onChange={id => {
-              const c = customers.find(x => x.id === id)!;
-              setFormData(fd => ({
-                ...fd,
-                customerId: id,
-                customerName: c.name,
-                customerPhone: c.mobile
-              }));
-            }}
-            placeholder="Search…"
-            required
-          />
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
+              <textarea
+                rows={2}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                placeholder="Any notes"
+                value={formData.paymentNotes}
+                onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))}
+              />
+            </div>
+          </div>
         )}
-      </div>
 
-      {/* Dates */}
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          type="date"
-          label="Invoice Date"
-          value={formData.date}
-          onChange={e => setFormData(fd => ({ ...fd, date: e.target.value }))}
-          required
-        />
-        <FormField
-          type="date"
-          label="Due Date"
-          value={formData.dueDate}
-          onChange={e => setFormData(fd => ({ ...fd, dueDate: e.target.value }))}
-          required
-        />
-      </div>
+        {/* Upload Document */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Upload Document</label>
+          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div className="space-y-1 text-center">
+              <p className="text-gray-500 text-sm">Drag & drop or click to upload</p>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))}
+                className="sr-only"
+              />
+              <p className="text-xs text-gray-500">PDF/image up to 10MB</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Category */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Category</label>
-        <select
-          value={formData.category}
-          onChange={e => setFormData(fd => ({ ...fd, category: e.target.value }))}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          required
-        >
-          <option value="">Select…</option>
-          {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          <option value="Other">Other</option>
-        </select>
-      </div>
-      {formData.category === 'Other' && (
-        <FormField
-          label="Custom Category"
-          value={formData.customCategory}
-          onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
-          required
-        />
-      )}
-
-      {/* Vehicle */}
-      <SearchableSelect
-        label="Related Vehicle (optional)"
-        options={vehicles.map(v => ({
-          id: v.id,
-          label: `${v.make} ${v.model}`,
-          subLabel: v.registrationNumber
-        }))}
-        value={formData.vehicleId}
-        onChange={id => { // <-- UPDATED
-          const v = vehicles.find(vh => vh.id === id);
-          setFormData(fd => ({
-            ...fd,
-            vehicleId: id || '',
-            vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
-          }));
-        }}
-        placeholder="Search…"
-      />
-
-      {/* Line Items */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-lg font-medium">Line Items</h3>
-          <button type="button" onClick={addLineItem} className="text-sm text-primary hover:text-primary-600">
-            + Add Line
+        {/* Actions */}
+        <div className="flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+          >
+            {loading ? 'Creating…' : 'Create Invoice'}
           </button>
         </div>
-        <div className="space-y-3">
-          {lineItems.map((item, idx) => (
-            <div
-              key={item.id}
-              className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
-            >
-              <div className="sm:col-span-2 relative">
-                <FormField
-                  label="Description"
-                  value={item.description}
-                  onChange={e => handleDescriptionChange(idx, e.target.value)}
-                  onFocus={() => handleFieldFocus(idx)}
-                  onBlur={() => {
-                    setTimeout(() => handleFieldBlur(idx), 120);
-                    tryAutofillUnitPrice(item.description, idx);
-                  }}
-                  required
-                />
-                {showSuggestions[idx] && item.description && (
-                  <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
-                    {filterMatches(item.description).map(s => (
-                      <li
-                        key={s.id}
-                        className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                        onMouseDown={() => {
-                          handleSuggestionSelect(s, idx);
-                        }}
-                        title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
-                      >
-                        <span className="truncate">
-                          {s.name}
-                          {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-                        </span>
-                        <span className="text-gray-500 text-sm ml-3">
-                          {formatCurrency(s.lastPrice)}
-                        </span>
-                      </li>
-                    ))}
-                    {filterMatches(item.description).length === 0 && (
-                      <li className="px-4 py-2 text-sm text-gray-500">No matches</li>
-                    )}
-                  </ul>
-                )}
-              </div>
-              <FormField
-                type="number"
-                label="Quantity"
-                value={item.quantity}
-                onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
-                min="1"
-                inputClassName="w-full"
-                required
-              />
-              <FormField
-                type="number"
-                label="Unit Price"
-                value={item.unitPrice}
-                onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
-                min="0"
-                step="0.01"
-                inputClassName="w-full"
-                required
-              />
-              <FormField
-                type="number"
-                label="Discount (%)"
-                value={item.discount}
-                onChange={e => handleLineChange(idx, 'discount', e.target.value)}
-                min="0"
-                max="100"
-                step="0.1"
-                inputClassName="w-full"
-              />
-              <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={item.includeVAT}
-                    onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-gray-600">+ VAT</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => removeLineItem(idx)}
-                  className="text-red-600 hover:text-red-800"
-                  title="Remove Line"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Cost Summary */}
-      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-        <div className="flex justify-between text-sm"><span>Net:</span><span>£{subTotal.toFixed(2)}</span></div>
-        <div className="flex justify-between text-sm"><span>VAT:</span><span>£{vatAmount.toFixed(2)}</span></div>
-        <div className="flex justify-between text-sm"><span>Discount:</span><span className="text-red-600">–£{totalDiscount.toFixed(2)}</span></div>
-        <div className="flex justify-between text-lg font-bold pt-2 border-t"><span>Total:</span><span>£{total.toFixed(2)}</span></div>
-        <div className="flex justify-between text-sm"><span>Paid:</span><span>£{paidNow.toFixed(2)}</span></div>
-        <div className="flex justify-between text-sm"><span>Owing:</span><span>£{owing.toFixed(2)}</span></div>
-      </div>
-
-      {/* Mark as Paid */}
-      <label className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          checked={formData.isPaid}
-          onChange={e =>
-            setFormData(fd => ({
-              ...fd,
-              isPaid: e.target.checked,
-              amountToPay: e.target.checked ? total.toFixed(2) : '0'
-            }))
-          }
-          className="rounded border-gray-300 text-primary focus:ring-primary"
-        />
-        <span className="text-sm text-gray-700">Mark as Paid now</span>
-      </label>
-      <FormField
-        type="number"
-        label="Amount to Pay (£)"
-        value={formData.amountToPay}
-        onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))}
-        min="0"
-        max={total || 0}
-        step="0.01"
-        disabled={!formData.isPaid}
-      />
-
-      {/* Payment Details */}
-      {paidNow > 0 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-            <select
-              value={formData.paymentMethod}
-              onChange={e => setFormData(fd => ({ ...fd, paymentMethod: e.target.value as any }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              required
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
-          </div>
-          <FormField
-            label="Payment Reference"
-            value={formData.paymentReference}
-            onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))}
-          />
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
-            <textarea
-              rows={2}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              placeholder="Any notes"
-              value={formData.paymentNotes}
-              onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Upload Document */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Upload Document</label>
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          <div className="space-y-1 text-center">
-            <p className="text-gray-500 text-sm">Drag & drop or click to upload</p>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))}
-              className="sr-only"
-            />
-            <p className="text-xs text-gray-500">PDF/image up to 10MB</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-        >
-          {loading ? 'Creating…' : 'Create Invoice'}
-        </button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 };
 

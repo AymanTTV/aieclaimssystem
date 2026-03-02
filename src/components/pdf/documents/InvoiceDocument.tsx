@@ -8,42 +8,111 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer';
-import { Invoice, Vehicle } from '../../../types/';
+import { Invoice, Vehicle } from '../../../types';
 import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
 
+// Interface extending Invoice to allow attached vehicle
+interface InvoiceWithVehicle extends Invoice {
+  vehicle?: Vehicle;
+}
+
 interface InvoiceDocumentProps {
-  data: Invoice;
+  data: InvoiceWithVehicle;
   vehicle?: Vehicle;
   companyDetails: any;
 }
 
-// LOCAL STYLES for the horizontal info card
+// Local styles to handle specific layout needs
 const localStyles = StyleSheet.create({
+  // Horizontal Info Card (Top Section)
   infoCard: {
     borderWidth: 1,
     borderColor: '#3B82F6',
     borderRadius: 6,
     padding: 8,
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexWrap: 'wrap', 
+    justifyContent: 'space-between',
     marginBottom: 15,
+    backgroundColor: '#F9FAFB',
   },
-  infoItem: {
-    flex: 1,
-    alignItems: 'flex-start',
-    paddingHorizontal: 4,
+  infoRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  infoCol: {
+    width: '24%',
+    flexDirection: 'column',
   },
   infoLabel: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: 'bold',
-    color: '#1E40AF',
+    color: '#6B7280',
+    textTransform: 'uppercase',
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 10,
-    color: '#1F2937',
+    fontWeight: 'bold',
+    color: '#111827',
   },
+  
+  // Status Colors
+  statusPaid: { color: '#059669' },
+  statusPending: { color: '#D97706' },
+  statusUnpaid: { color: '#DC2626' },
+
+  // Bottom Section (Side by Side)
+  bottomContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 20,
+  },
+  cardBox: {
+    width: '48%',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 6,
+    padding: 12,
+  },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 5,
+    textTransform: 'uppercase',
+  },
+  cardText: {
+    fontSize: 10,
+    marginBottom: 2,
+    color: '#374151',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    fontSize: 10,
+  },
+  summaryLabel: { color: '#4B5563' },
+  summaryValue: { color: '#111827', fontWeight: 'bold' },
+  
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  totalLabel: { fontSize: 12, fontWeight: 'bold', color: '#111827' },
+  totalValue: { fontSize: 12, fontWeight: 'bold', color: '#2563EB' },
 });
 
 const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
@@ -51,298 +120,208 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   vehicle,
   companyDetails,
 }) => {
-  // Utility to format Firestore Timestamp or JS Date as "dd/MM/yyyy"
-  const formatDateValue = (date: Date | any): string => {
+  // Helpers
+  const formatCurrency = (amount: number) => 
+    `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const formatDateValue = (date: any): string => {
     if (!date) return 'N/A';
     try {
-      const dObj = date?.toDate ? date.toDate() : new Date(date);
-      if (isNaN(dObj.getTime())) return 'N/A';
-      return format(dObj, 'dd/MM/yyyy');
-    } catch {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      return !isNaN(d.getTime()) ? format(d, 'dd/MM/yyyy') : 'N/A';
+    } catch (e) {
       return 'N/A';
     }
   };
-  
-  // Use the invoice number from the database record, or 'N/A' if it doesn't exist.
-  const invoiceNumber = data.invoiceNumber || 'N/A';
 
-  // --- ADDED: Extract Registration Number ---
-  let registrationNumber = 'N/A';
-  if (vehicle?.registrationNumber) {
-    registrationNumber = vehicle.registrationNumber;
-  } else if (data.vehicleName) {
-    // Extracts text from the last parentheses, e.g., "Ford Focus (AB12 CDE)" -> "AB12 CDE"
-    const regMatch = data.vehicleName.match(/\(([^)]+)\)$/);
-    if (regMatch) {
-      registrationNumber = regMatch[1];
-    } else if (data.vehicleId) {
-      // Fallback if name exists but parsing fails
-      registrationNumber = 'See Vehicle';
-    }
-  }
-  // --- END ADDED ---
+  const isValidPdfImageSrc = (v: any) => {
+    if (typeof v !== 'string') return false;
+    return v.startsWith('http') || v.startsWith('data:image');
+  };
 
-  // Calculate total discount from line items
-  const totalDiscount = data.lineItems.reduce((sum, li) => {
-    const gross = li.quantity * li.unitPrice;
-    return sum + (li.discount / 100) * gross;
-  }, 0);
+  // Calculations
+  const computedLines = (data.lineItems || []).map(item => {
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.unitPrice) || 0;
+    const disc = Number(item.discount) || 0;
+    
+    const gross = qty * price;
+    const discountAmt = (disc / 100) * gross;
+    const net = gross - discountAmt;
+    const vat = item.includeVAT ? net * 0.2 : 0;
+    const total = net + vat;
+    return { ...item, gross, discountAmt, net, vat, total };
+  });
+
+  const totalDiscount = computedLines.reduce((sum, i) => sum + i.discountAmt, 0);
+  const netTotal = computedLines.reduce((sum, i) => sum + i.net, 0);
+  const vatTotal = computedLines.reduce((sum, i) => sum + i.vat, 0);
+  const grandTotal = netTotal + vatTotal;
+
+  // Retrieve Vehicle Data (Priority: explicit prop > attached data)
+  const actualVehicle = vehicle || data.vehicle;
+
+  const vehicleDisplay = actualVehicle 
+    ? `${actualVehicle.make} ${actualVehicle.model} (${actualVehicle.registrationNumber})`
+    : data.vehicleName || 'N/A';
+
+  const displayInvoiceNumber = data.invoiceNumber || `INV-${data.id.slice(0, 6).toUpperCase()}`;
 
   return (
     <Document>
       <Page size="A4" style={globalStyles.page}>
-
-        {/* --- HEADER (logo + company info) --- Improved Design --- */}
+        
+        {/* HEADER */}
         <View style={globalStyles.header} fixed>
           <View style={globalStyles.headerLeft}>
-            {companyDetails.logoUrl && (
+            {isValidPdfImageSrc(companyDetails?.logoUrl) && (
               <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
             )}
           </View>
           <View style={globalStyles.headerRight}>
-            <Text style={globalStyles.companyName}>{companyDetails.fullName || 'AIE Skyline Limited'}</Text>
-            <Text style={globalStyles.companyDetail}>United House, 39-41 North Road,</Text>
-            <Text style={globalStyles.companyDetail}>London, N7 9DP.</Text>
-            <Text style={globalStyles.companyDetail}>Tel: {companyDetails.phone || 'N/A'}</Text>
-            <Text style={globalStyles.companyDetail}>Email: {companyDetails.email || 'N/A'}</Text>
-            {companyDetails.vatNumber && (
-              <Text style={globalStyles.companyDetail}>
-                VAT No: {companyDetails.vatNumber}
-              </Text>
-            )}
+            <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
           </View>
         </View>
 
-        {/* ── TITLE ── */}
+        {/* TITLE */}
         <View style={globalStyles.titleContainer}>
           <Text style={globalStyles.title}>INVOICE</Text>
         </View>
 
-        {/* ── Customer Name & Category Row ── */}
-        <View
-          style={[
-            { flexDirection: 'row', justifyContent: 'space-between' },
-            globalStyles.section,
-          ]}
-        >
-          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#111827' }}>
-            {data.customerName || 'N/A'}
-          </Text>
-          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#111827' }}>
-            {data.category || 'N/A'}
-          </Text>
-        </View>
-
-        {/* --- UPDATED: Horizontal Card (5 items) --- */}
-        <View style={localStyles.infoCard} wrap={false}>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Invoice Number</Text>
-            <Text style={localStyles.infoValue}>
-              {invoiceNumber}
-            </Text>
-          </View>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Date</Text>
-            <Text style={localStyles.infoValue}>{formatDateValue(data.date)}</Text>
-          </View>
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Due Date</Text>
-            <Text style={localStyles.infoValue}>{formatDateValue(data.dueDate)}</Text>
-          </View>
-          {/* --- ADDED: Vehicle Reg --- */}
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Vehicle Reg</Text>
-            <Text style={localStyles.infoValue}>{registrationNumber}</Text>
-          </View>
-          {/* --- END ADDED --- */}
-          <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Payment Status</Text>
-            <Text style={localStyles.infoValue}>
-              {data.paymentStatus.replace('_', ' ')}
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Items Table (full width, with a small top margin) ── */}
-        <View style={[globalStyles.section, { marginTop: 5 }]}>
-          <Text style={globalStyles.sectionTitle}>Items</Text>
-          <View style={[globalStyles.table, { marginTop: 5 }]}>
-            {/* Table Header */}
-            <View style={globalStyles.tableHeader}>
-              <Text style={[globalStyles.tableHeaderCell, { flex: 3 }]}>
-                Description
-              </Text>
-              <Text
-                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
-              >
-                Qty
-              </Text>
-              <Text
-                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
-              >
-                Unit Price
-              </Text>
-              <Text
-                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
-              >
-                VAT
-              </Text>
-              <Text
-                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
-              >
-                Discount
-              </Text>
-              <Text
-                style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}
-              >
-                Total
+        {/* HORIZONTAL INFO CARD */}
+        <View style={localStyles.infoCard}>
+          {/* Row 1 */}
+          <View style={localStyles.infoRow}>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Invoice Number</Text>
+              <Text style={localStyles.infoValue}>{displayInvoiceNumber}</Text>
+            </View>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Invoice Date</Text>
+              <Text style={localStyles.infoValue}>{formatDateValue(data.date)}</Text>
+            </View>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Due Date</Text>
+              <Text style={localStyles.infoValue}>{formatDateValue(data.dueDate)}</Text>
+            </View>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Status</Text>
+              <Text style={[
+                localStyles.infoValue,
+                data.paymentStatus === 'paid' ? localStyles.statusPaid : 
+                data.paymentStatus === 'partially_paid' ? localStyles.statusPending : localStyles.statusUnpaid
+              ]}>
+                {(data.paymentStatus || 'pending').replace('_', ' ').toUpperCase()}
               </Text>
             </View>
+          </View>
 
-            {/* Table Rows */}
-            {data.lineItems.map((item, idx) => {
-              const lineGross = item.quantity * item.unitPrice;
-              const discountAmt = (item.discount / 100) * lineGross;
-              const netAfterDisc = lineGross - discountAmt;
-              const vatAmt = item.includeVAT ? netAfterDisc * 0.2 : 0;
-              const lineTotal = netAfterDisc + vatAmt;
-              const rowStyle =
-                idx % 2 === 0 ? globalStyles.tableRow : globalStyles.tableRowAlternate;
-
-              return (
-                <View key={item.id} style={rowStyle}>
-                  <Text style={[globalStyles.tableCell, { flex: 3 }]}>
-                    {item.description}
-                  </Text>
-                  <Text
-                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
-                  >
-                    {item.quantity}
-                  </Text>
-                  <Text
-                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
-                  >
-                    £{item.unitPrice.toFixed(2)}
-                  </Text>
-                  <Text
-                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
-                  >
-                    {item.includeVAT ? '£' + vatAmt.toFixed(2) : '-'}
-                  </Text>
-                  <Text
-                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
-                  >
-                    {item.discount ? item.discount.toFixed(1) + '%' : '-'}
-                  </Text>
-                  <Text
-                    style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}
-                  >
-                    £{lineTotal.toFixed(2)}
-                  </Text>
-                </View>
-              );
-            })}
+          {/* Row 2 */}
+          <View style={[localStyles.infoRow, { marginBottom: 0 }]}>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Bill To</Text>
+              <Text style={localStyles.infoValue}>{data.customerName || 'N/A'}</Text>
+            </View>
+            <View style={localStyles.infoCol}>
+              <Text style={localStyles.infoLabel}>Category</Text>
+              <Text style={localStyles.infoValue}>{data.category || 'General'}</Text>
+            </View>
+            <View style={[localStyles.infoCol, { width: '48%' }]}>
+              <Text style={localStyles.infoLabel}>Vehicle / Reg</Text>
+              <Text style={localStyles.infoValue}>{vehicleDisplay}</Text>
+            </View>
           </View>
         </View>
 
-        {/* ── Bank Details & Payment Details Cards (side by side, with top margin) ── */}
-        <View
-          style={[
-            { flexDirection: 'row', justifyContent: 'space-between' },
-            { marginTop: 15 },
-          ]}
-          wrap={false}
-        >
-          {/* ── Bank Details Card on the LEFT ── */}
-          <View style={[globalStyles.card, { width: '48%' }]}>
-            <Text style={globalStyles.cardTitle}>Bank Details</Text>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.label}>Bank:</Text>
-              <Text style={globalStyles.value}>
-                {companyDetails.bankName || 'N/A'}
-              </Text>
+        {/* CHARGES TABLE */}
+        <View style={globalStyles.tableContainer}>
+          <View style={globalStyles.tableHeader}>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 3 }]}>Description</Text>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'center' }]}>Qty</Text>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 1.2, textAlign: 'right' }]}>Unit Price</Text>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>VAT</Text>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Disc.</Text>
+            <Text style={[globalStyles.tableHeaderCell, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+          </View>
+
+          {computedLines.map((item, index) => (
+            <View key={index} style={globalStyles.tableRow}>
+              <Text style={[globalStyles.tableCell, { flex: 3 }]}>{item.description || 'Item'}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'center' }]}>{item.quantity}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1.2, textAlign: 'right' }]}>{formatCurrency(item.unitPrice)}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}>{item.vat > 0 ? formatCurrency(item.vat) : '-'}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}>{item.discount > 0 ? `${item.discount}%` : '-'}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold' }]}>{formatCurrency(item.total)}</Text>
             </View>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.label}>Sort Code:</Text>
-              <Text style={globalStyles.value}>
-                {companyDetails.sortCode || 'N/A'}
-              </Text>
+          ))}
+        </View>
+
+        {/* BOTTOM SECTION */}
+        <View style={localStyles.bottomContainer} wrap={false}>
+          {/* Card 1: Payment Details */}
+          <View style={localStyles.cardBox}>
+            <Text style={localStyles.cardTitle}>Payment Details</Text>
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>Bank:</Text>
+              <Text style={localStyles.summaryValue}>LLOYDS BANK</Text>
             </View>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.label}>Account No:</Text>
-              <Text style={globalStyles.value}>
-                {companyDetails.accountNumber || 'N/A'}
-              </Text>
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>Account Name:</Text>
+              <Text style={localStyles.summaryValue}>AIE SKYLINE LIMITED</Text>
             </View>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.label}>Reference:</Text>
-              <Text style={globalStyles.value}>
-                {invoiceNumber}
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>Account Number:</Text>
+              <Text style={localStyles.summaryValue}>30513162</Text>
+            </View>
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>Sort Code:</Text>
+              <Text style={localStyles.summaryValue}>30-99-50</Text>
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <Text style={[localStyles.summaryLabel, { fontSize: 8 }]}>
+                Please use Invoice #{displayInvoiceNumber} as reference.
               </Text>
             </View>
           </View>
 
-          {/* ── Payment Details Card on the RIGHT ── */}
-          <View style={[globalStyles.card, { width: '48%' }]}>
-            <Text style={globalStyles.cardTitle}>Payment Details</Text>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>NET:</Text>
-              <Text style={globalStyles.summaryValueDefault}>
-                £{data.subTotal.toFixed(2)}
-              </Text>
+          {/* Card 2: Summary */}
+          <View style={localStyles.cardBox}>
+            <Text style={localStyles.cardTitle}>Summary</Text>
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>Net Total:</Text>
+              <Text style={localStyles.summaryValue}>{formatCurrency(netTotal)}</Text>
             </View>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>VAT:</Text>
-              <Text style={globalStyles.summaryValueDefault}>
-                £{data.vatAmount.toFixed(2)}
-              </Text>
+            <View style={localStyles.summaryRow}>
+              <Text style={localStyles.summaryLabel}>VAT Total:</Text>
+              <Text style={localStyles.summaryValue}>{formatCurrency(vatTotal)}</Text>
             </View>
             {totalDiscount > 0 && (
-              <View style={globalStyles.spaceBetweenRow}>
-                <Text style={globalStyles.summaryTextDefault}>Discount:</Text>
-                <Text style={globalStyles.summaryValueDefault}>
-                  -£{totalDiscount.toFixed(2)}
-                </Text>
+              <View style={localStyles.summaryRow}>
+                <Text style={[localStyles.summaryLabel, { color: '#DC2626' }]}>Discount:</Text>
+                <Text style={[localStyles.summaryValue, { color: '#DC2626' }]}>–{formatCurrency(totalDiscount)}</Text>
               </View>
             )}
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>Paid:</Text>
-              <Text style={globalStyles.summaryValueDefault}>
-                £{data.paidAmount.toFixed(2)}
-              </Text>
+            <View style={localStyles.totalRow}>
+              <Text style={localStyles.totalLabel}>Grand Total:</Text>
+              <Text style={localStyles.totalValue}>{formatCurrency(grandTotal)}</Text>
             </View>
-            <View style={globalStyles.spaceBetweenRow}>
-              <Text style={globalStyles.summaryTextDefault}>Owing:</Text>
-              <Text style={globalStyles.summaryValueDefault}>
-                £{data.remainingAmount.toFixed(2)}
-              </Text>
+            <View style={[localStyles.summaryRow, { marginTop: 6 }]}>
+              <Text style={[localStyles.summaryLabel, { color: '#059669' }]}>Paid to Date:</Text>
+              <Text style={[localStyles.summaryValue, { color: '#059669' }]}>{formatCurrency(data.paidAmount || 0)}</Text>
             </View>
-            <View
-              style={[
-                globalStyles.spaceBetweenRow,
-                {
-                  borderTopWidth: 1,
-                  borderTopColor: '#E5E7EB',
-                  paddingTop: 5,
-                  marginTop: 5,
-                },
-              ]}
-            >
-              <Text
-                style={data.remainingAmount <= 0.001 ? globalStyles.summaryTextGreen : globalStyles.summaryTextRed}
-              >
-                Total:
-              </Text>
-              <Text
-                style={data.remainingAmount <= 0.001 ? globalStyles.summaryValueGreen : globalStyles.summaryValueRed}
-              >
-                £{data.total.toFixed(2)}
+            <View style={[localStyles.summaryRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 4 }]}>
+              <Text style={[localStyles.summaryLabel, { fontWeight: 'bold' }]}>Balance Due:</Text>
+              <Text style={[localStyles.summaryValue, { color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#059669' }]}>
+                {formatCurrency(data.remainingAmount || 0)}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* ── FOOTER ── Updated to consistent design */}
+        {/* FOOTER */}
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
             AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875

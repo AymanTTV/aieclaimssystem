@@ -52,6 +52,23 @@ ${aieSkylineSignature}`,
       requiredFields: ['transaction'] 
     },
     {
+      id: 'finance_credit_on_account',
+      name: 'You have a credit on your account',
+      subjectTemplate: 'Quick Update: You have a credit on your account - [Vehicle Reg]',
+      bodyTemplate:
+`Hi [Recipient Name],
+
+Just a quick note to let you know that you have a credit of £[Amount] on your account.
+
+We’ll keep this on your file to offset your next bill. Please let us know if you have any questions!
+
+Kind regards,
+
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction'] 
+    },
+    {
       id: 'finance_overdue_account',
       name: 'URGENT: Overdue Account',
       subjectTemplate: 'URGENT: Overdue Account - [Vehicle Reg]',
@@ -122,34 +139,217 @@ If you require a copy of the invoice or the PCN evidence, please reply to this e
 
 ${aieSkylineSignature}`,
       requiredFields: ['transaction']
+    },
+    {
+      id: 'finance_account_statement_pdf',
+      name: 'Account Statement (With Attachment)',
+      subjectTemplate: 'Your Account Statement from AIE Skyline',
+      bodyTemplate:
+`📊 Your Account Statement from AIE Skyline.
+
+Hi [selected account name],
+
+Please find your latest account statement attached for your records.
+
+Thank you for your continued partnership with AIE Skyline Limited. If you have any questions regarding the activity or balance shown, please feel free to reach out to the finance team.
+
+${aieSkylineSignature}`
     }
   ],
 
   /* ───────── RENTAL ───────── */
   rental: [
     {
-      id: 'rental_welcome',
-      name: 'Rental Welcome',
-      subjectTemplate: 'Welcome to AIE Skyline – Vehicle Rental Confirmation',
+      id: 'rental_reminder_monday',
+      name: 'Rental Reminder Monday',
+      subjectTemplate: 'Rental Statement Breakdown - [Vehicle Reg]',
       bodyTemplate:
 `Dear [Driver Name],
 
-Welcome to AIE Skyline! Thank you for choosing us for your vehicle rental needs.
+We hope you had a productive week. This is your automated statement for the week starting Monday, [the current date].
 
-We’re delighted to have you on board and are committed to providing a smooth, professional, and hassle-free experience. Your journey with AIE Skyline’s London Iconic Taxi Rental starts here—and we’re here to support you every step of the way.
+📄 Rental Statement Breakdown
 
-What You Can Expect:
-• Clean, well-maintained vehicles
-• 24/7 breakdown and emergency support
-• Transparent service with no hidden charges
+Vehicle Details: 
 
-⚠ Important Notice
-Vehicle damage is your responsibility. Our insurance excess is £1,000. If your vehicle is damaged, you will pay either the cost of the repair or the excess—whichever is cheaper. Please ensure the vehicle is kept clean at all times during your hire.
+Reg: [Vehicle Reg]
 
-Need Help? Save These Numbers:
-🔧 24-Hour Breakdown Assistance: 📱 07951 762124
-🚗 Accident (office hours Mon–Fri 09:30–18:00): ☎️ 020 8050 5337
-📱 Out of hours & WhatsApp: 07552 553441
+Status: Active Hire
+
+💳 Payment Calculation
+
+Balance Brought Forward: £[owing Balance]
+
+Rental type: [Rental Type]
+
+-------------------------------------------
+
+Total Outstanding Balance: £[owing balance]
+
+🏦 Payment Instructions
+
+Bank: Lloyds Bank
+Account: AIE Skyline Limited
+Number: 30513162 | Sort: 30-99-50
+Ref: [Vehicle Reg]
+
+🤝 Payment Request 
+Please kindly arrange for the Total Outstanding Balance to be settled today. Clearing your balance on Mondays ensures your account remains up to date and your vehicle hire continues without interruption.
+
+If you have already made this payment, thank you—please feel free to ignore this reminder.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental']
+    },
+    {
+      id: 'rental_end_of_week',
+      name: 'End-of-Week Account Review',
+      subjectTemplate: 'Outstanding Statement - [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+We are conducting our end-of-week account review and noticed that we have not yet received the full rental payment for your vehicle.
+
+📄 Outstanding Statement
+
+Vehicle: [Vehicle Reg]
+
+Week Commencing: [current Date]
+
+Total Remaining Balance: [Outstanding Balance]
+
+🏦 Payment Instructions
+
+Bank: Lloyds Bank
+Account: AIE Skyline Limited
+Number: 30513162 | Sort: 30-99-50
+Ref: [Vehicle Reg]
+
+🤝 Action Required 
+Please kindly ensure this balance is cleared before 5:00 PM today. Keeping your account up to date before the weekend prevents any administrative issues or potential hire suspensions.
+
+If you have already transferred the funds in the last few hours, please WhatsApp a copy of your receipt to 07552 553441 so we can update your record immediately.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental']
+    },
+    {
+      id: 'rental_substitute_activation',
+      name: 'Substitute Vehicle Activation',
+      subjectTemplate: '🔄 Substitute Vehicle Activation – [Sub Reg]',
+      bodyTemplate:
+`🔄 Substitute Vehicle Activation – [Sub Reg]
+
+Dear [Driver Name],
+
+This message is to confirm that a substitute vehicle has been assigned to your account while your main vehicle is unavailable.
+
+🚗 Active Vehicle Details
+
+• Substitute Reg: [Sub Reg]
+• Effective From: [Date the date from of the substitute vehicle start date] / [Time the time from of the substitute vehicle start time]
+• Main Vehicle Reg (Inactive): [Main Reg the rental main vehicle registration number]
+
+⚠️ Important Terms
+• Billing: Your rental agreement and weekly charges remain active and will now apply to this substitute vehicle.
+• Maintenance: All standard rules apply, including the mandatory 3-times-per-week charging requirement.
+• Responsibility: You are fully liable for the condition and care of this substitute vehicle until it is returned and swapped back.
+
+Please ensure you have performed a walk-around inspection of the substitute vehicle. If you notice any pre-existing issues not noted on your hand-over sheet, please notify us immediately.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental']
+    },
+    {
+      id: 'mileage_update_request',
+      name: 'Mileage Update Request',
+      subjectTemplate: '📍 Mileage Update Request – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+We are currently updating our vehicle records and kindly request the current mileage for your vehicle.
+
+Action Required: Please reply to this message with a clear photo of your dashboard showing the current mileage for [Vehicle Reg].
+
+This information helps us stay on top of your vehicle's maintenance schedule and ensures we book your services at the correct intervals.
+
+Thank you for your cooperation and your continued hard work.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental']
+    },
+    {
+      id: 'rental_return_confirmation_policy',
+      name: 'Return Confirmation & Inspection Policy',
+      subjectTemplate: '📝 Return Confirmation & Inspection Policy — [Vehicle Reg]',
+      bodyTemplate:
+`📝 Return Confirmation & Inspection Policy — [Vehicle Reg]
+
+Dear [Driver Name],
+
+Thank you for choosing AIE Skyline. We truly value you as a customer and appreciate your business.
+
+We have noted your intent to return the vehicle. Please take note of our mandatory return and holiday procedures:
+
+⚠️ Mandatory Return & Inspection Policy
+
+• Driver Presence Required: You must remain present during the final vehicle inspection. You cannot leave the premises until the vehicle's condition is fully agreed upon and signed off by both the owner and the hirer (as you).
+• Immediate Payment: We do not hold deposits. Any costs for physical damage or professional valeting (required for poor condition, smoking, or spills) must be settled in full before you leave.
+• Liability: You remain fully responsible for the vehicle until the final payment and sign-off are completed.
+
+🏖️ Holiday & Return Policy
+
+• Book in Advance: If you are finishing your hire for a holiday, please ensure you book your vehicle for your return date now with a member of staff.
+• No Guarantees: We cannot guarantee a vehicle will be available for last-minute bookings upon your return.
+• Secure Your Vehicle: Our staff will register your return date in our system specifically to secure a vehicle for you.
+
+We look forward to seeing you at the office.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental']
+    },
+    {
+      id: 'rental_welcome',
+      name: 'Rental Welcome',
+      subjectTemplate: '🚖 Welcome to AIE Skyline – New Hire Activation',
+      bodyTemplate:
+`Dear [Driver Name],
+
+Welcome to AIE Skyline! We are delighted to have you on board. Our goal is to provide you with a smooth, professional, and hassle-free experience in one of London’s Iconic Taxis.
+
+Your rental agreement for [Vehicle Reg] is now active. Please review the following care and maintenance guidelines to ensure your hire remains in good standing.
+
+📄 Billing & Rental Cycle
+• Start Date: [Start Date]
+• Rental Cycle: Our rental week runs Monday to Sunday.
+• Initial Charge: Since you started midweek, your initial charge covers the days remaining until Sunday.
+• Monday Summary: A full weekly charge will be generated every Monday at 09:00.
+
+⚡ Charging & Vehicle Health
+• Charging Frequency: To keep the vehicle in peak condition, we kindly ask that you charge it at least 3 times per week.
+• Battery Care: Please be aware that LEVC provides diagnostic reports regarding charging frequency. To avoid any personal liability for mechanical or battery issues, we encourage you to maintain this regular charging schedule, as failures resulting from a lack of charging may be held to your account.
+
+🔧 Maintenance, Repairs & Breakdown
+• Servicing: All mechanical work and tires are handled by our dedicated technicians at the LEVC Main Dealer.
+• Punctures: You are responsible for fixing standard punctures. If the tire cannot be repaired, please go to LEVC; they will replace it and charge it to our account.
+• 24-Hour Breakdown (MEMS Recovery): 📱 07951 762124
+
+🧼 Cleanliness, Damage & Liability
+• Standards: The vehicle must be kept clean at all times. If the vehicle is returned or seen in poor condition, a charge for a full professional valet will apply.
+• No Smoking/Eating: Strictly prohibited. You are responsible for the cost of repair for any liquid spills (coffee, etc.) in the driver or passenger compartments.
+• Insurance Excess: Our insurance excess is £1,000. If the vehicle is damaged, you will pay either the cost of the repair or the excess—whichever is cheaper.
+
+🏦 Payment Details
+Please ensure all payments are made to the following account:
+• Bank: Lloyds Bank | Account Name: AIE Skyline Limited
+• Account No: 30513162 | Sort Code: 30-99-50
+• Reference: [Vehicle Reg]
+
+📞 Contact Directory
+• Office Hours (Mon–Fri, 09:30–18:00): ☎️ 020 8050 5337
+• Out of Hours & WhatsApp (24/7): 📱 07552 553441
+• Email: admin@aieskyline.co.uk
+• Address: United House, 39–41 North Road, London, N7 9DP
 
 ${aieSkylineSignature}`,
       requiredFields: ['rental']
@@ -170,9 +370,11 @@ Rental Period: [Start Date] to [End Date]
 Rental Type: [Rental Type]
 
 💳 Payment Summary
-Total Amount Due: £[Total Amount]
-Amount Paid: £[Amount Paid]
-Outstanding Balance: £[Outstanding Balance]
+Subtotal: £[Subtotal]
+VAT: £[VAT]
+Total: £[Total Amount]
+Paid: £[Amount Paid]
+Owing: £[Outstanding Balance]
 
 🏦 Payment Instructions
 Bank: Lloyds Bank
@@ -215,7 +417,7 @@ ${aieSkylineSignature}`,
       bodyTemplate:
 `Dear [Driver Name],
 
-Our records show that your rental payment is overdue.
+Our records indicate that your rental payment for this week is now overdue. We have not yet received the funds to clear the balance on your account.
 
 📄 Rental Details
 Vehicle: AIE Skyline – London Iconic Taxi Rental
@@ -233,8 +435,9 @@ Account Number: 30513162
 Sort Code: 30-99-50
 Payment Reference: [Vehicle Registration Number]
 
-⚠ Important Notice
-Please settle this balance immediately to avoid further action or suspension of hire.
+⚠ Required Action Please settle this outstanding amount immediately to ensure your vehicle hire remains active. Failure to clear overdue balances may result in late fees or a formal suspension of your hire agreement.
+
+If you are experiencing any difficulties making this payment, please contact the office urgently on 020 8050 5337 or 07552 553441 to discuss your account.
 
 ${aieSkylineSignature}`,
       requiredFields: ['rental']
@@ -246,7 +449,7 @@ ${aieSkylineSignature}`,
       bodyTemplate:
 `Dear [Driver Name],
 
-We confirm receipt of your rental payment.
+This is a confirmation that your payment has been successfully received and credited to your account for [Vehicle Registration Number]
 
 📄 Payment Summary
 Vehicle: [Vehicle Registration Number]
@@ -254,7 +457,7 @@ Amount Received: £[Amount]
 Date Received: [DD/MM/YYYY]
 Payment Reference: [Vehicle Registration Number]
 
-Thank you for keeping your rental account up to date.
+Thank you for your prompt payment. Keeping your account up to date ensures your account remains active and in good standing.
 
 ${aieSkylineSignature}`,
       requiredFields: ['rental']
@@ -283,6 +486,84 @@ ${aieSkylineSignature}`,
 
   /* ───────── MAINTENANCE ───────── */
   maintenance: [
+    {
+      id: 'maintenance_service_due',
+      name: 'Service Due Notification',
+      subjectTemplate: '🔧 Service Due Notification – [Vehicle Reg]',
+      bodyTemplate:
+`🔧 Service Due Notification – [Vehicle Reg]
+
+Dear [Driver Name],
+
+Thank you for providing your current mileage. Based on our records, your vehicle is now due for a routine service.
+
+📄 Service Details
+• Vehicle: [Vehicle Reg]
+• Current Mileage: [Mileage]
+• Service Interval: [NextMileage]
+
+✅ Next Steps 
+Our team will contact you shortly with a confirmed appointment date and location. Please ensure the vehicle is available and clean for the scheduled booking.
+
+Reminder: To maintain vehicle health and battery efficiency, please continue to charge your vehicle at least 3 times per week.
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'vehicle_maintenance_appointment',
+      name: 'Vehicle Maintenance Appointment',
+      subjectTemplate: 'Vehicle Maintenance Appointment – [Vehicle Reg]',
+      bodyTemplate:
+`Dear [Driver Name],
+
+Please be advised that an appointment has been scheduled for your vehicle. Details are as follows:
+
+📅 Appointment Details
+•⁠  ⁠Maintenance Type: [Maintenance Type]
+•⁠  ⁠Date: [Date]
+•⁠  ⁠Time: [Time]
+•⁠  ⁠Location: [Location]
+
+⚡ Important Reminders
+•⁠  ⁠Attendance: Please ensure the vehicle is clean and arrives at the location on time.
+•⁠  ⁠Vehicle Care: Remember that you must charge the vehicle at least 3 times per week to prevent mechanical failure.
+•⁠  ⁠Cancellations: If you cannot attend, you must notify the office at least 24 hours in advance.
+
+Thank you for your cooperation in keeping your vehicle safe and roadworthy.
+Kind regards,
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
+    {
+      id: 'maintenance_appointment_tomorrow',
+      name: 'Reminder: Vehicle Appointment Tomorrow',
+      subjectTemplate: 'Reminder: Vehicle Appointment Tomorrow – [Vehicle Reg]',
+      bodyTemplate:
+`Reminder: Vehicle Appointment Tomorrow – [Vehicle Reg]
+
+Dear [Driver Name],
+
+This is a friendly reminder that your vehicle is scheduled for maintenance tomorrow.
+
+📅 Appointment Details
+• Date: Tomorrow, [the maintenance date]
+• Location: [Location]
+• Type: [Maintenance Type]
+
+📍 Action Required
+• Please ensure you arrive 10 minutes early to allow for the vehicle handover.
+• The vehicle must be in a clean condition for the technicians to work on.
+
+⚠️ Need to Reschedule? 
+If you are unable to attend, please call us immediately on 020 8050 5337. Late cancellations may result in a garage fee being charged to your account.
+
+Safe driving,
+
+${aieSkylineSignature}`,
+      requiredFields: ['maintenance']
+    },
     {
       id: 'nsl_booking_confirmation_driver',
       name: '📅 NSL Inspection Booking (Driver)',
@@ -370,7 +651,7 @@ ${aieSkylineSignature}`,
       bodyTemplate:
 `Dear [Driver Name],
 
-We have arranged a booking to carry out Repairs on your vehicle.
+We have successfully booked your vehicle in for its scheduled maintenance. Please find the confirmed details below:
 
 🔹 Appointment Details
 Vehicle: [Vehicle Reg]
@@ -379,11 +660,11 @@ Time: [Date & Time]
 Location: [Location]
 Issue to be fixed: [Additional Notes]
 
-⚠ Instructions
+⚠ Important Instructions
+•	Punctuality: Please ensure you arrive at the garage on time to avoid any delays to your work day.
+•	Vehicle Care: As a reminder, the main dealer diagnostics will check for the mandatory 3-times-per-week charging. Please ensure your battery health is maintained.
+•	Cancellations: If for any reason you cannot attend, please contact us on 07552 553441 immediately so we can reallocate the slot.
 
-Please drop the vehicle off promptly at the time stated above.
-
-If the vehicle is non-drivable before this date, please contact the breakdown line immediately.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -428,7 +709,7 @@ I am writing to request a NSL booking for the following vehicle:
 🔹 Location: 39-41 Brewery Road, London, N7 9QH
 🔹 Additional Notes: Nsl booking required
 
-Please confirm the booking at your earliest convenience.
+Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -449,7 +730,7 @@ I am writing to request a vehicle service for the following vehicle:
 🔹 Location: 39-41 Brewery Road, London, N7 9QH
 🔹 Additional Notes: Vehicle service required
 
-Please confirm the booking at your earliest convenience.
+Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -469,7 +750,7 @@ I am writing to request a MOT failure repair for the following vehicle:
 🔹 Location: 39-41 Brewery Road, London, N7 9QH
 🔹 Additional Notes: Mot failure repair required
 
-Please confirm the booking at your earliest convenience.
+Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -481,7 +762,7 @@ ${aieSkylineSignature}`,
       bodyTemplate:
 `Dear LEVC Service Team,
 
-I am writing to request a maintenance repair for the following vehicle:
+Please book in the following vehicle for:
 
 🔹 Vehicle Registration Number: [Insert Reg No.]
 🔹 Service Type: Maintenance repair
@@ -489,7 +770,7 @@ I am writing to request a maintenance repair for the following vehicle:
 🔹 Location: 39-41 Brewery Road, London, N7 9QH
 🔹 Additional Notes: Maintenance repair required
 
-Please confirm the booking at your earliest convenience.
+Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -512,7 +793,7 @@ Location: [Location]
 
 Additional Notes: [Additional Notes]
 
-Please confirm the booking at your earliest convenience.
+Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
 ${aieSkylineSignature}`,
       requiredFields: ['maintenance']
@@ -630,7 +911,7 @@ We confirm receipt of payment for your invoice.
 
 🔹 Invoice Number: [Invoice Number]
 🔹 Invoice Date: [Invoice Date]
-🔹 Amount Paid: £[Amount]
+🔹 Amount Paid: £[Paid Balance]
 🔹 Payment Date: [DD/MM/YYYY]
 
 Your account is now up to date. Thank you for settling your invoice promptly and for choosing AIE Skyline Limited.
@@ -672,6 +953,75 @@ ${aieSkylineSignature}`,
 
   /* ───────── CLAIM ───────── */
   claim: [
+    {
+      id: 'claim_status_new_setup',
+      name: 'Status: New Claim Setup',
+      subjectTemplate: 'New Claim Setup - [Claim Number]',
+      bodyTemplate:
+`🛡️ AIE Claims Ltd – New Claim.
+
+Dear [Client Name],
+
+We are sorry to hear about your recent accident, but we are here to help. This message confirms that your claim has been successfully set up with AIE Claims.
+
+Your Claim Ref: [Claim Number]
+
+Our team is now reviewing your details and will begin contacting the relevant parties. We will provide you with a progress update every two weeks.
+
+${aieClaimsSignature}`,
+      requiredFields: ['claim']
+    },
+    {
+      id: 'claim_status_liability_accepted',
+      name: 'Status: Liability Accepted',
+      subjectTemplate: 'Claim Update: Liability Accepted - [Claim Number]',
+      bodyTemplate:
+`✅ Claim Update: Liability Accepted
+
+Dear [Client Name],
+
+Good news regarding your claim [Claim Number]. Liability has been officially accepted by the third party.
+
+This means we can now proceed with the next stages of your repair and/or hire with full authorization.
+
+${aieClaimsSignature}`,
+      requiredFields: ['claim']
+    },
+    {
+      id: 'claim_status_repair_in_progress',
+      name: 'Status: Repair in Progress',
+      subjectTemplate: 'Claim Update: Repair in Progress - [Vehicle Reg]',
+      bodyTemplate:
+`🔧 Claim Update: Repair in Progress
+
+Dear [Client Name],
+
+We are pleased to inform you that the repairs on your vehicle [Vehicle Reg] have now commenced.
+
+We are monitoring the progress with the workshop and will notify you as soon as the work is nearing completion.
+
+${aieClaimsSignature}`,
+      requiredFields: ['claim']
+    },
+    {
+      id: 'claim_status_repair_completed',
+      name: 'Status: Repair Completed / Ready for Collection',
+      subjectTemplate: 'Your Vehicle is Ready for Collection! - [Vehicle Reg]',
+      bodyTemplate:
+`🚗 Your Vehicle is Ready for Collection!
+
+Dear [Client Name],
+
+Great news! The repairs to your vehicle [Vehicle Reg] are now complete, and it is ready for collection from [Garage Name].
+
+🔄 Credit Hire Return:
+If you are currently in an AIE Claims replacement vehicle, please note that you must arrange to return the hire vehicle at the same time you collect your own.
+
+Please contact us at 020 8050 5337 to confirm your collection time.
+
+${aieClaimsSignature}`,
+      requiredFields: ['claim']
+    },
     {
       id: 'claim_urgent_docs_required',
       name: 'Urgent - Documents Required for New Accident Claim',

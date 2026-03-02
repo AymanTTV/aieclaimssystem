@@ -46,15 +46,20 @@ export const generateEmailFromTemplate = ({
     '[Start Date]': record?.startDate ? format(record.startDate, 'dd/MM/yyyy') : 'N/A',
     '[End Date]': record?.endDate ? format(record.endDate, 'dd/MM/yyyy') : 'N/A',
     '[Rental Type]': record?.type || 'N/A',
-    '[Total Amount]': record?.cost?.toFixed(2) || record?.amount?.toFixed(2) || '0.00',
+    
+    // ✅ Include 'total' so it works if an invoice is passed as 'record'
+    '[Total Amount]': record?.total?.toFixed(2) || record?.cost?.toFixed(2) || record?.amount?.toFixed(2) || '0.00',
     '[Amount Paid]': record?.paidAmount?.toFixed(2) || '0.00',
     '[Outstanding Balance]': record?.remainingAmount?.toFixed(2) || '0.00',
     '[Original Due Date]': record?.dueDate ? format(record.dueDate, 'dd/MM/yyyy') : 'N/A',
-    '[Invoice Number]': invoice?.id?.slice(-8).toUpperCase() || 'N/A',
+    
+    // ✅ Updated Invoice Number (uses custom number if it exists) and Amount (uses total)
+    '[Invoice Number]': invoice?.invoiceNumber || invoice?.id?.slice(-8).toUpperCase() || 'N/A',
     '[Invoice Date]': invoice?.date ? format(invoice.date, 'dd/MM/yyyy') : 'N/A',
     '[Due Date]': invoice?.dueDate ? format(invoice.dueDate, 'dd/MM/yyyy') : 'N/A',
-    '[Amount]': invoice?.amount?.toFixed(2) || '0.00',
+    '[Amount]': (invoice?.total ?? invoice?.amount ?? 0).toFixed(2),
     '[Invoice Description]': invoice?.category || invoice?.customCategory || 'N/A',
+    
     '[Repair Date]': maintenance?.date ? format(maintenance.date, 'dd/MM/yyyy') : 'N/A',
     '[Repair Service]': maintenance?.type || 'N/A',
     '[Invoice/Repair Reference Number]': maintenance?.id || invoice?.id || 'N/A',

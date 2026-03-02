@@ -13,8 +13,11 @@ interface MaintenanceFiltersProps {
   onVehicleFilterChange: (vehicleId: string) => void;
   paymentStatusFilter: string;
   onPaymentStatusFilterChange: (status: string) => void;
+  // NEW PROPS
+  dateRange: { from: string; to: string };
+  onDateRangeChange: (range: { from: string; to: string }) => void;
+  
   vehicles: Vehicle[];
-  /** dynamic list of maintenance categories/types **/
   categories: string[];
 }
 
@@ -29,6 +32,8 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
   onVehicleFilterChange,
   paymentStatusFilter,
   onPaymentStatusFilterChange,
+  dateRange,
+  onDateRangeChange,
   vehicles,
   categories,
 }) => {
@@ -43,7 +48,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search maintenance logs…"
+          placeholder="Search by Order #, Invoice #, Reg, Provider, Description..."
           className="form-input pl-10 w-full"
         />
       </div>
@@ -113,6 +118,28 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
             <option value="unpaid">Unpaid</option>
             <option value="partially_paid">Partially Paid</option>
           </select>
+        </div>
+
+        {/* Date From */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Date From</label>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => onDateRangeChange({ ...dateRange, from: e.target.value })}
+            className="form-input mt-1 w-full"
+          />
+        </div>
+
+        {/* Date To */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Date To</label>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => onDateRangeChange({ ...dateRange, to: e.target.value })}
+            className="form-input mt-1 w-full"
+          />
         </div>
       </div>
     </div>

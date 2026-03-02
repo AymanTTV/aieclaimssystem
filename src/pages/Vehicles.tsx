@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, collection, addDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, getDoc, getDocs } from 'firebase/firestore'; // Added getDocs
 import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
@@ -53,10 +53,32 @@ const Vehicles: React.FC = () => {
     setShowSold,
     filteredVehicles,
     uniqueMakes,
-    // Extract new props
     expiryFilter,
     setExpiryFilter,
+    // NEW Props
+    accountFilter,
+    setAccountFilter,
   } = useVehicleFilters(vehicles);
+
+  // NEW: State for accounts list
+  const [accounts, setAccounts] = React.useState<{ id: string; name: string }[]>([]);
+
+  // NEW: Fetch accounts on mount
+  React.useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'accounts'));
+        const accs = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name,
+        }));
+        setAccounts(accs.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+      }
+    };
+    fetchAccounts();
+  }, []);
 
   const [showForm, setShowForm] = React.useState(false);
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);
@@ -201,67 +223,56 @@ const Vehicles: React.FC = () => {
         </div>
       </div>
 
-      {/* Header & Actions (responsive) */}
-<div className="space-y-3 sm:space-y-4">
-  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-      AIE Vehicles
-    </h1>
+      {/* Header & Actions */}
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            AIE Vehicles
+          </h1>
 
-    {/* Actions: grid on mobile (2-up), flex-wrap on >= sm */}
-    <div
-      className="
-        w-full
-        grid grid-cols-1 min-[380px]:grid-cols-2 gap-2
-        sm:flex sm:flex-wrap sm:items-center sm:w-auto
-      "
-    >
-      
-          {can('vehicles', 'export') && (
-          <button
-            onClick={handleGeneratePDF}
-            className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
-          >
-            <FileText className="h-5 w-5 mr-2" />
-            Generate PDF
-          </button>
+          <div className="w-full grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:w-auto">
+            
+            {can('vehicles', 'export') && (
+            <button
+              onClick={handleGeneratePDF}
+              className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+            >
+              <FileText className="h-5 w-5 mr-2" />
+              Generate PDF
+            </button>
+            )}
+            {can('vehicles', 'export') && (
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export
+            </button>
+            )}
+          
+            {can('vehicles', 'create') && (
+              <>
+                <button
+                  onClick={syncVehicleStatuses}
+                  className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+                >
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Sync Statuses
+                </button>
 
-          )}
-          {can('vehicles', 'export') && (
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
-          >
-            <Download className="h-5 w-5 mr-2" />
-            Export
-          </button>
-          )}
-        
-      
-
-      {can('vehicles', 'create') && (
-        <>
-          <button
-            onClick={syncVehicleStatuses}
-            className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
-          >
-            <RefreshCw className="h-5 w-5 mr-2" />
-            Sync Statuses
-          </button>
-
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Vehicle
-          </button>
-        </>
-      )}
-    </div>
-  </div>
-</div>
-
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add Vehicle
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
       <VehicleFilters
@@ -276,14 +287,16 @@ const Vehicles: React.FC = () => {
         onShowSoldChange={setShowSold}
         showDueSoon={showDueSoon}
         onShowDueSoonChange={setShowDueSoon}
-        // Pass new props
         expiryFilter={expiryFilter}
         onExpiryFilterChange={setExpiryFilter}
+        // NEW Props
+        accountFilter={accountFilter}
+        onAccountFilterChange={setAccountFilter}
+        accounts={accounts}
       />
 
       {/* Table */}
       <VehicleTable
-      
         vehicles={displayedVehicles}
         onView={setSelectedVehicle}
         onEdit={setEditingVehicle}

@@ -1,12 +1,14 @@
 // src/components/rentals/RentalEditModal.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   doc,
   updateDoc,
   Timestamp,
   query,
   collection,
-  getDocs
+  getDocs,
+  orderBy, // ✅ Added for Agreement Number logic
+  limit    // ✅ Added for Agreement Number logic
 } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -32,12 +34,23 @@ import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
 import Modal from '../ui/Modal';
 
-// Added AlertTriangle to imports
-import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle } from 'lucide-react';
+import { 
+  X, 
+  Search, 
+  Car, 
+  User, 
+  Plus, 
+  Info, 
+  CheckCircle, 
+  AlertTriangle, 
+  Fuel, 
+  Gauge 
+} from 'lucide-react';
 import {
   addWeeks,
   format,
   differenceInDays,
+  differenceInHours,
   isAfter,
   isValid
 } from 'date-fns';
@@ -49,9 +62,17 @@ import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 type BaseReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop';
 type HireVariant = 'normal' | 'h-substitute' | 'c-substitute';
 
+// Extended type for Form State to include Condition fields
 type SubForm = Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & {
   givenAt: string;
   expectedReturnAt: string;
+  // Condition fields
+  mileage: number;
+  fuelLevel: string;
+  isClean: boolean;
+  hasDamage: boolean;
+  damageDescription: string;
+  images: string[]; // Existing image URLs
 };
 
 const newSubDetail = (): SubForm => ({
@@ -61,7 +82,14 @@ const newSubDetail = (): SubForm => ({
   loaner: '',
   givenAt: '',
   expectedReturnAt: '',
-  notes: ''
+  notes: '',
+  // Default Condition
+  mileage: 0,
+  fuelLevel: '100',
+  isClean: true,
+  hasDamage: false,
+  damageDescription: '',
+  images: []
 });
 
 interface RentalEditModalProps {
@@ -81,10 +109,18 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const isManager = user?.role === 'manager';
   const { formatCurrency } = useFormattedDisplay();
 
+  // ✅ REF for scrolling to top
+  const topRef = useRef<HTMLDivElement>(null);
+
   const [loading, setLoading] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
+  // Main Vehicle Images
   const [newImages, setNewImages] = useState<File[]>([]);
+   
+  // Substitution Vehicle Images (Mapped by index)
+  const [subNewImages, setSubNewImages] = useState<Record<number, File[]>>({});
+
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showVehicleResults, setShowVehicleResults] = useState(false);
@@ -92,6 +128,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const [hasModifiedWeeks, setHasModifiedWeeks] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [lastEditedField, setLastEditedField] = useState<'percentage' | 'amount' | null>(null);
+
+  const [insurancePerDayTouched, setInsurancePerDayTouched] = useState<boolean>(() => rental.insurancePerDay != null);
+  const [insurancePerWeekTouched, setInsurancePerWeekTouched] = useState<boolean>(() => (rental as any).insurancePerWeek != null);
+
+  const isFirstRender = useRef(true);
+
+  // ✅ 1. Agreement Number State
+  const [rentalAgreementNumber, setRentalAgreementNumber] = useState(rental.rentalAgreementNumber || '');
 
   const [existingImages, setExistingImages] = useState<string[]>(
     rental.checkOutCondition?.images || []
@@ -103,7 +147,40 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const [showClaimResults, setShowClaimResults] = useState(false);
   const [manualClaimRef, setManualClaimRef] = useState(true);
 
-  // --- Helper to format dates/timestamps safely ---
+  // ✅ 2. Backfill Agreement Number Logic (Fixed: Order by Number)
+  useEffect(() => {
+    const checkAndFillAgreementNumber = async () => {
+      // Only generate if the rental doesn't have one and we haven't generated one yet
+      if (!rental.rentalAgreementNumber && !rentalAgreementNumber) {
+        try {
+          // ✅ FIX: Order by 'rentalAgreementNumber' to find the highest existing number
+          // Note: If you don't have an index on this field, check your browser console for a link to create one.
+          const q = query(
+            collection(db, 'rentals'), 
+            orderBy('rentalAgreementNumber', 'desc'), 
+            limit(1)
+          );
+          
+          const snapshot = await getDocs(q);
+          let nextNum = 1;
+
+          if (!snapshot.empty) {
+            const lastData = snapshot.docs[0].data();
+            const lastNumStr = lastData.rentalAgreementNumber;
+            // If the highest number exists, add 1 to it
+            if (lastNumStr && !isNaN(parseInt(lastNumStr))) {
+              nextNum = parseInt(lastNumStr) + 1;
+            }
+          }
+          setRentalAgreementNumber(String(nextNum).padStart(4, '0'));
+        } catch (e) {
+          console.error("Failed to generate backfilled agreement number", e);
+        }
+      }
+    };
+    checkAndFillAgreementNumber();
+  }, [rental.rentalAgreementNumber, rentalAgreementNumber]);
+
   const safeFormatDate = (
     dateInput: Date | Timestamp | string | null | undefined,
     formatString: string
@@ -130,13 +207,43 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     return '';
   };
 
-  const initialSubForms: SubForm[] = (rental.hireSubstitutionDetails || []).map((sub: any) => ({
-    ...sub,
-    givenAt: safeFormatDate(sub.givenAt, "yyyy-MM-dd'T'HH:mm"),
-    expectedReturnAt: safeFormatDate(sub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm")
-  }));
+  // ✅ UPDATED: Initialize sub forms with "Smart Lookup" for mileage
+  const initialSubForms: SubForm[] = useMemo(() => {
+    return (rental.hireSubstitutionDetails || []).map((sub: any) => {
+      // Try to find the vehicle in the fleet list to get its current mileage
+      const fleetVehicle = vehicles.find(v => 
+        (v.registrationNumber || '').toLowerCase() === (sub.registration || '').toLowerCase()
+      );
 
-  const [formData, setFormData] = useState({
+      return {
+        ...sub,
+        givenAt: safeFormatDate(sub.givenAt, "yyyy-MM-dd'T'HH:mm"),
+        expectedReturnAt: safeFormatDate(sub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm"),
+        
+        // Priority: 1. Saved Rental Mileage -> 2. Current Fleet Mileage -> 3. Default 0
+        mileage: sub.mileage || fleetVehicle?.mileage || 0,
+        
+        fuelLevel: sub.fuelLevel || '100',
+        isClean: sub.isClean !== undefined ? sub.isClean : true,
+        hasDamage: sub.hasDamage || false,
+        damageDescription: sub.damageDescription || '',
+        images: sub.images || []
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rental.id, vehicles]); // Re-run if vehicles list updates
+
+  // ✅ 1. Add this Helper Function above buildInitialFormData
+  const getBaseAmount = (amount: number | undefined | null, includesVAT: boolean | undefined | null) => {
+    if (!amount) return 0;
+    if (includesVAT) {
+      // If stored price has VAT, divide by 1.2 to get the Base price for the input field
+      return parseFloat((amount / 1.2).toFixed(2));
+    }
+    return amount;
+  };
+
+  const buildInitialFormData = () => ({
     vehicleId: rental.vehicleId,
     customerId: rental.customerId,
     startDate: safeFormatDate(rental.startDate, 'yyyy-MM-dd'),
@@ -151,9 +258,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     numberOfWeeks: rental.numberOfWeeks || 1,
 
     claimRef: rental.claimRef || '',
-    deliveryCharge: rental.deliveryCharge || 0,
-    collectionCharge: rental.collectionCharge || 0,
-    insurancePerDay: rental.insurancePerDay || 0,
+    // ✅ 2. UPDATE THESE LINES to use getBaseAmount
+    deliveryCharge: getBaseAmount(rental.deliveryCharge, rental.deliveryChargeIncludeVAT),
+    collectionCharge: getBaseAmount(rental.collectionCharge, rental.collectionChargeIncludeVAT),
+
+    insurancePerDay: rental.insurancePerDay ?? 0,
+    insurancePerWeek: (rental as any).insurancePerWeek ?? 0,
+
+    // ✅ 3. FIX: Do NOT use getBaseAmount for Recovery Cost because it is stored as Net.
     recoveryCost: rental.recoveryCost || 0,
     includeRecoveryCostVAT: rental.includeRecoveryCostVAT || false,
 
@@ -167,6 +279,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     deliveryChargeIncludeVAT: rental.deliveryChargeIncludeVAT || false,
     collectionChargeIncludeVAT: rental.collectionChargeIncludeVAT || false,
     insurancePerDayIncludeVAT: rental.insurancePerDayIncludeVAT || false,
+    insurancePerWeekIncludeVAT: (rental as any).insurancePerWeekIncludeVAT || false,
 
     negotiatedRate: rental.negotiatedRate?.toString() || '',
     negotiationNotes: rental.negotiationNotes || '',
@@ -188,7 +301,30 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     hireSubstitutionDetails: initialSubForms.length ? initialSubForms : [newSubDetail()]
   });
 
-  // --- Reason UI split: Base Reason + Substitute Type (only when Hire is selected) ---
+  const [formData, setFormData] = useState(buildInitialFormData);
+
+  useEffect(() => {
+    setFormData(buildInitialFormData());
+    setExistingImages(rental.checkOutCondition?.images || []);
+    setConditionData(
+      rental.checkOutCondition ?? {
+        mileage: 0,
+        fuelLevel: '100',
+        isClean: true,
+        hasDamage: false,
+        damageDescription: '',
+        images: []
+      }
+    );
+    setInsurancePerDayTouched(rental.insurancePerDay != null);
+    setInsurancePerWeekTouched((rental as any).insurancePerWeek != null);
+    isFirstRender.current = true;
+    setHasModifiedWeeks(false);
+    setInitialized(false);
+    setSubNewImages({}); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rental.id]);
+
   const deriveReasonUI = (reason: any): { base: BaseReason; variant: HireVariant } => {
     if (reason === 'h-substitute') return { base: 'hired', variant: 'h-substitute' };
     if (reason === 'c-substitute') return { base: 'hired', variant: 'c-substitute' };
@@ -200,11 +336,9 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   };
 
   const initReasonUI = deriveReasonUI(formData.reason);
-
   const [baseReason, setBaseReason] = useState<BaseReason>(initReasonUI.base);
   const [hireVariant, setHireVariant] = useState<HireVariant>(initReasonUI.variant);
 
-  // Keep formData.reason in sync with baseReason + hireVariant
   useEffect(() => {
     const desiredReason =
       baseReason !== 'hired'
@@ -216,22 +350,24 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     if (formData.reason !== desiredReason) {
       setFormData((prev) => ({ ...prev, reason: desiredReason as any }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseReason, hireVariant]);
 
-  // If something else changes formData.reason (e.g. confirmation modal edits), reflect back to UI states
   useEffect(() => {
     const { base, variant } = deriveReasonUI(formData.reason);
     if (base !== baseReason) setBaseReason(base);
     if (variant !== hireVariant) setHireVariant(variant);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.reason]);
 
-  // Selected vehicle/customer
   const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    if (rental.insurancePerDay == null) setInsurancePerDayTouched(false);
+    if ((rental as any).insurancePerWeek == null) setInsurancePerWeekTouched(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVehicle?.id]);
+
   const selectedCustomer = customers.find((c) => c.id === formData.customerId);
 
-  // Condition data
   const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>(
     rental.checkOutCondition ?? {
       mileage: 0,
@@ -242,6 +378,33 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       images: []
     }
   );
+
+  // --- AUTO-FILL INSURANCE LOGIC ---
+  useEffect(() => {
+    if (isFirstRender.current) return;
+    if (!selectedVehicle) return;
+    if (formData.type === 'daily' && !insurancePerDayTouched) {
+      const vAmt = typeof (selectedVehicle as any).dailyInsuranceAmount === 'number' ? (selectedVehicle as any).dailyInsuranceAmount : 0;
+      setFormData((prev) => ({ ...prev, insurancePerDay: vAmt }));
+    }
+    if (formData.type === 'claim' && !insurancePerDayTouched) {
+      const vAmt = typeof (selectedVehicle as any).claimInsuranceAmount === 'number' ? (selectedVehicle as any).claimInsuranceAmount : 0;
+      setFormData((prev) => ({ ...prev, insurancePerDay: vAmt }));
+    }
+    if (formData.type === 'weekly' && !insurancePerWeekTouched) {
+      const vAmt = typeof (selectedVehicle as any).weeklyInsuranceAmount === 'number' ? (selectedVehicle as any).weeklyInsuranceAmount : 0;
+      setFormData((prev) => ({ ...prev, insurancePerWeek: vAmt }));
+    }
+  }, [selectedVehicle?.id, formData.type, insurancePerDayTouched, insurancePerWeekTouched]);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setInsurancePerDayTouched(false);
+    setInsurancePerWeekTouched(false);
+  }, [formData.type]);
 
   // Populate search inputs
   useEffect(() => {
@@ -337,7 +500,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     }
   }, [formData.storageStartDate, formData.storageEndDate]);
 
-  // Weekly end calc (only if user touched #weeks)
+  // Weekly end calc
   useEffect(() => {
     if (!initialized) {
       setInitialized(true);
@@ -385,6 +548,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         (formData.includeStorageVAT ? 1.2 : 1);
     }
 
+    // Call the utility which handles proper VAT separation internally
     return calculateRentalCost(
       startDT,
       endDT,
@@ -396,11 +560,16 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       formData.type === 'claim' ? formData.recoveryCost : undefined,
       formData.deliveryCharge,
       formData.collectionCharge,
-      formData.insurancePerDay,
+
+      // ✅ FIX: Conditional insurance passing for Live Calc
+      formData.type !== 'weekly' ? formData.insurancePerDay : 0,
+      formData.type === 'weekly' ? formData.insurancePerWeek : 0,
+
       formData.includeVAT,
       formData.deliveryChargeIncludeVAT,
       formData.collectionChargeIncludeVAT,
       formData.insurancePerDayIncludeVAT,
+      formData.insurancePerWeekIncludeVAT,
       formData.includeRecoveryCostVAT
     );
   };
@@ -442,7 +611,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         }));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentTotalCost,
     formData.discountAmount,
@@ -456,7 +624,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     setExistingImages((prev) => prev.filter((img) => img !== imageUrl));
   };
 
-  // --- H-Substitute: per-sub vehicle search UI (auto-fill from fleet) ---
+  // --- H-Substitute Search Logic ---
   const [subVehicleSearchQueries, setSubVehicleSearchQueries] = useState<string[]>(
     () => (formData.hireSubstitutionDetails || []).map(() => '')
   );
@@ -466,13 +634,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
   useEffect(() => {
     const len = formData.hireSubstitutionDetails.length;
-
     setSubVehicleSearchQueries((prev) => {
       if (prev.length === len) return prev;
       if (prev.length < len) return [...prev, ...Array(len - prev.length).fill('')];
       return prev.slice(0, len);
     });
-
     setShowSubVehicleResults((prev) => {
       if (prev.length === len) return prev;
       if (prev.length < len) return [...prev, ...Array(len - prev.length).fill(false)];
@@ -493,11 +659,24 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
   const handleSubChange = (
     index: number,
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     const newSubs = [...formData.hireSubstitutionDetails];
-    (newSubs[index] as any) = { ...newSubs[index], [name]: value };
+    
+    // Handle Checkboxes
+    if (type === 'checkbox') {
+        (newSubs[index] as any) = { ...newSubs[index], [name]: (e.target as HTMLInputElement).checked };
+    } 
+    // Handle Numbers
+    else if (type === 'number') {
+        (newSubs[index] as any) = { ...newSubs[index], [name]: parseFloat(value) || 0 };
+    }
+    // Handle Text/Select
+    else {
+        (newSubs[index] as any) = { ...newSubs[index], [name]: value };
+    }
+
     setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
   };
 
@@ -513,15 +692,29 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       ...prev,
       hireSubstitutionDetails: prev.hireSubstitutionDetails.filter((_, i) => i !== index)
     }));
+    // Cleanup images for that index
+    const newSubImages = { ...subNewImages };
+    delete newSubImages[index];
+    setSubNewImages(newSubImages);
   };
 
+  // Handle Sub Images (Remove Existing)
+  const handleRemoveExistingSubImage = (index: number, urlToRemove: string) => {
+    const newSubs = [...formData.hireSubstitutionDetails];
+    const currentImages = newSubs[index].images || [];
+    newSubs[index].images = currentImages.filter(url => url !== urlToRemove);
+    setFormData(prev => ({ ...prev, hireSubstitutionDetails: newSubs }));
+  };
+
+  // ✅ UPDATED: Fill mileage from fleet upon selection
   const pickSubVehicleFromFleet = (index: number, v: Vehicle) => {
     const newSubs = [...formData.hireSubstitutionDetails];
     newSubs[index] = {
       ...newSubs[index],
       make: v.make || '',
       model: v.model || '',
-      registration: v.registrationNumber || ''
+      registration: v.registrationNumber || '',
+      mileage: v.mileage || 0 // <--- THIS LINE ensures auto-fill on pick
     };
 
     setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
@@ -537,7 +730,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
     });
   };
 
-  // Latest substitution (for confirmation)
   const latestSubIndex = useMemo(() => {
     if (formData.reason !== 'h-substitute') return -1;
     const meaningful = formData.hireSubstitutionDetails
@@ -554,6 +746,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       toast.error('Please select a valid vehicle and customer.');
       return;
     }
+
+    // ✅ FIX: SCROLL TO TOP reliably using ref
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Fallback
+    window.scrollTo(0, 0);
+
     setIsConfirmModalOpen(true);
   };
 
@@ -565,6 +763,32 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       toast.error('User, vehicle, or customer data missing.');
       return;
     }
+
+    // --- NEW: MANDATORY COMPLETION CHECK ---
+  if (formData.status === 'completed') {
+    // 1. Verify Main Vehicle Return Condition
+    if (!rental.returnCondition) {
+      toast.error('Main vehicle return condition is required before completing the rental.');
+      return;
+    }
+
+    // 2. Verify all Substitution Vehicle Returns
+    if (formData.hireSubstitutionDetails && formData.hireSubstitutionDetails.length > 0) {
+      const pendingSubs = formData.hireSubstitutionDetails.filter(sub => {
+        // A substitution is considered active if it has a registration 
+        // but no returnCondition object assigned to it.
+        const hasVehicleInfo = !!(sub.registration || sub.make);
+        return hasVehicleInfo && !sub.returnCondition;
+      });
+
+      if (pendingSubs.length > 0) {
+        toast.error(
+          `Cannot complete rental: ${pendingSubs.length} substitution vehicle(s) have not been returned yet.`
+        );
+        return; 
+      }
+    }
+  }
 
     setLoading(true);
 
@@ -601,6 +825,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         }
       }
 
+      // ✅ FIX: Conditional insurance passing for Standard Cost
       const submitStandardCost = calculateRentalCost(
         submitStartDT,
         submitEndDT,
@@ -612,16 +837,21 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         formData.type === 'claim' ? formData.recoveryCost || 0 : undefined,
         formData.type === 'claim' ? formData.deliveryCharge || 0 : undefined,
         formData.type === 'claim' ? formData.collectionCharge || 0 : undefined,
-        formData.type === 'claim' ? formData.insurancePerDay || 0 : undefined,
+        
+        formData.type !== 'weekly' ? formData.insurancePerDay || 0 : 0,
+        formData.type === 'weekly' ? formData.insurancePerWeek || 0 : 0,
+        
         false,
         formData.deliveryChargeIncludeVAT,
         formData.collectionChargeIncludeVAT,
         formData.insurancePerDayIncludeVAT,
+        formData.insurancePerWeekIncludeVAT,
         formData.includeRecoveryCostVAT
       );
 
       const negotiatedRateValue = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
 
+      // ✅ FIX: Conditional insurance passing for Total Cost
       const totalCostBeforeDiscount = calculateRentalCost(
         submitStartDT,
         submitEndDT,
@@ -633,18 +863,21 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         formData.type === 'claim' ? formData.recoveryCost || 0 : undefined,
         formData.deliveryCharge || 0,
         formData.collectionCharge || 0,
-        formData.insurancePerDay || 0,
+        
+        formData.type !== 'weekly' ? formData.insurancePerDay || 0 : 0,
+        formData.type === 'weekly' ? formData.insurancePerWeek || 0 : 0,
+        
         formData.includeVAT,
         formData.deliveryChargeIncludeVAT,
         formData.collectionChargeIncludeVAT,
         formData.insurancePerDayIncludeVAT,
+        formData.insurancePerWeekIncludeVAT,
         formData.includeRecoveryCostVAT
       );
 
       const submitDiscountAmount = formData.discountAmount;
       const submitFinalCostAfterDiscount = totalCostBeforeDiscount - submitDiscountAmount;
 
-      // Add new payment (optional)
       const newPayment = parseFloat(formData.amountToAdd.toString()) || 0;
       const updatedTotalPaid = (rental.paidAmount || 0) + newPayment;
 
@@ -670,7 +903,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           ? 'partially_paid'
           : 'pending';
 
-      // Upload new condition images
       const newImageUrls = await Promise.all(
         newImages.map(async (file) => {
           const ts = Date.now();
@@ -696,30 +928,53 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         notes: (conditionData as any).notes || (rental.checkOutCondition as any)?.notes || ''
       };
 
-      // Original start date
       let submitOriginalStartDate: Date | undefined = undefined;
       if (formData.originalStartDate) {
         const osd = new Date(formData.originalStartDate);
         if (isValid(osd)) submitOriginalStartDate = osd;
       }
 
-      // H-substitute details (array)
-      const submitHireSubstitutionDetails: HireSubstitutionDetails[] | null =
-        formData.reason === 'h-substitute' && formData.hireSubstitutionDetails.length > 0
-          ? formData.hireSubstitutionDetails
-              .filter((sub) => sub.make || sub.model || sub.registration || sub.loaner || sub.notes || sub.givenAt || sub.expectedReturnAt)
-              .map((sub) => ({
+      // Handle Substitution Images & Data
+      const submitHireSubstitutionDetails = await Promise.all(
+        formData.hireSubstitutionDetails.map(async (sub, index) => {
+            // Upload new images for THIS sub index
+            const filesToUpload = subNewImages[index] || [];
+            const subUploadedUrls = await Promise.all(
+                filesToUpload.map(async (file) => {
+                    const ts = Date.now();
+                    const storageRef = ref(storage, `sub-conditions/${rental.id}/${index}_${ts}_${file.name}`);
+                    const snap = await uploadBytes(storageRef, file);
+                    return getDownloadURL(snap.ref);
+                })
+            );
+
+            const combinedSubImages = [...(sub.images || []), ...subUploadedUrls];
+
+            return {
                 make: sub.make || '',
                 model: sub.model || '',
                 registration: sub.registration || '',
                 loaner: sub.loaner || '',
                 notes: sub.notes || '',
                 givenAt: new Date(sub.givenAt || Date.now()),
-                expectedReturnAt: new Date(sub.expectedReturnAt || Date.now())
-              }))
-          : null;
+                expectedReturnAt: new Date(sub.expectedReturnAt || Date.now()),
+                // New Condition Fields
+                mileage: sub.mileage || 0,
+                fuelLevel: sub.fuelLevel || '100',
+                isClean: sub.isClean,
+                hasDamage: sub.hasDamage,
+                damageDescription: sub.damageDescription || '',
+                images: combinedSubImages
+            };
+        })
+      );
+
+      const finalSubs = formData.reason === 'h-substitute' && submitHireSubstitutionDetails.length > 0
+        ? submitHireSubstitutionDetails.filter(s => s.make || s.model || s.registration)
+        : null;
 
       const rentalUpdateData: Partial<Rental> = {
+        rentalAgreementNumber, // ✅ Saves the agreement number if it was backfilled
         vehicleId: formData.vehicleId,
         customerId: formData.customerId,
         startDate: submitStartDT,
@@ -755,12 +1010,18 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           formData.collectionCharge > 0
             ? formData.collectionCharge * (formData.collectionChargeIncludeVAT ? 1.2 : 1)
             : null,
-        insurancePerDay: formData.insurancePerDay > 0 ? formData.insurancePerDay : null,
+
+        // ✅ FIXED: Only save insurance relevant to type
+        insurancePerDay: formData.type !== 'weekly' && formData.insurancePerDay > 0 ? formData.insurancePerDay : null,
+        insurancePerWeek: formData.type === 'weekly' && formData.insurancePerWeek > 0 ? formData.insurancePerWeek : null,
 
         includeVAT: formData.includeVAT,
         deliveryChargeIncludeVAT: formData.deliveryChargeIncludeVAT,
         collectionChargeIncludeVAT: formData.collectionChargeIncludeVAT,
-        insurancePerDayIncludeVAT: formData.insurancePerDayIncludeVAT,
+        
+        // ✅ FIXED: Only save VAT flag relevant to type
+        insurancePerDayIncludeVAT: formData.type !== 'weekly' ? formData.insurancePerDayIncludeVAT : false,
+        insurancePerWeekIncludeVAT: formData.type === 'weekly' ? formData.insurancePerWeekIncludeVAT : false,
 
         negotiatedRate: negotiatedRateValue ?? null,
         negotiationNotes: formData.negotiationNotes || null,
@@ -774,13 +1035,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         checkOutCondition: updatedCondition,
         ...(submitOriginalStartDate !== undefined ? { originalStartDate: submitOriginalStartDate } : {}),
 
-        hireSubstitutionDetails: submitHireSubstitutionDetails,
+        hireSubstitutionDetails: finalSubs,
 
         updatedAt: new Date(),
         updatedBy: user.id
       };
 
-      // Completion validations
       if (rental.status !== 'completed' && formData.status === 'completed') {
         if (!rental.returnCondition) {
           toast.error('You must fill the Return Condition before completing the rental.');
@@ -817,17 +1077,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         }
       }
 
-      // Update Firestore
       const rentalRef = doc(db, 'rentals', rental.id);
       await updateDoc(rentalRef, rentalUpdateData);
 
-      // Close and background tasks
       setIsConfirmModalOpen(false);
       setLoading(false);
       onClose();
       toast.success('Rental updated! Regenerating documents in background…');
 
-      // PDF regen/upload (background)
       setTimeout(async () => {
         try {
           const completeUpdatedRental = {
@@ -886,7 +1143,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
           toast.success('PDF documents regenerated!');
         } catch (err: any) {
-          // eslint-disable-next-line no-console
           console.error('Background PDF regen failed:', err);
           toast.error(`Rental updated, but failed to regenerate documents: ${err.message || String(err)}`);
         }
@@ -895,7 +1151,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
       const initialPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
         submitRemainingAmount <= 0.001 ? 'paid' : (updatedTotalPaid || 0) > 0 ? 'partially_paid' : 'unpaid';
 
-      // Finance transaction (background, only if new payment)
       if (newPayment > 0) {
         setTimeout(async () => {
           try {
@@ -920,7 +1175,9 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
               vehicleName: `${selectedVehicle!.make} ${selectedVehicle!.model} (${selectedVehicle!.registrationNumber})`,
               vehicleOwner,
               customerId: rental.customerId,
-              customerName: selectedCustomer?.name
+              customerName: selectedCustomer?.name,
+              // ✅ Pass the linked finance account for income (credit)
+              accountTo: selectedVehicle.owner?.accountId || undefined
             });
           } catch {
             toast.error('Rental updated, but failed to record finance transaction for new payment.');
@@ -936,6 +1193,15 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
   return (
     <>
+      <div ref={topRef} /> {/* ✅ Anchor at the very top of the modal content */}
+      
+      {/* ✅ Display Agreement Number if present */}
+      {rentalAgreementNumber && (
+        <div className="bg-gray-100 p-2 rounded mb-4 text-center">
+            <span className="font-bold text-gray-700">Rental Agreement #{rentalAgreementNumber}</span>
+        </div>
+      )}
+
       <form onSubmit={openConfirm} className="space-y-6">
         {/* Vehicle Search/Selection */}
         <div className="space-y-2">
@@ -974,49 +1240,65 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           </div>
 
           {showVehicleResults && (
-            <div
-              id="vehicle-results"
-              className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm"
-            >
-              {loadingVehicles ? (
-                <div className="px-4 py-2 text-sm text-gray-500">Loading vehicles...</div>
-              ) : filteredVehicles.length > 0 ? (
-                filteredVehicles.map((vehicle) => (
-                  <div
-                    key={vehicle.id}
-                    className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
-                      setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
-                      setShowVehicleResults(false);
-                      setConditionData((prev) => ({ ...prev, mileage: vehicle.mileage || 0 }));
-                    }}
-                    role="option"
-                    aria-selected={formData.vehicleId === vehicle.id}
-                  >
-                    <div className="flex items-center">
-                      <Car className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        <div className="font-medium">
-                          {vehicle.make} {vehicle.model}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {vehicle.registrationNumber}
-                          {vehicle.weeklyRentalPrice && ` - ${formatCurrency(vehicle.weeklyRentalPrice)}/week`}
-                        </div>
-                      </div>
-                      {formData.vehicleId === vehicle.id && (
-                        <span className="ml-auto text-primary-600">Selected</span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-2 text-sm text-gray-500">No available vehicles found</div>
+  <div
+    id="vehicle-results"
+    className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm"
+  >
+    {loadingVehicles ? (
+      <div className="px-4 py-2 text-sm text-gray-500">Loading vehicles...</div>
+    ) : filteredVehicles.length > 0 ? (
+      filteredVehicles.map((vehicle) => (
+        <div
+          key={vehicle.id}
+          className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
+            setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
+            setShowVehicleResults(false);
+            setConditionData((prev) => ({ ...prev, mileage: vehicle.mileage || 0 }));
+
+            setInsurancePerDayTouched(false);
+            setInsurancePerWeekTouched(false);
+          }}
+          role="option"
+          aria-selected={formData.vehicleId === vehicle.id}
+        >
+          <div className="flex items-center">
+            <Car className="h-5 w-5 text-gray-400 mr-2" />
+            <div className="flex-1">
+              <div className="font-medium">
+                {vehicle.make} {vehicle.model}
+              </div>
+              <div className="text-sm text-gray-500">
+                {vehicle.registrationNumber}
+                {vehicle.weeklyRentalPrice && ` - ${formatCurrency(vehicle.weeklyRentalPrice)}/week`}
+              </div>
+              
+              {/* ✅ ADDED: Status Badge for Substitution or Availability Info */}
+              {vehicle.message && (
+                <div className={`mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border inline-block ${
+                  (vehicle as any).isSubstitution 
+                    ? 'bg-orange-50 text-orange-700 border-orange-200' 
+                    : vehicle.message === 'Available now' 
+                      ? 'bg-green-50 text-green-700 border-green-200' 
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                  {vehicle.message}
+                </div>
               )}
             </div>
-          )}
+            {formData.vehicleId === vehicle.id && (
+              <span className="ml-auto text-primary-600 font-medium text-xs">Selected</span>
+            )}
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className="px-4 py-2 text-sm text-gray-500">No available vehicles found</div>
+    )}
+  </div>
+)}
 
           {!showVehicleResults && selectedVehicle && (
             <div className="mt-2 p-3 bg-white border border-gray-300 rounded-md flex items-center">
@@ -1327,7 +1609,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
             required
           />
 
-          {formData.type === 'daily' && (
+          {(formData.type === 'daily' || formData.type === 'claim') && (
             <>
               <FormField
                 type="date"
@@ -1344,27 +1626,54 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                 onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value || '' }))}
                 required
               />
+
+              {/* --- Daily Insurance (per day) Input --- */}
+              {formData.type === 'daily' && (
+                <div className="col-span-2 border-t pt-4 mt-2">
+                  {selectedVehicle && typeof (selectedVehicle as any).dailyInsuranceAmount === 'number' ? (
+                    <p className="text-xs font-semibold text-blue-700 flex items-center gap-1 mb-2">
+                      <Info className="h-3 w-3" /> Auto-filled from Vehicle (Daily Insurance). You can update if needed.
+                    </p>
+                  ) : (
+                    <p className="text-xs font-semibold text-red-600 flex items-center gap-1 mb-2">
+                      <AlertTriangle className="h-3 w-3" /> Enter the vehicle insurance amount — it wasn’t provided in the Vehicle page.
+                    </p>
+                  )}
+
+                  <div className="flex items-end gap-2">
+                    <div className="flex-grow">
+                      <FormField
+                        type="number"
+                        label="Insurance Per Day (£)"
+                        value={formData.insurancePerDay}
+                        onChange={(e) => {
+                          setInsurancePerDayTouched(true);
+                          setFormData((prev) => ({ ...prev, insurancePerDay: parseFloat(e.target.value) || 0 }));
+                        }}
+                        min="0"
+                        step="0.001"
+                      />
+                    </div>
+                    <div className="flex items-center pb-2">
+                      <input
+                        type="checkbox"
+                        id="insurancePerDayIncludeVAT_daily"
+                        checked={formData.insurancePerDayIncludeVAT}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, insurancePerDayIncludeVAT: e.target.checked }))}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <label htmlFor="insurancePerDayIncludeVAT_daily" className="text-sm text-gray-700 ml-1">
+                        VAT
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
           {formData.type === 'claim' && (
             <>
-              <FormField
-                type="date"
-                label="End Date"
-                value={formData.endDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value || '' }))}
-                required
-                min={formData.startDate}
-              />
-              <FormField
-                type="time"
-                label="End Time"
-                value={formData.endTime}
-                onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value || '' }))}
-                required
-              />
-
               {/* Delivery Charge with VAT */}
               <div className="flex items-end gap-2">
                 <div className="flex-grow">
@@ -1423,18 +1732,19 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                 </div>
               </div>
 
-              {/* Insurance Per Day with VAT */}
+              {/* Insurance Per Day with VAT (For Claim) */}
               <div className="flex items-end gap-2">
                 <div className="flex-grow">
                   <FormField
                     type="number"
                     label="Insurance Per Day (£)"
                     value={formData.insurancePerDay}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      setInsurancePerDayTouched(true);
                       setFormData((prev) => ({ ...prev, insurancePerDay: parseFloat(e.target.value) || 0 }))
-                    }
+                    }}
                     min="0"
-                    step="0.01"
+                    step="0.001"
                   />
                 </div>
                 <div className="flex items-center pb-2">
@@ -1588,139 +1898,240 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                   onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value || '' }))}
                 />
               </div>
+
+              {/* --- Weekly Insurance (per week) Input --- */}
+              <div className="col-span-2 border-t pt-4 mt-2">
+                {selectedVehicle && typeof (selectedVehicle as any).weeklyInsuranceAmount === 'number' ? (
+                  <p className="text-xs font-semibold text-blue-700 flex items-center gap-1 mb-2">
+                    <Info className="h-3 w-3" /> Auto-filled from Vehicle (Weekly Insurance). You can update if needed.
+                  </p>
+                ) : (
+                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1 mb-2">
+                    <AlertTriangle className="h-3 w-3" /> Enter the vehicle insurance amount — it wasn’t provided in the Vehicle page.
+                  </p>
+                )}
+
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow">
+                    <FormField
+                      type="number"
+                      label="Insurance Per Week (£)"
+                      value={formData.insurancePerWeek}
+                      onChange={(e) => {
+                        setInsurancePerWeekTouched(true);
+                        setFormData((prev) => ({ ...prev, insurancePerWeek: parseFloat(e.target.value) || 0 }));
+                      }}
+                      min="0"
+                      step="0.001"
+                    />
+                  </div>
+                  <div className="flex items-center pb-2">
+                    <input
+                      type="checkbox"
+                      id="insurancePerWeekIncludeVAT"
+                      checked={formData.insurancePerWeekIncludeVAT}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, insurancePerWeekIncludeVAT: e.target.checked }))}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <label htmlFor="insurancePerWeekIncludeVAT" className="text-sm text-gray-700 ml-1">
+                      VAT
+                    </label>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
 
-        {/* H Substitute details (only when the actual saved reason is h-substitute) */}
+        {/* H Substitute details */}
         {formData.reason === 'h-substitute' && (
           <div className="border-t pt-4 mt-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Hire Substitution Details (Optional)</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Hire Substitution Details</h3>
 
             {formData.hireSubstitutionDetails.map((sub, index) => (
-              <div key={index} className="grid grid-cols-2 gap-4 border p-4 rounded-lg mb-4 relative">
-                <div className="col-span-2 flex justify-between items-center">
-                  <h4 className="font-medium text-gray-800">Substitution Vehicle {index + 1}</h4>
+              <div key={index} className="border p-4 rounded-lg mb-6 bg-gray-50 relative">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Car className="w-4 h-4" /> Substitution Vehicle {index + 1}
+                  </h4>
                   {formData.hireSubstitutionDetails.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeSubstitutionVehicle(index)}
                       className="text-red-500 hover:text-red-700"
-                      title="Remove"
                     >
                       <X className="h-5 w-5" />
                     </button>
                   )}
                 </div>
 
-                {/* Fleet vehicle picker (auto-fill) */}
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Pick from Vehicles (auto-fill)</label>
-                  <div className="relative mt-1">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={subVehicleSearchQueries[index] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSubVehicleSearchQueries((prev) => {
-                          const copy = [...prev];
-                          copy[index] = val;
-                          return copy;
-                        });
-                        setShowSubVehicleResults((prev) => {
-                          const copy = [...prev];
-                          copy[index] = true;
-                          return copy;
-                        });
-                      }}
-                      onFocus={() =>
-                        setShowSubVehicleResults((prev) => {
-                          const copy = [...prev];
-                          copy[index] = true;
-                          return copy;
-                        })
-                      }
-                      onBlur={() =>
-                        setTimeout(() => {
-                          setShowSubVehicleResults((prev) => {
-                            const copy = [...prev];
-                            copy[index] = false;
-                            return copy;
-                          });
-                        }, 200)
-                      }
-                      placeholder="Search vehicles to auto-fill make/model/registration..."
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    />
-
-                    {showSubVehicleResults[index] && (
-                      <div className="absolute z-20 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm">
-                        {filteredSubVehicles(index).length ? (
-                          filteredSubVehicles(index).map((v) => (
-                            <div
-                              key={v.id}
-                              className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                pickSubVehicleFromFleet(index, v);
-                              }}
-                            >
-                              <div className="flex items-center">
-                                <Car className="h-4 w-4 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="font-medium">
-                                    {v.make} {v.model}
-                                  </div>
-                                  <div className="text-sm text-gray-500 font-mono">{v.registrationNumber}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="px-4 py-2 text-sm text-gray-500">No vehicles found</div>
-                        )}
-                      </div>
-                    )}
+                {/* Fleet Picker */}
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pick from Vehicles</label>
+                  <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={subVehicleSearchQueries[index] || ''}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setSubVehicleSearchQueries((prev) => { const c = [...prev]; c[index] = val; return c; });
+                            setShowSubVehicleResults((prev) => { const c = [...prev]; c[index] = true; return c; });
+                        }}
+                        onBlur={() => setTimeout(() => setShowSubVehicleResults(p => { const c=[...p]; c[index]=false; return c;}), 200)}
+                        className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                        placeholder="Search fleet..."
+                      />
+                      {showSubVehicleResults[index] && (
+                        <div className="absolute z-20 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto sm:text-sm">
+                            {filteredSubVehicles(index).length ? (
+                                filteredSubVehicles(index).map((v) => (
+                                    <div
+                                        key={v.id}
+                                        className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            pickSubVehicleFromFleet(index, v);
+                                        }}
+                                    >
+                                        <div className="font-medium">{v.make} {v.model}</div>
+                                        <div className="text-xs text-gray-500">{v.registrationNumber}</div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="px-4 py-2 text-sm text-gray-500">No vehicles found</div>
+                            )}
+                        </div>
+                      )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Selecting a vehicle auto-fills Make/Model/Registration — you can still edit manually below.
-                  </p>
                 </div>
 
-                <FormField label="Vehicle Make" name="make" value={sub.make} onChange={(e) => handleSubChange(index, e)} />
-                <FormField label="Vehicle Model" name="model" value={sub.model} onChange={(e) => handleSubChange(index, e)} />
-                <FormField
-                  label="Vehicle Registration"
-                  name="registration"
-                  value={sub.registration}
-                  onChange={(e) => handleSubChange(index, e)}
-                />
-                <FormField label="Loaner (Provider)" name="loaner" value={sub.loaner} onChange={(e) => handleSubChange(index, e)} />
-                <FormField
-                  label="Date & Time Given"
-                  type="datetime-local"
-                  name="givenAt"
-                  value={sub.givenAt}
-                  onChange={(e) => handleSubChange(index, e)}
-                />
-                <FormField
-                  label="Date & Time Expected Return"
-                  type="datetime-local"
-                  name="expectedReturnAt"
-                  value={sub.expectedReturnAt}
-                  onChange={(e) => handleSubChange(index, e)}
-                />
-                <div className="col-span-2">
-                  <TextArea
-                    label="Notes (Reason)"
-                    name="notes"
-                    value={sub.notes}
-                    onChange={(e) => handleSubChange(index, e)}
-                    rows={3}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                   <FormField label="Make" name="make" value={sub.make} onChange={(e) => handleSubChange(index, e)} />
+                   <FormField label="Model" name="model" value={sub.model} onChange={(e) => handleSubChange(index, e)} />
+                   <FormField label="Registration" name="registration" value={sub.registration} onChange={(e) => handleSubChange(index, e)} />
+                   <FormField label="Loaner/Provider" name="loaner" value={sub.loaner} onChange={(e) => handleSubChange(index, e)} />
+                   <FormField label="Date Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={(e) => handleSubChange(index, e)} />
+                   <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={(e) => handleSubChange(index, e)} />
+                </div>
+
+                {/* Substitution Condition Report */}
+                <div className="bg-white p-4 rounded border border-gray-200">
+                    <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" /> Condition Report
+                    </h5>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* Mileage */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Mileage Out</label>
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Gauge className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <input
+                                    type="number"
+                                    name="mileage"
+                                    value={sub.mileage}
+                                    onChange={(e) => handleSubChange(index, e)}
+                                    className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Fuel */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Fuel Level</label>
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Fuel className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <select
+                                    name="fuelLevel"
+                                    value={sub.fuelLevel}
+                                    onChange={(e) => handleSubChange(index, e)}
+                                    className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                >
+                                    <option value="0">Empty (0%)</option>
+                                    <option value="25">Quarter (25%)</option>
+                                    <option value="50">Half (50%)</option>
+                                    <option value="75">Three Quarters (75%)</option>
+                                    <option value="100">Full (100%)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center space-x-2 border p-2 rounded bg-gray-50">
+                            <input
+                                type="checkbox"
+                                id={`sub_clean_${index}`}
+                                name="isClean"
+                                checked={sub.isClean}
+                                onChange={(e) => handleSubChange(index, e)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <label htmlFor={`sub_clean_${index}`} className="text-sm text-gray-700">Vehicle is Clean</label>
+                        </div>
+                        <div className="flex items-center space-x-2 border p-2 rounded bg-gray-50">
+                            <input
+                                type="checkbox"
+                                id={`sub_damage_${index}`}
+                                name="hasDamage"
+                                checked={sub.hasDamage}
+                                onChange={(e) => handleSubChange(index, e)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <label htmlFor={`sub_damage_${index}`} className="text-sm text-gray-700">Has Damage</label>
+                        </div>
+                    </div>
+
+                    {sub.hasDamage && (
+                        <div className="mb-4">
+                            <TextArea 
+                                label="Damage Description" 
+                                name="damageDescription" 
+                                value={sub.damageDescription} 
+                                onChange={(e) => handleSubChange(index, e)} 
+                            />
+                        </div>
+                    )}
+
+                    {/* Sub Images */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Condition Images</label>
+                        
+                        {/* Existing Sub Images */}
+                        {sub.images && sub.images.length > 0 && (
+                            <div className="grid grid-cols-4 gap-2 mb-2">
+                                {sub.images.map((url, imgIdx) => (
+                                    <div key={imgIdx} className="relative group">
+                                        <img src={url} alt="Sub Condition" className="w-full h-16 object-cover rounded border" />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveExistingSubImage(index, url)}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <FileUpload
+                            label={sub.images.length > 0 ? "Add More Images" : "Upload Images"}
+                            accept="image/*"
+                            multiple
+                            onChange={(files) => setSubNewImages(prev => ({ ...prev, [index]: files }))}
+                            showPreview
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-4">
+                      <TextArea label="General Notes" name="notes" value={sub.notes} onChange={(e) => handleSubChange(index, e)} rows={2} />
                 </div>
               </div>
             ))}
@@ -1807,6 +2218,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
         <div className="border-t pt-4">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+            
+            {/* 1. Base Cost (Raw) */}
             <div className="flex justify-between text-sm">
               <span>Base Rental Cost:</span>
               <span className="font-medium">
@@ -1818,21 +2231,38 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                     selectedVehicle!,
                     formData.reason,
                     formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false
+                    0,0,0,0,0,0,
+                    false, false, false, false, false, false
                   )
                 )}
               </span>
             </div>
 
+            {/* 2. Hire VAT (Only if checked) */}
+            {formData.includeVAT && (
+               <div className="flex justify-between text-sm text-blue-600">
+                 <span>Hire VAT (20%):</span>
+                 <span className="font-medium">
+                   {formatCurrency(
+                     calculateRentalCost(
+                       new Date(`${formData.startDate}T${formData.startTime}`),
+                       new Date(`${formData.endDate}T${formData.endTime}`),
+                       formData.type,
+                       selectedVehicle!,
+                       formData.reason,
+                       formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
+                       0,0,0,0,0,0,
+                       false, false, false, false, false, false
+                     ) * 0.2
+                   )}
+                 </span>
+               </div>
+            )}
+
+            {/* Separator for Extras */}
+            <div className="border-t border-gray-200 my-1"></div>
+
+            {/* 3. Extras Breakdown */}
             {formData.type === 'claim' &&
               formData.storageStartDate &&
               formData.storageEndDate &&
@@ -1881,20 +2311,39 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
               </div>
             )}
 
-            {formData.insurancePerDay > 0 &&
+            {/* Insurance Display */}
+            {((formData.type === 'weekly' ? formData.insurancePerWeek > 0 : formData.insurancePerDay > 0) &&
               formData.startDate &&
               formData.endDate &&
               (() => {
                 const start = new Date(`${formData.startDate}T${formData.startTime}`);
                 const end = new Date(`${formData.endDate}T${formData.endTime}`);
                 if (isValid(start) && isValid(end) && !isAfter(start, end)) {
-                  const days = differenceInDays(end, start) + 1;
+                  if (formData.type === 'weekly') {
+                    const weeks = Number(formData.numberOfWeeks || 1);
+                    const insuranceCost =
+                      weeks * (formData.insurancePerWeek || 0) * (formData.insurancePerWeekIncludeVAT ? 1.2 : 1);
+                    return (
+                      <div className="flex justify-between text-sm">
+                        <span>
+                          Insurance ({weeks} week{weeks === 1 ? '' : 's'})
+                          {formData.insurancePerWeekIncludeVAT ? ' (Inc. VAT)' : ''}:
+                        </span>
+                        <span className="font-medium">{formatCurrency(insuranceCost)}</span>
+                      </div>
+                    );
+                  }
+
+                  // ✅ FIXED LOGIC HERE: Use differenceInHours / 24 rounded up
+                  const hours = differenceInHours(end, start);
+                  const days = hours <= 0 ? 1 : Math.ceil(hours / 24);
+                  
                   const insuranceCost =
-                    days * formData.insurancePerDay * (formData.insurancePerDayIncludeVAT ? 1.2 : 1);
+                    days * (formData.insurancePerDay || 0) * (formData.insurancePerDayIncludeVAT ? 1.2 : 1);
                   return (
                     <div className="flex justify-between text-sm">
                       <span>
-                        Insurance ({days} days)
+                        Insurance ({days} day{days === 1 ? '' : 's'})
                         {formData.insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:
                       </span>
                       <span className="font-medium">{formatCurrency(insuranceCost)}</span>
@@ -1902,23 +2351,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
                   );
                 }
                 return null;
-              })()}
+              })())}
 
-            <div className="flex justify-between text-sm pt-2 border-t">
-              <span>Subtotal (before overall VAT):</span>
-              <span className="font-medium">{formatCurrency(currentTotalCost / (formData.includeVAT ? 1.2 : 1))}</span>
-            </div>
-            {formData.includeVAT && (
-              <div className="flex justify-between text-sm text-blue-600">
-                <span>Overall VAT (20%):</span>
-                <span className="font-medium">
-                  {formatCurrency(currentTotalCost - currentTotalCost / (formData.includeVAT ? 1.2 : 1))}
-                </span>
-              </div>
-            )}
-
-            <div className="flex justify-between text-sm pt-2 border-t">
-              <span>Subtotal (with overall VAT):</span>
+            {/* 4. Gross Subtotal */}
+            <div className="flex justify-between text-sm pt-2 border-t font-semibold text-gray-700">
+              <span>Subtotal (Gross):</span>
               <span className="font-medium">{formatCurrency(currentTotalCost)}</span>
             </div>
 
@@ -1929,6 +2366,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
               </div>
             )}
 
+            {/* 5. Total Due */}
             <div className="flex justify-between text-lg font-semibold pt-2 border-t mt-2">
               <span>Total Amount Due:</span>
               <span className="font-medium">{formatCurrency(currentFinalCostAfterDiscount)}</span>
@@ -1965,10 +2403,10 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
           </div>
         </div>
 
-        {/* Vehicle Condition Section (Updated to match RentalForm) */}
+        {/* Vehicle Condition Section */}
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <Car className="w-5 h-5 text-gray-500" /> Vehicle Check-Out Condition
+            <Car className="w-5 h-5 text-gray-500" /> Main Vehicle Check-Out Condition
           </h3>
           <div className="space-y-6 bg-white p-4 rounded-lg border border-gray-200">
             {/* Mileage Box */}

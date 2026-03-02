@@ -20,6 +20,7 @@ const spinner = (
 ────────────────────────────── */
 const Login      = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
+const SignCustomer = lazyLoad('SignCustomer'); // <--- Add this line
 
 /* ─────────────────────────────
    Members (public)
@@ -68,6 +69,7 @@ const Todo = lazyLoad('Todo');
 const DriverPay            = lazyLoad('DriverPay');
 const AiePettyCash         = lazyLoad('AiePettyCash');
 const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense');
+const AutomationSettings = lazyLoad('AutomationSettings');
 
 export default function AppRoutes() {
   return (
@@ -75,7 +77,8 @@ export default function AppRoutes() {
       {/* ────────────── Public ────────────── */}
       <Route path="/login"       element={<Login />} />
       <Route path="/admin-setup" element={<AdminSetup />} />
-
+      {/* Public Signature Route - accessible without login */}
+      <Route path="/sign/:id"    element={<SignCustomer />} />  {/* <--- Add this line */}
       {/* Member password flows */}
       <Route path="/members/forgot-password" element={<ForgotPassword />} />
       <Route path="/members/reset-password"  element={<ResetPassword />} />
@@ -244,6 +247,17 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+  path={ROUTES.AUTOMATION}
+  element={
+    <ProtectedRoute requiredPermission={{ module: 'settings', action: 'view' }}>
+      <Layout>
+        <AutomationSettings />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
 
 
       <Route

@@ -1,11 +1,6 @@
 // src/pages/members/Login.tsx
-
 import React, { useState, useEffect } from 'react';
-import {
-  Link,
-  useNavigate,
-  useLocation,
-} from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
@@ -14,21 +9,14 @@ import toast from 'react-hot-toast';
 
 const mapError = (code: string) => {
   switch (code) {
-    case 'auth/invalid-email':
-      return 'The email address is not valid.';
-    case 'auth/user-disabled':
-      return 'This user account has been disabled.';
-    case 'auth/user-not-found':
-      return 'No account found with that email.';
+    case 'auth/invalid-email': return 'The email address is not valid.';
+    case 'auth/user-disabled': return 'This user account has been disabled.';
+    case 'auth/user-not-found': return 'No account found with that email.';
     case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-      return 'Incorrect email or password.';
-    case 'auth/too-many-requests':
-      return 'Too many attempts. Please try again later.';
-    case 'auth/network-request-failed':
-      return 'Network error. Check your connection and try again.';
-    default:
-      return 'Could not sign you in. Please try again.';
+    case 'auth/invalid-credential': return 'Incorrect email or password.';
+    case 'auth/too-many-requests': return 'Too many attempts. Please try again later.';
+    case 'auth/network-request-failed': return 'Network error. Check your connection and try again.';
+    default: return 'Could not sign you in. Please try again.';
   }
 };
 
@@ -38,9 +26,7 @@ const MemberLogin: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // If the user is already signed in, check their role and redirect
   useEffect(() => {
     if (!authUser) return;
     (async () => {
@@ -54,7 +40,6 @@ const MemberLogin: React.FC = () => {
             navigate('/', { replace: true });
           }
         } else {
-          // No user profile, sign out to show login screen
           await auth.signOut();
         }
       } catch {
@@ -63,7 +48,6 @@ const MemberLogin: React.FC = () => {
     })();
   }, [authUser, navigate]);
 
-  // While we’re redirecting, don’t show the login form (keep UI minimal)
   if (authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -77,7 +61,6 @@ const MemberLogin: React.FC = () => {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      // Fetch their role
       const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
       if (userDoc.exists()) {
         const { role } = userDoc.data() as any;
@@ -114,9 +97,7 @@ const MemberLogin: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div className="pt-2">
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
+              <label htmlFor="email" className="sr-only">Email address</label>
               <input
                 id="email"
                 name="email"
@@ -131,9 +112,7 @@ const MemberLogin: React.FC = () => {
               />
             </div>
             <div className="pt-4">
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <input
                 id="password"
                 name="password"
@@ -163,16 +142,10 @@ const MemberLogin: React.FC = () => {
         </form>
 
         <div className="flex justify-between text-sm">
-          <Link
-            to="/members/register"
-            className="font-medium text-primary hover:underline"
-          >
+          <Link to="/members/register" className="font-medium text-primary hover:underline">
             New here? Register
           </Link>
-          <Link
-            to="/login"
-            className="font-medium text-primary hover:underline"
-          >
+          <Link to="/login" className="font-medium text-primary hover:underline">
             Admin Portal
           </Link>
         </div>
@@ -182,6 +155,18 @@ const MemberLogin: React.FC = () => {
             Forgot password?
           </Link>
         </p>
+
+        {/* Privacy Policy Link */}
+        <div className="mt-6 text-center text-sm">
+          <a 
+            href="https://www.aieskyline.co.uk/privacy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-gray-500 hover:text-primary transition-colors"
+          >
+            Read our Privacy Policy
+          </a>
+        </div>
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import { Wrench, DollarSign, MapPin, Calendar, FileText } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { format } from 'date-fns'; // ADD: Import format
+import { format } from 'date-fns';
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
@@ -23,9 +23,9 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
     const fetchCreatedByName = async () => {
       if (log.createdBy) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', log.createdBy)); // Assuming 'users' collection
+          const userDoc = await getDoc(doc(db, 'users', log.createdBy));
           if (userDoc.exists()) {
-            setCreatedByName(userDoc.data().name); // Assuming 'name' field in user document
+            setCreatedByName(userDoc.data().name);
           } else {
             setCreatedByName('Unknown User');
           }
@@ -44,14 +44,29 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
       value: any;
       isDate?: boolean;
       isExpiring?: boolean;
-    }) => (
-      <div>
-        <h3 className="text-sm font-medium text-gray-500">{label}</h3>
-        <p className={`mt-1 ${isExpiring ? 'text-red-600 font-medium' : ''}`}>
-          {isDate ? formatDate(value) : value}
-        </p>
-      </div>
-    );
+    }) => {
+      let displayValue = value;
+      if (isDate && value) {
+         const d = value.toDate ? value.toDate() : (value instanceof Date ? value : new Date(value));
+         if (!isNaN(d.getTime())) {
+             displayValue = format(d, 'dd/MM/yyyy HH:mm');
+         } else {
+             displayValue = 'N/A';
+         }
+      } else if (!value && value !== 0) {
+          displayValue = '-';
+      }
+
+      return (
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">{label}</h3>
+          <p className={`mt-1 ${isExpiring ? 'text-red-600 font-medium' : ''}`}>
+            {displayValue}
+          </p>
+        </div>
+      );
+    };
+
     const { formatCurrency } = useFormattedDisplay();
 
   return (
@@ -97,12 +112,10 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Service Date</h4>
-            {/* UPDATED: Display Date AND Time */}
             <p className="mt-1">{format(serviceDate, 'dd/MM/yyyy HH:mm')}</p>
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500">Next Service Date</h4>
-            {/* UPDATED: Display Date AND Time */}
             <p className="mt-1">{format(nextServiceDate, 'dd/MM/yyyy HH:mm')}</p>
           </div>
           <div>
@@ -125,6 +138,29 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
             <h4 className="text-sm font-medium text-gray-500">Notes</h4>
             <p className="mt-1">{log.notes}</p>
           </div>
+        )}
+      </div>
+
+      {/* Order & Invoice Section (With Order Number) */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-4 mb-4 border border-gray-200">
+        <div className="flex items-center mb-2">
+            <FileText className="h-5 w-5 text-gray-400 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Order & Invoice</h3>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+            <DetailItem label="Order Number" value={log.orderNumber || '-'} />
+            <DetailItem label="Invoice Number" value={log.invoiceNumber || '-'} />
+            <DetailItem label="Invoice Date" value={log.invoiceDate} isDate />
+            <DetailItem label="Invoice Due Date" value={log.invoiceDueDate} isDate />
+            <DetailItem label="Booking Start" value={log.date} isDate />
+            <DetailItem label="Completed Date" value={log.completedDate} isDate />
+        </div>
+        {log.invoiceUrl && (
+            <div className="mt-2 pt-2 border-t border-gray-200">
+                <a href={log.invoiceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center font-medium">
+                    <FileText className="h-4 w-4 mr-1" /> View Maintenance Invoice (PDF)
+                </a>
+            </div>
         )}
       </div>
 
@@ -174,77 +210,72 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           </div>
         </div>
 
-        {log.attachments?.length > 0 && (
-      <section className="mt-4">
-        <h3 className="font-semibold mb-2">Attachments</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {log.attachments.map((att, idx) => (
-            <a
-              key={idx}
-              href={att.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block border rounded p-2 hover:bg-gray-50"
-            >
-              {att.type.startsWith('image/') ? (
-                <img src={att.url} alt={att.name} className="w-full h-32 object-cover rounded" />
-              ) : (
-                <div className="flex flex-col items-center">
-                  <FileText className="h-6 w-6 text-gray-600" />
-                  <span className="mt-1 text-sm truncate">{att.name}</span>
-                </div>
-              )}
-            </a>
-          ))}
-        </div>
-      </section>
-    )}
-
+        {log.attachments && log.attachments.length > 0 && (
+          <section className="mt-4">
+            <h3 className="font-semibold mb-2">Attachments</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {log.attachments.map((att, idx) => (
+                <a
+                  key={idx}
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block border rounded p-2 hover:bg-gray-50"
+                >
+                  {att.type?.startsWith('image/') ? (
+                    <img src={att.url} alt={att.name} className="w-full h-32 object-cover rounded" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32">
+                      <FileText className="h-8 w-8 text-gray-600 mb-2" />
+                      <span className="mt-1 text-sm truncate w-full text-center px-2">{att.name}</span>
+                    </div>
+                  )}
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Payment Summary */}
         <div className="border-t pt-4 space-y-2">
-  <div className="flex justify-between text-sm font-medium">
-    <span>NET:</span>
-    <span>{formatCurrency(log.netAmount!)}</span>
-  </div>
-  <div className="flex justify-between text-sm">
-    <span>VAT:</span>
-    <span>{formatCurrency(log.vatAmount!)}</span>
-  </div>
-  {log.totalDiscount! > 0 && (
-    <div className="flex justify-between text-sm text-red-600">
-      <span>Discount:</span>
-      <span>–{formatCurrency(log.totalDiscount!)}</span>
-    </div>
-  )}
-  <div className="flex justify-between text-lg font-bold pt-2 border-t">
-    <span>Total:</span>
-    <span>{formatCurrency(log.cost)}</span>
-  </div>
-  <div className="flex justify-between text-sm text-green-600">
-    <span>Paid:</span>
-    <span>{formatCurrency(log.paidAmount || 0)}</span>
-  </div>
-  <div className="flex justify-between text-sm text-amber-600">
-    <span>Owing:</span>
-    <span>{formatCurrency(log.remainingAmount)}</span>
-  </div>
-</div>
-
-
+          <div className="flex justify-between text-sm font-medium">
+            <span>NET:</span>
+            <span>{formatCurrency(log.netAmount!)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>VAT:</span>
+            <span>{formatCurrency(log.vatAmount!)}</span>
+          </div>
+          {log.totalDiscount! > 0 && (
+            <div className="flex justify-between text-sm text-red-600">
+              <span>Discount:</span>
+              <span>–{formatCurrency(log.totalDiscount!)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-bold pt-2 border-t">
+            <span>Total:</span>
+            <span>{formatCurrency(log.cost)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-green-600">
+            <span>Paid:</span>
+            <span>{formatCurrency(log.paidAmount || 0)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-amber-600">
+            <span>Owing:</span>
+            <span>{formatCurrency(log.remainingAmount)}</span>
+          </div>
+        </div>
       </div>
 
-      
-
-      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
+      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500 border-t pt-4">
         <DetailItem
           label="Created At"
-          value={log.updatedAt}
+          value={log.updatedAt || log.createdAt}
           isDate
         />
         <DetailItem
           label="Created By"
-          value={createdByName || log.createdBy || 'Loading...'} // Display fetched name or ID
+          value={createdByName || log.createdBy || 'Loading...'}
         />
       </div>
       

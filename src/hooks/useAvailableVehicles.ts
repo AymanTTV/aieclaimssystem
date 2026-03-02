@@ -1,114 +1,121 @@
 // src/hooks/useAvailableVehicles.ts
-
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Vehicle } from '../types';
-import { addDays, isBefore, isAfter, format } from 'date-fns';
+import { Vehicle, Rental } from '../types';
+import { isBefore, isAfter, format, startOfDay, endOfDay, isValid } from 'date-fns';
 
 interface VehicleAvailability extends Vehicle {
   availableFrom?: Date;
   message?: string;
+  isSubstitution?: boolean;
 }
+
+const parseFirebaseDate = (date: any): Date | null => {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (typeof date.toDate === 'function') return date.toDate();
+  const parsed = new Date(date);
+  return isValid(parsed) ? parsed : null;
+};
 
 export const useAvailableVehicles = (
   vehicles: Vehicle[],
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  excludeRentalId?: string
 ) => {
   const [availableVehicles, setAvailableVehicles] = useState<VehicleAvailability[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const startTs = startDate?.getTime();
+  const endTs = endDate?.getTime();
+
   useEffect(() => {
     const fetchAvailability = async () => {
-  try {
-    // Filter vehicles first to only include available and completed rentals
-    const availableVehicles = vehicles.filter(vehicle => 
-      // Only include vehicles that are:
-      // 1. Currently available
-      vehicle.status === 'available' ||
-      // 2. Have completed rentals with an availability date
-      (vehicle.status === 'completed' && vehicle.availableFrom)
-    );
+      try {
+        setLoading(true);
 
-    // Query for active and scheduled rentals
-    const rentalsQuery = query(
-      collection(db, 'rentals'),
-      where('status', 'in', ['active', 'scheduled'])
-    );
+        const baseVehicles = vehicles.filter(v => 
+          v.status === 'available' || (v.status === 'completed' && v.availableFrom)
+        );
 
-    const rentalSnapshot = await getDocs(rentalsQuery);
+        const rentalsQuery = query(
+          collection(db, 'rentals'),
+          where('status', 'in', ['active', 'scheduled'])
+        );
 
-    // Map of vehicle IDs to their unavailable periods
-    const unavailablePeriods = new Map<string, Array<{ start: Date; end: Date }>>();
+        const rentalSnapshot = await getDocs(rentalsQuery);
+        const activeRentals = rentalSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Rental))
+          .filter(r => r.id !== excludeRentalId);
 
-    // Process rentals
-    rentalSnapshot.forEach(doc => {
-      const rental = doc.data();
-      const periods = unavailablePeriods.get(rental.vehicleId) || [];
-      periods.push({
-        start: rental.startDate.toDate(),
-        end: rental.endDate.toDate()
-      });
-      unavailablePeriods.set(rental.vehicleId, periods);
-    });
+        const available = baseVehicles
+          .map(vehicle => {
+            const periods: Array<{ start: Date; end: Date }> = [];
+            const vehicleReg = vehicle.registrationNumber?.toLowerCase()?.trim();
+            
+            let subStatusMessage = '';
+            let isSub = false;
 
-    // Filter and process vehicles
-    const available = availableVehicles
-      .map(vehicle => {
-        // For completed rentals, show availability date
-        if (vehicle.status === 'completed' && vehicle.availableFrom) {
-          return {
-            ...vehicle,
-            availableFrom: vehicle.availableFrom,
-            message: `Available from ${format(vehicle.availableFrom, 'dd/MM/yyyy')}`
-          };
-        }
+            activeRentals.forEach(rental => {
+              // Check primary vehicleId
+              if (rental.vehicleId === vehicle.id) {
+                const rStart = parseFirebaseDate(rental.startDate);
+                const rEnd = parseFirebaseDate(rental.endDate);
+                if (rStart && rEnd) periods.push({ start: rStart, end: rEnd });
+              }
 
-        // For currently available vehicles
-        if (vehicle.status === 'available') {
-          const periods = unavailablePeriods.get(vehicle.id) || [];
-          
-          // If dates are specified, check for conflicts
-          if (startDate && endDate) {
-            const hasConflict = periods.some(period => 
-              !(isAfter(startDate, period.end) || isBefore(endDate, period.start))
-            );
+              // ✅ Check if vehicle is used as a substitution
+              if (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0) {
+                rental.hireSubstitutionDetails.forEach(sub => {
+                  const subReg = sub.registration?.toLowerCase()?.trim();
+                  if (vehicleReg && subReg && vehicleReg === subReg && !sub.returnCondition) {
+                    const sStart = parseFirebaseDate(sub.givenAt);
+                    const sEnd = parseFirebaseDate(sub.expectedReturnAt);
+                    if (sStart && sEnd) {
+                      periods.push({ start: sStart, end: sEnd });
+                      isSub = true;
+                      subStatusMessage = `ON SUB: ${format(sStart, 'dd/MM HH:mm')} → ${format(sEnd, 'dd/MM HH:mm')}`;
+                    }
+                  }
+                });
+              }
+            });
 
-            if (hasConflict) {
-              return null; // Vehicle not available for requested period
+            if (startDate && endDate) {
+              const searchStart = startOfDay(startDate);
+              const searchEnd = endOfDay(endDate);
+              const hasConflict = periods.some(period => {
+                const pStart = startOfDay(period.start);
+                const pEnd = endOfDay(period.end);
+                return searchStart <= pEnd && searchEnd >= pStart;
+              });
+              if (hasConflict && !isSub) return null; // Hide if it's a primary conflict
             }
-          }
 
-          return {
-            ...vehicle,
-            availableFrom: new Date(),
-            message: 'Available now'
-          };
-        }
+            return {
+              ...vehicle,
+              availableFrom: vehicle.availableFrom || new Date(),
+              isSubstitution: isSub,
+              message: subStatusMessage || (vehicle.availableFrom 
+                ? `Available from ${format(vehicle.availableFrom, 'dd/MM/yyyy')}` 
+                : 'Available now')
+            };
+          })
+          .filter((v): v is VehicleAvailability => v !== null)
+          .sort((a, b) => (a.availableFrom?.getTime() || 0) - (b.availableFrom?.getTime() || 0));
 
-        return null;
-      })
-      .filter((v): v is VehicleAvailability => v !== null)
-      .sort((a, b) => {
-        // Sort available vehicles first, then by availability date
-        if (a.status === 'available' && b.status !== 'available') return -1;
-        if (a.status !== 'available' && b.status === 'available') return 1;
-        return a.availableFrom.getTime() - b.availableFrom.getTime();
-      });
-
-    setAvailableVehicles(available);
-  } catch (error) {
-    console.error('Error fetching vehicle availability:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+        setAvailableVehicles(available);
+      } catch (error) {
+        console.error('Error fetching availability:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchAvailability();
-  }, [vehicles, startDate, endDate]);
+  }, [vehicles, startTs, endTs, excludeRentalId]);
 
   return { availableVehicles, loading };
 };
-
-export default useAvailableVehicles;

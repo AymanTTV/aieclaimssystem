@@ -1,3 +1,7 @@
+{
+type: uploaded file
+fileName: finance.ts
+fullContent:
 // src/types/finance.ts
 
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly';
@@ -101,8 +105,11 @@ export interface Invoice {
   remainingAmount: number;
   category: string;
   customCategory?: string;
+  
+  description?: string; // <--- NEW FIELD
+
   vehicleId?: string;
-  vehicleName?: string; // <-- ADDED
+  vehicleName?: string;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -110,5 +117,15 @@ export interface Invoice {
   documentUrl?: string;
   payments: InvoicePayment[];
   createdAt: Date;
+
+  // Finance Account Association
+  accountId?: string;
+  accountName?: string;
+  
   updatedAt: Date;
+  
+  // Recurring
+  isRecurring?: boolean;
+  recurringFrequency?: RecurringFrequency;
+}
 }

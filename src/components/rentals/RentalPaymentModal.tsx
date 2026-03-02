@@ -6,7 +6,7 @@ import { Rental, RentalPayment, Vehicle } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
-import { calculateOverdueCost } from '../../utils/rentalCalculations';
+import { calculateOverdueCost, calculateRentalCost } from '../../utils/rentalCalculations'; 
 import { isAfter } from 'date-fns';
 import { useCustomers } from '../../hooks/useCustomers';
 import toast from 'react-hot-toast';
@@ -14,7 +14,6 @@ import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 
 import { Pencil, Trash2 } from 'lucide-react';
 
-// NEW: use shared utils to keep totals/rollups in sync when editing/deleting
 import { deleteRentalPayment, updateRentalPayment } from '../../utils/paymentUtils';
 
 interface RentalPaymentModalProps {
@@ -31,7 +30,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
-  
 
   // Editing state
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
@@ -50,17 +48,66 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   const { customers } = useCustomers();
   const paymentCustomer = customers.find(c => c.id === rental.customerId);
 
-  // Calculate current costs (match your Details/Modal math)
+  // --- 1. Dynamic Cost Re-calculation (Matches Table Logic Exactly) ---
+  const calculatedBaseCostWithExtras = useMemo(() => {
+    if (!vehicle) return rental.cost || 0;
+
+    const startDateTime = (rental as any)?.startDate?.toDate 
+      ? (rental as any).startDate.toDate() 
+      : new Date(rental.startDate);
+      
+    const endDateTime = (rental as any)?.endDate?.toDate 
+      ? (rental as any).endDate.toDate() 
+      : new Date(rental.endDate);
+
+    const calculatedCost = calculateRentalCost(
+      startDateTime,
+      endDateTime,
+      rental.type,
+      vehicle,
+      rental.reason,
+      rental.negotiatedRate ?? undefined,
+      
+      rental.storageCost || 0,
+      rental.recoveryCost || 0,
+      // Pass stored gross totals
+      rental.deliveryCharge || 0,
+      rental.collectionCharge || 0,
+      
+      rental.insurancePerDay || 0,
+      (rental as any).insurancePerWeek || 0,
+
+      rental.includeVAT,
+      // ✅ FIX: Pass FALSE for Delivery/Collection VAT flags (Same as RentalTable)
+      // because stored delivery/collection charges are often already Gross totals.
+      false, 
+      false, 
+      
+      rental.insurancePerDayIncludeVAT,
+      (rental as any).insurancePerWeekIncludeVAT,
+      rental.includeRecoveryCostVAT
+    );
+
+    const discountAmount = (rental.discountAmount || 0);
+    
+    return Math.max(0, calculatedCost - discountAmount);
+  }, [rental, vehicle]);
+
+  // --- 2. Calculate Ongoing & Return Charges ---
   const now = new Date();
   const ongoingCharges =
     rental.status === 'active' && isAfter(now, rental.endDate)
       ? calculateOverdueCost(rental, now, vehicle)
       : 0;
 
-  const returnCharges = rental.returnCondition?.totalCharges || 0;
+  const mainReturnCharges = rental.returnCondition?.totalCharges || 0;
+  const subCharges = (rental.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
+  
+  const totalReturnCharges = mainReturnCharges + subCharges;
 
-  // rental.cost already reflects VAT/discount and base extras in your flow
-  const totalAmountDue = (rental.cost || 0) + ongoingCharges + returnCharges;
+  // --- 3. Final Totals ---
+  const totalAmountDue = calculatedBaseCostWithExtras + ongoingCharges + totalReturnCharges;
+
   const paid = rental.paidAmount || 0;
   const remainingAmount = totalAmountDue - paid;
 
@@ -90,7 +137,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       setLoading(true);
       await deleteRentalPayment(rental, paymentId, vehicle);
       toast.success('Payment deleted');
-      onClose(); // simplest: parent view re-syncs
+      onClose();
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Failed to delete payment');
@@ -112,12 +159,14 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       return;
     }
 
-    // When editing, allow raising/lowering relative to the original line.
-    // Effective “cap” while editing = remaining + originalLineAmount
+    // Cap check logic
     const originalAmt = editingPayment?.amount ?? 0;
-    const effectiveMax = editingPaymentId ? remainingAmount + originalAmt : remainingAmount;
+    const effectiveMax = editingPaymentId
+      ? remainingAmount + originalAmt
+      : remainingAmount;
 
-    if (paymentAmount > effectiveMax + 0.0001) {
+    // Allow small floating point margin
+    if (paymentAmount > effectiveMax + 0.05) {
       toast.error(
         `Invalid payment amount. Maximum allowed is ${formatCurrency(effectiveMax)}`
       );
@@ -128,7 +177,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
     try {
       if (editingPaymentId) {
-        // UPDATE existing line via util (handles rollups + optional finance delta)
         await updateRentalPayment(
           rental,
           editingPaymentId,
@@ -145,7 +193,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         return;
       }
 
-      // CREATE new payment (your original flow)
       const payment: RentalPayment = {
         id: Date.now().toString(),
         date: new Date(),
@@ -162,6 +209,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       const newPaymentStatus =
         newRemainingAmount <= 0.001 ? 'paid' : 'partially_paid';
 
+      // Update Firebase with fresh calc to align DB state
       await updateDoc(doc(db, 'rentals', rental.id), {
         paidAmount: newPaidAmount,
         remainingAmount: Math.max(newRemainingAmount, 0),
@@ -186,7 +234,9 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
           (formData.notes ? ` – ${formData.notes}` : ''),
         referenceId: rental.id,
         vehicleId: rental.vehicleId,
-        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
+        vehicleName: vehicle
+          ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
+          : undefined,
         vehicleOwner,
         customerId: rental.customerId,
         customerName: paymentCustomer?.name,
@@ -194,7 +244,8 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         paymentReference: formData.reference || undefined,
         status: 'completed',
         paymentStatus: newPaymentStatus,
-        date: new Date()
+        date: new Date(),
+        accountTo: vehicle?.owner?.accountId || undefined 
       });
 
       toast.success('Payment recorded successfully');
@@ -209,14 +260,16 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      
       {/* Existing Payments */}
       {user?.role === 'manager' && rental.payments && rental.payments.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-gray-700">Previous Payments</h3>
           <div className="space-y-2 max-h-56 overflow-auto pr-1">
             {rental.payments.map((p) => (
-              <div key={p.id} className="flex items-start justify-between bg-gray-50 p-3 rounded-md">
+              <div
+                key={p.id}
+                className="flex items-start justify-between bg-gray-50 p-3 rounded-md"
+              >
                 <div>
                   <div className="font-medium">£{p.amount.toFixed(2)}</div>
                   <div className="text-xs text-gray-500 capitalize">
@@ -227,7 +280,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
                   )}
                   <div className="text-xs text-gray-500">
                     {new Date(
-                      // handle Firestore Timestamp or Date/string
                       (p.date as any)?.toDate ? (p.date as any).toDate() : new Date(p.date)
                     ).toLocaleString()}
                   </div>
@@ -260,7 +312,8 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
           {editingPaymentId && (
             <div className="flex items-center justify-between text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
               <div>
-                Editing payment <span className="font-medium">#{editingPaymentId.slice(-6)}</span>
+                Editing payment{' '}
+                <span className="font-medium">#{editingPaymentId.slice(-6)}</span>
               </div>
               <button
                 type="button"
@@ -277,12 +330,12 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       {/* Cost Summary */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
-          <span>Base Rental Cost:</span>
-          <span className="font-medium">{formatCurrency(rental.cost || 0)}</span>
+          <span>Calculated Rental Cost:</span>
+          <span className="font-medium">{formatCurrency(calculatedBaseCostWithExtras)}</span>
         </div>
 
         {rental.discountAmount ? (
-          <div className="text-xs text-gray-500 -mt-1">
+          <div className="text-xs text-gray-500 -mt-1 text-right">
             (Includes {formatCurrency(rental.discountAmount)} discount)
           </div>
         ) : null}
@@ -294,10 +347,10 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
           </div>
         )}
 
-        {returnCharges > 0 && (
+        {totalReturnCharges > 0 && (
           <div className="flex justify-between text-sm text-red-600">
-            <span>Return Charges:</span>
-            <span>+{formatCurrency(returnCharges)}</span>
+            <span>Return Charges{subCharges > 0 ? ' (Inc. Subs)' : ''}:</span>
+            <span>+{formatCurrency(totalReturnCharges)}</span>
           </div>
         )}
 
@@ -326,7 +379,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         required
         min="0.01"
         step="0.01"
-        // max is validated in handler (differs for edit vs create)
       />
 
       <div>

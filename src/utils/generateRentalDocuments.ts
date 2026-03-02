@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createElement } from 'react';
 import toast from 'react-hot-toast';
+import { ensureValidDate } from './dateHelpers'; // Ensure this is imported
 
 // Claims bundle (your existing set)
 import {
@@ -22,7 +23,12 @@ import {
 import { ParkingPermitLetter } from '../components/pdf/ParkingPermitLetter';
 
 type PeriodOverride = { start: Date; end: Date };
-type Options = { periodOverride?: PeriodOverride };
+
+// ✅ UPDATE: Add includeImages to Options
+type Options = { 
+  periodOverride?: PeriodOverride; 
+  includeImages?: boolean; 
+};
 
 export const generateRentalDocuments = async (
   rental: Rental,
@@ -51,10 +57,16 @@ export const generateRentalDocuments = async (
     // Ensure dates are valid Date objects (keep your normalization)
     const validatedRental: Rental = {
       ...rental,
-      startDate: new Date(rental.startDate),
-      endDate: new Date(rental.endDate),
-      createdAt: new Date(rental.createdAt),
-      updatedAt: new Date(rental.updatedAt)
+      startDate: ensureValidDate(rental.startDate) || new Date(),
+      endDate: ensureValidDate(rental.endDate) || new Date(),
+      createdAt: ensureValidDate(rental.createdAt) || new Date(),
+      updatedAt: ensureValidDate(rental.updatedAt) || new Date(),
+      // Handle substitutions specifically to ensure their dates are valid too
+      hireSubstitutionDetails: rental.hireSubstitutionDetails?.map(sub => ({
+        ...sub,
+        givenAt: ensureValidDate(sub.givenAt) || new Date(),
+        expectedReturnAt: ensureValidDate(sub.expectedReturnAt) || new Date(),
+      })) || []
     };
 
     // ---- Key addition: build an "effective rental" for the Agreement only ----
@@ -74,6 +86,8 @@ export const generateRentalDocuments = async (
       vehicle,
       customer,
       companyDetails,
+      // ✅ UPDATE: Pass the option, default to true if undefined
+      includeImages: options?.includeImages ?? true,
       // Optional hint props, safe if your component ignores them:
       agreementPeriod: options?.periodOverride
         ? { start: new Date(options.periodOverride.start), end: new Date(options.periodOverride.end) }

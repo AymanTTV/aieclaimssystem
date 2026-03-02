@@ -1,5 +1,7 @@
+// src/hooks/useMaintenanceFilters.ts
 import { useState, useMemo } from 'react';
 import { MaintenanceLog, Vehicle } from '../types';
+import { startOfDay, endOfDay, parseISO } from 'date-fns';
 
 export const useMaintenanceFilters = (
   logs: MaintenanceLog[],
@@ -10,21 +12,32 @@ export const useMaintenanceFilters = (
   const [typeFilter, setTypeFilter] = useState('all');
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  
+  // NEW: Date Range State
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
 
   const filteredLogs = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
 
     return logs.filter(log => {
-      const vehicle = vehicles[log.vehicleId];
+      const vehicle = vehicles[log.vehicleId || ''] || (log.vehicleDetails as any);
 
+      // Expanded Search Logic
       const matchesSearch = (() => {
         if (!searchQuery) return true;
+        
+        const vehicleText = vehicle 
+          ? `${vehicle.make} ${vehicle.model} ${vehicle.registrationNumber}`.toLowerCase() 
+          : '';
+
         return (
-          vehicle?.registrationNumber.toLowerCase().includes(searchLower) ||
-          `${vehicle?.make} ${vehicle?.model}`.toLowerCase().includes(searchLower) ||
+          vehicleText.includes(searchLower) ||
           log.serviceProvider.toLowerCase().includes(searchLower) ||
           log.location.toLowerCase().includes(searchLower) ||
-          log.description.toLowerCase().includes(searchLower)
+          log.description.toLowerCase().includes(searchLower) ||
+          // NEW FIELDS
+          log.orderNumber?.toLowerCase().includes(searchLower) ||
+          log.invoiceNumber?.toLowerCase().includes(searchLower)
         );
       })();
 
@@ -43,12 +56,29 @@ export const useMaintenanceFilters = (
         paymentStatusFilter === 'all' ||
         log.paymentStatus.toLowerCase() === paymentStatusFilter.toLowerCase();
 
+      // NEW: Date Range Logic
+      let matchesDate = true;
+      if (dateRange.from || dateRange.to) {
+        const logDate = log.date instanceof Date ? log.date : (log.date as any).toDate();
+        
+        if (dateRange.from) {
+          const start = startOfDay(parseISO(dateRange.from));
+          if (logDate < start) matchesDate = false;
+        }
+        
+        if (dateRange.to) {
+          const end = endOfDay(parseISO(dateRange.to));
+          if (logDate > end) matchesDate = false;
+        }
+      }
+
       return (
         matchesSearch &&
         matchesStatus &&
         matchesType &&
         matchesVehicle &&
-        matchesPaymentStatus
+        matchesPaymentStatus &&
+        matchesDate
       );
     });
   }, [
@@ -59,6 +89,7 @@ export const useMaintenanceFilters = (
     typeFilter,
     vehicleFilter,
     paymentStatusFilter,
+    dateRange // Add dependency
   ]);
 
   return {
@@ -72,6 +103,9 @@ export const useMaintenanceFilters = (
     setVehicleFilter,
     paymentStatusFilter,
     setPaymentStatusFilter,
+    // Export new state
+    dateRange,
+    setDateRange,
     filteredLogs,
   };
 };

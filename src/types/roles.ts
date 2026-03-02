@@ -63,7 +63,7 @@ export interface RolePermissions {
   todo: Permission;
   bulkEmail: Permission;
   whatsapp: Permission;
-
+  settings: Permission;
   // MEMBER-PORTAL MODULES (visible/used only when role === 'member')
   memberProfile: Permission;
   memberRentals: Permission;
@@ -80,7 +80,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true } as any,
     whatsapp:      { view: true, send: true } as any,
     bulkEmail:     { view: true, send: true } as any,
-
+    // ADD THIS LINE:
+    settings: { view: true, update: true } as any,
     vehicles:      { view: true, create: true, update: true, delete: true, cards: true, mileage: true, recordPayment: false, export: true, owner: true } as any,
     maintenance:   { view: true, create: true, update: true, delete: true, cards: true, recordPayment: false, export: true } as any,
     rentals:       { view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, recordPayment: false, export: true } as any,
@@ -125,6 +126,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: true } as any,
     whatsapp:      { view: true, send: true } as any,
     bulkEmail:     { view: false, send: false } as any,
+    settings: { view: true, update: false } as any,
     waiting:       { view: true, create: true, update: false, delete: false, export: true } as any,
     todo: { view: true, create: true, update: false, delete: false, export: true } as any,
     vehicles:      { view: true, create: false, update: false, delete: false, cards: true, mileage: true, recordPayment: false, export: true, owner: false } as any,
@@ -170,6 +172,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard:     { view: false } as any,
     waiting:       { view: false } as any,
     whatsapp:      { view: false, send: false } as any,
+    settings: { view: true, update: false } as any,
     bulkEmail:     { view: false, send: false } as any,
     todo: { view: false } as any,
     vehicles:      { view: false, mileage: false, export: false, owner: false } as any,
@@ -216,6 +219,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     bulkEmail:     { view: false, send: false } as any,
     waiting:       { view: false } as any,
     whatsapp:      { view: false, send: false } as any,
+    settings: { view: false, update: false } as any,
     todo: { view: false } as any,
     vehicles:      { view: false, mileage: false, export: false, owner: false } as any,
     maintenance:   { view: false, export: false } as any,
@@ -262,6 +266,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     waiting:       { view: false } as any,
     todo: { view: false } as any,
     whatsapp:      { view: false } as any,
+    settings: { view: false } as any,
     dashboard:     { view: false } as any,
     vehicles:      { view: false, owner: false } as any,
     maintenance:   { view: false } as any,

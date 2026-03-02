@@ -12,10 +12,12 @@ import {
   MaintenanceDocument, 
   RentalDocument, 
   AccidentDocument,
-  ClaimDocument,       // Import standard Claim Document
-  ClaimBulkDocument,   // Import Bulk Document
-  ClaimProgressDocument // Import the new Progress Document
+  ClaimDocument,       
+  ClaimBulkDocument,   
+  ClaimProgressDocument 
 } from '../components/pdf/documents';
+import MaintenanceInvoice from '../components/pdf/MaintenanceInvoice'; 
+import { InvoiceDocument } from '../components/pdf/documents'; // Ensure InvoiceDocument is imported
 
 // Helper function to get company details
 export const getCompanyDetails = async () => {
@@ -29,18 +31,42 @@ export const getCompanyDetails = async () => {
   return docSnap.data();
 };
 
-// Generic document generation function
+/**
+ * Generic document generation function.
+ * * ✅ FIX APPLIED: This function now handles flexible arguments.
+ * It detects if the 6th argument is 'companyDetails' (object) or 'urlFieldName' (string).
+ */
 export const generateAndUploadDocument = async (
   Component: React.ComponentType<any>,
   data: any,
   path: string,
   recordId: string,
   collectionName: string,
-  urlFieldName: string = 'documentUrl' // Added optional field name parameter (defaults to documentUrl)
+  arg6?: any, // Can be companyDetails (object) OR urlFieldName (string)
+  arg7?: string // If arg6 is companyDetails, this is urlFieldName
 ) => {
   try {
-    // Get company details including terms and conditions
-    const companyDetails = await getCompanyDetails();
+    let companyDetails;
+    let urlFieldName = 'documentUrl'; // Default field name
+
+    // --- ARGUMENT DETECTION LOGIC ---
+    // If arg6 is a string, it's the urlFieldName (Legacy/Internal calls)
+    if (typeof arg6 === 'string') {
+      urlFieldName = arg6;
+      companyDetails = await getCompanyDetails(); // Fetch manually
+    } 
+    // If arg6 is an object, it's companyDetails (Call from Invoices.tsx)
+    else if (typeof arg6 === 'object' && arg6 !== null) {
+      companyDetails = arg6;
+      if (arg7 && typeof arg7 === 'string') {
+        urlFieldName = arg7;
+      }
+    } 
+    // If arg6 is undefined, fetch details and use default URL field
+    else {
+      companyDetails = await getCompanyDetails();
+    }
+    // --------------------------------
 
     // Generate PDF
     const pdfBlob = await pdf(
@@ -51,7 +77,6 @@ export const generateAndUploadDocument = async (
     ).toBlob();
 
     // Upload to storage
-    // Use the field name in the filename to avoid overwriting if paths overlap
     const storageRef = ref(storage, `${path}/${recordId}/${urlFieldName}.pdf`);
     
     const snapshot = await uploadBytes(storageRef, pdfBlob, {
@@ -91,7 +116,7 @@ export const generateBulkDocuments = async (
         records,
         companyDetails,
         title: 'Records Summary',
-        ...extraProps,       // ← spread in vehicles & customers
+        ...extraProps,
       })
     ).toBlob();
     return pdfBlob;
@@ -144,14 +169,24 @@ export const generateAccidentDocument = async (record: any) => {
   );
 };
 
-// New Generator for Claim Progress Document
 export const generateClaimProgressDocument = async (claim: any) => {
   return generateAndUploadDocument(
     ClaimProgressDocument,
     claim,
-    'claims',                // storage path folder
-    claim.id,                // record ID
-    'claims',                // collection name
-    'progressDocumentUrl'    // NEW: Save URL to this field instead of documentUrl
+    'claims',
+    claim.id,
+    'claims',
+    'progressDocumentUrl' // This works because it's a string (caught by logic above)
+  );
+};
+
+export const generateMaintenanceInvoiceDocument = async (record: any) => {
+  return generateAndUploadDocument(
+    MaintenanceInvoice,
+    record,
+    'maintenance',
+    record.id,
+    'maintenanceLogs',
+    'invoiceUrl' // This works because it's a string (caught by logic above)
   );
 };

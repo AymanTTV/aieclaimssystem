@@ -227,6 +227,19 @@ const MemberRegister: React.FC = () => {
             Admin Portal
           </Link>
         </div>
+
+        {/* Privacy Policy Link */}
+        <div className="mt-6 text-center text-sm">
+          <a 
+            href="https://www.aieskyline.co.uk/privacy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-gray-500 hover:text-primary transition-colors"
+          >
+            Read our Privacy Policy
+          </a>
+        </div>
+        
       </div>
     </div>
   );

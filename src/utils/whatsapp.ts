@@ -7,8 +7,7 @@ Best regards,
 AIE Skyline Limited
 📍 United House, 39-41 North Road, London, N7 9DP
 📞 020 8050 5337 | 📱 +44 7999 558801
-✉️ admin@aieskyline.co.uk
-🌐 www.aieskyline.co.uk`;
+✉️ admin@aieskyline.co.uk`;
 
 interface WhatsAppMessage {
   phone: string;

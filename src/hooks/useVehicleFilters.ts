@@ -11,8 +11,10 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
   const [makeFilter, setMakeFilter] = React.useState<string>('all');
   const [showSold, setShowSold] = React.useState<boolean>(false);
   
-  // NEW: State for the expiry dropdown
   const [expiryFilter, setExpiryFilter] = React.useState<string>('');
+  
+  // NEW: Account Filter State
+  const [accountFilter, setAccountFilter] = React.useState<string>('all');
 
   const uniqueMakes = React.useMemo(() => {
     const set = new Set<string>();
@@ -32,13 +34,10 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     const twoWeeksFromNow = new Date();
     twoWeeksFromNow.setDate(now.getDate() + 14);
 
-    // Helper: Returns true if date is valid AND (Expired OR Expiring within 14 days)
     const matchesExpiryDate = (dateVal?: Date | string | null) => {
       if (!dateVal) return false;
       const d = new Date(dateVal);
       if (isNaN(d.getTime())) return false;
-      // If the date is less than or equal to 14 days from now, it qualifies.
-      // This covers past dates (expired) and near future dates (expiring).
       return d <= twoWeeksFromNow;
     };
     // ----------------------------------
@@ -47,7 +46,7 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
       if (!q) return true;
       const fields: Array<string | undefined | null> = [
         v.registrationNumber, v.make, v.model, (v as any).color,
-        (v as any).vin, v.owner?.name,
+        (v as any).vin, v.owner?.name, v.owner?.accountName
       ];
       const composed = [
         [v.make, v.model].filter(Boolean).join(' '),
@@ -74,49 +73,52 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     const matchesMake = (v: Vehicle) =>
       makeFilter === 'all' || normalize(v.make) === normalize(makeFilter);
 
-    // NEW: Apply the selected expiry filter
+    // Filter by Expiry
     const matchesExpiryFilter = (v: Vehicle) => {
-      if (!expiryFilter) return true; // No filter selected
+      if (!expiryFilter) return true;
 
       switch (expiryFilter) {
-        case 'mot':
-          return matchesExpiryDate(v.motExpiry);
-        case 'nsl':
-          return matchesExpiryDate(v.nslExpiry);
-        case 'tax':
-          return matchesExpiryDate(v.roadTaxExpiry);
-        case 'insurance':
-          return matchesExpiryDate(v.insuranceExpiry);
+        case 'mot': return matchesExpiryDate(v.motExpiry);
+        case 'nsl': return matchesExpiryDate(v.nslExpiry);
+        case 'tax': return matchesExpiryDate(v.roadTaxExpiry);
+        case 'insurance': return matchesExpiryDate(v.insuranceExpiry);
         case 'maintenance': {
-          // For maintenance, we check if the DATE is within 2 weeks 
-          // OR if the MILEAGE is within 1,000 miles (standard service threshold)
           const dateDue = matchesExpiryDate(v.nextMaintenance);
-          
           const currentMileage = v.mileage || 0;
           const nextService = v.nextServiceMileage || (currentMileage + 25000);
           const milesDue = (nextService - currentMileage) <= 1000;
-          
           return dateDue || milesDue;
         }
-        default:
-          return true;
+        default: return true;
       }
     };
 
+    // NEW: Filter by Account
+    const matchesAccount = (v: Vehicle) => {
+        if (!accountFilter || accountFilter === 'all') return true;
+        if (accountFilter === 'no_account_assigned') {
+            return !v.owner?.accountId;
+        }
+        return v.owner?.accountId === accountFilter;
+    };
+
     return vehicles.filter(v => {
+      // Sold vehicles filter
       if (showSold) {
-        return normalize(v.status) === 'sold' && matchesSearch(v);
+        return normalize(v.status) === 'sold' && matchesSearch(v) && matchesAccount(v);
       }
+      // Active vehicles filter
       return (
         normalize(v.status) !== 'sold' && 
         matchesSearch(v) && 
         matchesStatus(v) && 
         matchesMake(v) &&
-        matchesExpiryFilter(v) // <--- Add expiry check here
+        matchesExpiryFilter(v) &&
+        matchesAccount(v) // Applied here
       );
     });
     
-  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter]);
+  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter, accountFilter]);
 
   return {
     searchQuery,
@@ -129,8 +131,10 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     setShowSold,
     filteredVehicles,
     uniqueMakes,
-    // Export new state
     expiryFilter,
     setExpiryFilter,
+    // Export account filter
+    accountFilter,
+    setAccountFilter,
   };
 }

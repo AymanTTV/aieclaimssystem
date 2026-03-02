@@ -117,7 +117,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         )}
       </div>
 
-      {/* --- ⬇️ UPDATED VEHICLE INFO ⬇️ --- */}
+      {/* --- VEHICLE INFO --- */}
       {(vehicle || invoice.vehicleName) && (
         <div>
           <h3 className="text-sm font-medium text-gray-500">Related Vehicle</h3>
@@ -137,7 +137,14 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           </div>
         </div>
       )}
-      {/* --- ⬆️ END UPDATED VEHICLE INFO ⬆️ --- */}
+
+      {/* --- NEW: DESCRIPTION --- */}
+      {invoice.description && (
+        <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+          <h3 className="text-sm font-medium text-blue-800">Description / Notes</h3>
+          <p className="mt-1 text-sm text-blue-900 whitespace-pre-wrap">{invoice.description}</p>
+        </div>
+      )}
 
       {/* Cost Breakdown */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">

@@ -57,6 +57,38 @@ export async function getAll(): Promise<Product[]> {
   });
 }
 
+// --- NEW FUNCTION ADDED HERE ---
+export async function getById(id: string): Promise<Product | null> {
+  const snap = await getDoc(doc(db, COL, id));
+  if (!snap.exists()) return null;
+
+  const data = snap.data() as any;
+
+  // Apply same backward-compat logic as getAll
+  const retailPrice =
+    data.retailPrice != null ? Number(data.retailPrice) :
+    data.price != null       ? Number(data.price)       : 0;
+
+  return {
+    id: snap.id,
+    partNumber: data.partNumber ?? '',
+    name: data.name ?? '',
+    category: data.category ?? '',
+    binLocation: data.binLocation ?? '',
+    quantity: Number(data.quantity ?? 0),
+    retailPrice,
+    discount: Number(data.discount ?? 0),
+    totalValue:
+      data.totalValue !== undefined
+        ? Number(data.totalValue)
+        : computeTotalValue({ ...data, retailPrice }),
+    imageUrl: data.imageUrl ?? '',
+    description: data.description ?? '',
+    createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt,
+    updatedAt: data.updatedAt?.toMillis ? data.updatedAt.toMillis() : data.updatedAt,
+  };
+}
+
 export async function create(payload: Partial<Product> & { image?: File | Blob | null }): Promise<string> {
   const imageUrl = await uploadImageIfAny(payload.image);
 
@@ -124,4 +156,5 @@ export async function remove(id: string): Promise<void> {
   await deleteDoc(doc(db, COL, id));
 }
 
-export default { getAll, create, update, delete: remove };
+// Updated export to include getById
+export default { getAll, getById, create, update, delete: remove };

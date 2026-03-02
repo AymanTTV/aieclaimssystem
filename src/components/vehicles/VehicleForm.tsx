@@ -1,20 +1,24 @@
 // src/components/vehicles/VehicleForm.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Vehicle,
   DEFAULT_RENTAL_PRICES,
   DEFAULT_INSURANCE_AMOUNTS,
   DEFAULT_OWNER,
-  MileageUpdate
+  MileageUpdate,
+  VehicleOwner
 } from '../../types/vehicle';
+import { Account } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Upload, X } from 'lucide-react';
 import FormField from '../ui/FormField';
+import SearchableSelect from '../ui/SearchableSelect';
 import { addMonths, parseISO } from 'date-fns';
 import { validateImage, uploadImage } from '../../utils/imageUpload';
 import toast from 'react-hot-toast';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface VehicleFormProps {
   vehicle?: Vehicle;
@@ -55,10 +59,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   const { can } = usePermissions();
   const [loading, setLoading] = useState(false);
 
+  // Accounts State
+  const [accounts, setAccounts] = useState<Account[]>([]);
+
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle?.image || null);
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
 
-  const [owner, setOwner] = useState<Vehicle['owner']>(vehicle?.owner || DEFAULT_OWNER);
+  const [owner, setOwner] = useState<VehicleOwner>(vehicle?.owner || DEFAULT_OWNER);
   const [isCustomOwner, setIsCustomOwner] = useState(!vehicle?.owner?.isDefault);
 
   const nsl = useDocumentManager(vehicle?.documents?.nslImage || []);
@@ -66,6 +73,19 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   const v5doc = useDocumentManager(vehicle?.documents?.v5Image || []);
   const meter = useDocumentManager(vehicle?.documents?.MeterCertificateImage || []);
   const insure = useDocumentManager(vehicle?.documents?.insuranceImage || []);
+
+  // Fetch Accounts from Firestore
+  useEffect(() => {
+    const q = query(collection(db, 'accounts'), orderBy('name'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const accountData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Account[];
+      setAccounts(accountData);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const formatDateForInput = (t?: Timestamp | string | Date | null) => {
     if (!t) return '';
@@ -155,6 +175,26 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       const newMileage = parseInt(formData.mileage, 10);
       const nextServiceMileage = parseInt(formData.nextServiceMileage, 10);
 
+      // ✅ FIX: Ensure undefined values are converted to null
+      // Create a copy of the owner object to avoid mutating state directly
+      const finalOwner: any = isCustomOwner ? { ...owner } : { ...DEFAULT_OWNER };
+
+      if (isCustomOwner) {
+        // If accountId is missing/empty, explicitly set both fields to null
+        if (!finalOwner.accountId) {
+          finalOwner.accountId = null;
+          finalOwner.accountName = null;
+        } else {
+          // If accountId exists, ensure the name is synced
+          const selectedAcc = accounts.find(a => a.id === finalOwner.accountId);
+          finalOwner.accountName = selectedAcc ? selectedAcc.name : null;
+        }
+      } else {
+        // If it's the default owner, ensure no account data leaks in
+        finalOwner.accountId = null;
+        finalOwner.accountName = null;
+      }
+
       const payload: Partial<Vehicle> = {
         vin: formData.vin,
         make: formData.make,
@@ -180,7 +220,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         dailyInsuranceAmount: toNumber(formData.dailyInsuranceAmount),
         claimInsuranceAmount: toNumber(formData.claimInsuranceAmount),
 
-        owner: isCustomOwner ? owner : DEFAULT_OWNER,
+        owner: finalOwner,
 
         purchasedDate: formData.purchasedDate ? parseISO(formData.purchasedDate) : undefined,
 
@@ -344,7 +384,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         </div>
       </div>
 
-      {/* OWNER */}
+      {/* OWNER & FINANCE */}
       <div className="border-t pt-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
         <div className="space-y-4">
@@ -378,6 +418,36 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
                   required
                 />
               </div>
+
+              {/* Finance Account Selection - Using SearchableSelect */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Linked Finance Account</label>
+                <SearchableSelect
+                  options={accounts.map(account => ({
+                    id: account.id,
+                    label: account.name
+                  }))}
+                  value={(owner as any)?.accountId || ''}
+                  onChange={(selectedId) => {
+                    const selectedAcc = accounts.find(a => a.id === selectedId);
+                    setOwner({ 
+                      ...(owner || {}), 
+                      name: owner?.name || '',
+                      address: owner?.address || '',
+                      // ✅ FIX: Use null instead of undefined to prevent Firestore errors
+                      accountId: selectedId || null, 
+                      accountName: selectedAcc?.name || null,
+                      isDefault: false 
+                    } as any);
+                  }}
+                  placeholder="Select Linked Account (Optional)"
+                  isClearable
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Select the finance account associated with this vehicle.
+                </p>
+              </div>
+
             </div>
           ) : (
             <p className="text-sm text-gray-500">

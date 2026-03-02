@@ -12,6 +12,7 @@ import {
   User as UserIcon,
   LogOut,
   Menu,
+  Zap,
   ChevronDown,
   Building,
   FileText,
@@ -109,6 +110,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.TODO]: CheckCircle2,
     [ROUTES.BULK_EMAIL]: Mail,
     [ROUTES.WHATSAPP]: MessageSquare,
+    [ROUTES.AUTOMATION]: Zap,
     [ROUTES.COMPANY_MANAGERS]: Users,
     [ROUTES.WAITING]: Clock,
     // [ROUTES.CHAT]: MessageSquare,
@@ -131,6 +133,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.WAITING]: 'Waiting List',
     [ROUTES.TODO]: 'To-Do',
     [ROUTES.PRODUCTS]: 'Products',
+    [ROUTES.AUTOMATION]: 'Automation Control',
     '/members/dashboard': 'Dashboard',
     '/members/transactions': 'Transactions',
     '/members/invoices': 'Invoices',
@@ -210,6 +213,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
     return [
       { name: resolveLabel(ROUTES.DASHBOARD), href: ROUTES.DASHBOARD, icon: resolveIcon(ROUTES.DASHBOARD), permission: resolvePerm(ROUTES.DASHBOARD) },
+      
+      // 1. Moved To-Do here (Next to Dashboard)
+      { name: resolveLabel(ROUTES.TODO), href: ROUTES.TODO, icon: resolveIcon(ROUTES.TODO), permission: resolvePerm(ROUTES.TODO) ?? { module: 'todo', action: 'view' } },
+
       { name: resolveLabel(ROUTES.VEHICLES), href: ROUTES.VEHICLES, icon: resolveIcon(ROUTES.VEHICLES), permission: resolvePerm(ROUTES.VEHICLES) },
       { name: resolveLabel(ROUTES.MAINTENANCE), href: ROUTES.MAINTENANCE, icon: resolveIcon(ROUTES.MAINTENANCE), permission: resolvePerm(ROUTES.MAINTENANCE) },
       { name: resolveLabel(ROUTES.RENTALS), href: ROUTES.RENTALS, icon: resolveIcon(ROUTES.RENTALS), permission: resolvePerm(ROUTES.RENTALS) },
@@ -262,27 +269,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         submenu: [
           { name: 'Users', href: ROUTES.USERS, icon: resolveIcon(ROUTES.USERS), permission: resolvePerm(ROUTES.USERS) },
           { name: 'Company Managers', href: ROUTES.COMPANY_MANAGERS, icon: resolveIcon(ROUTES.COMPANY_MANAGERS), permission: resolvePerm(ROUTES.USERS) },
+          // 2. Moved Members (Customers) here
+          { name: resolveLabel(ROUTES.CUSTOMERS), href: ROUTES.CUSTOMERS, icon: resolveIcon(ROUTES.CUSTOMERS), permission: resolvePerm(ROUTES.CUSTOMERS) },
         ],
       },
 
       {
-  name: 'More',
-  href: '#',
-  icon: MoreHorizontal,
-  submenu: [
-    // existing items...
-    { name: resolveLabel(ROUTES.PRODUCTS), href: ROUTES.PRODUCTS, icon: resolveIcon(ROUTES.PRODUCTS), permission: resolvePerm(ROUTES.PRODUCTS) },
-    { name: resolveLabel(ROUTES.WHATSAPP), href: ROUTES.WHATSAPP, icon: resolveIcon(ROUTES.WHATSAPP), permission: resolvePerm(ROUTES.WHATSAPP) ?? { module: 'whatsapp', action: 'view' } },
-    { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.BULK_EMAIL) },
-
-    { name: resolveLabel(ROUTES.WAITING), href: ROUTES.WAITING, icon: resolveIcon(ROUTES.WAITING), permission: resolvePerm(ROUTES.WAITING) ?? { module: 'waiting', action: 'view' } },
-
-    { name: resolveLabel(ROUTES.TODO), href: ROUTES.TODO, icon: resolveIcon(ROUTES.TODO), permission: resolvePerm(ROUTES.TODO) ?? { module: 'todo', action: 'view' } }, // ← add this
-  ],
-},
-
-
-      { name: resolveLabel(ROUTES.CUSTOMERS), href: ROUTES.CUSTOMERS, icon: resolveIcon(ROUTES.CUSTOMERS), permission: resolvePerm(ROUTES.CUSTOMERS) },
+        name: 'More',
+        href: '#',
+        icon: MoreHorizontal,
+        submenu: [
+          { name: resolveLabel(ROUTES.PRODUCTS), href: ROUTES.PRODUCTS, icon: resolveIcon(ROUTES.PRODUCTS), permission: resolvePerm(ROUTES.PRODUCTS) },
+          { name: resolveLabel(ROUTES.WHATSAPP), href: ROUTES.WHATSAPP, icon: resolveIcon(ROUTES.WHATSAPP), permission: resolvePerm(ROUTES.WHATSAPP) ?? { module: 'whatsapp', action: 'view' } },
+          { name: 'Automation Control', href: ROUTES.AUTOMATION, icon: Zap, permission: { module: 'settings', action: 'view' } },
+          { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.BULK_EMAIL) },
+          { name: resolveLabel(ROUTES.WAITING), href: ROUTES.WAITING, icon: resolveIcon(ROUTES.WAITING), permission: resolvePerm(ROUTES.WAITING) ?? { module: 'waiting', action: 'view' } },
+        ],
+      },
     ];
   }, [isMemberArea]);
 

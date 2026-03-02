@@ -154,7 +154,7 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
 
   try {
     // If it's a transfer, update both accounts (not strictly reachable unless you extend the interface)
-    if (type === 'transfer') {
+    if (type === ('transfer' as any)) {
       if (!accountFrom || !accountTo) {
         toast.error('Transfer requires both from and to accounts');
         return { success: false };
@@ -198,6 +198,7 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     }
 
     // Build transaction object, only including defined fields
+    // IMPORTANT: Mapping singular inputs to Array fields for Finance schema compatibility
     const transaction: Record<string, any> = {
       type,
       category,
@@ -213,8 +214,8 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       ...(paymentMethod    && { paymentMethod }),
       ...(paymentReference && { paymentReference }),
       ...(paymentStatus    && { paymentStatus }),
-      ...(accountFrom      && { accountFrom }),
-      ...(accountTo        && { accountTo }),
+      ...(accountFrom      && { accountsFrom: [accountFrom] }), // Map to array
+      ...(accountTo        && { accountsTo: [accountTo] }),     // Map to array
       ...(customerId       && { customerId }),
       ...(customerName     && { customerName })
     };

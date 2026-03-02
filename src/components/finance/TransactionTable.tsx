@@ -3,7 +3,16 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle, Customer, Account } from '../../types';
-import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw } from 'lucide-react';
+import { 
+  Eye, 
+  Edit, 
+  Trash2, 
+  FileText, 
+  Printer, 
+  Tag, 
+  Link2, 
+  RefreshCw 
+} from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, isValid } from 'date-fns';
@@ -66,10 +75,64 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       return dateObj && isValid(dateObj) ? format(dateObj, 'dd/MM/yyyy') : 'Invalid Date';
   };
 
-  const getAccountNames = (ids?: string[]): string => {
-      if (!ids || ids.length === 0) return '';
-      return ids.map(id => accounts.find(a => a.id === id)?.name || 'Unknown').join(' & ');
-  };
+  // --- RUNNING BALANCE CALCULATION ---
+  const transactionBalances = useMemo(() => {
+    const balanceMap = new Map<string, Record<string, number>>(); 
+    const runningTotals = new Map<string, number>(); 
+
+    const chronologicalTxns = [...transactions].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : (a.date as any).toDate();
+      const dateB = b.date instanceof Date ? b.date : (b.date as any).toDate();
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    chronologicalTxns.forEach(txn => {
+      const impact: Record<string, number> = {};
+
+      if (txn.type === 'income' && txn.accountsTo) {
+        txn.accountsTo.forEach(accId => {
+          const current = runningTotals.get(accId) || 0;
+          const newBal = current + txn.amount;
+          runningTotals.set(accId, newBal);
+          impact[accId] = newBal;
+        });
+      }
+      
+      if (txn.type === 'expense' && txn.accountsFrom) {
+        txn.accountsFrom.forEach(accId => {
+          const current = runningTotals.get(accId) || 0;
+          const newBal = current - txn.amount;
+          runningTotals.set(accId, newBal);
+          impact[accId] = newBal;
+        });
+      }
+
+      balanceMap.set(txn.id, impact);
+    });
+
+    return balanceMap;
+  }, [transactions]);
+
+
+  const ActionBtn = ({ 
+    onClick, 
+    icon: Icon, 
+    colorClass, 
+    title 
+  }: { 
+    onClick: (e: React.MouseEvent) => void, 
+    icon: any, 
+    colorClass: string, 
+    title: string 
+  }) => (
+    <button 
+      onClick={e => { e.stopPropagation(); onClick(e); }} 
+      title={title}
+      className={`p-1.5 rounded-md hover:bg-gray-50 hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
 
   const columns = useMemo(() => {
     const cols = [
@@ -94,19 +157,22 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           />
         ),
       },
+      // 1. Date
       {
         header: 'Date',
         accessorKey: 'date',
         cell: ({ row }: { row: { original: Transaction } }) => (
-          <div className="whitespace-nowrap text-sm text-gray-900">
+          <div className="whitespace-nowrap text-sm font-medium text-gray-900">
             {safeFormatDate(row.original.date)}
           </div>
         ),
       },
+      // 2. Type & Status (SIMPLIFIED: Only Type & Payment Status)
       {
         header: 'Type & Status',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          const bits = [row.original.type, row.original.status || 'completed', row.original.paymentStatus,].filter(Boolean) as string[];
+          // Excluded 'status' (completed/pending/cancelled)
+          const bits = [row.original.type, row.original.paymentStatus].filter(Boolean) as string[];
           const isMultiOrLinked = (row.original.accountsFrom && row.original.accountsFrom.length > 1) || (row.original.accountsTo && row.original.accountsTo.length > 1) || !!row.original.referenceId;
           const isLatestRecurring = row.original.isRecurring && !!row.original.nextRecurringDate;
 
@@ -131,121 +197,195 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           );
         },
       },
+      // 3. Category
       {
-        header: 'Account / Group',
+        header: 'Category',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          const transaction = row.original;
-          const group = transaction.groupId ? groups.find(g => g.id === transaction.groupId) : null;
-          
-          const fromNames = getAccountNames(transaction.accountsFrom);
-          const toNames = getAccountNames(transaction.accountsTo);
-
+          const group = row.original.groupId ? groups.find(g => g.id === row.original.groupId) : null;
           return (
-            <div className="flex flex-col gap-0.5 items-start leading-tight max-w-[160px]">
-              {fromNames && (
-                  <div className="w-full truncate" title={`Debit: ${fromNames}`}>
-                      <span className="font-semibold text-red-600 text-xs mr-1">From:</span>
-                      <span className="text-sm">{fromNames}</span>
-                  </div>
-              )}
-              {toNames && (
-                  <div className="w-full truncate" title={`Credit: ${toNames}`}>
-                      <span className="font-semibold text-green-600 text-xs mr-1">To:</span>
-                      <span className="text-sm">{toNames}</span>
-                  </div>
-              )}
-              
-              <div className="w-full truncate mt-1">
-                  <span className="font-semibold text-gray-500 text-xs mr-1">Group:</span>
-                  {group ? (<span className="text-sm" title={group.name}>{group.name}</span>) : (<span className="text-gray-400 text-sm">N/A</span>)}
-              </div>
-              <div className="w-full truncate">
-                  <span className="font-semibold text-gray-500 text-xs mr-1">Cat:</span>
-                  <span className="text-sm" title={transaction.category}>{transaction.category}</span>
-              </div>
+             <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-900 font-medium">{row.original.category}</span>
+                {group && <span className="text-xs text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded w-fit">{group.name}</span>}
+             </div>
+          );
+        }
+      },
+      // 4. Customer (BIGGER FONT)
+      {
+        header: 'Customer',
+        cell: ({ row }: { row: { original: Transaction } }) => {
+          const customer = customers.find(c => c.id === row.original.customerId);
+          const name = customer ? customer.name : (row.original.customerName || 'N/A');
+          return (
+            <div className="max-w-[140px] truncate text-base font-semibold text-gray-800" title={name}>
+              {name}
             </div>
           );
         },
       },
+      // 5. Vehicle
       {
-        header: 'Amount',
-        accessorKey: 'amount',
-        cell: ({ row }: { row: { original: Transaction } }) => (
-          <span className={`${row.original.type === 'income' ? 'text-green-600' : 'text-red-600'} font-medium whitespace-nowrap`}>
-              {formatCurrency(row.original.amount)}
-          </span>
-        ),
-      },
-      { 
-        header: 'Customer',
-        cell: ({ row }: { row: { original: Transaction } }) => {
-          if (row.original.customerName) {
-            return <div className="max-w-[120px] truncate text-sm" title={row.original.customerName}>{row.original.customerName}</div>;
-          }
-          if (row.original.customerId) {
-            const customer = customers.find(c => c.id === row.original.customerId);
-            if (customer) {
-              return (
-                <div className="max-w-[120px]">
-                  <div className="font-medium truncate text-sm" title={customer.name}>{customer.name}</div>
-                  <div className="text-xs text-gray-500 truncate">{customer.mobile}</div>
-                </div>
-              );
-            }
-          }
-          return <div className="text-gray-400 text-xs">N/A</div>;
-        },
-      },
-      { 
         header: 'Vehicle',
         cell: ({ row }: { row: { original: Transaction } }) => {
           const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
-          const regNumber = vehicle?.registrationNumber;
-          const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
-
-          if (regNumber) {
-            return <div className="max-w-[100px] truncate text-sm" title={fullDetails}>{regNumber}</div>;
-          }
-          if(row.original.vehicleName) {
-               return <div className="max-w-[100px] truncate text-sm" title={row.original.vehicleName}>{row.original.vehicleName}</div>
-          }
-          return <div className="text-gray-400 text-xs">N/A</div>;
+          const reg = vehicle ? vehicle.registrationNumber : row.original.vehicleName;
+          
+          if (!reg) return <span className="text-gray-400 text-xs">-</span>;
+          
+          return (
+            <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit">
+              {reg}
+            </div>
+          );
         },
       },
+      // 6. Description (BOLD TEXT)
       {
-        header: 'Rect',
-        cell: ({ row }: { row: { original: Transaction } }) => onPrintReceipt ? (<button onClick={e => { e.stopPropagation(); onPrintReceipt(row.original); }} className="p-1 hover:bg-gray-100 rounded" title="Print Receipt"><Printer className="h-4 w-4 text-gray-600" /></button>) : null,
+        header: 'Description',
+        cell: ({ row }: { row: { original: Transaction } }) => (
+          <div className="max-w-[180px] text-sm text-gray-600 font-bold truncate" title={row.original.description}>
+             {row.original.description || '-'}
+          </div>
+        )
       },
+      // 7. Credit (Income) (BIGGER AMOUNT TEXT)
+      {
+        header: 'Credit',
+        cell: ({ row }: { row: { original: Transaction } }) => {
+          return row.original.type === 'income' 
+            ? <span className="text-green-600 font-bold text-base">{formatCurrency(row.original.amount)}</span>
+            : <span className="text-gray-300 text-sm">-</span>;
+        }
+      },
+      // 8. Debit (Expense) (BIGGER AMOUNT TEXT)
+      {
+        header: 'Debit',
+        cell: ({ row }: { row: { original: Transaction } }) => {
+          return row.original.type === 'expense' 
+            ? <span className="text-red-600 font-bold text-base">{formatCurrency(row.original.amount)}</span>
+            : <span className="text-gray-300 text-sm">-</span>;
+        }
+      },
+      // 9. Balance (REMOVED ACCOUNT NAME, BIGGER AMOUNT TEXT)
+      {
+        header: 'Balance',
+        cell: ({ row }: { row: { original: Transaction } }) => {
+           const txnBalances = transactionBalances.get(row.original.id);
+           const involvedAccounts = row.original.type === 'income' ? row.original.accountsTo : row.original.accountsFrom;
+
+           if (!involvedAccounts || !txnBalances) return <span className="text-gray-300">-</span>;
+
+           return (
+             <div className="flex flex-col gap-1">
+               {involvedAccounts.map(accId => {
+                  const bal = txnBalances[accId];
+                  if (bal === undefined) return null;
+                  
+                  return (
+                    <div key={accId} className="flex flex-col items-end leading-none">
+                       {/* REMOVED ACCOUNT NAME HERE */}
+                       <span className={`text-base font-bold ${bal < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                         {formatCurrency(bal)}
+                       </span>
+                    </div>
+                  );
+               })}
+             </div>
+           );
+        }
+      },
+      // 10. Actions
       {
         header: 'Actions',
         cell: ({ row }: { row: { original: Transaction } }) => (
-          <div className="flex space-x-1"> 
-            {can('finance', 'view') && (<button onClick={e => { e.stopPropagation(); onView(row.original); }} className="text-blue-600 hover:text-blue-800 p-1" title="View Details"><Eye className="h-4 w-4" /></button>)}
+          <div className="flex flex-col gap-1 items-center justify-center py-1">
+            
+            {/* View */}
+            {can('finance', 'view') && (
+               <ActionBtn 
+                 onClick={() => onView(row.original)} 
+                 icon={Eye} 
+                 colorClass="text-blue-600" 
+                 title="View Details" 
+               />
+            )}
+
+            {/* Edit & Assign */}
             {can('finance', 'update') && (
               <>
-                <button onClick={e => { e.stopPropagation(); onEdit(row.original); }} className={`text-blue-600 hover:text-blue-800 p-1`} title={"Edit"} >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button onClick={e => { e.stopPropagation(); onAssign(row.original); }} className="text-purple-600 hover:text-purple-800 p-1" title="Assign Group/Category"><Tag className="h-4 w-4" /></button>
-                <button onClick={e => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-green-600 hover:text-green-800 p-1" title="Generate Document"><FileText className="h-4 w-4" /></button>
+                <ActionBtn 
+                  onClick={() => onEdit(row.original)} 
+                  icon={Edit} 
+                  colorClass="text-indigo-600" 
+                  title="Edit Transaction" 
+                />
+                <ActionBtn 
+                  onClick={() => onAssign(row.original)} 
+                  icon={Tag} 
+                  colorClass="text-purple-600" 
+                  title="Assign Group/Category" 
+                />
               </>
             )}
-            {can('finance', 'delete') && (<button onClick={e => { e.stopPropagation(); onDelete(row.original); }} className="text-red-600 hover:text-red-800 p-1" title="Delete"><Trash2 className="h-4 w-4" /></button>)}
-            {row.original.documentUrl && (<button onClick={e => { e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="text-blue-600 hover:text-blue-800 p-1" title="View Document"><Eye className="h-4 w-4" /></button>)}
+
+            {/* Documents & Receipts */}
+            <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-100">
+                {/* Generate/View Document */}
+                {row.original.documentUrl ? (
+                    <ActionBtn 
+                        onClick={() => onViewDocument(row.original.documentUrl!)} 
+                        icon={FileText} 
+                        colorClass="text-green-700" 
+                        title="View Document" 
+                    />
+                ) : (
+                    can('finance', 'update') && (
+                        <ActionBtn 
+                            onClick={() => onGenerateDocument(row.original)} 
+                            icon={FileText} 
+                            colorClass="text-gray-400 hover:text-green-700" 
+                            title="Generate Document" 
+                        />
+                    )
+                )}
+
+                {/* Print Receipt */}
+                {onPrintReceipt && (
+                    <ActionBtn 
+                        onClick={() => onPrintReceipt(row.original)} 
+                        icon={Printer} 
+                        colorClass="text-gray-500 hover:text-gray-900" 
+                        title="Print Receipt" 
+                    />
+                )}
+            </div>
+
+            {/* Delete */}
+            {can('finance', 'delete') && (
+              <ActionBtn 
+                onClick={() => onDelete(row.original)} 
+                icon={Trash2} 
+                colorClass="text-red-600 hover:bg-red-50" 
+                title="Delete Transaction" 
+              />
+            )}
           </div>
         ),
       },
     ];
 
-    // Hide selection column if not manager
     if (!isManager) {
       return cols.filter(c => c.id !== 'select');
     }
     return cols;
-  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, groups, accounts, vehicles, customers, onPrintReceipt, can, formatCurrency, isManager]);
+  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, groups, accounts, vehicles, customers, onPrintReceipt, can, formatCurrency, isManager, transactionBalances]);
 
   return (
-    <DataTable data={transactions} columns={columns} onRowClick={transaction => can('finance', 'view') && onView(transaction)} />
+    <DataTable 
+      data={transactions} 
+      columns={columns} 
+      onRowClick={transaction => can('finance', 'view') && onView(transaction)} 
+    />
   );
 };
 

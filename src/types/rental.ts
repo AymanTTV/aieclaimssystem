@@ -1,6 +1,7 @@
 // src/types/rental.ts
 
 export type RentalType = 'daily' | 'weekly' | 'claim';
+
 export type RentalReason =
   | 'hired'
   | 'claim'
@@ -9,8 +10,11 @@ export type RentalReason =
   | 'workshop'
   | 'c-substitute'
   | 'h-substitute';
+
 export type RentalStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
+
 export type PaymentStatus = 'pending' | 'partially_paid' | 'paid';
+
 export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'cheque';
 
 export type FuelLevel = '0' | '25' | '50' | '75' | '100';
@@ -26,13 +30,30 @@ export interface Vehicle {
   model: string;
   registrationNumber: string;
   mileage: number;
+
   dailyRentalPrice?: number | null;
   weeklyRentalPrice?: number | null;
   claimRentalPrice?: number | null;
+
   owner?: VehicleOwner;
-  // Added from your other files
+
+  // Expiries
   motExpiry?: Date;
   roadTaxExpiry?: Date;
+
+  // ✅ Insurance amounts (used by NEW RentalForm auto-fill)
+  dailyInsuranceAmount?: number | null;
+  weeklyInsuranceAmount?: number | null;
+  claimInsuranceAmount?: number | null;
+}
+
+export interface RentalNote {
+  id: string;
+  text: string;
+  createdAt: Date;
+  createdBy: string;
+  createdByName?: string;
+  updatedAt?: Date; //
 }
 
 export interface Customer {
@@ -42,15 +63,19 @@ export interface Customer {
   mobile: string;
   address?: string;
   driverLicenseNumber?: string;
-  licenseExpiry?: Date; // Firestore Timestamp is compatible at runtime
-  dateOfBirth?: Date; // Added from agreement
-  badgeNumber?: string; // Added from agreement
+  // ✅ NEW FIELDS for PDF
+  issueNumber?: string;
+  countryOfIssue?: string;
+  licenseValidFrom?: Date;
+  licenseExpiry?: Date;
+  dateOfBirth?: Date;
+  badgeNumber?: string;
   signature?: string;
 }
 
 export interface RentalPayment {
   id: string;
-  date: Date; // Firestore Timestamp is compatible at runtime
+  date: Date;
   amount: number;
   method: PaymentMethod;
   reference?: string;
@@ -63,7 +88,7 @@ export interface RentalPayment {
 export interface VehicleCondition {
   id: string;
   type: 'check-out' | 'check-in';
-  date: Date; // Firestore Timestamp compatible
+  date: Date;
   mileage: number;
   fuelLevel: FuelLevel;
   isClean: boolean;
@@ -84,12 +109,13 @@ export interface ReturnCondition extends VehicleCondition {
 }
 
 export interface RentalDocuments {
-  // agreement?: string; // DEPRECATED
-  agreements?: Record<string, string>; // NEW: Stores { "agreement_1678886400000": "url" }
+  // NEW: Stores multiple agreement versions
+  agreements?: Record<string, string>; // { "agreement_1678886400000": "url" }
+
   invoice?: string;
   permit?: string;
 
-  // Claim docs
+  // Claim docs (flat keys)
   conditionOfHire?: string;
   noticeOfRightToCancel?: string;
   hireAgreement?: string;
@@ -97,8 +123,11 @@ export interface RentalDocuments {
   creditHireMitigation?: string;
   satisfactionNotice?: string;
 
-  // Allow future keys while maintaining index signature
-  [key: string]: string | undefined | Record<string, string>; // Allow agreements map
+  // Optional grouped claim docs (if your generator returns a map)
+  claimDocuments?: Record<string, string>;
+
+  // Allow future keys while supporting agreements/claimDocuments maps
+  [key: string]: string | undefined | Record<string, string>;
 }
 
 export interface ExtensionEntry {
@@ -112,7 +141,7 @@ export interface ExtensionEntry {
 export interface Claim {
   id: string;
   clientRef?: string | null;
-  clientInfo?: { 
+  clientInfo?: {
     name: string;
     phone?: string;
     email?: string;
@@ -122,7 +151,7 @@ export interface Claim {
     address?: string;
     signature?: string;
   };
-  clientVehicle?: { 
+  clientVehicle?: {
     registration?: string;
     documents?: any;
     motExpiry?: Date;
@@ -136,52 +165,70 @@ export interface HireSubstitutionDetails {
   make: string;
   model: string;
   registration: string;
-  loaner: string; // provider name
-  givenAt: Date | string; // String for form, Date for Firestore
-  expectedReturnAt: Date | string; // String for form, Date for Firestore
+  loaner: string;
+  givenAt: Date | string;
+  expectedReturnAt: Date | string;
   notes: string;
+  
+  // Check-out condition (added previously)
+  mileage?: number;
+  fuelLevel?: FuelLevel;
+  isClean?: boolean;
+  hasDamage?: boolean;
+  damageDescription?: string;
+  images?: string[];
+
+  // ✅ NEW: Return condition for the substitute
+  returnCondition?: ReturnCondition;
 }
 
-// --- From RentalAgreement.tsx ---
+// From your agreement defaults
 export const DEFAULT_RENTAL_PRICES = {
   daily: 100,
   weekly: 500,
-  claim: 150,
+  claim: 150
 };
-// --- End RentalAgreement.tsx ---
-
 
 export interface Rental {
   id: string;
-
+  // ✅ NEW: Rental Agreement Number
+  rentalAgreementNumber?: string;
   vehicleId: string;
   customerId: string;
 
   startDate: Date;
   endDate: Date;
 
-  originalStartDate?: Date; 
+  originalStartDate?: Date;
 
   type: RentalType;
   reason: RentalReason;
   status: RentalStatus;
-
-  // Financials (final 'cost' is after discount, before any future overdue/return charges)
+  expectedReturnDate?: Date | null;
+  // Financials
   cost: number;
   standardCost?: number;
 
   includeVAT: boolean;
 
-  // Extra line items (+ their VAT flags)
+  // Extra line items (+ VAT flags)
   deliveryCharge?: number | null;
   collectionCharge?: number | null;
+
   insurancePerDay?: number | null;
+  insurancePerWeek?: number | null; // ✅ ADDED (used by weekly rentals)
+
   deliveryChargeIncludeVAT?: boolean;
   collectionChargeIncludeVAT?: boolean;
-  insurancePerDayIncludeVAT?: boolean;
 
-  // Claim-only extras (+ storage VAT flag/value)
+  insurancePerDayIncludeVAT?: boolean;
+  insurancePerWeekIncludeVAT?: boolean; // ✅ ADDED
+
+  // Claim-only extras
   claimRef?: string | null;
+
+  notes?: RentalNote[]; // Add this field
+
   storageStartDate?: Date | null;
   storageEndDate?: Date | null;
   storageCostPerDay?: number | null;
@@ -189,7 +236,7 @@ export interface Rental {
   includeStorageVAT?: boolean | null;
   storageCost?: number | null;
 
-  // Recovery (+ VAT flag)
+  // Recovery
   recoveryCost?: number | null;
   includeRecoveryCostVAT?: boolean | null;
 
@@ -221,8 +268,8 @@ export interface Rental {
 
   // Docs
   documents?: RentalDocuments;
-  
-  // --- MODIFIED: Now an array ---
+
+  // Hire substitution (ARRAY)
   hireSubstitutionDetails?: HireSubstitutionDetails[] | null;
 
   // Misc
@@ -235,7 +282,7 @@ export interface Rental {
   updatedAt: Date;
   updatedBy: string;
 
-  // Optional flat fields captured at creation/edit time
+  // Optional flat fields
   paymentMethod?: PaymentMethod;
   paymentReference?: string | null;
 }

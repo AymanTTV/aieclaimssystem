@@ -14,10 +14,10 @@ import InvoiceFilters from '../components/finance/InvoiceFilters';
 import ManageCategoriesModal from '../components/finance/ManageCategoriesModal';
 import Modal from '../components/ui/Modal';
 import { Plus, Download, FileText, PoundSterling } from 'lucide-react';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore'; // Added collection/getDocs
 import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
-import { Invoice } from '../types/finance';
+import { Invoice, Account } from '../types/finance'; // Added Account type
 import { deleteInvoicePayment } from '../utils/invoiceUtils';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../hooks/usePermissions';
@@ -35,28 +35,41 @@ const Invoices: React.FC = () => {
   const { formatCurrency } = useFormattedDisplay();
 
   const [categories, setCategories] = useState<string[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]); // ✅ State for Finance Accounts
   const [showManageCategories, setShowManageCategories] = useState(false);
 
+  // Fetch Categories AND Finance Accounts
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchData = async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'invoiceCategories'));
+        // Categories
+        const catSnap = await getDocs(collection(db, 'invoiceCategories'));
         const cats: string[] = [];
-        snapshot.forEach((docSnap) => {
+        catSnap.forEach((docSnap) => {
           const data = docSnap.data() as { name: string };
           cats.push(data.name);
         });
         cats.sort((a, b) => a.localeCompare(b));
         setCategories(cats);
+
+        // ✅ Accounts
+        const accSnap = await getDocs(collection(db, 'financeAccounts'));
+        const accs: Account[] = [];
+        accSnap.forEach((docSnap) => {
+          accs.push({ id: docSnap.id, ...docSnap.data() } as Account);
+        });
+        setAccounts(accs);
+
       } catch (err) {
-        console.error('Error loading invoice categories:', err);
-        toast.error('Failed to load invoice categories');
+        console.error('Error loading data:', err);
+        toast.error('Failed to load initial data');
       }
     };
-    fetchCategories();
+    fetchData();
   }, []);
 
   const refreshCategories = async () => {
+    // ... (existing refresh logic)
     try {
       const snapshot = await getDocs(collection(db, 'invoiceCategories'));
       const cats: string[] = [];
@@ -71,6 +84,7 @@ const Invoices: React.FC = () => {
     }
   };
 
+  // ... (existing filters and hooks logic: useInvoiceFilters, totals calculation)
   const {
     searchQuery,
     setSearchQuery,
@@ -81,7 +95,7 @@ const Invoices: React.FC = () => {
     dateRange,
     setDateRange,
     filteredInvoices,
-  } = useInvoiceFilters(invoices, vehicles); // <-- UPDATED
+  } = useInvoiceFilters(invoices, vehicles);
 
   const visible = filteredInvoices;
   const totalInvoicesAmount = visible.reduce((sum, inv) => sum + (inv.total || 0), 0);
@@ -94,6 +108,7 @@ const Invoices: React.FC = () => {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
 
+  // ... (existing handlers: handleExport, handleDeletePayment, handleGenerateDocument, etc.)
   const handleExport = () => {
     const dataToExport = filteredInvoices.length > 0 ? filteredInvoices : invoices;
     const exportData = dataToExport.map((inv) => ({
@@ -101,12 +116,13 @@ const Invoices: React.FC = () => {
       Date: inv.date.toLocaleDateString(),
       'Due Date': inv.dueDate.toLocaleDateString(),
       'Customer': inv.customerName,
-      'Vehicle': inv.vehicleName || '', // <-- ADDED
+      'Vehicle': inv.vehicleName || '',
       Amount: `£${inv.total.toFixed(2)}`,
       'Amount Paid': `£${inv.paidAmount.toFixed(2)}`,
       'Remaining Amount': `£${inv.remainingAmount.toFixed(2)}`,
       Status: inv.paymentStatus.replace('_', ' '),
       Category: inv.category,
+      'Finance Account': inv.accountName || 'N/A' // Added to export
     }));
     exportToExcel(exportData, 'invoices');
     toast.success('Invoices exported successfully');
@@ -116,7 +132,6 @@ const Invoices: React.FC = () => {
     try {
       await deleteInvoicePayment(invoice, paymentId);
       toast.success('Payment deleted successfully');
-      // Close any open modals to see the change
       setSelectedInvoice(prev => prev ? {...prev, payments: prev.payments.filter(p => p.id !== paymentId)} : null);
     } catch (err) {
       console.error('Error deleting payment:', err);
@@ -130,9 +145,12 @@ const Invoices: React.FC = () => {
       const companyDetails = await getCompanyDetails();
       if (!companyDetails) throw new Error('Company details not found');
 
+      const vehicle = vehicles.find(v => v.id === inv.vehicleId);
+      const invoiceDataWithVehicle = { ...inv, vehicle };
+
       await generateAndUploadDocument(
         InvoiceDocument,
-        inv,
+        invoiceDataWithVehicle, 
         'invoices',
         inv.id,
         'invoices',
@@ -319,6 +337,7 @@ const Invoices: React.FC = () => {
         <InvoiceForm
           customers={customers}
           vehicles={vehicles}
+          accounts={accounts} // ✅ Pass accounts
           onClose={() => setShowForm(false)}
         />
       </Modal>
@@ -352,6 +371,7 @@ const Invoices: React.FC = () => {
             invoice={editingInvoice}
             vehicles={vehicles}
             customers={customers}
+            accounts={accounts} // ✅ Pass accounts
             onClose={() => setEditingInvoice(null)}
           />
         )}

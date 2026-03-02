@@ -7,6 +7,13 @@ export interface MaintenanceLog {
     registrationNumber: string;
   };
   customerId?: string;
+  // NEW FIELDS
+  orderNumber?: string;       // e.g. MaintenanceOrder0001
+  invoiceNumber?: string;     // e.g. MaintenanceInvoice0001
+  invoiceDate?: Date;
+  invoiceDueDate?: Date;
+  completedDate?: Date;       // The date maintenance was finished
+  invoiceUrl?: string;        // Link to the specific Maintenance Invoice PDF
   type :
   | 'yearly-service'
   | 'mileage-service'

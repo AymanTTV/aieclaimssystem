@@ -1,8 +1,8 @@
 // src/components/vehicles/VehicleFilters.tsx
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Search } from 'lucide-react';
-import SearchableSelect from '../ui/SearchableSelect'; // Ensure this path matches your file structure
+import SearchableSelect from '../ui/SearchableSelect'; 
 
 interface VehicleFiltersProps {
   searchQuery: string;
@@ -17,12 +17,15 @@ interface VehicleFiltersProps {
   showDueSoon: boolean;
   onShowDueSoonChange: (show: boolean) => void;
   
-  // NEW PROPS
   expiryFilter: string;
   onExpiryFilterChange: (value: string) => void;
+
+  // NEW PROPS
+  accountFilter: string;
+  onAccountFilterChange: (value: string) => void;
+  accounts: { id: string; name: string }[];
 }
 
-// Options for the searchable select
 const EXPIRY_OPTIONS = [
   { id: 'mot', label: 'MOT Expiry' },
   { id: 'nsl', label: 'NSL Expiry' },
@@ -45,10 +48,20 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   onShowDueSoonChange,
   expiryFilter,
   onExpiryFilterChange,
+  accountFilter,
+  onAccountFilterChange,
+  accounts,
 }) => {
+
+  const accountOptions = useMemo(() => [
+    { id: 'all', label: 'All Accounts' },
+    { id: 'no_account_assigned', label: 'No Account Assigned' },
+    ...accounts.map((acc) => ({ id: acc.id, label: acc.name }))
+  ], [accounts]);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
-      {/* Search - Spans 2 cols on Large screens */}
+      {/* Search */}
       <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
          <label className="block text-sm font-medium text-gray-700 mb-1">
           Search
@@ -61,10 +74,22 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search vehicles (reg, make, model, owner)..."
+            placeholder="Search vehicles (reg, make, model, owner, account)..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
             />
         </div>
+      </div>
+
+      {/* Account Filter (NEW) */}
+      <div className="relative">
+         <SearchableSelect
+            label="Account"
+            options={accountOptions}
+            value={accountFilter}
+            onChange={onAccountFilterChange}
+            placeholder="Select account..."
+            isClearable={false}
+         />
       </div>
 
       {/* Status */}
@@ -102,7 +127,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         </select>
       </div>
       
-      {/* NEW: Expiring or Expired Filter */}
+      {/* Expiring or Expired Filter */}
       <div className="relative">
         <SearchableSelect
           label="Expiring or Expired"

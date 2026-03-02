@@ -33,17 +33,23 @@ export const useRentals = (vehicleId?: string) => {
               createdAt: ensureValidDate(data.createdAt) || new Date(),
               updatedAt: ensureValidDate(data.updatedAt) || new Date(),
 
-              // --- THIS IS THE UPDATED MAPPING LOGIC ---
+              // ✅ NEW: Add this single field safely. 
+              // If data.expectedReturnDate is missing, it stays undefined (doesn't break).
+              expectedReturnDate: data.expectedReturnDate ? ensureValidDate(data.expectedReturnDate) : undefined,
+
+              // --- RESTORED YOUR ORIGINAL ROBUST LOGIC ---
               checkOutCondition: data.checkOutCondition ? {
                 ...data.checkOutCondition,
                 date: ensureValidDate(data.checkOutCondition.date),
                 createdAt: ensureValidDate(data.checkOutCondition.createdAt),
               } : undefined,
+              
               returnCondition: data.returnCondition ? {
                 ...data.returnCondition,
                 date: ensureValidDate(data.returnCondition.date),
                 createdAt: ensureValidDate(data.returnCondition.createdAt),
               } : undefined,
+              
               payments: data.payments ? data.payments.map((p: any) => ({
                 ...p,
                 date: ensureValidDate(p.date),
@@ -55,13 +61,14 @@ export const useRentals = (vehicleId?: string) => {
               storageStartDate: ensureValidDate(data.storageStartDate),
               storageEndDate: ensureValidDate(data.storageEndDate),
   
-              // Handle hireSubstitutionDetails (array)
+              // Handle hireSubstitutionDetails (array) - kept simple as per your old code
               hireSubstitutionDetails: data.hireSubstitutionDetails ? data.hireSubstitutionDetails.map((sub: any) => ({
                 ...sub,
                 givenAt: ensureValidDate(sub.givenAt),
                 expectedReturnAt: ensureValidDate(sub.expectedReturnAt),
+                // We leave nested returnCondition as-is (timestamps), 
+                // because your UI components (RentalDetails) handle timestamps gracefully.
               })) : [],
-              // --- END UPDATED MAPPING LOGIC ---
 
               extensionHistory: data.extensionHistory?.map((ext: any) => ({
                 ...ext,

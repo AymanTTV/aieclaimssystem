@@ -37,6 +37,7 @@ interface CompanySettings {
   noticeOfRightToCancelText: string;
   creditStorageAndRecoveryText: string;
   hireAgreementText: string;
+  rentalInvoiceTerms: string;
   satisfactionNoticeText: string;
 
   // Vehicle document terms
@@ -81,6 +82,7 @@ const CompanyDetails = () => {
     noticeOfRightToCancelText: '',
     creditStorageAndRecoveryText: '',
     hireAgreementText: '',
+    rentalInvoiceTerms: '',
     satisfactionNoticeText: '',
     vehicleTerms: '',
     maintenanceTerms: '',
@@ -419,6 +421,19 @@ const CompanyDetails = () => {
                   className={getBorderClasses(true)} // Apply cycling border
                   disabled={!editing}
                   placeholder="Enter terms for Hire Agreement document..."
+                />
+              </div>
+
+              {/* Add this new block for Rental Invoice Terms */}
+              <div className="pt-4 border-t border-gray-200">
+                <label className="block text-base font-medium text-gray-700 mb-2">Rental Invoice Terms</label>
+                <textarea
+                  value={formData.rentalInvoiceTerms}
+                  onChange={(e) => setFormData({ ...formData, rentalInvoiceTerms: e.target.value })}
+                  rows={10}
+                  className={getBorderClasses(true)}
+                  disabled={!editing}
+                  placeholder="Enter terms and conditions for the Rental Invoice..."
                 />
               </div>
 

@@ -1,17 +1,29 @@
 // src/components/rentals/RentalDetails.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format, isAfter, differenceInDays } from 'date-fns';
+import { 
+  format, 
+  isAfter, 
+  differenceInDays, 
+  differenceInHours, // ✅ Ensure this is imported
+  addDays, 
+  isValid 
+} from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import {
-  FileText,
-  Download,
-  Car,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar
+import { 
+  FileText, 
+  Download, 
+  Car, 
+  User, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  Calendar, 
+  CheckCircle, 
+  Image as ImageIcon, 
+  ArrowRightLeft,
+  Receipt,
+  StickyNote
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -43,7 +55,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   const start = ensureValidDate(rental.startDate);
   const end = ensureValidDate(rental.endDate);
 
-  // 1) Base cost (no extras):
+  // 1) Base cost (no extras, no VAT):
   const baseCost = vehicle
     ? calculateRentalCost(
         start,
@@ -53,68 +65,137 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         rental.reason,
         rental.negotiatedRate ?? undefined,
         0, 0, 0, 0, 0,
-        false, false, false, false, false // Base display excludes all VAT toggles
+        false, false, false, false, false, false
       )
     : 0;
 
-  // Insurance days (inclusive)
-  const insuranceDays = React.useMemo(() => {
+  // ✅ UPDATED: Insurance days calculation (hours based)
+  const insuranceDays = useMemo(() => {
     try {
       const s = ensureValidDate(rental.startDate);
       const e = ensureValidDate(rental.endDate);
       if (s && e && !isAfter(s, e)) {
-        return differenceInDays(e, s) + 1;
+        const hours = differenceInHours(e, s);
+        // If 0 hours, charge 1 day. Otherwise ceil(hours/24).
+        return hours <= 0 ? 1 : Math.ceil(hours / 24);
       }
     } catch {}
     return 0;
   }, [rental.startDate, rental.endDate]);
 
-  // Overdue/ongoing charges (VAT-inclusive from util) — only when active & overdue
-  const ongoingCharges = React.useMemo(() => {
+  // weekly insurance support (optional field)
+  const insuranceWeeks = useMemo(() => {
+    if (!insuranceDays) return 0;
+    return Math.ceil(insuranceDays / 7);
+  }, [insuranceDays]);
+
+  // Overdue/ongoing charges (VAT-inclusive from util)
+  const ongoingCharges = useMemo(() => {
     if (!vehicle) return 0;
     const now = new Date();
     if (rental.status === 'active' && isAfter(now, ensureValidDate(rental.endDate))) {
-      return calculateOverdueCost(rental, now, vehicle); // VAT-inclusive now
+      return calculateOverdueCost(rental, now, vehicle);
     }
     return 0;
   }, [rental, vehicle]);
 
-  // Return charges (assumed VAT-inclusive if you saved them that way)
-  const returnCharges = rental.returnCondition?.totalCharges ?? 0;
+  // Calculate Total Return Charges (Main + Subs)
+  const subCharges = (rental.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
+  const totalReturnCharges = (rental.returnCondition?.totalCharges ?? 0) + subCharges;
 
-  // Claim / extras – use stored values (already reflect their own VAT toggles)
+  // --- EXTRAS FIX: Remove Double VAT ---
+  // Storage is stored as GROSS (Inc VAT)
   const displayStorageCost = rental.storageCost || 0;
+
+  // ✅ FIX: Use stored values directly (they are already Inc VAT)
+  const displayDeliveryCharge = rental.deliveryCharge || 0; 
+  const displayCollectionFee = rental.collectionCharge || 0;
+
+  // Recovery is stored as NET (Ex VAT), so we multiply if flag is set
   const displayRecoveryCost =
     (rental.recoveryCost || 0) * (rental.includeRecoveryCostVAT ? 1.2 : 1);
-  const displayDeliveryCharge = rental.deliveryCharge || 0;
-  const displayCollectionFee = rental.collectionCharge || 0;
-  const displayInsuranceCost =
-    insuranceDays * (rental.insurancePerDay || 0) * (rental.insurancePerDayIncludeVAT ? 1.2 : 1);
 
-  // ------ Totals (ongoing excluded from VAT multiplier) ------
-  // Subtotal EXCLUDING ongoing (keep VAT logic as-is on this part)
-  const subtotalBeforeOverallVAT =
-    baseCost +
+  // Insurance is stored as NET (Ex VAT) rate
+  const insurancePerDay = rental.insurancePerDay || 0;
+  const insurancePerDayIncludeVAT = rental.insurancePerDayIncludeVAT || false;
+  const insurancePerWeek = (rental as any).insurancePerWeek || 0;
+  const insurancePerWeekIncludeVAT = (rental as any).insurancePerWeekIncludeVAT || false;
+
+  const displayInsuranceDailyCost =
+    insuranceDays * insurancePerDay * (insurancePerDayIncludeVAT ? 1.2 : 1);
+
+  const displayInsuranceWeeklyCost =
+    insuranceWeeks * insurancePerWeek * (insurancePerWeekIncludeVAT ? 1.2 : 1);
+
+  const displayInsuranceCost = displayInsuranceDailyCost + displayInsuranceWeeklyCost;
+
+  // VAT separation
+  const hireVatAmount = rental.includeVAT ? baseCost * 0.2 : 0;
+  const baseCostWithVAT = baseCost + hireVatAmount;
+
+  const totalExtras =
     displayStorageCost +
     displayRecoveryCost +
     displayDeliveryCharge +
     displayCollectionFee +
     displayInsuranceCost;
 
-  // Apply VAT (only to the above block)
-  const subtotalWithOverallVAT =
-    subtotalBeforeOverallVAT * (rental.includeVAT ? 1.2 : 1);
+  const totalWithAllVAT = baseCostWithVAT + totalExtras;
+  const discountedRentalTotal = totalWithAllVAT - (rental.discountAmount ?? 0);
+  const totalAmountDue = discountedRentalTotal + ongoingCharges + totalReturnCharges;
 
-  // Apply discount to RENTAL subtotal only
-  const discountedRentalTotal =
-    subtotalWithOverallVAT - (rental.discountAmount ?? 0);
-
-  // FINAL total due adds ongoing + return charges outside (already VAT-inclusive)
-  const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
-
-  // Payments
   const paid = rental.paidAmount || 0;
   const remaining = totalAmountDue - paid;
+
+  // --- TIMELINE CALCULATION ---
+  const hasSubs = rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0;
+  
+  const timelineSegments = useMemo(() => {
+    if (!hasSubs) return [];
+    
+    const segments: Array<{ type: 'main' | 'sub'; label: string; start: Date; end: Date; registration?: string }> = [];
+    
+    const subs = (rental.hireSubstitutionDetails || []).slice().sort((a, b) => {
+       const dA = ensureValidDate(a.givenAt)?.getTime() || 0;
+       const dB = ensureValidDate(b.givenAt)?.getTime() || 0;
+       return dA - dB;
+    });
+
+    let currentCursor = start;
+
+    if (subs.length === 0) {
+      segments.push({ type: 'main', label: 'Main', start: currentCursor, end: end });
+    } else {
+      for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        const subGiven = ensureValidDate(sub.givenAt);
+        if (!subGiven) continue;
+
+        if (subGiven > currentCursor) {
+          segments.push({ type: 'main', label: 'Main Vehicle', start: currentCursor, end: subGiven });
+        }
+
+        const subReturnRaw = sub.returnCondition?.date || sub.expectedReturnAt;
+        let subEnd = ensureValidDate(subReturnRaw) || addDays(subGiven, 1);
+        if (subEnd <= subGiven) subEnd = addDays(subGiven, 1);
+
+        segments.push({ 
+          type: 'sub', 
+          label: 'Substitute', 
+          start: subGiven, 
+          end: subEnd,
+          registration: sub.registration
+        });
+
+        currentCursor = subEnd;
+      }
+
+      if (currentCursor < end) {
+        segments.push({ type: 'main', label: 'Main Vehicle', start: currentCursor, end: end });
+      }
+    }
+    return segments;
+  }, [rental, start, end, hasSubs]);
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
@@ -130,6 +211,15 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     fetchCreatedByName();
   }, [rental.createdBy]);
 
+  const formatNoteDate = (date: any) => {
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      return isValid(d) ? format(d, 'dd MMM yyyy HH:mm') : 'Unknown Date';
+    } catch {
+      return 'Unknown Date';
+    }
+  };
+
   const formatDateTime = (date: any): string => {
     if (!date) return 'N/A';
     try {
@@ -141,20 +231,16 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     }
   };
 
-  // --- Helper to label older agreements by their key timestamp ---
   const formatAgreementKey = (key: string): string => {
     try {
       const timestamp = parseInt(key.split('_')[1] || '0', 10);
       if (timestamp === 0) return 'Hire Agreement';
-      // ----------------- ✅ FIX 3: Update label for clarity -----------------
       return `Hire Agreement (Generated ${format(new Date(timestamp), 'dd/MM/yyyy')})`;
-      // ----------------- END OF FIX 3 -----------------
     } catch {
       return 'Hire Agreement';
     }
   };
 
-  // --- NEW: Helper to label the Latest agreement using the rental's own dates ---
   const formatLatestAgreementLabel = (r: Rental) => {
     try {
       const s = ensureValidDate(r.startDate);
@@ -174,38 +260,49 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     </div>
   );
 
-  // Agreements list (sorted oldest → newest)
   const agreementKeys = rental.documents?.agreements
     ? Object.keys(rental.documents.agreements).sort(
         (a, b) =>
-          parseInt(a.split('_')[1] || '0', 10) -
-          parseInt(b.split('_')[1] || '0', 10)
+          parseInt(a.split('_')[1] || '0', 10) - parseInt(b.split('_')[1] || '0', 10)
       )
     : [];
 
-  const latestAgreementKey =
-    agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
+  const latestAgreementKey = agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
+
+  const handleInvoiceClick = () => {
+    if (rental.documents?.invoice) {
+        window.open(rental.documents.invoice, '_blank');
+    } else {
+        onDownloadInvoice();
+    }
+  };
+
+  const handlePermitClick = () => {
+    if (rental.documents?.permit) {
+        window.open(rental.documents.permit, '_blank');
+    } else {
+        onDownloadPermit();
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Documents Section */}
       <div className="flex flex-wrap gap-2">
-        {/* Latest agreement first (uses rental start→end in label) */}
         {latestAgreementKey && (
           <button
             key={`latest_${latestAgreementKey}`}
-            onClick={() => window.open(rental.documents!.agreements![latestAgreementKey], '_blank')}
+            onClick={() =>
+              window.open(rental.documents!.agreements![latestAgreementKey], '_blank')
+            }
             className="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50"
             title="Open the main hire agreement"
           >
             <FileText className="h-4 w-4 mr-2" />
-            {/* ----------------- ✅ FIX 4: Update label to (Main) ----------------- */}
             {formatLatestAgreementLabel(rental)} (Main)
-            {/* ----------------- END OF FIX 4 ----------------- */}
           </button>
         )}
 
-        {/* Older versions (if any), labeled by their key timestamp */}
         {agreementKeys
           .filter((k) => k !== latestAgreementKey)
           .map((key) => (
@@ -220,27 +317,31 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </button>
           ))}
 
-        {rental.documents?.invoice && (
-          <button
-            onClick={onDownloadInvoice}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Invoice
-          </button>
-        )}
+        <button
+          onClick={handleInvoiceClick}
+          className={`inline-flex items-center px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md ${
+            rental.documents?.invoice
+              ? 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+              : 'border-transparent text-white bg-green-600 hover:bg-green-700'
+          }`}
+        >
+          {rental.documents?.invoice ? <Receipt className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+          {rental.documents?.invoice ? 'View Invoice' : 'Generate Invoice'}
+        </button>
 
-        {rental.documents?.permit && (
-          <button
-            onClick={() => window.open(rental.documents?.permit, '_blank')}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Parking Permit
-          </button>
-        )}
+        <button
+          onClick={handlePermitClick}
+          className={`inline-flex items-center px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md ${
+             rental.documents?.permit
+               ? 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+               : 'border-transparent text-white bg-purple-600 hover:bg-purple-700'
+          }`}
+        >
+          {rental.documents?.permit ? <FileText className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+          {rental.documents?.permit ? 'View Permit' : 'Generate Permit'}
+        </button>
 
-        {/* Claim Documents */}
+        {/* Claim Documents - Direct Links */}
         {rental.type === 'claim' && (
           <>
             {rental.documents?.conditionOfHire && (
@@ -254,7 +355,9 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             )}
             {rental.documents?.noticeOfRightToCancel && (
               <button
-                onClick={() => window.open(rental.documents?.noticeOfRightToCancel, '_blank')}
+                onClick={() =>
+                  window.open(rental.documents?.noticeOfRightToCancel, '_blank')
+                }
                 className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -272,7 +375,9 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             )}
             {rental.documents?.creditStorageAndRecovery && (
               <button
-                onClick={() => window.open(rental.documents?.creditStorageAndRecovery, '_blank')}
+                onClick={() =>
+                  window.open(rental.documents?.creditStorageAndRecovery, '_blank')
+                }
                 className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -281,7 +386,9 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             )}
             {rental.documents?.creditHireMitigation && (
               <button
-                onClick={() => window.open(rental.documents?.creditHireMitigation, '_blank')}
+                onClick={() =>
+                  window.open(rental.documents?.creditHireMitigation, '_blank')
+                }
                 className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -310,7 +417,9 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               <div className="flex items-center">
                 <Car className="h-5 w-5 text-gray-400 mr-2" />
                 <div>
-                  <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                  <p className="font-medium">
+                    {vehicle.make} {vehicle.model}
+                  </p>
                   <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
                 </div>
               </div>
@@ -335,7 +444,9 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 <User className="h-5 w-5 text-gray-400 mr-2" />
                 <div>
                   <p className="font-medium">{customer.name}</p>
-                  <p className="text-sm text-gray-500">License: {customer.driverLicenseNumber}</p>
+                  <p className="text-sm text-gray-500">
+                    License: {customer.driverLicenseNumber}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center">
@@ -364,6 +475,18 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       <div className="border-b pb-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Details</h3>
         <div className="grid grid-cols-2 gap-4">
+
+          {/* Agreement Number Block */}
+          {rental.rentalAgreementNumber && (
+            <div className="col-span-2 flex items-center bg-blue-50 p-2 rounded border border-blue-100 mb-2">
+              <FileText className="h-5 w-5 text-blue-600 mr-2" />
+              <div>
+                <p className="text-xs text-blue-600 uppercase tracking-wide font-bold">Agreement Number</p>
+                <p className="text-lg font-bold text-blue-900">#{rental.rentalAgreementNumber}</p>
+              </div>
+            </div>
+          )}
+          
           <div>
             <p className="text-sm text-gray-500">Type</p>
             <div className="mt-1 space-y-1">
@@ -381,7 +504,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
           {/* Original Rental Start Date */}
           {rental.originalStartDate && (
-            <div className="flex items-center">
+            <div className="flex items-center col-span-2">
               <Calendar className="h-5 w-5 text-gray-400 mr-2" />
               <div>
                 <p className="text-sm text-gray-500">Original Rental Start Date</p>
@@ -390,26 +513,60 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
           )}
 
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Start Date & Time</p>
-              <p className="font-medium">{formatDateTime(rental.startDate)}</p>
+          {/* TIMELINE OR STANDARD DATES */}
+          {hasSubs ? (
+             <div className="col-span-2 mt-2">
+               <p className="text-sm font-medium text-gray-700 mb-2">Vehicle Usage Timeline</p>
+               <div className="flex flex-col gap-2">
+                 {timelineSegments.map((seg, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`
+                        flex flex-col sm:flex-row sm:items-center justify-between px-3 py-2 rounded-md border-l-4 shadow-sm
+                        ${seg.type === 'main' 
+                          ? 'bg-gray-50 border-gray-400 text-gray-700' 
+                          : 'bg-yellow-50 border-yellow-400 text-yellow-800'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-xs mb-1 sm:mb-0">
+                        {seg.type === 'main' ? <Car className="w-4 h-4" /> : <ArrowRightLeft className="w-4 h-4" />}
+                        <span>{seg.label}</span>
+                        {seg.registration && <span className="font-mono bg-white/50 px-1.5 py-0.5 rounded ml-2 text-gray-900 border border-black/5">{seg.registration}</span>}
+                      </div>
+                      <div className="flex items-center text-sm font-medium gap-3">
+                         <span>{formatDateTime(seg.start)}</span>
+                         <span className="opacity-50">→</span>
+                         <span>{formatDateTime(seg.end)}</span>
+                      </div>
+                    </div>
+                 ))}
+               </div>
             </div>
-          </div>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">End Date & Time</p>
-              <p className="font-medium">{formatDateTime(rental.endDate)}</p>
-            </div>
-          </div>
+          ) : (
+             <>
+                <div className="flex items-center">
+                    <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                    <div>
+                    <p className="text-sm text-gray-500">Start Date & Time</p>
+                    <p className="font-medium">{formatDateTime(rental.startDate)}</p>
+                    </div>
+                </div>
+                <div className="flex items-center">
+                    <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                    <div>
+                    <p className="text-sm text-gray-500">End Date & Time</p>
+                    <p className="font-medium">{formatDateTime(rental.endDate)}</p>
+                    </div>
+                </div>
+             </>
+          )}
         </div>
       </div>
 
       {/* Claim Reference */}
       {rental.claimRef && (
-        <div className="flex items-center col-span-2">
+        <div className="flex items-center border-b pb-4">
           <FileText className="h-5 w-5 text-gray-400 mr-2" />
           <div>
             <p className="text-sm text-gray-500">Claim Reference</p>
@@ -418,12 +575,44 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         </div>
       )}
 
-      {/* --- HIRE SUBSTITUTION DETAILS (ARRAY) --- */}
+      {/* Notes */}
+      {rental.notes && rental.notes.length > 0 && (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 shadow-md mb-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-2 opacity-10">
+            <StickyNote className="w-12 h-12" />
+          </div>
+          <h3 className="flex items-center gap-2 text-yellow-800 font-bold text-lg mb-3 border-b border-yellow-200 pb-2">
+            <StickyNote className="w-5 h-5" /> 
+            RENTAL NOTES ({rental.notes.length})
+          </h3>
+          <div className="space-y-3">
+            {rental.notes.slice().reverse().slice(0, 3).map((note) => (
+              <div key={note.id} className="bg-white/50 p-2 rounded border border-yellow-100 shadow-sm text-sm">
+                <div className="flex items-center gap-2 text-[10px] text-yellow-700 font-bold uppercase mb-1">
+                  <span>{formatNoteDate(note.createdAt)}</span>
+                  <span>•</span>
+                  <span>{note.createdByName || 'Staff'}</span>
+                </div>
+                <p className="text-gray-900 font-medium whitespace-pre-wrap leading-relaxed italic">
+                  "{note.text}"
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* HIRE SUBSTITUTION DETAILS */}
       {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 && (
         <Section title="Hire Substitution Details">
           {rental.hireSubstitutionDetails.map((sub, index) => (
-            <div key={index} className="grid grid-cols-2 gap-4 border-b pb-4 mb-4 last:border-b-0 last:pb-0 last:mb-0">
-              <h4 className="font-medium col-span-2 text-gray-700">Substitution Vehicle {index + 1}</h4>
+            <div
+              key={index}
+              className="grid grid-cols-2 gap-4 border-b pb-4 mb-4 last:border-b-0 last:pb-0 last:mb-0"
+            >
+              <h4 className="font-medium col-span-2 text-gray-700">
+                Substitution Vehicle {index + 1}
+              </h4>
               <div>
                 <p className="text-sm text-gray-500">Vehicle</p>
                 <p className="font-medium">
@@ -452,75 +641,265 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 <p className="text-sm text-gray-500">Notes (Reason)</p>
                 <p className="font-medium whitespace-pre-wrap">{sub.notes || 'N/A'}</p>
               </div>
+
+              {/* Substitution Condition Report (Check-Out) */}
+              <div className="col-span-2 mt-2 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="font-semibold text-gray-800 text-sm">Check-Out Condition</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-3">
+                  <div>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider block">Mileage Out</span>
+                    <span className="font-mono font-medium">{(sub.mileage || 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider block">Fuel Level</span>
+                    <span className="font-medium">{sub.fuelLevel || '100'}%</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider block">Clean</span>
+                    <span className={`font-medium ${sub.isClean ? 'text-green-600' : 'text-red-600'}`}>
+                      {sub.isClean ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider block">Damage</span>
+                    <span className={`font-medium ${sub.hasDamage ? 'text-red-600' : 'text-green-600'}`}>
+                      {sub.hasDamage ? 'Yes' : 'None'}
+                    </span>
+                  </div>
+                </div>
+
+                {sub.hasDamage && sub.damageDescription && (
+                  <div className="mb-3 bg-red-50 p-2 rounded border border-red-100">
+                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-1">Damage Description</span>
+                    <p className="text-sm text-red-800">{sub.damageDescription}</p>
+                  </div>
+                )}
+
+                {sub.images && sub.images.length > 0 && (
+                  <div>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> Check-Out Images
+                    </span>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {sub.images.map((url, i) => (
+                        <a 
+                          key={i} 
+                          href={url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block relative aspect-square group"
+                        >
+                          <img 
+                            src={url} 
+                            alt={`Condition ${i+1}`} 
+                            className="w-full h-full object-cover rounded border border-gray-200 group-hover:border-blue-400 transition-all" 
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Substitution Return Info - FULL DETAIL VIEW */}
+              {sub.returnCondition && (
+                 <div className="col-span-2 mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                       <div className="flex items-center gap-2">
+                         <CheckCircle className="w-4 h-4 text-blue-600" />
+                         <span className="font-semibold text-gray-800 text-sm">Return Info (Check-In)</span>
+                       </div>
+                       <span className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-2 py-1 rounded">
+                         Total Charges: {formatCurrency(sub.returnCondition.totalCharges)}
+                       </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-3">
+                       <div>
+                         <span className="text-xs text-gray-500 uppercase tracking-wider block">Mileage In</span>
+                         <span className="font-mono font-medium">{sub.returnCondition.mileage}</span>
+                       </div>
+                       <div>
+                         <span className="text-xs text-gray-500 uppercase tracking-wider block">Fuel In</span>
+                         <span className="font-medium">{sub.returnCondition.fuelLevel}%</span>
+                       </div>
+                       <div>
+                         <span className="text-xs text-gray-500 uppercase tracking-wider block">Clean</span>
+                         <span className={`font-medium ${sub.returnCondition.isClean ? 'text-green-600' : 'text-red-600'}`}>
+                           {sub.returnCondition.isClean ? 'Yes' : 'No'}
+                         </span>
+                         {!sub.returnCondition.isClean && sub.returnCondition.cleaningCharge > 0 && (
+                           <span className="block text-xs text-red-600 font-bold">
+                             {formatCurrency(sub.returnCondition.cleaningCharge)}
+                           </span>
+                         )}
+                       </div>
+                       <div>
+                         <span className="text-xs text-gray-500 uppercase tracking-wider block">Damage</span>
+                         <span className={`font-medium ${sub.returnCondition.hasDamage ? 'text-red-600' : 'text-green-600'}`}>
+                           {sub.returnCondition.hasDamage ? 'Yes' : 'None'}
+                         </span>
+                          {sub.returnCondition.hasDamage && sub.returnCondition.damageCost > 0 && (
+                           <span className="block text-xs text-red-600 font-bold">
+                             {formatCurrency(sub.returnCondition.damageCost)}
+                           </span>
+                         )}
+                       </div>
+                    </div>
+
+                    {(sub.returnCondition.fuelCharge > 0) && (
+                        <div className="text-xs text-red-600 font-bold mb-2">
+                            Fuel Charge: {formatCurrency(sub.returnCondition.fuelCharge)}
+                        </div>
+                    )}
+
+                    {sub.returnCondition.hasDamage && sub.returnCondition.damageDescription && (
+                        <div className="mb-3 bg-red-50 p-2 rounded border border-red-100">
+                            <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-1">Damage Description</span>
+                            <p className="text-sm text-red-800">{sub.returnCondition.damageDescription}</p>
+                        </div>
+                    )}
+
+                    {/* Substitution Return Images */}
+                    {sub.returnCondition.images && sub.returnCondition.images.length > 0 && (
+                      <div>
+                        <span className="text-xs text-gray-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                          <ImageIcon className="w-3 h-3" /> Check-In Images
+                        </span>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                          {sub.returnCondition.images.map((url, i) => (
+                            <a 
+                              key={i} 
+                              href={url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="block relative aspect-square group"
+                            >
+                              <img 
+                                src={url} 
+                                alt={`Return Condition ${i+1}`} 
+                                className="w-full h-full object-cover rounded border border-gray-200 group-hover:border-blue-400 transition-all" 
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                 </div>
+              )}
             </div>
           ))}
         </Section>
       )}
-      {/* --- END: HIRE SUBSTITUTION DETAILS --- */}
 
+      {/* Main Vehicle Conditions */}
       {rental.checkOutCondition && (
-        <Section title="Check-Out Condition">
+        <Section title="Main Vehicle Check-Out Condition">
           <VehicleConditionDetails condition={rental.checkOutCondition} type="check-out" />
         </Section>
       )}
 
       {rental.returnCondition && (
-        <Section title="Return Condition">
+        <Section title="Main Vehicle Return Condition">
           <VehicleConditionDetails condition={rental.returnCondition} type="return" />
         </Section>
       )}
 
       {rental.storageStartDate && rental.storageEndDate && (
-        <>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Storage Start Date</p>
-              <p className="font-medium">{formatDateTime(rental.storageStartDate)}</p>
+        <Section title="Storage Details">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Storage Start Date</p>
+                <p className="font-medium">{formatDateTime(rental.storageStartDate)}</p>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Storage End Date</p>
+                <p className="font-medium">{formatDateTime(rental.storageEndDate)}</p>
+              </div>
             </div>
           </div>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Storage End Date</p>
-              <p className="font-medium">{formatDateTime(rental.storageEndDate)}</p>
-            </div>
-          </div>
-        </>
+        </Section>
       )}
 
-      {/* --- COST SUMMARY --- */}
+      {/* COST SUMMARY */}
       <div className="border-t pt-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+          
           <div className="flex justify-between text-sm">
             <span>Base Rental Cost:</span>
             <span className="font-medium">{formatCurrency(baseCost)}</span>
           </div>
 
+          {rental.includeVAT && (
+            <div className="flex justify-between text-sm text-blue-600">
+              <span>Hire VAT (20%):</span>
+              <span className="font-medium">{formatCurrency(hireVatAmount)}</span>
+            </div>
+          )}
+
+          {totalExtras > 0 && <div className="border-t border-gray-200 my-1"></div>}
+
+          {/* Claim-only extras */}
           {rental.type === 'claim' && (
             <>
-              <div className="flex justify-between text-sm">
-                <span>Storage Cost{rental.includeStorageVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">{formatCurrency(displayStorageCost)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Recovery Cost{rental.includeRecoveryCostVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">{formatCurrency(displayRecoveryCost)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Delivery Charge{rental.deliveryChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">{formatCurrency(displayDeliveryCharge)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Collection Charge{rental.collectionChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">{formatCurrency(displayCollectionFee)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Insurance ({insuranceDays} days){rental.insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">{formatCurrency(displayInsuranceCost)}</span>
-              </div>
+              {displayStorageCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Storage Cost{rental.includeStorageVAT ? ' (Inc. VAT)' : ''}:</span>
+                  <span className="font-medium">{formatCurrency(displayStorageCost)}</span>
+                </div>
+              )}
+              {displayRecoveryCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Recovery Cost{rental.includeRecoveryCostVAT ? ' (Inc. VAT)' : ''}:</span>
+                  <span className="font-medium">{formatCurrency(displayRecoveryCost)}</span>
+                </div>
+              )}
+              {displayDeliveryCharge > 0 && (
+                <div className="flex justify-between text-sm">
+                  {/* ✅ FIX: Removed multiplier here as stored val is total */}
+                  <span>Delivery Charge{rental.deliveryChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+                  <span className="font-medium">{formatCurrency(displayDeliveryCharge)}</span>
+                </div>
+              )}
+              {displayCollectionFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  {/* ✅ FIX: Removed multiplier here as stored val is total */}
+                  <span>Collection Charge{rental.collectionChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
+                  <span className="font-medium">{formatCurrency(displayCollectionFee)}</span>
+                </div>
+              )}
             </>
+          )}
+
+          {/* Insurance rows */}
+          {displayInsuranceDailyCost > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>
+                Insurance Daily ({insuranceDays} days)
+                {insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:
+              </span>
+              <span className="font-medium">{formatCurrency(displayInsuranceDailyCost)}</span>
+            </div>
+          )}
+
+          {displayInsuranceWeeklyCost > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>
+                Insurance Weekly ({insuranceWeeks} weeks)
+                {insurancePerWeekIncludeVAT ? ' (Inc. VAT)' : ''}:
+              </span>
+              <span className="font-medium">{formatCurrency(displayInsuranceWeeklyCost)}</span>
+            </div>
           )}
 
           {ongoingCharges > 0 && (
@@ -530,42 +909,28 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
           )}
 
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Subtotal (before VAT):</span>
-            <span className="font-medium">{formatCurrency(subtotalBeforeOverallVAT)}</span>
-          </div>
-
-          {rental.includeVAT && (
-            <div className="flex justify-between text-sm text-blue-600">
-              <span>VAT (20%):</span>
-              <span className="font-medium">
-                {formatCurrency(subtotalWithOverallVAT - subtotalBeforeOverallVAT)}
-              </span>
-            </div>
-          )}
-
-          <div className="flex justify-between text-sm pt-2 border-t">
-            <span>Subtotal (with VAT):</span>
-            <span className="font-medium">{formatCurrency(subtotalWithOverallVAT)}</span>
+          <div className="flex justify-between text-sm pt-2 border-t font-semibold text-gray-700">
+            <span>Subtotal (Gross):</span>
+            <span className="font-medium">{formatCurrency(totalWithAllVAT)}</span>
           </div>
 
           {(rental.discountAmount || 0) > 0 && (
             <div className="flex justify-between text-sm text-green-600">
-              <span>Discount{rental.discountPercentage ? ` (${rental.discountPercentage}%)` : ''}:</span>
+              <span>
+                Discount{rental.discountPercentage ? ` (${rental.discountPercentage}%)` : ''}:
+              </span>
               <span>-{formatCurrency(rental.discountAmount || 0)}</span>
             </div>
           )}
 
           {rental.discountNotes && (
-            <div className="text-sm italic text-gray-700 mt-1">
-              {rental.discountNotes}
-            </div>
+            <div className="text-sm italic text-gray-700 mt-1">{rental.discountNotes}</div>
           )}
 
-          {returnCharges > 0 && (
+          {totalReturnCharges > 0 && (
             <div className="flex justify-between text-sm">
-              <span>Return Charges:</span>
-              <span className="font-medium">{formatCurrency(returnCharges)}</span>
+              <span>Return Charges{subCharges > 0 ? ' (Inc. Subs)' : ''}:</span>
+              <span className="font-medium">{formatCurrency(totalReturnCharges)}</span>
             </div>
           )}
 

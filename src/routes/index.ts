@@ -13,6 +13,7 @@ export const ROUTES = {
   ADMIN_SETUP: '/admin-setup',
   PRODUCTS: '/products',
   TODO: '/todo',
+  AUTOMATION: '/automation',
   // Protected routes
   DASHBOARD: '/',
   PROFILE: '/profile',

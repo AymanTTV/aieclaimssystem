@@ -1,6 +1,6 @@
 // src/components/customers/CustomerDetails.tsx
 import React from 'react';
-import { Eye, FileText } from 'lucide-react';
+import { Eye, FileText, Globe, Hash } from 'lucide-react';
 
 // --- Type Definitions ---
 
@@ -14,14 +14,19 @@ export interface Customer {
   mobile: string;
   email: string;
   address: string;
-  // New Fields
+  // Company Fields
   accountNumber?: string;
   vatNumber?: string;
   
+  // Individual Fields
   gender?: Gender;
   dateOfBirth?: Date;
   nationalInsuranceNumber?: string;
+  
   driverLicenseNumber?: string;
+  issueNumber?: string; // [NEW]
+  countryOfIssue?: string; // [NEW]
+  
   licenseValidFrom?: Date;
   licenseExpiry?: Date;
   badgeNumber?: string;
@@ -38,9 +43,6 @@ export interface Customer {
 
 // --- Helper Functions ---
 
-/**
- * Formats a Date object into a readable string (e.g., "5 Oct 2024").
- */
 export const formatDate = (date: Date | undefined | null): string => {
   if (!date) return 'N/A';
   return new Date(date).toLocaleDateString('en-GB', {
@@ -50,9 +52,6 @@ export const formatDate = (date: Date | undefined | null): string => {
   });
 };
 
-/**
- * Checks if a given date is in the past.
- */
 export const isExpired = (date: Date): boolean => {
   return new Date() > date;
 };
@@ -64,9 +63,6 @@ interface CustomerDetailsProps {
   customer: Customer;
 }
 
-/**
- * A reusable component to display a document thumbnail.
- */
 const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string) => void; }> = ({ title, url, onView }) => {
   const isPdf = url.toLowerCase().includes('.pdf');
 
@@ -94,9 +90,6 @@ const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string)
   );
 };
 
-/**
- * Displays all details for a given customer.
- */
 const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
   const isCompany = customer.type === 'company';
 
@@ -152,6 +145,8 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
         {/* Individual Fields */}
         {!isCompany && (
           <>
+             <div className="col-span-1 md:col-span-2 border-t border-gray-100 my-2"></div>
+
             <div>
               <h3 className="text-sm font-medium text-gray-500">Gender</h3>
               <p className="mt-1 capitalize">{customer.gender || 'N/A'}</p>
@@ -168,10 +163,31 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
               <h3 className="text-sm font-medium text-gray-500">National Insurance Number</h3>
               <p className="mt-1">{customer.nationalInsuranceNumber || 'N/A'}</p>
             </div>
+
+            <div className="col-span-1 md:col-span-2 border-t border-gray-100 my-2"></div>
+
+            {/* --- NEW FIELDS DISPLAY --- */}
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Driver License Number</h3>
-              <p className="mt-1">{customer.driverLicenseNumber || 'N/A'}</p>
+              <h3 className="text-sm font-medium text-gray-500 flex items-center">
+                <Globe className="w-3 h-3 mr-1" /> Country of Issue
+              </h3>
+              <p className="mt-1">{customer.countryOfIssue || 'N/A'}</p>
             </div>
+            
+            <div>
+               <h3 className="text-sm font-medium text-gray-500">Driver License Number</h3>
+               <p className="mt-1">{customer.driverLicenseNumber || 'N/A'}</p>
+            </div>
+
+             <div>
+               <h3 className="text-sm font-medium text-gray-500 flex items-center">
+                  <Hash className="w-3 h-3 mr-1" /> Issue Number
+               </h3>
+               <p className="mt-1">{customer.issueNumber || 'N/A'}</p>
+            </div>
+            
+            {/* ------------------------ */}
+
             <div>
               <h3 className="text-sm font-medium text-gray-500">License Valid From</h3>
               <p className="mt-1">{customer.licenseValidFrom ? formatDate(customer.licenseValidFrom) : 'N/A'}</p>
