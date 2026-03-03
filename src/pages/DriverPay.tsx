@@ -1,7 +1,7 @@
 // src/pages/DriverPay.tsx
 
 import React, { useState, useCallback } from 'react';
-import { doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore'; // <-- Import updateDoc
+import { doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
 import { usePermissions } from '../hooks/usePermissions';
 import { useDriverPay } from '../hooks/useDriverPay';
@@ -37,7 +37,6 @@ const getDriverNumber = (driverNo: string | undefined | null): number => {
 };
 // --------------------------------------------------------
 
-
 const DriverPayPage = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -57,9 +56,11 @@ const DriverPayPage = () => {
     setPeriodDateRange,
     periodOverlapDateRange,
     setPeriodOverlapDateRange,
+    usageFilter, // 🟢 New variable brought in
+    setUsageFilter, // 🟢 New setter brought in
     filteredRecords,
     summary
-  } = useDriverPayFilters(records, lockFilter); // <-- Pass new state to hook
+  } = useDriverPayFilters(records, lockFilter); 
 
   // Modal states
   const [showForm, setShowForm] = useState(false);
@@ -306,6 +307,8 @@ const DriverPayPage = () => {
         onPeriodOverlapDateRangeChange={setPeriodOverlapDateRange}
         lockFilter={lockFilter}
         onLockFilterChange={setLockFilter}
+        usageFilter={usageFilter} // 🟢 Pass variable down
+        onUsageFilterChange={setUsageFilter} // 🟢 Pass setter down
       />
 
       <DriverPayTable

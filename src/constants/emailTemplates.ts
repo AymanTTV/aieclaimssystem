@@ -42,7 +42,7 @@ Thank you for your prompt payment. This amount has been credited to your account
 
 Current Account Status:
 
-Payment Received: -£[Amount Paid]
+Payment Received: £[Amount Paid]
 
 Remaining Balance: £[New Balance]
 
@@ -501,6 +501,7 @@ Thank you for providing your current mileage. Based on our records, your vehicle
 • Vehicle: [Vehicle Reg]
 • Current Mileage: [Mileage]
 • Service Interval: [NextMileage]
+• Additional Notes: [Additional Notes]
 
 ✅ Next Steps 
 Our team will contact you shortly with a confirmed appointment date and location. Please ensure the vehicle is available and clean for the scheduled booking.
@@ -523,7 +524,8 @@ Please be advised that an appointment has been scheduled for your vehicle. Detai
 •⁠  ⁠Maintenance Type: [Maintenance Type]
 •⁠  ⁠Date: [Date]
 •⁠  ⁠Time: [Time]
-•⁠  ⁠Location: [Location]
+•⁠  Location: [Garage Name] - [Location]
+• Additional Notes: [Additional Notes]
 
 ⚡ Important Reminders
 •⁠  ⁠Attendance: Please ensure the vehicle is clean and arrives at the location on time.
@@ -549,8 +551,9 @@ This is a friendly reminder that your vehicle is scheduled for maintenance tomor
 
 📅 Appointment Details
 • Date: Tomorrow, [the maintenance date]
-• Location: [Location]
+• Location: [Garage Name] - [Location]
 • Type: [Maintenance Type]
+• Additional Notes: [Additional Notes]
 
 📍 Action Required
 • Please ensure you arrive 10 minutes early to allow for the vehicle handover.
@@ -576,8 +579,9 @@ We have booked your vehicle for its NSL (Taxi Licensing) Inspection.
 🔹 Appointment Details
 Vehicle: [Vehicle Reg]
 Date: [Date]
-Time: [Date & Time]
-Location: [Location]
+Time: [Time]
+Location: [Garage Name] - [Location]
+Additional Notes: [Additional Notes]
 
 ⚠ Mandatory Requirements
 
@@ -603,7 +607,8 @@ Your vehicle is booked for an MOT Test.
 Vehicle: [Vehicle Reg]
 Date: [Date]
 Time: [Date & Time]
-Location: [Location]
+Location: [Garage Name] - [Location]
+Additional Notes: [Additional Notes]
 
 ⚠ Important Instructions
 
@@ -631,7 +636,8 @@ We have booked your vehicle in for a Scheduled Service.
 Vehicle: [Vehicle Reg]
 Date: [Date]
 Time: [Date & Time]
-Location: [Location]
+Location: [Garage Name] - [Location]
+Additional Notes: [Additional Notes]
 
 ⚠ Instructions
 
@@ -657,8 +663,8 @@ We have successfully booked your vehicle in for its scheduled maintenance. Pleas
 Vehicle: [Vehicle Reg]
 Date: [Date]
 Time: [Date & Time]
-Location: [Location]
-Issue to be fixed: [Additional Notes]
+Location: [Garage Name] - [Location]
+Additional Notes: [Additional Notes]
 
 ⚠ Important Instructions
 •	Punctuality: Please ensure you arrive at the garage on time to avoid any delays to your work day.
@@ -682,8 +688,8 @@ Your vehicle is booked in for General Maintenance.
 Vehicle: [Vehicle Reg]
 Date: [Date]
 Time: [Date & Time]
-Location: [Location]
-Work Required: [Additional Notes]
+Location: [Garage Name] - [Location]
+Additional Notes: [Additional Notes]
 
 ⚠ Instructions
 
@@ -699,15 +705,15 @@ ${aieSkylineSignature}`,
       name: 'NSL Booking Request (Service Center)',
       subjectTemplate: 'NSL Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
-`Dear LEVC Service Team,
+`Dear  [Garage Name],
 
 I am writing to request a NSL booking for the following vehicle:
 
 🔹 Vehicle Registration Number: [Insert Reg No.]
-🔹 Service Type: Nsl booking
-🔹 Preferred Date & Time: [Insert Date & Time]
-🔹 Location: 39-41 Brewery Road, London, N7 9QH
-🔹 Additional Notes: Nsl booking required
+🔹 Service Type: [Maintenance Type]
+🔹 Preferred Date & Time: [Date & Time]
+🔹 Location: [Garage Name] - [Location]
+🔹 Additional Notes: [Additional Notes]
 
 Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
@@ -719,16 +725,16 @@ ${aieSkylineSignature}`,
       name: 'Vehicle Service Request (Service Center)',
       subjectTemplate: 'Vehicle Service Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
-`Dear LEVC Service Team,
+`Dear  [Garage Name],
 
 I am writing to request a vehicle service for the following vehicle:
 
 🔹 Vehicle Registration Number: [Insert Reg No.]
 🔹 Current Mileage: [Insert Mileage]
-🔹 Service Type: Vehicle Service
-🔹 Preferred Date & Time: [Insert Date & Time]
-🔹 Location: 39-41 Brewery Road, London, N7 9QH
-🔹 Additional Notes: Vehicle service required
+🔹 Service Type: [Maintenance Type]
+🔹 Preferred Date & Time: [Date & Time]
+🔹 Location: [Garage Name] - [Location]
+🔹 Additional Notes: [Additional Notes]
 
 Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
@@ -740,15 +746,15 @@ ${aieSkylineSignature}`,
       name: 'MOT Failure Repair Request (Service Center)',
       subjectTemplate: 'MOT Failure Repair Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
-`Dear LEVC Service Team,
+`Dear  [Garage Name],
 
 I am writing to request a MOT failure repair for the following vehicle:
 
 🔹 Vehicle Registration Number: [Insert Reg No.]
-🔹 Service Type: Mot failure repair
-🔹 Preferred Date & Time: [Insert Date & Time]
-🔹 Location: 39-41 Brewery Road, London, N7 9QH
-🔹 Additional Notes: Mot failure repair required
+🔹 Service Type: [Maintenance Type]
+🔹 Preferred Date & Time: [Date & Time]
+🔹 Location: [Garage Name] - [Location]
+🔹 Additional Notes: [Additional Notes]
 
 Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
@@ -760,15 +766,15 @@ ${aieSkylineSignature}`,
       name: 'Maintenance Repair Request (Service Center)',
       subjectTemplate: 'Maintenance Repair Booking Request – Vehicle Registration: [Insert Reg No.]',
       bodyTemplate:
-`Dear LEVC Service Team,
+`Dear  [Garage Name],
 
 Please book in the following vehicle for:
 
 🔹 Vehicle Registration Number: [Insert Reg No.]
-🔹 Service Type: Maintenance repair
-🔹 Preferred Date & Time: [Insert Date & Time]
-🔹 Location: 39-41 Brewery Road, London, N7 9QH
-🔹 Additional Notes: Maintenance repair required
+🔹 Service Type: [Maintenance Type]
+🔹 Preferred Date & Time: [Date & Time]
+🔹 Location: [Garage Name] - [Location]
+🔹 Additional Notes: [Additional Notes]
 
 Please confirm receipt of this booking. All invoices should be sent to admin@aieskyline.co.uk.
 
@@ -782,14 +788,14 @@ ${aieSkylineSignature}`,
       bodyTemplate:
 `🚕 MOT Booking Request
 
-Dear [Service Team],
+Dear  [Garage Name],
 
 I would like to request an MOT booking for the following vehicle:
 
 Vehicle Registration: [Vehicle Reg]
 Driver Name: [Driver Name]
 Preferred Date: [DD/MM/YYYY]
-Location: [Location]
+Location: [Garage Name] - [Location]
 
 Additional Notes: [Additional Notes]
 

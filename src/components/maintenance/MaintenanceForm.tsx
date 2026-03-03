@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceForm.tsx
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, query, orderBy, limit, getDocs, deleteField } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, getDocs, deleteField } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, MaintenanceLog, Part, VehicleOwner } from '../../types';
 import { addYears, format, addDays } from 'date-fns';
@@ -103,26 +103,32 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   useEffect(() => {
     const fetchNextNumbers = async () => {
       if (!editLog) {
-        const q = query(collection(db, 'maintenanceLogs'), orderBy('createdAt', 'desc'), limit(1));
-        const snapshot = await getDocs(q);
+        // Fetch all logs to reliably find the maximum sequence number
+        const snapshot = await getDocs(collection(db, 'maintenanceLogs'));
         
-        let lastOrderSeq = 0;
-        let lastInvoiceSeq = 0;
+        let maxOrderSeq = 0;
+        let maxInvoiceSeq = 0;
 
-        if (!snapshot.empty) {
-          const lastData = snapshot.docs[0].data();
-          if (lastData.orderNumber && lastData.orderNumber.startsWith('MaintenanceOrder')) {
-             const num = parseInt(lastData.orderNumber.replace('MaintenanceOrder', ''));
-             if (!isNaN(num)) lastOrderSeq = num;
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          
+          if (data.orderNumber && typeof data.orderNumber === 'string' && data.orderNumber.startsWith('MaintenanceOrder')) {
+             const num = parseInt(data.orderNumber.replace('MaintenanceOrder', ''), 10);
+             if (!isNaN(num) && num > maxOrderSeq) {
+               maxOrderSeq = num;
+             }
           }
-          if (lastData.invoiceNumber && lastData.invoiceNumber.startsWith('MaintenanceInvoice')) {
-             const num = parseInt(lastData.invoiceNumber.replace('MaintenanceInvoice', ''));
-             if (!isNaN(num)) lastInvoiceSeq = num;
+          
+          if (data.invoiceNumber && typeof data.invoiceNumber === 'string' && data.invoiceNumber.startsWith('MaintenanceInvoice')) {
+             const num = parseInt(data.invoiceNumber.replace('MaintenanceInvoice', ''), 10);
+             if (!isNaN(num) && num > maxInvoiceSeq) {
+               maxInvoiceSeq = num;
+             }
           }
-        }
+        });
 
-        const nextOrder = `MaintenanceOrder${String(lastOrderSeq + 1).padStart(4, '0')}`;
-        const nextInvoice = `MaintenanceInvoice${String(lastInvoiceSeq + 1).padStart(4, '0')}`;
+        const nextOrder = `MaintenanceOrder${String(maxOrderSeq + 1).padStart(4, '0')}`;
+        const nextInvoice = `MaintenanceInvoice${String(maxInvoiceSeq + 1).padStart(4, '0')}`;
         
         setOrderNumber(nextOrder);
         setInvoiceNumber(nextInvoice);
@@ -212,17 +218,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   useEffect(() => { if (editLog) setExistingPaidAmount(editLog.paidAmount || 0); }, [editLog]);
 
   useEffect(() => {
-    // Only auto-update mileage if not manual entry AND we are selecting a vehicle
+    // Auto-update mileage when creating or editing based directly on the selected vehicle
     if (!manualEntry && selectedVehicleId) {
       const v = vehicles.find(v => v.id === selectedVehicleId);
       if (v) {
-        // If editing, we might not want to overwrite the recorded mileage with current vehicle mileage
-        // unless the user explicitly changed the vehicle selection. 
-        // For now, we preserve behavior: update form when vehicle selected.
         setFormData(prev => ({
           ...prev,
-          currentMileage: v.mileage,
-          nextServiceMileage: v.mileage + 25000
+          currentMileage: v.mileage || 0,
+          nextServiceMileage: v.nextServiceMileage || 0
         }));
       }
     }
@@ -448,26 +451,26 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         });
   
         if (totalPaidAmount > 0) {
-  await createFinanceTransaction({
-    type: 'expense',
-    category: maintenanceData.type,
-    amount: totalPaidAmount,
-    // UPDATED DESCRIPTION: Include Order and Invoice numbers
-    description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
-    customerName: maintenanceData.serviceProvider,
-    referenceId: docRef.id,
-    vehicleId: vehicleToUseForTransaction.id,
-    vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
-    vehicleOwner,
-    accountFrom: vehicleOwner?.accountId || undefined,
-    paymentMethod: paymentMethod,
-    // UPDATED REFERENCE: Using the Invoice Number as the primary finance reference
-    paymentReference: invoiceNumber || paymentReference || undefined, 
-    paymentStatus: maintenanceData.paymentStatus,
-    status: 'completed',
-    date: new Date()
-  });
-}
+          await createFinanceTransaction({
+            type: 'expense',
+            category: maintenanceData.type,
+            amount: totalPaidAmount,
+            // UPDATED DESCRIPTION: Include Order and Invoice numbers
+            description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
+            customerName: maintenanceData.serviceProvider,
+            referenceId: docRef.id,
+            vehicleId: vehicleToUseForTransaction.id,
+            vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+            vehicleOwner,
+            accountFrom: vehicleOwner?.accountId || undefined,
+            paymentMethod: paymentMethod,
+            // UPDATED REFERENCE: Using the Invoice Number as the primary finance reference
+            paymentReference: invoiceNumber || paymentReference || undefined, 
+            paymentStatus: maintenanceData.paymentStatus,
+            status: 'completed',
+            date: new Date()
+          });
+        }
   
         if (newAttachments.length) {
           const uploaded = await uploadMaintenanceAttachments(docRef.id, newAttachments);
@@ -503,7 +506,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
   return (
     <>
-      {/* Moved OUTSIDE of the main form to prevent nesting issues */}
       <ProductFormModal 
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
@@ -550,7 +552,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               type="checkbox"
               checked={manualEntry}
               onChange={e => setManualEntry(e.target.checked)}
-              // Disabled removed to allow switching modes during edit
               className="rounded border-gray-300 text-primary focus:ring-primary"
             />
             <span className="ml-2 text-sm text-gray-600">Enter vehicle manually</span>
@@ -581,8 +582,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               onChange={e => setManualRegNumber(e.target.value)}
               required
             />
-            {/* Show initial mileage input ONLY if not editing. 
-                In edit mode, users should use the 'Current Mileage' field below to avoid duplication/confusion. */}
             {!editLog && (
               <FormField
                 type="number"
@@ -606,7 +605,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             onChange={setSelectedVehicleId}
             placeholder="Search vehicles…"
             required
-            disabled={false} // Explicitly enabled for editing
+            disabled={false} 
           />
         )}
 

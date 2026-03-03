@@ -15,6 +15,9 @@ interface DriverPayFiltersProps {
   onPeriodOverlapDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   lockFilter: string;
   onLockFilterChange: (value: string) => void;
+  // 🟢 NEW: Usage filter props
+  usageFilter: string;
+  onUsageFilterChange: (value: string) => void;
 }
 
 const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
@@ -30,6 +33,8 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
   onPeriodOverlapDateRangeChange,
   lockFilter,
   onLockFilterChange,
+  usageFilter, // 🟢 New
+  onUsageFilterChange, // 🟢 New
 }) => {
   const overlapStart = periodOverlapDateRange.start ? periodOverlapDateRange.start.toISOString().split('T')[0] : '';
   const overlapEnd   = periodOverlapDateRange.end ? periodOverlapDateRange.end.toISOString().split('T')[0] : '';
@@ -39,9 +44,9 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
       {/* Row 1: Search + quick filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
-        {/* Search spans 2 cols on sm, 3 on lg */}
-        <div className="relative sm:col-span-1 lg:col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 sm:gap-4 items-center">
+        {/* Search */}
+        <div className="relative xl:col-span-2">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" />
           </div>
@@ -55,12 +60,12 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
         </div>
 
         {/* Compact selects on the right */}
-        <div className="sm:col-span-2 lg:col-span-2 flex flex-col min-[480px]:flex-row gap-3 sm:justify-end">
+        <div className="xl:col-span-3 flex flex-wrap gap-3 xl:justify-end">
           <select
             id="statusFilter"
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="w-full sm:w-40 pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           >
             <option value="all">All Status</option>
             <option value="unpaid">Unpaid</option>
@@ -72,7 +77,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="collectionFilter"
             value={collectionFilter}
             onChange={(e) => onCollectionFilterChange(e.target.value)}
-            className="w-full sm:w-40 pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           >
             <option value="all">All Collections</option>
             <option value="OFFICE">OFFICE</option>
@@ -81,18 +86,30 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             <option value="OTHER">OTHER</option>
           </select>
             
-          {/* 🟢 REPLACED CHECKBOX WITH SELECT 🟢 */}
+          {/* 🟢 NEW: Usage Filter */}
+          <select
+            id="usageFilter"
+            value={usageFilter}
+            onChange={(e) => onUsageFilterChange(e.target.value)}
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          >
+            <option value="all">All Usage</option>
+            <option value="high_usage">High Usage (£750+)</option>
+            <option value="normal_usage">Normal Usage (£500-£749)</option>
+            <option value="low_usage">Low Usage (£100-£499)</option>
+            <option value="no_usage">No Usage (£0-£99)</option>
+          </select>
+
           <select
             id="lockFilter"
             value={lockFilter}
             onChange={(e) => onLockFilterChange(e.target.value)}
-            className="w-full sm:w-40 pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           >
             <option value="active">Active Drivers</option>
             <option value="locked">Locked Drivers</option>
             <option value="all">All Drivers</option>
           </select>
-
         </div>
       </div>
 

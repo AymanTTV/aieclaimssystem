@@ -1,3 +1,4 @@
+// src/pages/Accidents.tsx
 import React, { useState } from 'react';
 import { useAccidents } from '../hooks/useAccidents';
 
@@ -15,7 +16,7 @@ import AccidentTable from '../components/accidents/AccidentClaimTable';
 import AccidentClaimForm from '../components/accidents/AccidentClaimForm';
 import AccidentClaimView from '../components/accidents/AccidentClaimView';
 import AccidentClaimEdit from '../components/accidents/AccidentClaimEdit';
-import StatusUpdateModal from '../components/accidents/StatusUpdateModal'; // Imported new modal
+import StatusUpdateModal from '../components/accidents/StatusUpdateModal'; 
 
 import Modal from '../components/ui/Modal';
 import { useVehicles } from '../hooks/useVehicles';
@@ -47,9 +48,8 @@ const Accidents = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false); // New state for status modal
+  const [showStatusModal, setShowStatusModal] = useState(false); 
 
-  // new: toggles showing only resolved
   const [showResolvedOnly, setShowResolvedOnly] = useState(false);
 
   const handleAdd = () => {
@@ -66,7 +66,6 @@ const Accidents = () => {
     setShowEditModal(true);
   };
 
-  // New handler for Status Update
   const handleUpdateStatus = (accident: Accident) => {
     setSelectedAccident(accident);
     setShowStatusModal(true);
@@ -111,7 +110,6 @@ const Accidents = () => {
     }
   };
 
-  // Handle bulk document generation
   const handleGenerateBulkDocument = async () => {
     try {
       const pdfBlob = await generateBulkDocuments(
@@ -149,7 +147,7 @@ const Accidents = () => {
         onAdd={handleAdd}
         onStatusFilterChange={setStatusFilter}
         onGeneratePDF={handleGenerateBulkDocument}
-        accidents={accidents} // Pass the accidents array for summary calculations
+        accidents={displayedAccidents} // <-- CHANGED THIS to use the filtered records
       />
 
       <AccidentFilters
@@ -183,7 +181,7 @@ const Accidents = () => {
         vehicles={vehicles}
         onView={handleView}
         onEdit={handleEdit}
-        onUpdateStatus={handleUpdateStatus} // Passed new handler
+        onUpdateStatus={handleUpdateStatus} 
         onDelete={acc => {
           setSelectedAccident(acc);
           setShowDeleteModal(true);

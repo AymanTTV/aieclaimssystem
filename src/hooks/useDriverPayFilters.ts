@@ -3,8 +3,29 @@
 import { useState, useMemo } from 'react';
 import { DriverPay } from '../types/driverPay';
 // Import necessary date-fns functions
-import { isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns'; // Added isValid
+import { isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns';
 
+// --- NEW Helper: Calculate Usage based on latest 2 periods ---
+const getDriverUsage = (periods: any[]): string => {
+  if (!periods || periods.length === 0) return 'no_usage';
+
+  // Sort by endDate descending to get the latest 2 periods
+  const sortedPeriods = [...periods].sort((a, b) => {
+    const aEnd = a.endDate instanceof Date ? a.endDate.getTime() : a.endDate?.toDate?.().getTime() || 0;
+    const bEnd = b.endDate instanceof Date ? b.endDate.getTime() : b.endDate?.toDate?.().getTime() || 0;
+    return bEnd - aEnd;
+  });
+
+  const latestTwo = sortedPeriods.slice(0, 2);
+  const sumNetPay = latestTwo.reduce((sum, p) => sum + (Number(p.netPay) || 0), 0);
+  const avgNetPay = sumNetPay / latestTwo.length;
+
+  if (avgNetPay < 100) return 'no_usage';
+  if (avgNetPay >= 100 && avgNetPay < 500) return 'low_usage';
+  if (avgNetPay >= 500 && avgNetPay < 750) return 'normal_usage';
+  return 'high_usage'; // 750+
+};
+// -------------------------------------------------------------
 
 export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,11 +41,14 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
     start: null,
     end: null,
   });
+  
+  // 🟢 NEW state for Usage Filter
+  const [usageFilter, setUsageFilter] = useState('all'); // 'all', 'no_usage', 'low_usage', 'normal_usage', 'high_usage'
 
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
-      // 🟢 NEW: Filter by locked status
+      // Filter by locked status
       let matchesLockStatus = true;
       if (lockFilter === 'locked') {
         matchesLockStatus = record.isLocked === true;
@@ -32,8 +56,15 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
         matchesLockStatus = record.isLocked !== true;
       }
       // For 'all', matchesLockStatus remains true.
-
       if (!matchesLockStatus) return false;
+
+      // 🟢 NEW: Filter by Usage Tier
+      let matchesUsage = true;
+      if (usageFilter !== 'all') {
+        const driverUsage = getDriverUsage(record.paymentPeriods);
+        matchesUsage = driverUsage === usageFilter;
+      }
+      if (!matchesUsage) return false;
 
       // Search filter
       const searchLower = searchQuery.toLowerCase();
@@ -46,8 +77,7 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
       // Collection filter
       const matchesCollection = collectionFilter === 'all' || record.collection === collectionFilter;
 
-
-      // New: Period Overlap Filter
+      // Period Overlap Filter
       let matchesPeriodOverlapDateRange = true;
       if (periodOverlapDateRange.start || periodOverlapDateRange.end) {
           // If either start or end of the overlap filter is set,
@@ -62,7 +92,6 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
                        console.warn('Invalid period date found for overlap check:', period.startDate, period.endDate);
                        return false; // This period is invalid, doesn't match
                   }
-
 
                   // Check for overlap: The periods overlap if the period starts before the filter ends
                   // AND the period ends after the filter starts.
@@ -92,14 +121,12 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
       }
        // If periodOverlapDateRange.start and end are both null, matchesPeriodOverlapDateRange remains true.
 
-
       // Existing: Filter *payment periods* based on status and *exact* period date match
       // Records must match overall filters AND have at least one payment period matching the *exact* period filters.
       // We chain the filters here.
       if (!matchesSearch || !matchesCollection || !matchesPeriodOverlapDateRange) {
           return false; // Exclude record early if overall filters don't match
       }
-
 
       // Now, filter the payment periods *within* the matching records
       // This ensures that when we map the records later, they only contain the periods
@@ -129,7 +156,6 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
                       const filterStart = periodDateRange.start ? startOfDay(periodDateRange.start) : null;
                       const filterEnd = periodDateRange.end ? startOfDay(periodDateRange.end) : null; // Use startOfDay for end filter date too for exact match comparison
 
-
                        // Check for exact match based on start of day
                        const matchesExactStart = filterStart ? pStart.getTime() === filterStart.getTime() : true;
                        const matchesExactEnd = filterEnd ? pEnd.getTime() === filterEnd.getTime() : true;
@@ -155,7 +181,6 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
                matchesPeriodDateRange = false; // Exclude if date is invalid
             }
         }
-
 
         return matchesStatus && matchesPeriodDateRange;
       });
@@ -202,11 +227,10 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
                }
             }
 
-
             return matchesStatus && matchesPeriodDateRange;
         })
     }));
-  }, [records, searchQuery, statusFilter, collectionFilter, periodDateRange, periodOverlapDateRange, lockFilter]);
+  }, [records, searchQuery, statusFilter, collectionFilter, periodDateRange, periodOverlapDateRange, lockFilter, usageFilter]); // <-- Added usageFilter to dependencies
 
 
   const summary = useMemo(() => {
@@ -252,8 +276,10 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
     setCollectionFilter,
     periodDateRange,
     setPeriodDateRange,
-    periodOverlapDateRange, // Updated name
-    setPeriodOverlapDateRange, // Updated name
+    periodOverlapDateRange,
+    setPeriodOverlapDateRange,
+    usageFilter, // 🟢 Export the new state
+    setUsageFilter, // 🟢 Export the new setter
     filteredRecords,
     summary,
   };
