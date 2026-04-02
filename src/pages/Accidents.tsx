@@ -50,7 +50,7 @@ const Accidents = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false); 
 
-  const [showResolvedOnly, setShowResolvedOnly] = useState(false);
+  // const [showResolvedOnly, setShowResolvedOnly] = useState(false);
 
   const handleAdd = () => {
     setShowAddModal(true);
@@ -134,8 +134,10 @@ const Accidents = () => {
     );
   }
 
-  const displayedAccidents = showResolvedOnly
-    ? filteredAccidents.filter(a => a.status === 'resolved')
+  // Hide 'resolved' records when viewing 'all'. 
+  // If a specific filter (like 'resolved') is selected, useAccidentFilters handles it.
+  const displayedAccidents = statusFilter === 'all' 
+    ? filteredAccidents.filter(a => a.status !== 'resolved')
     : filteredAccidents;
 
   return (
@@ -163,7 +165,7 @@ const Accidents = () => {
         onDateRangeChange={setDateRange}
       />
 
-      <div className="flex items-center space-x-2">
+      {/* <div className="flex items-center space-x-2">
         <input
           id="showResolved"
           type="checkbox"
@@ -174,7 +176,7 @@ const Accidents = () => {
         <label htmlFor="showResolved" className="text-sm text-gray-700">
           Show only completed (resolved) accidents
         </label>
-      </div>
+      </div> */}
 
       <AccidentTable
         accidents={displayedAccidents}

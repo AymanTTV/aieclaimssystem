@@ -3,6 +3,7 @@ import React from 'react';
 import { Eye, Pencil, Bell, Phone, Trash2 } from 'lucide-react';
 import type { WaitingEntry, WaitingStatus } from '../../types/waiting';
 import { usePermissions } from '../../hooks/usePermissions';
+
 type Props = {
   entries: WaitingEntry[];
   categoriesById: Record<string, string>;
@@ -13,8 +14,6 @@ type Props = {
   onReminder: (e: WaitingEntry) => void;
   onStatusChange: (e: WaitingEntry, status: WaitingStatus) => void;
   onDelete?: (e: WaitingEntry) => void;
-  canUpdate?: boolean; // ✨ ADDED
-  canDelete?: boolean; // ✨ ADDED
 };
 
 const WaitingTable: React.FC<Props> = ({
@@ -26,10 +25,9 @@ const WaitingTable: React.FC<Props> = ({
   onReminder,
   onStatusChange,
   onDelete,
-  canUpdate, // ✨ ADDED
-  canDelete, // ✨ ADDED
 }) => {
   const { can } = usePermissions();
+
   return (
     <div className="bg-white border rounded">
       <table className="w-full text-sm">
@@ -58,19 +56,23 @@ const WaitingTable: React.FC<Props> = ({
                 {e.waitingType === 'open' ? 'Open' : 'Specific Date'}
               </td>
               <td className="px-3 py-2">
-                {can('waiting', 'update') && (
-                <select
-                  value={e.status}
-                  onChange={(ev) => onStatusChange(e, ev.target.value as WaitingStatus)}
-                  className="form-select text-xs"
-                >
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="waiting">Waiting</option>
-                  <option value="offered">Offered</option>
-                  <option value="booked">Booked</option>
-                  <option value="not_proceeding">Not Proceeding</option>
-                </select>
+                {can('waiting', 'update') ? (
+                  <select
+                    value={e.status}
+                    onChange={(ev) => onStatusChange(e, ev.target.value as WaitingStatus)}
+                    className="form-select text-xs w-full"
+                  >
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="waiting">Waiting</option>
+                    <option value="offered">Offered</option>
+                    <option value="booked">Booked</option>
+                    <option value="not_proceeding">Not Proceeding</option>
+                  </select>
+                ) : (
+                  <span className="capitalize text-xs font-medium px-2.5 py-1 rounded bg-gray-100 text-gray-700">
+                    {e.status.replace('_', ' ')}
+                  </span>
                 )}
               </td>
               <td className="px-3 py-2">
@@ -79,46 +81,46 @@ const WaitingTable: React.FC<Props> = ({
               <td className="px-3 py-2">
                 <div className="flex items-center justify-end gap-1.5">
                   {can('waiting', 'view') && (
-                  <button
-                    className="p-1.5 rounded hover:bg-gray-100"
-                    title="View"
-                    onClick={() => onView(e)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100 text-blue-600"
+                      title="View"
+                      onClick={() => onView(e)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                   )}
                   {can('waiting', 'update') && (
                     <button
-                      className="p-1.5 rounded hover:bg-gray-100"
+                      className="p-1.5 rounded hover:bg-gray-100 text-indigo-600"
                       title="Edit"
                       onClick={() => onEdit(e)}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
-                  {can('waiting', 'update') && (
-                  <button
-                    className="p-1.5 rounded hover:bg-gray-100"
-                    title="Reminder"
-                    onClick={() => onReminder(e)}
-                  >
-                    <Bell className="h-4 w-4" />
-                  </button>
+                  {can('waiting', 'reminder') && (
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100 text-yellow-600"
+                      title="Reminder"
+                      onClick={() => onReminder(e)}
+                    >
+                      <Bell className="h-4 w-4" />
+                    </button>
                   )}
-                  {can('waiting', 'view') && (
-                  <button
-                    className="p-1.5 rounded hover:bg-gray-100"
-                    title="Quick Contact"
-                    onClick={() => onQuickContact(e)}
-                  >
-                    <Phone className="h-4 w-4" />
-                  </button>
+                  {can('waiting', 'quickContact') && (
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100 text-green-600"
+                      title="Quick Contact"
+                      onClick={() => onQuickContact(e)}
+                    >
+                      <Phone className="h-4 w-4" />
+                    </button>
                   )}
                   {can('waiting', 'delete') && (
                     <button
                       className="p-1.5 rounded hover:bg-red-50 text-red-600"
                       title="Delete"
-                      onClick={() => onDelete(e)}
+                      onClick={() => onDelete?.(e)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

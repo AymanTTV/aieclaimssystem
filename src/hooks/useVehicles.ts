@@ -1,23 +1,20 @@
+// src/hooks/useVehicles.ts
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
-import { ensureValidDate } from '../utils/dateHelpers'; // Ensure this utility exists and is properly implemented
-
-// Utility function to handle conversion of Firebase Timestamp or Date
-function ensureValidDate(value: any): Date | null {
-  if (!value) return null; // Return null if undefined or null
-  if (value.toDate) return value.toDate(); // Firestore Timestamp
-  if (value instanceof Date) return value; // Already a Date object
-  return null; // For any other invalid formats
-}
+import { ensureValidDate } from '../utils/dateHelpers'; 
+import { useAuth } from '../context/AuthContext'; // ✅ Import Auth context
 
 export const useVehicles = () => {
+  const { user } = useAuth(); // ✅ Get logged in user
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user) return; // Wait until auth is loaded
+
     const q = query(collection(db, 'vehicles'), orderBy('make'));
 
     const unsubscribe = onSnapshot(
@@ -26,10 +23,16 @@ export const useVehicles = () => {
         const vehicleData: Vehicle[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+
+          // ✅ SECURITY RULE: If the user has a 'company' role, 
+          // filter out any vehicle that isn't explicitly assigned to their user ID.
+          if (user.role === 'company' && data.assignedGarageId !== user.id) {
+             return; 
+          }
+
           vehicleData.push({
             id: doc.id,
             ...data,
-            // Ensure all date fields are valid Date objects
             insuranceExpiry: ensureValidDate(data.insuranceExpiry),
             motExpiry: ensureValidDate(data.motExpiry),
             nslExpiry: ensureValidDate(data.nslExpiry),
@@ -38,8 +41,10 @@ export const useVehicles = () => {
             nextMaintenance: ensureValidDate(data.nextMaintenance),
             createdAt: ensureValidDate(data.createdAt),
             updatedAt: ensureValidDate(data.updatedAt),
+            purchasedDate: ensureValidDate(data.purchasedDate),
           } as Vehicle);
         });
+        
         setVehicles(vehicleData);
         setLoading(false);
       },
@@ -50,7 +55,7 @@ export const useVehicles = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   return { vehicles, loading, error };
 };

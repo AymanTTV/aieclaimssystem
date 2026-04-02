@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { Search } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect'; 
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface VehicleFiltersProps {
   searchQuery: string;
@@ -31,7 +32,9 @@ const EXPIRY_OPTIONS = [
   { id: 'nsl', label: 'NSL Expiry' },
   { id: 'tax', label: 'Road Tax Expiry' },
   { id: 'insurance', label: 'Insurance Expiry' },
-  { id: 'maintenance', label: 'Near Maintenance' },
+  { id: 'maintenance', label: 'Near Maintenance (Date/1k mi)' },
+  { id: 'service_soon', label: 'Service Due Soon (< 5,000 mi)' }, 
+  { id: 'needs_update', label: 'Monthly Update Needed (28th)' }, // UPDATED LABEL
 ];
 
 const VehicleFilters: React.FC<VehicleFiltersProps> = ({
@@ -52,6 +55,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   onAccountFilterChange,
   accounts,
 }) => {
+  const { isCompany } = usePermissions(); // ✅ Get the isCompany flag
 
   const accountOptions = useMemo(() => [
     { id: 'all', label: 'All Accounts' },
@@ -80,17 +84,19 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         </div>
       </div>
 
-      {/* Account Filter (NEW) */}
-      <div className="relative">
-         <SearchableSelect
-            label="Account"
-            options={accountOptions}
-            value={accountFilter}
-            onChange={onAccountFilterChange}
-            placeholder="Select account..."
-            isClearable={false}
-         />
-      </div>
+      {/* Account Filter (NEW) - ✅ Hidden for Company */}
+      {!isCompany && (
+        <div className="relative">
+           <SearchableSelect
+              label="Account"
+              options={accountOptions}
+              value={accountFilter}
+              onChange={onAccountFilterChange}
+              placeholder="Select account..."
+              isClearable={false}
+           />
+        </div>
+      )}
 
       {/* Status */}
       <div>
@@ -141,15 +147,18 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
 
       {/* Toggles */}
       <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-3 pt-2">
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={showSold}
-            onChange={(e) => onShowSoldChange(e.target.checked)}
-            className="rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <span className="text-sm text-gray-700">Show Sold</span>
-        </label>
+        {/* ✅ Hidden for Company */}
+        {!isCompany && (
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={showSold}
+              onChange={(e) => onShowSoldChange(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-700">Show Sold</span>
+          </label>
+        )}
 
         <label className="flex items-center space-x-2">
           <input

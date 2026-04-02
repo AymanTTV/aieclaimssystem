@@ -18,7 +18,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
 import { VDFinanceDocument, VDFinanceBulkDocument } from '../components/pdf/documents';
-
+import { moveToTrash } from '../utils/trashService';
 // NEW: Manage modals
 import ManageVDFinanceCategoriesModal from '../components/vdFinance/ManageVDFinanceCategoriesModal';
 import ManageVDFinanceGroupsModal from '../components/vdFinance/ManageVDFinanceGroupsModal';
@@ -102,8 +102,21 @@ const VDFinance: React.FC = () => {
 
   const handleDelete = async (record: VDFinanceRecord) => {
     try {
-      await deleteDoc(doc(db, 'vdFinance', record.id));
-      toast.success('Record deleted successfully');
+      // 1. Create a readable name for the Trash page table
+      const displayName = record.reference 
+        ? `VD Finance Ref: ${record.reference}` 
+        : `VD Finance - ${record.name || record.registration}`;
+
+      // 2. Move to trash instead of permanent deletion
+      await moveToTrash(
+        'vdFinance', 
+        record.id, 
+        record, 
+        user?.id || 'system', 
+        displayName
+      );
+
+      toast.success('Record moved to trash');
       setDeletingRecord(null);
     } catch (error) {
       console.error('Error deleting record:', error);
@@ -206,21 +219,26 @@ const VDFinance: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">VD Finance</h1>
 
         <div className="flex flex-wrap items-center gap-2">
-          {user?.role === 'manager' && (
-            <>
+          
+              {can('vdFinance', 'export') && (
               <button onClick={handleGeneratePDF} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                 <FileText className="h-5 w-5 mr-2" /> Generate PDF
               </button>
+              )}
 
               {/* NEW: manage buttons */}
+              {can('vdFinance', 'categories') && (
               <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
                 Manage Categories
               </button>
+              )}
+              {can('vdFinance', 'groups') && (
               <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
                 Manage Groups
               </button>
-            </>
-          )}
+              )}
+            
+          
 
           {can('vdFinance', 'export') && (
             <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">

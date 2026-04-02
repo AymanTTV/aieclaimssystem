@@ -9,6 +9,9 @@ import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import { Upload } from 'lucide-react';
 import { X } from 'lucide-react';
+import SearchableSelect from '../ui/SearchableSelect';
+import { useCustomers } from '../../hooks/useCustomers';
+import { useVehicles } from '../../hooks/useVehicles';
 
 interface AccidentClaimEditProps {
   accident: Accident;
@@ -17,22 +20,31 @@ interface AccidentClaimEditProps {
 
 const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose }) => {
   const { user } = useAuth();
+  const { customers } = useCustomers();
+  const { vehicles } = useVehicles();
+  
   const [loading, setLoading] = useState(false);
   const [passengerCount, setPassengerCount] = useState(accident.passengers?.length || 0);
   const [witnessCount, setWitnessCount] = useState(accident.witnesses?.length || 0);
-  const [images, setImages] = useState<FileList | null>(null);
   const [existingImages] = useState<string[]>(accident.images || []);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [removedImages, setRemovedImages] = useState<string[]>([]);
-
   const [imagePreviews, setImagePreviews] = useState<string[]>(accident.images || []);
 
+  // --- Auto-fill State ---
+  const [manualEntry, setManualEntry] = useState(true); // Default true to show existing data
+  const [manualVehicleEntry, setManualVehicleEntry] = useState(true); // Default true
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [driverDetailsVisible, setDriverDetailsVisible] = useState(true);
+  const [vehicleDetailsVisible, setVehicleDetailsVisible] = useState(true);
+
   const [formData, setFormData] = useState({
+    isReported: accident.isReported || false, 
     referenceNo: String(accident.refNo ?? accident.referenceNo ?? ''),
     referenceName: accident.referenceName || '',
     driverName: accident.driverName,
     driverAddress: accident.driverAddress,
-    // driverPostCode removed
     driverDOB: accident.driverDOB,
     driverPhone: accident.driverPhone,
     driverMobile: accident.driverMobile,
@@ -47,7 +59,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     policyExcess: accident.policyExcess || '',
     faultPartyName: accident.faultPartyName,
     faultPartyAddress: accident.faultPartyAddress || '',
-    // faultPartyPostCode removed
     faultPartyPhone: accident.faultPartyPhone || '',
     faultPartyVehicle: accident.faultPartyVehicle || '',
     faultPartyVRN: accident.faultPartyVRN,
@@ -65,21 +76,20 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     paramedicNames: accident.paramedicNames || '',
     ambulanceReference: accident.ambulanceReference || '',
     ambulanceService: accident.ambulanceService || '',
-    status: accident.status,
+    status: accident.status === 'reported' ? 'pending' : (accident.status || 'pending'),
     type: accident.type || 'pending',
+    otherTypeDescription: accident.otherTypeDescription || '',
     claimStatus: accident.claimStatus || 'pending',
     amount: accident.amount !== undefined ? accident.amount : 0,
     passengers: accident.passengers || Array(4).fill({
       name: '',
       address: '',
-      // postCode removed
       dob: '',
       contactNumber: ''
     }),
     witnesses: accident.witnesses || Array(3).fill({
       name: '',
       address: '',
-      // postCode removed
       dob: '',
       contactNumber: ''
     })
@@ -108,17 +118,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
       setImageFiles(filesArray);
       const newPreviews = filesArray.map(file => URL.createObjectURL(file));
       setImagePreviews(newPreviews);
-    }
-  };
-
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputValue = e.target.value;
-    const parsedValue = parseFloat(inputValue);
-
-    if (isNaN(parsedValue)) {
-      setFormData({ ...formData, amount: 0 });
-    } else {
-      setFormData({ ...formData, amount: parsedValue });
     }
   };
 
@@ -154,7 +153,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         })
       );
 
-      const updatedImages = accident.images.filter((img) => !removedImages.includes(img));
+      const updatedImages = accident.images?.filter((img) => !removedImages.includes(img)) || [];
       const allImages = [...updatedImages, ...newImageUrls];
 
       const refNoValueRaw = (formData.referenceNo ?? '').toString().trim();
@@ -166,6 +165,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         refNo: refNoValue,
         referenceNo: refNoValue,
         images: allImages,
+        otherTypeDescription: formData.type === 'other' ? formData.otherTypeDescription : '',
         updatedAt: new Date(),
         updatedBy: user.id,
       });
@@ -182,6 +182,8 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      
+      {/* Reference Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Reference Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -200,147 +202,425 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Claim Type</label>
-          <select
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as 'fault' | 'non-fault' | 'pending' })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-          >
-            <option value="pending">Pending</option>
-            <option value="fault">Fault</option>
-            <option value="non-fault">Non-Fault</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Claim Status</label>
-          <select
-            value={formData.claimStatus}
-            onChange={(e) => setFormData({ ...formData, claimStatus: e.target.value as 'pending' | 'approved' | 'rejected' | 'settled' })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-          >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="settled">Settled</option>
-          </select>
-        </div>
-
-        <FormField
-          type="number"
-          label={`${formData.type === 'fault' ? 'Fault' : 'Non-Fault'} Amount`}
-          value={displayAmount}
-          onChange={handleDisplayAmountChange}
-          onBlur={handleAmountBlur}
-          required
-          min="0"
-          step="0.01"
-        />
-      </div>
-
+      {/* Claim Status & Workflow */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Driver Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            label="Name"
-            value={formData.driverName}
-            onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
-            required
-          />
-          <FormField
-            label="Address"
-            value={formData.driverAddress}
-            onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
-            required
-          />
-          {/* Post Code Field Removed */}
-          <FormField
-            type="date"
-            label="Date of Birth"
-            value={formData.driverDOB}
-            onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Telephone Number"
-            value={formData.driverPhone}
-            onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
-            required
-          />
-          <FormField
-            type="tel"
-            label="Mobile Number"
-            value={formData.driverMobile}
-            onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
-            required
-          />
-          <FormField
-            label="National Insurance Number"
-            value={formData.driverNIN}
-            onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
-            required
-          />
+        <h3 className="text-lg font-medium text-gray-900">Claim Status & Workflow</h3>
+        
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.isReported}
+              onChange={(e) => setFormData({ ...formData, isReported: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-blue-900">Mark Accident as Officially Reported</span>
+          </label>
         </div>
-      </div>
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Vehicle Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            label="Registered Keeper Name"
-            value={formData.registeredKeeperName}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
-            required
-          />
-          <FormField
-            label="Registered Keeper Address"
-            value={formData.registeredKeeperAddress}
-            onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
-          />
-          <FormField
-            label="Vehicle Make"
-            value={formData.vehicleMake}
-            onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle Model"
-            value={formData.vehicleModel}
-            onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
-            required
-          />
-          <FormField
-            label="Vehicle VRN"
-            value={formData.vehicleVRN}
-            onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
-            required
-          />
-          <FormField
-            label="Insurance Company"
-            value={formData.insuranceCompany}
-            onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
-          />
-          <FormField
-            label="Policy Number"
-            value={formData.policyNumber}
-            onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Workflow Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="investigating">Investigating</option>
+              <option value="processing">Processing</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Claim Type</label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="fault">Fault</option>
+              <option value="non-fault">Non-Fault</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          {formData.type === 'other' && (
+            <div className="md:col-span-2">
+              <FormField
+                label="Please describe the 'Other' type"
+                value={formData.otherTypeDescription}
+                onChange={(e) => setFormData({ ...formData, otherTypeDescription: e.target.value })}
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Claim Approval Status</label>
+            <select
+              value={formData.claimStatus}
+              onChange={(e) => setFormData({ ...formData, claimStatus: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="settled">Settled</option>
+            </select>
+          </div>
           <FormField
             type="number"
-            label="Policy Excess (£)"
-            value={formData.policyExcess}
-            onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
+            label={`${formData.type === 'fault' ? 'Fault' : formData.type === 'non-fault' ? 'Non-Fault' : 'Claim'} Amount`}
+            value={displayAmount}
+            onChange={handleDisplayAmountChange}
+            onBlur={handleAmountBlur}
+            required
             min="0"
             step="0.01"
           />
         </div>
       </div>
 
+      {/* Driver Details */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Driver Details</h3>
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={manualEntry}
+              onChange={(e) => {
+                setManualEntry(e.target.checked);
+                if (!e.target.checked) {
+                  setFormData(prev => ({
+                    ...prev,
+                    driverName: '',
+                    driverAddress: '',
+                    driverDOB: '',
+                    driverPhone: '',
+                    driverMobile: '',
+                    driverNIN: ''
+                  }));
+                }
+              }}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-700">Enter/Edit Driver Details Manually</span>
+          </label>
+        </div>
+
+        {!manualEntry ? (
+          <SearchableSelect
+            label="Select Customer"
+            options={customers.map(c => ({
+              id: c.id,
+              label: c.name,
+              subLabel: `${c.mobile} - ${c.email}`
+            }))}
+            value={selectedCustomerId}
+            onChange={(id) => {
+              const customer = customers.find(c => c.id === id);
+              setSelectedCustomerId(id);
+              setDriverDetailsVisible(!!customer);
+
+              if (customer) {
+                setFormData(prev => ({
+                  ...prev,
+                  driverName: customer.name,
+                  driverAddress: customer.address,
+                  driverDOB: customer.dateOfBirth ? new Date(customer.dateOfBirth).toISOString().split('T')[0] : '',
+                  driverPhone: customer.mobile,
+                  driverMobile: customer.mobile,
+                  driverNIN: customer.nationalInsuranceNumber || ''
+                }));
+              } else {
+                setFormData(prev => ({
+                  ...prev,
+                  driverName: '',
+                  driverAddress: '',
+                  driverDOB: '',
+                  driverPhone: '',
+                  driverMobile: '',
+                  driverNIN: ''
+                }));
+                setDriverDetailsVisible(false);
+              }
+            }}
+            placeholder="Search customers..."
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Name"
+              value={formData.driverName}
+              onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Address"
+              value={formData.driverAddress}
+              onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
+              required
+            />
+            <FormField
+              type="date"
+              label="Date of Birth"
+              value={formData.driverDOB}
+              onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Telephone Number"
+              value={formData.driverPhone}
+              onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Mobile Number"
+              value={formData.driverMobile}
+              onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
+              required
+            />
+            <FormField
+              label="National Insurance Number"
+              value={formData.driverNIN}
+              onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
+              required
+            />
+          </div>
+        )}
+        
+        {driverDetailsVisible && !manualEntry && ( 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Name"
+              value={formData.driverName}
+              onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Address"
+              value={formData.driverAddress}
+              onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
+              required
+            />
+            <FormField
+              type="date"
+              label="Date of Birth"
+              value={formData.driverDOB}
+              onChange={(e) => setFormData({ ...formData, driverDOB: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Telephone Number"
+              value={formData.driverPhone}
+              onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })}
+              required
+            />
+            <FormField
+              type="tel"
+              label="Mobile Number"
+              value={formData.driverMobile}
+              onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
+              required
+            />
+            <FormField
+              label="National Insurance Number"
+              value={formData.driverNIN}
+              onChange={(e) => setFormData({ ...formData, driverNIN: e.target.value })}
+              required
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Vehicle Details */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Vehicle Details</h3>
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={manualVehicleEntry}
+              onChange={(e) => {
+                setManualVehicleEntry(e.target.checked);
+                if (!e.target.checked) {
+                  setFormData(prev => ({
+                    ...prev,
+                    registeredKeeperName: '',
+                    registeredKeeperAddress: '',
+                    vehicleMake: '',
+                    vehicleModel: '',
+                    vehicleVRN: '',
+                    insuranceCompany: '',
+                    policyNumber: '',
+                    policyExcess: ''
+                  }));
+                }
+              }}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-700">Enter/Edit Vehicle Details Manually</span>
+          </label>
+        </div>
+
+        {!manualVehicleEntry ? (
+          <SearchableSelect
+            label="Select Vehicle"
+            options={vehicles.map(v => ({
+              id: v.id,
+              label: `${v.make} ${v.model}`,
+              subLabel: v.registrationNumber
+            }))}
+            value={selectedVehicleId}
+            onChange={(id) => {
+              const vehicle = vehicles.find(v => v.id === id);
+              setSelectedVehicleId(id);
+              setVehicleDetailsVisible(!!vehicle);
+
+              if (vehicle) {
+                setFormData(prev => ({
+                  ...prev,
+                  registeredKeeperName: vehicle.owner?.name || 'AIE Skyline',
+                  registeredKeeperAddress: vehicle.owner?.address || '',
+                  vehicleMake: vehicle.make,
+                  vehicleModel: vehicle.model,
+                  vehicleVRN: vehicle.registrationNumber,
+                  // Keep whatever is currently inputted if the DB doesn't have it explicitly
+                  insuranceCompany: formData.insuranceCompany || '',
+                  policyNumber: formData.policyNumber || '',
+                  policyExcess: formData.policyExcess || ''
+                }));
+              } else {
+                setFormData(prev => ({
+                   ...prev,
+                  registeredKeeperName: '',
+                  registeredKeeperAddress: '',
+                  vehicleMake: '',
+                  vehicleModel: '',
+                  vehicleVRN: '',
+                  insuranceCompany: '',
+                  policyNumber: '',
+                  policyExcess: ''
+                }));
+                setVehicleDetailsVisible(false);
+              }
+            }}
+            placeholder="Search vehicles..."
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Registered Keeper Name"
+              value={formData.registeredKeeperName}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Registered Keeper Address"
+              value={formData.registeredKeeperAddress}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
+            />
+            <FormField
+              label="Vehicle Make"
+              value={formData.vehicleMake}
+              onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle Model"
+              value={formData.vehicleModel}
+              onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle VRN"
+              value={formData.vehicleVRN}
+              onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
+              required
+            />
+            <FormField
+              label="Insurance Company"
+              value={formData.insuranceCompany}
+              onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
+            />
+            <FormField
+              label="Policy Number"
+              value={formData.policyNumber}
+              onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
+            />
+            <FormField
+              type="number"
+              label="Policy Excess (£)"
+              value={formData.policyExcess}
+              onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
+              min="0"
+              step="0.01"
+            />
+          </div>
+        )}
+        {vehicleDetailsVisible && !manualVehicleEntry && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              label="Registered Keeper Name"
+              value={formData.registeredKeeperName}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperName: e.target.value })}
+              required
+            />
+            <FormField
+              label="Registered Keeper Address"
+              value={formData.registeredKeeperAddress}
+              onChange={(e) => setFormData({ ...formData, registeredKeeperAddress: e.target.value })}
+            />
+            <FormField
+              label="Vehicle Make"
+              value={formData.vehicleMake}
+              onChange={(e) => setFormData({ ...formData, vehicleMake: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle Model"
+              value={formData.vehicleModel}
+              onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+              required
+            />
+            <FormField
+              label="Vehicle VRN"
+              value={formData.vehicleVRN}
+              onChange={(e) => setFormData({ ...formData, vehicleVRN: e.target.value })}
+              required
+            />
+            <FormField
+              label="Insurance Company"
+              value={formData.insuranceCompany}
+              onChange={(e) => setFormData({ ...formData, insuranceCompany: e.target.value })}
+            />
+            <FormField
+              label="Policy Number"
+              value={formData.policyNumber}
+              onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
+            />
+            <FormField
+              type="number"
+              label="Policy Excess (£)"
+              value={formData.policyExcess}
+              onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
+              min="0"
+              step="0.01"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Fault Party Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Fault Party Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -355,7 +635,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             value={formData.faultPartyAddress}
             onChange={(e) => setFormData({ ...formData, faultPartyAddress: e.target.value })}
           />
-          {/* Post Code Field Removed */}
           <FormField
             type="tel"
             label="Phone Number"
@@ -381,6 +660,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         </div>
       </div>
 
+      {/* Accident Details */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Accident Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -425,37 +705,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         </div>
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Claim Status</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as Accident['status'] })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="reported">Reported</option>
-              <option value="investigating">Investigating</option>
-              <option value="processing">Processing</option>
-              <option value="resolved">Resolved</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Type</label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="pending">Pending</option>
-              <option value="fault">Fault</option>
-              <option value="non-fault">Non-Fault</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
+      {/* Passenger Details */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Passenger Details</h3>
@@ -484,7 +734,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
                 value={formData.passengers[index].address}
                 onChange={(e) => handlePassengerChange(index, 'address', e.target.value)}
               />
-              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -502,6 +751,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         ))}
       </div>
 
+      {/* Witness Details */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Witness Details</h3>
@@ -530,7 +780,6 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
                 value={formData.witnesses[index].address}
                 onChange={(e) => handleWitnessChange(index, 'address', e.target.value)}
               />
-              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -548,6 +797,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         ))}
       </div>
 
+      {/* Police Information */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Police Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -581,6 +831,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         </div>
       </div>
 
+      {/* Paramedic Information */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Paramedic Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -602,6 +853,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         </div>
       </div>
 
+      {/* Images Section */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Images</label>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -630,6 +882,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
                   accept="image/*"
                   onChange={handleImageChange}
                   className="sr-only"
+                  id="fileInput"
                 />
               </label>
               <p className="pl-1">or drag and drop</p>

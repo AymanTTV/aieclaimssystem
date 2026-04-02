@@ -12,6 +12,7 @@ export const useRentalFilters = (
   const [typeFilter, setTypeFilter] = useState('all');
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [reasonFilter, setReasonFilter] = useState<RentalReason | 'all'>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
 
@@ -55,6 +56,14 @@ export const useRentalFilters = (
       let matchesReason = true;
       if (reasonFilter !== 'all') {
         matchesReason = rental.reason === reasonFilter;
+      }
+
+      // --- ADDED: Payment Status Logic ---
+      let matchesPaymentStatus = true;
+      if (paymentStatusFilter !== 'all') {
+        // If a rental lacks a paymentStatus field, we treat it as pending/unpaid
+        const currentStatus = rental.paymentStatus || 'pending';
+        matchesPaymentStatus = currentStatus === paymentStatusFilter;
       }
 
       let matchesDateRange = true;
@@ -109,6 +118,7 @@ export const useRentalFilters = (
         matchesType &&
         matchesVehicle &&
         matchesReason &&
+        matchesPaymentStatus &&
         matchesDateRange
       );
     });
@@ -121,6 +131,7 @@ export const useRentalFilters = (
     typeFilter,
     vehicleFilter,
     reasonFilter,
+    paymentStatusFilter,
     startDateFilter,
     endDateFilter,
   ]);
@@ -136,6 +147,8 @@ export const useRentalFilters = (
     setVehicleFilter,
     reasonFilter,
     setReasonFilter,
+    paymentStatusFilter, // <-- ADDED
+    setPaymentStatusFilter, // <-- ADDED
     startDateFilter,
     setStartDateFilter,
     endDateFilter,

@@ -795,6 +795,7 @@ I would like to request an MOT booking for the following vehicle:
 Vehicle Registration: [Vehicle Reg]
 Driver Name: [Driver Name]
 Preferred Date: [DD/MM/YYYY]
+Preferred Time: [Time]
 Location: [Garage Name] - [Location]
 
 Additional Notes: [Additional Notes]

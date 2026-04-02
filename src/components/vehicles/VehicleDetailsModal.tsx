@@ -21,8 +21,6 @@ interface VehicleDetailsModalProps {
   onClose: () => void;
 }
 
-
-
 // Normalize Firestore Timestamp | string | Date -> Date | undefined
 const toDate = (v: any): Date | undefined => {
   if (!v) return undefined;
@@ -50,7 +48,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
   // NEW: State to hold mileage history fetched from the separate collection
   const [mileageHistory, setMileageHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const { can } = usePermissions();
+  const { can, isCompany } = usePermissions(); // ✅ Added isCompany hook
+
   useEffect(() => {
     const fetchCreatedByName = async () => {
       if (vehicle.createdBy) {
@@ -139,8 +138,6 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
     e.setMonth(e.getMonth() + 6);
     return e;
   }, [motExpirySaved, motTestDate]);
-
-  // REMOVED: Old useMemo that was looking at vehicle.mileageUpdates, as it was always empty.
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Vehicle Details" size="lg">
@@ -236,59 +233,61 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
-  <DetailItem
-    label="Weekly Rate"
-    value={
-      typeof vehicle.weeklyRentalPrice === 'number'
-        ? `£${money3(vehicle.weeklyRentalPrice)}`
-        : '-'
-    }
-  />
-  <DetailItem
-    label="Weekly Insurance"
-    value={
-      typeof (vehicle as any).weeklyInsuranceAmount === 'number'
-        ? `£${money3((vehicle as any).weeklyInsuranceAmount)}`
-        : '-'
-    }
-  />
+        {/* ✅ HIDDEN FOR COMPANY ROLE */}
+        {!isCompany && (
+          <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
+            <DetailItem
+              label="Weekly Rate"
+              value={
+                typeof vehicle.weeklyRentalPrice === 'number'
+                  ? `£${money3(vehicle.weeklyRentalPrice)}`
+                  : '-'
+              }
+            />
+            <DetailItem
+              label="Weekly Insurance"
+              value={
+                typeof (vehicle as any).weeklyInsuranceAmount === 'number'
+                  ? `£${money3((vehicle as any).weeklyInsuranceAmount)}`
+                  : '-'
+              }
+            />
 
-  <DetailItem
-    label="Daily Rate"
-    value={
-      typeof vehicle.dailyRentalPrice === 'number'
-        ? `£${money3(vehicle.dailyRentalPrice)}`
-        : '-'
-    }
-  />
-  <DetailItem
-    label="Daily Insurance"
-    value={
-      typeof (vehicle as any).dailyInsuranceAmount === 'number'
-        ? `£${money3((vehicle as any).dailyInsuranceAmount)}`
-        : '-'
-    }
-  />
+            <DetailItem
+              label="Daily Rate"
+              value={
+                typeof vehicle.dailyRentalPrice === 'number'
+                  ? `£${money3(vehicle.dailyRentalPrice)}`
+                  : '-'
+              }
+            />
+            <DetailItem
+              label="Daily Insurance"
+              value={
+                typeof (vehicle as any).dailyInsuranceAmount === 'number'
+                  ? `£${money3((vehicle as any).dailyInsuranceAmount)}`
+                  : '-'
+              }
+            />
 
-  <DetailItem
-    label="Claim Rate"
-    value={
-      typeof vehicle.claimRentalPrice === 'number'
-        ? `£${money3(vehicle.claimRentalPrice)}`
-        : '-'
-    }
-  />
-  <DetailItem
-    label="Claim Insurance"
-    value={
-      typeof (vehicle as any).claimInsuranceAmount === 'number'
-        ? `£${money3((vehicle as any).claimInsuranceAmount)}`
-        : '-'
-    }
-  />
-</div>
-
+            <DetailItem
+              label="Claim Rate"
+              value={
+                typeof vehicle.claimRentalPrice === 'number'
+                  ? `£${money3(vehicle.claimRentalPrice)}`
+                  : '-'
+              }
+            />
+            <DetailItem
+              label="Claim Insurance"
+              value={
+                typeof (vehicle as any).claimInsuranceAmount === 'number'
+                  ? `£${money3((vehicle as any).claimInsuranceAmount)}`
+                  : '-'
+              }
+            />
+          </div>
+        )}
 
         {/* UPDATED: Mileage Updates History Section */}
         <div className="border-b border-gray-200 pb-4">
@@ -339,8 +338,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           )}
         </div>
 
-        {/* Owner Information */}
-        {can('vehicles', 'owner') && (
+        {/* Owner Information (✅ HIDDEN FOR COMPANY ROLE) */}
+        {!isCompany && can('vehicles', 'owner') && (
         <div className="border-b border-gray-200 pb-4">
           <div className="flex items-start space-x-3">
             <User className="w-5 h-5 text-gray-400 mt-1" />
@@ -358,7 +357,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                 </div>
               )}
               
-              {/* NEW: Finance Account Display */}
+              {/* Finance Account Display */}
               {vehicle.owner?.accountName && (
                  <div className="flex items-center mt-2 text-indigo-600 bg-indigo-50 p-2 rounded-md w-fit">
                     <Wallet className="w-4 h-4 mr-2" />
@@ -372,8 +371,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
         </div>
         )}
 
-        {/* Document Images */}
-        {vehicle.documents && (
+        {/* Document Images (✅ HIDDEN FOR COMPANY ROLE) */}
+        {!isCompany && vehicle.documents && (
           <div className="border-b border-gray-200 pb-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Document Images</h3>
             {Object.entries(vehicle.documents).map(([key, images]) =>
@@ -399,8 +398,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           </div>
         )}
 
-        {/* Sale Information (if sold) */}
-        {vehicle.status === 'sold' && (
+        {/* Sale Information (if sold) (✅ HIDDEN FOR COMPANY ROLE) */}
+        {!isCompany && vehicle.status === 'sold' && (
           <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
             <DetailItem label="Sale Date" value={soldDate} isDate />
             <DetailItem

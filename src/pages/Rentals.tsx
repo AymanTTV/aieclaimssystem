@@ -79,6 +79,8 @@ const Rentals = () => {
     setVehicleFilter,
     reasonFilter,
     setReasonFilter,
+    paymentStatusFilter, // <-- ADDED
+    setPaymentStatusFilter, // <-- ADDED
     startDateFilter,
     setStartDateFilter,
     endDateFilter,
@@ -170,13 +172,29 @@ const Rentals = () => {
     if (reasonFilter !== 'all') list = list.filter(r => r.reason === reasonFilter);
     else if (!showAllRecords) list = list.filter(r => r.reason !== 'o/d' && r.reason !== 'staff');
 
-    if (startDateFilter) {
-      const s = new Date(startDateFilter);
-      list = list.filter(r => new Date(r.startDate) >= s);
+    // ---> ADD THIS NEW BLOCK: Payment Status Filter Logic <---
+    if (paymentStatusFilter !== 'all') {
+      list = list.filter(r => {
+        const currentStatus = r.paymentStatus || 'pending'; // Treat missing status as pending/unpaid
+        return currentStatus === paymentStatusFilter;
+      });
     }
-    if (endDateFilter) {
-      const e = new Date(endDateFilter);
-      list = list.filter(r => new Date(r.endDate) <= e);
+
+    if (startDateFilter || endDateFilter) {
+      // Create valid timestamps, defaulting to extremes if one is empty
+      const filterStart = startDateFilter ? new Date(startDateFilter).getTime() : 0;
+      // Append time to ensure the end date covers the whole day inclusively
+      const filterEnd = endDateFilter 
+        ? new Date(`${endDateFilter}T23:59:59.999`).getTime() 
+        : 8640000000000000; // Max date fallback
+
+      list = list.filter(r => {
+        const rentalStart = new Date(r.startDate).getTime();
+        const rentalEnd = new Date(r.endDate).getTime();
+        
+        // Overlap logic: Rental starts before the filter ends AND ends after the filter starts
+        return rentalStart <= filterEnd && rentalEnd >= filterStart;
+      });
     }
 
     if (searchQuery) {
@@ -235,6 +253,7 @@ const Rentals = () => {
   }, [
     rentals, vehicles, customers, user,
     showAllRecords, statusFilter, typeFilter, vehicleFilter, reasonFilter,
+    paymentStatusFilter,
     startDateFilter, endDateFilter, searchQuery
   ]);
 
@@ -598,7 +617,8 @@ const Rentals = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Rentals</h1>
 
         <div className="flex flex-wrap items-center gap-2">
-          {user?.role === 'manager' && (
+          {can('rentals', 'export') && (
+            <>
             <button
               onClick={handleGenerateBulkDocument}
               className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -607,9 +627,9 @@ const Rentals = () => {
               <span className="truncate">PDF</span>
               <span className="hidden sm:inline">&nbsp;Report</span>
             </button>
-          )}
+          
 
-          {user?.role === 'manager' && (
+          
             <button
               onClick={handleExport}
               className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -617,8 +637,10 @@ const Rentals = () => {
               <Download className="h-5 w-5 mr-1 sm:mr-2" />
               <span className="truncate">Export</span>
             </button>
+            </>
           )}
-
+          
+          {can('rentals', 'availableVehicles') && (
           <button
             onClick={() => setShowAvailableVehicles(true)}
             className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -627,8 +649,9 @@ const Rentals = () => {
             <span className="truncate">Available</span>
             <span className="hidden sm:inline">&nbsp;Vehicles</span>
           </button>
-
-          <button
+          )}
+          {can('rentals', 'syncStatus') && (
+          <button 
             onClick={syncVehicleStatuses}
             className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
@@ -636,6 +659,7 @@ const Rentals = () => {
             <span className="truncate">Sync</span>
             <span className="hidden sm:inline">&nbsp;Statuses</span>
           </button>
+          )}
 
           {can('rentals', 'create') && (
             <button
@@ -690,6 +714,8 @@ const Rentals = () => {
           onVehicleFilterChange={setVehicleFilter}
           reasonFilter={reasonFilter}
           onReasonFilterChange={setReasonFilter}
+          paymentStatusFilter={paymentStatusFilter} // <-- ADDED
+          onPaymentStatusFilterChange={setPaymentStatusFilter} // <-- ADDED
           startDateFilter={startDateFilter}
           onStartDateChange={setStartDateFilter}
           endDateFilter={endDateFilter}

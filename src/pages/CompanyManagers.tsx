@@ -1,3 +1,4 @@
+// src/pages/CompanyManagers.tsx
 import React from 'react';
 import { usePermissions } from '../hooks/usePermissions';
 import CompanyDetails from '../components/company/CompanyDetails';
@@ -6,7 +7,8 @@ import ManagerGroups from '../components/company/ManagerGroups';
 export const CompanyManagers = () => {
   const { can } = usePermissions();
 
-  if (!can('users', 'view')) {
+  // Changed to correctly check the 'company' view permission
+  if (!can('company', 'view')) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">You don't have permission to view this page.</p>

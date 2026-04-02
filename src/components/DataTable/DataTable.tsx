@@ -125,7 +125,7 @@ export function DataTable<T extends AnyRow>({
             return (
               <div
                 key={row.id}
-                className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${rowCls || ''}`}
+                className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-colors ${rowCls ? rowCls : 'hover:bg-gray-50'}`}
                 onClick={() => {
                   if (onRowClick && (!module || can(module as any, 'view'))) {
                     onRowClick(row.original as T);
@@ -248,7 +248,7 @@ export function DataTable<T extends AnyRow>({
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
-                  <th key={header.id} className="table-header px-6 py-3">
+                  <th key={header.id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {header.isPlaceholder ? null : (
                       <div
                         className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
@@ -264,15 +264,21 @@ export function DataTable<T extends AnyRow>({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {table.getRowModel().rows.map(row => {
-              const cls = rowClassName ? rowClassName({ original: row.original }) : '';
+              // Get custom row classes (e.g., bg-red-100 from warnings)
+              const customCls = rowClassName ? rowClassName({ original: row.original }) : '';
+              
+              // Only apply hover:bg-gray-50 if there is NO custom color assigned to this row
+              const rowCls = customCls ? customCls : 'hover:bg-gray-50';
+
               return (
                 <tr
                   key={row.id}
                   onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as T)}
-                  className={`table-row ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''} ${cls || ''}`}
+                  className={`transition-colors group ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''} ${rowCls}`}
                 >
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className="table-cell px-6 py-4">
+                    // bg-transparent ensures the cell doesn't have its own background color blocking the row color
+                    <td key={cell.id} className="px-6 py-4 bg-transparent">
                       {flexRender(cell.column.columnDef.cell ?? cell.column.columnDef.header, cell.getContext())}
                     </td>
                   ))}

@@ -4,7 +4,8 @@ import { db } from '../../lib/firebase';
 import { Vehicle } from '../../types';
 import Modal from '../ui/Modal';
 import toast from 'react-hot-toast';
-
+import { useAuth } from '../../context/AuthContext';
+import { moveToTrash } from '../../utils/trashService';
 interface VehicleDeleteModalProps {
   vehicle: Vehicle | null;
   onClose: () => void;
@@ -12,27 +13,37 @@ interface VehicleDeleteModalProps {
 
 const VehicleDeleteModal: React.FC<VehicleDeleteModalProps> = ({ vehicle, onClose }) => {
   const [loading, setLoading] = useState(false);
-
+  const { user } = useAuth(); // Add this at the top of the component
   if (!vehicle) return null;
 
   const handleDelete = async () => {
-    if (vehicle.status !== 'sold') {
-      toast.error('Only sold vehicles can be deleted');
-      return;
-    }
+  if (vehicle.status !== 'sold') {
+    toast.error('Only sold vehicles can be deleted');
+    return;
+  }
 
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'vehicles', vehicle.id));
-      toast.success('Vehicle deleted successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error deleting vehicle:', error);
-      toast.error('Failed to delete vehicle');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    // OLD: await deleteDoc(doc(db, 'vehicles', vehicle.id));
+    const displayName = `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`;
+    
+    await moveToTrash(
+      'vehicles', 
+      vehicle.id, 
+      vehicle, 
+      user?.id || 'system', 
+      displayName
+    );
+
+    toast.success('Vehicle moved to trash');
+    onClose();
+  } catch (error) {
+    console.error('Error deleting vehicle:', error);
+    toast.error('Failed to delete vehicle');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Modal

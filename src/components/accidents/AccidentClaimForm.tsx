@@ -43,18 +43,21 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
   });
 
   const [formData, setFormData] = useState({
+    isReported: false,
+    status: 'pending', 
+    type: 'pending',
+    otherTypeDescription: '', // <-- NEW
+    claimStatus: 'pending',
+    amount: 0,
+    
     refNo: '',
     referenceName: '',
-    // Driver Details
     driverName: '',
     driverAddress: '',
-    // driverPostCode removed
     driverDOB: '',
     driverPhone: '',
     driverMobile: '',
     driverNIN: '',
-
-    // Vehicle Details
     registeredKeeperName: '',
     registeredKeeperAddress: '',
     vehicleMake: '',
@@ -63,51 +66,55 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
     insuranceCompany: '',
     policyNumber: '',
     policyExcess: '',
-
-    // Fault Party Details
     faultPartyName: '',
     faultPartyAddress: '',
-    // faultPartyPostCode removed
     faultPartyPhone: '',
     faultPartyVehicle: '',
     faultPartyVRN: '',
     faultPartyInsurance: '',
-
-    // Accident Details
     accidentDate: '',
     accidentTime: '',
     accidentLocation: '',
     description: '',
     damageDetails: '',
-
-    // Police Details
     policeOfficerName: '',
     policeBadgeNumber: '',
     policeStation: '',
     policeIncidentNumber: '',
     policeContactInfo: '',
-
-    // Paramedic Details
     paramedicNames: '',
     ambulanceReference: '',
     ambulanceService: '',
-
-    // Arrays for dynamic fields
     passengers: Array(4).fill({
       name: '',
       address: '',
-      // postCode removed
       dob: '',
       contactNumber: ''
     }),
     witnesses: Array(3).fill({
       name: '',
       address: '',
-      // postCode removed
       dob: '',
       contactNumber: ''
     })
   });
+
+  const [displayAmount, setDisplayAmount] = useState('0');
+
+  const handleDisplayAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDisplayAmount(e.target.value);
+  };
+
+  const handleAmountBlur = () => {
+    const parsedValue = parseFloat(displayAmount);
+    if (!isNaN(parsedValue)) {
+      const roundedAmount = Math.round(parsedValue * 100) / 100;
+      setFormData({ ...formData, amount: roundedAmount });
+      setDisplayAmount(roundedAmount.toFixed(2));
+    } else {
+      setDisplayAmount(formData.amount.toFixed(2));
+    }
+  };
 
   const handleRefNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -190,7 +197,7 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
         passengers: formData.passengers.slice(0, passengerCount),
         witnesses: formData.witnesses.slice(0, witnessCount),
         images: imageUrls,
-        status: 'reported',
+        otherTypeDescription: formData.type === 'other' ? formData.otherTypeDescription : '',
         submittedBy: user.id,
         submittedAt: new Date(),
         updatedAt: new Date(),
@@ -241,6 +248,90 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
           />
         </div>
       </div>
+
+      {/* Claim Status & Workflow */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Claim Status & Workflow</h3>
+        
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.isReported}
+              onChange={(e) => setFormData({ ...formData, isReported: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-blue-900">Mark Accident as Officially Reported</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Workflow Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="investigating">Investigating</option>
+              <option value="processing">Processing</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Claim Type</label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="fault">Fault</option>
+              <option value="non-fault">Non-Fault</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          {formData.type === 'other' && (
+            <div className="md:col-span-2">
+              <FormField
+                label="Please describe the 'Other' type"
+                value={formData.otherTypeDescription}
+                onChange={(e) => setFormData({ ...formData, otherTypeDescription: e.target.value })}
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Claim Approval Status</label>
+            <select
+              value={formData.claimStatus}
+              onChange={(e) => setFormData({ ...formData, claimStatus: e.target.value as any })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              required
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="settled">Settled</option>
+            </select>
+          </div>
+          <FormField
+            type="number"
+            label={`${formData.type === 'fault' ? 'Fault' : formData.type === 'non-fault' ? 'Non-Fault' : 'Claim'} Amount`}
+            value={displayAmount}
+            onChange={handleDisplayAmountChange}
+            onBlur={handleAmountBlur}
+            required
+            min="0"
+            step="0.01"
+          />
+        </div>
+      </div>
       
       {/* Driver Details */}
       <div className="space-y-4">
@@ -256,7 +347,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
                     ...prev,
                     driverName: '',
                     driverAddress: '',
-                    // driverPostCode reset removed
                     driverDOB: '',
                     driverPhone: '',
                     driverMobile: '',
@@ -289,7 +379,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
                   ...prev,
                   driverName: customer.name,
                   driverAddress: customer.address,
-                  // driverPostCode setting removed
                   driverDOB: customer.dateOfBirth.toISOString().split('T')[0],
                   driverPhone: customer.mobile,
                   driverMobile: customer.mobile,
@@ -300,7 +389,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
                   ...prev,
                   driverName: '',
                   driverAddress: '',
-                  // driverPostCode removed
                   driverDOB: '',
                   driverPhone: '',
                   driverMobile: '',
@@ -325,7 +413,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
               onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
               required
             />
-            {/* Post Code Field Removed */}
             <FormField
               type="date"
               label="Date of Birth"
@@ -370,7 +457,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
               onChange={(e) => setFormData({ ...formData, driverAddress: e.target.value })}
               required
             />
-            {/* Post Code Field Removed */}
             <FormField
               type="date"
               label="Date of Birth"
@@ -572,7 +658,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
             value={formData.faultPartyAddress}
             onChange={(e) => setFormData({ ...formData, faultPartyAddress: e.target.value })}
           />
-          {/* Post Code Field Removed */}
           <FormField
             type="tel"
             label="Phone Number"
@@ -672,7 +757,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
                 value={formData.passengers[index].address}
                 onChange={(e) => handlePassengerChange(index, 'address', e.target.value)}
               />
-              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -719,7 +803,6 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
                 value={formData.witnesses[index].address}
                 onChange={(e) => handleWitnessChange(index, 'address', e.target.value)}
               />
-              {/* Post Code Field Removed */}
               <FormField
                 type="date"
                 label="Date of Birth"
@@ -792,31 +875,27 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
           />
         </div>
       </div>
-      
-      {/* Image preview section */}
-      {imagePreviews.map((preview, index) => (
-        <div key={index} className="relative w-24 h-24">
-          <img
-            src={preview}
-            alt={`Selected ${index}`}
-            className="w-full h-full object-cover rounded-md"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setImageFiles(prev => prev.filter((_, i) => i !== index));
-              setImagePreviews(prev => prev.filter((_, i) => i !== index));
-            }}
-            className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
-          >
-            <X className="h-4 w-4 text-red-600" />
-          </button>
-        </div>
-      ))}
 
-      {/* Images */}
+      {/* Images Section */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Images</label>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {imagePreviews.map((img, index) => (
+            <div key={index} className="relative">
+              <img src={img} alt={`preview-${index}`} className="h-20 w-20 object-cover" />
+              <button
+                type="button"
+                onClick={() => {
+                  setImageFiles(prev => prev.filter((_, i) => i !== index));
+                  setImagePreviews(prev => prev.filter((_, i) => i !== index));
+                }}
+                className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
           <div className="space-y-1 text-center">
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
@@ -824,17 +903,17 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose }) => {
               <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
                 <span>Upload images</span>
                 <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-                id="fileInput"
-              />
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="sr-only"
+                  id="fileInput"
+                />
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF </p>
+            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB each</p>
           </div>
         </div>
       </div>

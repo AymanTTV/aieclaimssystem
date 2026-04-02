@@ -86,10 +86,21 @@ const SignCustomer = () => {
   }
 
   if (error || !customer) {
+    // Check if the error is a Firebase permission/save error
+    const isSaveError = error.includes('Failed to save'); 
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
-        <Lock className="w-16 h-16 text-gray-400 mb-4" />
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Link Expired</h1>
+        {isSaveError ? (
+          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+        ) : (
+          <Lock className="w-16 h-16 text-gray-400 mb-4" />
+        )}
+        
+        <h1 className="text-xl font-bold text-gray-900 mb-2">
+          {isSaveError ? 'Submission Error' : 'Link Expired'}
+        </h1>
+        
         <p className="text-gray-600">{error || 'This signature request is no longer valid.'}</p>
       </div>
     );

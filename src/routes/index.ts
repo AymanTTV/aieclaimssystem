@@ -11,6 +11,7 @@ export const ROUTES = {
   // Public routes
   LOGIN: '/login',
   ADMIN_SETUP: '/admin-setup',
+  TRASH: '/trash',
   PRODUCTS: '/products',
   TODO: '/todo',
   AUTOMATION: '/automation',
@@ -84,6 +85,8 @@ export const ROUTE_PERMISSIONS = {
 export const ROUTE_METADATA = {
   [ROUTES.DASHBOARD]: { title: 'Dashboard', icon: 'Home' },
   [ROUTES.PROFILE]: { title: 'Profile', icon: 'User' },
+  [ROUTES.TRASH]: { title: 'Recycle Bin', icon: 'Trash2' },
+
 
   [ROUTES.VEHICLES]: { title: 'AIE Vehicles', icon: 'Car' },
   [ROUTES.MAINTENANCE]: { title: 'Maintenance', icon: 'Wrench' },

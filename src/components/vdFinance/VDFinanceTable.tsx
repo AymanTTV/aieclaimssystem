@@ -112,33 +112,34 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               </button>
             )}
             {can('vdFinance', 'update') && (
-              <>
+              
                 <button onClick={e => { e.stopPropagation(); onEdit(rec); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                   <Edit className="h-4 w-4" />
                 </button>
+            )}
+                {can('vdFinance', 'singleDoc') && (
                 <button onClick={e => { e.stopPropagation(); onGenerateDocument(rec); }} className="text-green-600 hover:text-green-800" title="Generate Document">
                   <FileText className="h-4 w-4" />
                 </button>
-              </>
+              
             )}
             {can('vdFinance', 'delete') && (
               <button onClick={e => { e.stopPropagation(); onDelete(rec); }} className="text-red-600 hover:text-red-800" title="Delete">
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
-
-            {user?.role === 'manager' && rec.profit > 0 && (
+            {can('vdFinance', 'recordPayment') && rec.profit > 0 && (
               <button onClick={e => { e.stopPropagation(); onClearProfit(rec); }} className="px-2 py-1 text-xs bg-green-500 text-white rounded" title="Mark Profit Paid">
                 Profit Paid
               </button>
             )}
-            {user?.role === 'manager' && rec.profit === 0 && rec.originalProfit != null && (
+            {can('vdFinance', 'recordPayment') &&  rec.profit === 0 && rec.originalProfit != null && (
               <button onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded" title="Unclear Profit">
                 Unclear
               </button>
             )}
-
-            {rec.documentUrl && (
+            {can('vdFinance', 'singleDoc') &&  rec.documentUrl && (
+            
               <button onClick={e => { e.stopPropagation(); onViewDocument(rec.documentUrl!); }} className="text-blue-600 hover:text-blue-800" title="View Document">
                 <Eye className="h-4 w-4" />
               </button>

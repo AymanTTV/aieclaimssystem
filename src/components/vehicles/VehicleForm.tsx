@@ -56,7 +56,7 @@ function useDocumentManager(initialUrls: string[]) {
 
 const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit }) => {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { can, isCompany } = usePermissions(); // ✅ Added isCompany hook
   const [loading, setLoading] = useState(false);
 
   // Accounts State
@@ -94,7 +94,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     return new Date(d.getTime() - off).toISOString().slice(0, 10);
   };
 
-  // ✅ Prevent NaN if user clears input
+  // Prevent NaN if user clears input
   const toNumber = (value: string) => {
     const n = parseFloat(value);
     return Number.isFinite(n) ? n : 0;
@@ -175,7 +175,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       const newMileage = parseInt(formData.mileage, 10);
       const nextServiceMileage = parseInt(formData.nextServiceMileage, 10);
 
-      // ✅ FIX: Ensure undefined values are converted to null
+      // Ensure undefined values are converted to null
       // Create a copy of the owner object to avoid mutating state directly
       const finalOwner: any = isCustomOwner ? { ...owner } : { ...DEFAULT_OWNER };
 
@@ -211,7 +211,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         lastMaintenance: formData.lastMaintenance ? parseISO(formData.lastMaintenance) : undefined,
         nextMaintenance: formData.nextMaintenance ? parseISO(formData.nextMaintenance) : undefined,
 
-        // ✅ DECIMAL STORAGE (NO ROUNDING)
+        // DECIMAL STORAGE (NO ROUNDING)
         weeklyRentalPrice: toNumber(formData.weeklyRentalPrice),
         dailyRentalPrice: toNumber(formData.dailyRentalPrice),
         claimRentalPrice: toNumber(formData.claimRentalPrice),
@@ -271,29 +271,34 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* BASIC INFO */}
       <div className="grid grid-cols-2 gap-4">
+        {/* ✅ Company role cannot edit these fields, so they are greyed out (disabled) */}
         <FormField
           label="VIN"
           value={formData.vin}
           onChange={e => setFormData({ ...formData, vin: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           label="Registration Number"
           value={formData.registrationNumber}
           onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           label="Make"
           value={formData.make}
           onChange={e => setFormData({ ...formData, make: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           label="Model"
           value={formData.model}
           onChange={e => setFormData({ ...formData, model: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           type="number"
@@ -301,10 +306,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           value={formData.year}
           onChange={e => setFormData({ ...formData, year: e.target.value })}
           required
+          disabled={isCompany}
         />
+
+        {/* ✅ Company role CAN edit mileage */}
         <FormField
           type="number"
-          label="Mileage"
+          label="Current Mileage"
           value={formData.mileage}
           onChange={e => setFormData({ ...formData, mileage: e.target.value })}
           required
@@ -319,151 +327,156 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         />
       </div>
 
-      {/* RENTAL PRICING */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <FormField
-            type="number"
-            label="Weekly (£)"
-            value={formData.weeklyRentalPrice}
-            onChange={e => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-          <FormField
-            type="number"
-            label="Daily (£)"
-            value={formData.dailyRentalPrice}
-            onChange={e => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-          <FormField
-            type="number"
-            label="Claim (£)"
-            value={formData.claimRentalPrice}
-            onChange={e => setFormData({ ...formData, claimRentalPrice: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-        </div>
-
-        {/* Insurance Amounts */}
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          <FormField
-            type="number"
-            label="Weekly Insurance (£)"
-            value={formData.weeklyInsuranceAmount}
-            onChange={e => setFormData({ ...formData, weeklyInsuranceAmount: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-          <FormField
-            type="number"
-            label="Daily Insurance (£)"
-            value={formData.dailyInsuranceAmount}
-            onChange={e => setFormData({ ...formData, dailyInsuranceAmount: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-          <FormField
-            type="number"
-            label="Claim Insurance (£)"
-            value={formData.claimInsuranceAmount}
-            onChange={e => setFormData({ ...formData, claimInsuranceAmount: e.target.value })}
-            min="0"
-            step="0.001"
-            required
-          />
-        </div>
-      </div>
-
-      {/* OWNER & FINANCE */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
-        <div className="space-y-4">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={isCustomOwner}
-              onChange={e => {
-                setIsCustomOwner(e.target.checked);
-                if (!e.target.checked) setOwner(DEFAULT_OWNER);
-              }}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
+      {/* RENTAL PRICING - ✅ HIDDEN FOR COMPANY ROLE */}
+      {!isCompany && (
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField
+              type="number"
+              label="Weekly (£)"
+              value={formData.weeklyRentalPrice}
+              onChange={e => setFormData({ ...formData, weeklyRentalPrice: e.target.value })}
+              min="0"
+              step="0.001"
+              required
             />
-            <span>Custom Owner</span>
-          </label>
-          {isCustomOwner ? (
-            <div className="space-y-4">
-              <FormField
-                label="Owner Name"
-                value={owner?.name || ''}
-                onChange={e => setOwner({ ...(owner || {}), name: e.target.value, isDefault: false })}
-                required
+            <FormField
+              type="number"
+              label="Daily (£)"
+              value={formData.dailyRentalPrice}
+              onChange={e => setFormData({ ...formData, dailyRentalPrice: e.target.value })}
+              min="0"
+              step="0.001"
+              required
+            />
+            <FormField
+              type="number"
+              label="Claim (£)"
+              value={formData.claimRentalPrice}
+              onChange={e => setFormData({ ...formData, claimRentalPrice: e.target.value })}
+              min="0"
+              step="0.001"
+              required
+            />
+          </div>
+
+          {/* Insurance Amounts */}
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <FormField
+              type="number"
+              label="Weekly Insurance (£)"
+              value={formData.weeklyInsuranceAmount}
+              onChange={e => setFormData({ ...formData, weeklyInsuranceAmount: e.target.value })}
+              min="0"
+              step="0.001"
+              required
+            />
+            <FormField
+              type="number"
+              label="Daily Insurance (£)"
+              value={formData.dailyInsuranceAmount}
+              onChange={e => setFormData({ ...formData, dailyInsuranceAmount: e.target.value })}
+              min="0"
+              step="0.001"
+              required
+            />
+            <FormField
+              type="number"
+              label="Claim Insurance (£)"
+              value={formData.claimInsuranceAmount}
+              onChange={e => setFormData({ ...formData, claimInsuranceAmount: e.target.value })}
+              min="0"
+              step="0.001"
+              required
+            />
+          </div>
+        </div>
+      )}
+
+      {/* OWNER & FINANCE - ✅ HIDDEN FOR COMPANY ROLE */}
+      {!isCompany && (
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Owner</h3>
+          <div className="space-y-4">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={isCustomOwner}
+                onChange={e => {
+                  setIsCustomOwner(e.target.checked);
+                  if (!e.target.checked) setOwner(DEFAULT_OWNER);
+                }}
+                className="rounded border-gray-300 text-primary focus:ring-primary"
               />
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Owner Address</label>
-                <textarea
-                  rows={3}
-                  value={owner?.address || ''}
-                  onChange={e => setOwner({ ...(owner || {}), address: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              <span>Custom Owner</span>
+            </label>
+            {isCustomOwner ? (
+              <div className="space-y-4">
+                <FormField
+                  label="Owner Name"
+                  value={owner?.name || ''}
+                  onChange={e => setOwner({ ...(owner || {}), name: e.target.value, isDefault: false })}
                   required
                 />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Owner Address</label>
+                  <textarea
+                    rows={3}
+                    value={owner?.address || ''}
+                    onChange={e => setOwner({ ...(owner || {}), address: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    required
+                  />
+                </div>
 
-              {/* Finance Account Selection - Using SearchableSelect */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Linked Finance Account</label>
-                <SearchableSelect
-                  options={accounts.map(account => ({
-                    id: account.id,
-                    label: account.name
-                  }))}
-                  value={(owner as any)?.accountId || ''}
-                  onChange={(selectedId) => {
-                    const selectedAcc = accounts.find(a => a.id === selectedId);
-                    setOwner({ 
-                      ...(owner || {}), 
-                      name: owner?.name || '',
-                      address: owner?.address || '',
-                      // ✅ FIX: Use null instead of undefined to prevent Firestore errors
-                      accountId: selectedId || null, 
-                      accountName: selectedAcc?.name || null,
-                      isDefault: false 
-                    } as any);
-                  }}
-                  placeholder="Select Linked Account (Optional)"
-                  isClearable
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Select the finance account associated with this vehicle.
-                </p>
-              </div>
+                {/* Finance Account Selection - Using SearchableSelect */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Linked Finance Account</label>
+                  <SearchableSelect
+                    options={accounts.map(account => ({
+                      id: account.id,
+                      label: account.name
+                    }))}
+                    value={(owner as any)?.accountId || ''}
+                    onChange={(selectedId) => {
+                      const selectedAcc = accounts.find(a => a.id === selectedId);
+                      setOwner({ 
+                        ...(owner || {}), 
+                        name: owner?.name || '',
+                        address: owner?.address || '',
+                        accountId: selectedId || null, 
+                        accountName: selectedAcc?.name || null,
+                        isDefault: false 
+                      } as any);
+                    }}
+                    placeholder="Select Linked Account (Optional)"
+                    isClearable
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select the finance account associated with this vehicle.
+                  </p>
+                </div>
 
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Default: {DEFAULT_OWNER.name}, {DEFAULT_OWNER.address}
-            </p>
-          )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Default: {DEFAULT_OWNER.name}, {DEFAULT_OWNER.address}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* DATES */}
       <div className="grid grid-cols-2 gap-4">
+        {/* ✅ Company role cannot edit expiration dates or purchase date */}
         <FormField
           type="date"
           label="Purchased Date"
           value={formData.purchasedDate}
           onChange={e => setFormData({ ...formData, purchasedDate: e.target.value })}
+          disabled={isCompany}
         />
 
         <FormField
@@ -472,6 +485,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           value={formData.motTestDate}
           onChange={e => setFormData({ ...formData, motTestDate: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           type="date"
@@ -479,6 +493,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           value={formData.nslExpiry}
           onChange={e => setFormData({ ...formData, nslExpiry: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           type="date"
@@ -486,6 +501,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           value={formData.roadTaxExpiry}
           onChange={e => setFormData({ ...formData, roadTaxExpiry: e.target.value })}
           required
+          disabled={isCompany}
         />
         <FormField
           type="date"
@@ -493,7 +509,10 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
           value={formData.insuranceExpiry}
           onChange={e => setFormData({ ...formData, insuranceExpiry: e.target.value })}
           required
+          disabled={isCompany}
         />
+        
+        {/* ✅ Company role CAN edit maintenance dates */}
         <FormField
           type="date"
           label="Last Maintenance"
@@ -524,20 +543,27 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
             ) : (
               <Upload className="mx-auto h-12 w-12 text-gray-400" />
             )}
-            <div className="flex text-sm text-gray-600">
-              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
-                <span>Upload a photo</span>
-                <input type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
-              </label>
-              <p className="pl-1">or drag and drop</p>
+            <div className="flex text-sm text-gray-600 justify-center">
+              {/* ✅ HIDDEN UPLOAD FOR COMPANY ROLE */}
+              {isCompany ? (
+                 <span className="text-gray-500 italic mt-2">Uploading image not permitted</span>
+              ) : (
+                <>
+                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                    <span>Upload a photo</span>
+                    <input type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </>
+              )}
             </div>
-            <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>
+            {!isCompany && <p className="text-xs text-gray-500">PNG, JPG, WebP up to 100 MB</p>}
           </div>
         </div>
       </div>
 
-      {/* DOCUMENTS */}
-      {[
+      {/* DOCUMENTS - ✅ HIDDEN FOR COMPANY ROLE */}
+      {!isCompany && [
         { title: 'NSL Images', dt: nsl },
         { title: 'MOT Images', dt: mot },
         { title: 'V5 Images', dt: v5doc },

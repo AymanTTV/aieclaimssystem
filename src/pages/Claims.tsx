@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, FileText, Download, Search, ChevronDown, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
-
+import { moveToTrash } from '../utils/trashService';
 import Modal from '../components/ui/Modal';
 import ClaimSummaryCards from '../components/claims/ClaimSummaryCards';
 import ClaimTable from '../components/claims/ClaimTable';
@@ -331,16 +331,29 @@ const Claims: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (!selectedClaim?.id) return;
-    try {
-      await deleteDoc(doc(db, 'claims', selectedClaim.id));
-      toast.success('Claim deleted');
-      setShowDeleteModal(false);
-      setSelectedClaim(null);
-    } catch {
-      toast.error('Failed to delete claim');
-    }
-  };
+  if (!selectedClaim) return;
+  try {
+    const displayName = selectedClaim.clientRef 
+      ? `Claim Ref: ${selectedClaim.clientRef}` 
+      : `Claim #${selectedClaim.claimId || selectedClaim.id.slice(-8).toUpperCase()}`;
+
+    // OLD: await deleteDoc(doc(db, 'claims', selectedClaim.id));
+    await moveToTrash(
+      'claims', 
+      selectedClaim.id, 
+      selectedClaim, 
+      user?.id || 'system', 
+      displayName
+    );
+
+    toast.success('Claim moved to trash');
+    setShowDeleteModal(false);
+    setSelectedClaim(null);
+  } catch (error) {
+    console.error('Error deleting claim:', error);
+    toast.error('Failed to delete claim');
+  }
+};
 
   const handleExport = () => {
     try {
@@ -438,7 +451,7 @@ const Claims: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {user?.role === 'manager' && (
+          {can('claims', 'export') && (
             <button
               onClick={handleGenerateBulkPDF}
               className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"

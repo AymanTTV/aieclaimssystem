@@ -22,7 +22,9 @@ export const useAccidents = () => {
             ...data,
             submittedAt: data.submittedAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
-            status: data.status || 'reported',
+            // Auto-migrate old "reported" status to "pending"
+            status: data.status === 'reported' ? 'pending' : (data.status || 'pending'),
+            isReported: data.isReported || false, // <-- NEW
             type: data.type || 'pending',
           } as Accident);
         });

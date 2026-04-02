@@ -1,5 +1,7 @@
 import React from 'react';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore'; // Replace deleteDoc with getDoc
+import { useAuth } from '../../context/AuthContext';
+import { moveToTrash } from '../../utils/trashService';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
@@ -11,20 +13,42 @@ interface MaintenanceDeleteModalProps {
 
 const MaintenanceDeleteModal: React.FC<MaintenanceDeleteModalProps> = ({ logId, onClose }) => {
   const [loading, setLoading] = React.useState(false);
-
+  const { user } = useAuth(); // Add this at the top of the component
   const handleDelete = async () => {
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'maintenanceLogs', logId));
-      toast.success('Maintenance log deleted successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error deleting maintenance log:', error);
-      toast.error('Failed to delete maintenance log');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    // 1. Fetch the log data first
+    const logRef = doc(db, 'maintenanceLogs', logId);
+    const logSnap = await getDoc(logRef);
+    
+    if (!logSnap.exists()) {
+      toast.error('Log not found');
+      return;
     }
-  };
+    
+    const logData = logSnap.data();
+    const displayName = logData.orderNumber 
+      ? `Maintenance ${logData.orderNumber}` 
+      : `${logData.type.replace('-', ' ')} - ${logData.vehicleDetails?.registrationNumber || 'Unknown'}`;
+
+    // 2. Move to trash
+    await moveToTrash(
+      'maintenanceLogs', 
+      logId, 
+      logData, 
+      user?.id || 'system', 
+      displayName
+    );
+
+    toast.success('Maintenance log moved to trash');
+    onClose();
+  } catch (error) {
+    console.error('Error deleting maintenance log:', error);
+    toast.error('Failed to delete maintenance log');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="space-y-4">

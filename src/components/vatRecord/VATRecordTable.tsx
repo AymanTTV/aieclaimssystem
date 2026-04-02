@@ -120,12 +120,13 @@ const VATRecordTable: React.FC<VATRecordTableProps> = ({
         <div className="flex space-x-2">
           {can('vatRecord', 'view') && <button onClick={(e) => { e.stopPropagation(); onView(row.original); }} className="text-blue-600 hover:text-blue-800" title="View Details"><Eye className="h-4 w-4" /></button>}
           {can('vatRecord', 'update') && (
-            <>
-              <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-blue-600 hover:text-blue-800" title="Edit"><Edit className="h-4 w-4" /></button>
+            
+              <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-blue-600 hover:text-blue-800" title="Edit"><Edit className="h-4 w-4" /></button>)}
+              {can('vatRecord', 'singleDoc') && (
               <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-green-600 hover:text-green-800" title="Generate Document"><FileText className="h-4 w-4" /></button>
-            </>
+            
           )}
-          {can('vatRecord', 'update') && <button onClick={(e) => { e.stopPropagation(); onUpdateStatus(row.original); }} className="text-blue-600 hover:text-blue-800" title="Update Status"><CheckCircle className="h-4 w-4" /></button>}
+          {can('vatRecord', 'state') && <button onClick={(e) => { e.stopPropagation(); onUpdateStatus(row.original); }} className="text-blue-600 hover:text-blue-800" title="Update Status"><CheckCircle className="h-4 w-4" /></button>}
           {can('vatRecord', 'delete') && <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} className="text-red-600 hover:text-red-800" title="Delete"><Trash2 className="h-4 w-4" /></button>}
         </div>
       ),

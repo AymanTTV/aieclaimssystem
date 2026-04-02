@@ -1,7 +1,7 @@
 // src/types/roles.ts
 
 // ▶ Roles
-export type Role = 'admin' | 'manager' | 'finance' | 'claims' | 'member';
+export type Role = 'admin' | 'manager' | 'finance' | 'claims' | 'member' | 'company';
 
 // ▶ One permission object per module
 export interface Permission {
@@ -12,7 +12,7 @@ export interface Permission {
   delete?: boolean;
   cards?: boolean;
   share?: boolean;
-
+  
   // Rental Type Permissions
   mileage?: boolean;
   daily?: boolean;
@@ -20,288 +20,339 @@ export interface Permission {
   claim?: boolean;
 
   // Extra data I/O permissions
-  export?: boolean; // enable data export when true
-  import?: boolean; // (not used now) leave undefined unless you decide to allow it
+  export?: boolean;
+  import?: boolean;
   send?: boolean;
 
-  // NEW: Vehicle Owner column + DriverPay lock/unlock
+  // Vehicle Owner column + DriverPay lock/unlock
   owner?: boolean;
   lock?: boolean;
   unlock?: boolean;
+
+  // --- NEW PERMISSIONS ADDED ---
+  syncStatus?: boolean;
+  sale?: boolean;
+  copyId?: boolean;
+  singleDoc?: boolean;
+  tableStatus?: boolean;
+  complete?: boolean;
+  completed?: boolean;
+  categories?: boolean;
+  groups?: boolean;
+  availableVehicles?: boolean;
+  completion?: boolean;
+  discount?: boolean;
+  note?: boolean;
+  state?: boolean;
+  period?: boolean;
+  reoccurring?: boolean;
+  accounts?: boolean;
+  assign?: boolean;
+  signatureReq?: boolean;
+  clearHistory?: boolean;
+  
+  // WhatsApp & Email targets
+  targetFinance?: boolean;
+  targetRental?: boolean;
+  targetMaintenance?: boolean;
+  targetInvoice?: boolean;
+  targetClaim?: boolean;
+  targetCustom?: boolean;
+
+  quickContact?: boolean;
+  reminder?: boolean;
+
+  // Trash specific
+  restore?: boolean;
+  deletePermanently?: boolean;
 }
 
-// ▶ All modules used across the app (admin + member portal)
+// ▶ All modules used across the app
 export interface RolePermissions {
-  // ADMIN-SIDE MODULES
   dashboard: Permission;
-  vehicles: Permission;             // export (+ owner)
-  maintenance: Permission;          // export
-  rentals: Permission;              // export
-  accidents: Permission;            // export
-  claims: Permission;               // export
-  //personalInjury: Permission;       // (no import/export requested)
-  finance: Permission;              // export
-  invoices: Permission;             // export
-  
-  driverPay: Permission;            // export (+ lock/unlock)
-  vdFinance: Permission;            // export
-  vdInvoice: Permission;            // none
-  users: Permission;                // none
-  vatRecord: Permission;            // export
-  customers: Permission;            // export
-  company: Permission;              // none
-  products: Permission;             // export
-  incomeExpense: Permission;        // none
-  skylineIncomeExpense: Permission; // none
-  pettyCash: Permission;            // export
-  aiePettyCash: Permission;         // export (AIE petty cash)
-  share: Permission;                // export
-
-  // Admin actions on Members (e.g., delete/remove/suspend, edit)
+  vehicles: Permission;             
+  maintenance: Permission;          
+  rentals: Permission;              
+  accidents: Permission;            
+  claims: Permission;               
+  vdFinance: Permission;            
+  vdInvoice: Permission;            
+  driverPay: Permission;            
+  pettyCash: Permission;            
+  aiePettyCash: Permission;         
+  incomeExpense: Permission;        
+  skylineIncomeExpense: Permission; 
+  finance: Permission;              
+  invoices: Permission;             
+  vatRecord: Permission;            
+  share: Permission;                
   members: Permission;
-  waiting: Permission; // NEW MODULE
-  todo: Permission;
-  bulkEmail: Permission;
+  customers: Permission;            
+  products: Permission;             
   whatsapp: Permission;
+  bulkEmail: Permission;
+  waiting: Permission; 
+  company: Permission;              
+  trash: Permission; 
+  users: Permission;                
+  todo: Permission;
   settings: Permission;
-  // MEMBER-PORTAL MODULES (visible/used only when role === 'member')
   memberProfile: Permission;
   memberRentals: Permission;
   memberTransactions: Permission;
   memberInvoices: Permission;
 }
 
+// ------------------------- TEMPLATES TO ENSURE ALL KEYS RENDER -------------------------
+
+const BASE_DASHBOARD = { view: false };
+const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false };
+const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, tableStatus: false, complete: false, completed: false, singleDoc: false, categories: false };
+const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false };
+const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false };
+const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false };
+const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false, groups: false, singleDoc: false, recordPayment: false };
+const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false };
+const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false };
+const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false, groups: false, singleDoc: false };
+const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, share: false, categories: false, reoccurring: false, singleDoc: false };
+const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, accounts: false, categories: false, groups: false, reoccurring: false, assign: false, singleDoc: false };
+const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, singleDoc: false };
+const BASE_VAT_RECORD = { view: false, create: false, update: false, delete: false, cards: false, export: false, groups: false, categories: false, reoccurring: false, state: false, singleDoc: false };
+const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, share: false, export: false, categories: false, reoccurring: false, singleDoc: false };
+const BASE_MEMBERS = { view: false, create: false, update: false, delete: false, cards: false, assign: false, signatureReq: false, singleDoc: false };
+const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false };
+const BASE_PRODUCTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false };
+const BASE_COMMUNICATION = { view: false, send: false, clearHistory: false, targetFinance: false, targetRental: false, targetMaintenance: false, targetInvoice: false, targetClaim: false, targetCustom: false };
+const BASE_WAITING = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false, quickContact: false, reminder: false };
+const BASE_COMPANY = { view: false, create: false, update: false, delete: false, cards: false };
+const BASE_TRASH = { view: false, cards: false, restore: false, deletePermanently: false };
+const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false };
+const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false };
+const BASE_SETTINGS = { view: false, update: false };
+const BASE_PORTAL = { view: false, update: false };
+
 // ------------------------- DEFAULTS -------------------------
 
 export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- MANAGER ----------------
-  // (Kept exactly as your old file, just added vehicles.owner + driverPay.lock/unlock)
   manager: {
-    dashboard:     { view: true } as any,
-    whatsapp:      { view: true, send: true } as any,
-    bulkEmail:     { view: true, send: true } as any,
-    // ADD THIS LINE:
-    settings: { view: true, update: true } as any,
-    vehicles:      { view: true, create: true, update: true, delete: true, cards: true, mileage: true, recordPayment: false, export: true, owner: true } as any,
-    maintenance:   { view: true, create: true, update: true, delete: true, cards: true, recordPayment: false, export: true } as any,
-    rentals:       { view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, recordPayment: false, export: true } as any,
-    accidents:     { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    claims:        { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    // personalInjury:{ view: true, create: true, update: true, delete: true, cards: true, recordPayment: false } as any,
-    todo: { view: true, create: true, update: true, delete: true, export: true } as any,
-    finance:       { view: true, create: true, update: true, delete: true, cards: true, recordPayment: false, export: true } as any,
-    invoices:      { view: true, create: true, update: true, delete: true, cards: true, recordPayment: false, export: true } as any,
-    pettyCash:     { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    aiePettyCash:  { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    share:         { view: true, create: true, update: true, delete: true, cards: true, share: true, export: true } as any,
-
-    driverPay:     { view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true } as any,
-
-    waiting:       { view: true, create: true, update: true, delete: true, export: true } as any,
-    vdFinance:     { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    vdInvoice:     { view: true, create: true, update: true, delete: true, cards: true } as any, // no import/export
-
-    users:         { view: true, create: true, update: true, delete: true, cards: true } as any,
-    vatRecord:     { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    customers:     { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-    company:       { view: true, create: true, update: true, delete: true, cards: true } as any,
-    products:      { view: true, create: true, update: true, delete: true, cards: true, export: true } as any,
-
-    incomeExpense:        { view: true, create: true, update: true, delete: true, cards: true, share: false } as any,
-    skylineIncomeExpense: { view: true, create: true, update: true, delete: true, cards: true, share: false } as any,
-
-    // Admin actions on members
-    members:       { view: true, create: false, update: true, delete: false, cards: true } as any,
-
-    // Member-portal modules (manager doesn’t use them)
-    memberProfile:      { view: false } as any,
-    memberRentals:      { view: false } as any,
-    memberTransactions: { view: false } as any,
-    memberInvoices:     { view: false } as any,
+    dashboard: { ...BASE_DASHBOARD, view: true },
+    vehicles: { ...BASE_VEHICLES, view: true, create: true, update: true, delete: true, cards: true, mileage: true, export: true, owner: true, syncStatus: true, sale: true, copyId: true, singleDoc: true },
+    maintenance: { ...BASE_MAINTENANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, tableStatus: true, complete: true, completed: true, singleDoc: true, categories: true },
+    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true },
+    accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true },
+    claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true },
+    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true, recordPayment: true },
+    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, update: true, delete: true, cards: true, singleDoc: true },
+    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
+    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true },
+    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true },
+    incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
+    finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, accounts: true, categories: true, groups: true, reoccurring: true, assign: true, singleDoc: true },
+    invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, singleDoc: true },
+    vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, delete: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, share: true, export: true, categories: true, reoccurring: true, singleDoc: true },
+    members: { ...BASE_MEMBERS, view: true, update: true, cards: true, assign: true, signatureReq: true, singleDoc: true },
+    customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true },
+    products: { ...BASE_PRODUCTS, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true },
+    whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
+    bulkEmail: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
+    waiting: { ...BASE_WAITING, view: true, create: true, update: true, delete: true, export: true, categories: true, groups: true, quickContact: true, reminder: true },
+    company: { ...BASE_COMPANY, view: true, create: true, update: true, delete: true, cards: true },
+    trash: { ...BASE_TRASH, view: true, cards: true, restore: true, deletePermanently: true },
+    users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true },
+    todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true },
+    settings: { ...BASE_SETTINGS, view: true, update: true },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
   },
 
   // ---------------- ADMIN ----------------
-  // Same modules as old file, but update/delete are FALSE everywhere by default
   admin: {
-    dashboard:     { view: true } as any,
-    whatsapp:      { view: true, send: true } as any,
-    bulkEmail:     { view: false, send: false } as any,
-    settings: { view: true, update: false } as any,
-    waiting:       { view: true, create: true, update: false, delete: false, export: true } as any,
-    todo: { view: true, create: true, update: false, delete: false, export: true } as any,
-    vehicles:      { view: true, create: false, update: false, delete: false, cards: true, mileage: true, recordPayment: false, export: true, owner: false } as any,
-    maintenance:   { view: true, create: false, update: false, delete: false, cards: true, recordPayment: false, export: true } as any,
-    rentals:       { view: true, create: false, update: false, delete: false, cards: true, daily: true, weekly: true, claim: true, recordPayment: false, export: true } as any,
-    accidents:     { view: true, create: false, update: false, delete: false, cards: true, export: true } as any,
-    claims:        { view: true, create: false, update: false, delete: false, cards: true, export: true } as any,
-    //personalInjury:{ view: true, create: false, update: false, delete: false, cards: true, recordPayment: false } as any,
-
-    finance:       { view: true, create: false, update: false, delete: false, cards: true, recordPayment: false, export: true } as any,
-    invoices:      { view: true, create: true, update: false, delete: false, cards: true, recordPayment: false, export: true } as any,
-    pettyCash:     { view: true, create: true, update: false, delete: false, cards: true, export: true } as any,
-    aiePettyCash:  { view: true, create: true, update: false, delete: false, cards: true, export: true } as any,
-    share:         { view: true, create: true, update: false, delete: false, cards: true, share: true, export: true } as any,
-
-    driverPay:     { view: true, create: true, update: false, delete: false, recordPayment: true, cards: true, export: true, lock: false, unlock: false } as any,
-
-    vdFinance:     { view: true, create: true, update: false, delete: false, cards: true, export: true } as any,
-    vdInvoice:     { view: true, create: true, update: false, delete: false, cards: true } as any, // no import/export
-
-    users:         { view: false, create: false, update: false, delete: false, cards: false } as any,
-    vatRecord:     { view: true, create: true, update: false, delete: false, cards: true, export: true } as any,
-    customers:     { view: true, create: false, update: false, delete: false, cards: true, export: true } as any,
-    company:       { view: true, create: false, update: false, delete: false, cards: true } as any,
-    products:      { view: true, create: false, update: false, delete: false, cards: true, export: true } as any,
-
-    incomeExpense:        { view: true, create: true, update: false, delete: false, cards: true, share: false } as any,
-    skylineIncomeExpense: { view: true, create: true, update: false, delete: false, cards: true, share: false } as any,
-
-    // Admin actions on members (admin can create but not update/delete by default rule)
-    members:       { view: true, create: true, update: false, delete: false, cards: true } as any,
-
-    // Member-portal modules (admin doesn’t use them)
-    memberProfile:      { view: false } as any,
-    memberRentals:      { view: false } as any,
-    memberTransactions: { view: false } as any,
-    memberInvoices:     { view: false } as any,
+    dashboard: { ...BASE_DASHBOARD, view: true },
+    vehicles: { ...BASE_VEHICLES, view: true, cards: true, mileage: true, export: true, copyId: true, singleDoc: true },
+    maintenance: { ...BASE_MAINTENANCE, view: true, cards: true, export: true, tableStatus: true, completed: true, singleDoc: true },
+    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true },
+    accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true },
+    claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true },
+    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, singleDoc: true, recordPayment: true },
+    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, cards: true, singleDoc: true },
+    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, recordPayment: true, cards: true, export: true, singleDoc: true },
+    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, singleDoc: true },
+    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, singleDoc: true },
+    incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
+    finance: { ...BASE_FINANCE, view: true, cards: true, export: true, singleDoc: true },
+    invoices: { ...BASE_INVOICES, view: true, create: true, cards: true, export: true, singleDoc: true },
+    vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, cards: true, export: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, cards: true, share: true, export: true, singleDoc: true },
+    members: { ...BASE_MEMBERS, view: true, create: true, cards: true, singleDoc: true },
+    customers: { ...BASE_CUSTOMERS, view: true, cards: true, export: true },
+    products: { ...BASE_PRODUCTS, view: true, cards: true, export: true },
+    whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
+    bulkEmail: { ...BASE_COMMUNICATION },
+    waiting: { ...BASE_WAITING, view: true, create: true, export: true, quickContact: true, reminder: true },
+    company: { ...BASE_COMPANY, view: true, update: true, cards: true },
+    trash: { ...BASE_TRASH, view: true, cards: true },
+    users: { ...BASE_USERS },
+    todo: { ...BASE_TODO, view: true, create: true, export: true },
+    settings: { ...BASE_SETTINGS, view: true },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
   },
 
   // ---------------- FINANCE ----------------
-  // All permissions FALSE by default (only relevant keys listed)
   finance: {
-    dashboard:     { view: false } as any,
-    waiting:       { view: false } as any,
-    whatsapp:      { view: false, send: false } as any,
-    settings: { view: true, update: false } as any,
-    bulkEmail:     { view: false, send: false } as any,
-    todo: { view: false } as any,
-    vehicles:      { view: false, mileage: false, export: false, owner: false } as any,
-    maintenance:   { view: false, export: false } as any,
-    rentals:       { view: false, daily: false, weekly: false, claim: false, export: false } as any,
-    accidents:     { view: false, export: false } as any,
-    claims:        { view: false, export: false } as any,
-    //personalInjury:{ view: false } as any,
-
-    finance:       { view: false, create: false, update: false, delete: false, export: false } as any,
-    invoices:      { view: false, create: false, update: false, delete: false, export: false } as any,
-    pettyCash:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    aiePettyCash:  { view: false, create: false, update: false, delete: false, export: false } as any,
-    share:         { view: false, share: false, export: false } as any,
-
-    driverPay:     { view: false, create: false, update: false, delete: false, recordPayment: false, export: false, lock: false, unlock: false } as any,
-
-    vdFinance:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    vdInvoice:     { view: false, create: false, update: false, delete: false } as any,
-
-    users:         { view: false } as any,
-    vatRecord:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    customers:     { view: false, export: false } as any,
-    company:       { view: false } as any,
-    products:      { view: false, export: false } as any,
-
-    incomeExpense:        { view: false } as any,
-    skylineIncomeExpense: { view: false } as any,
-
-    // Admin actions on members
-    members:       { view: false } as any,
-
-    // Member-portal modules
-    memberProfile:      { view: false, update: false } as any,
-    memberRentals:      { view: false } as any,
-    memberTransactions: { view: false } as any,
-    memberInvoices:     { view: false } as any,
+    dashboard: { ...BASE_DASHBOARD },
+    vehicles: { ...BASE_VEHICLES },
+    maintenance: { ...BASE_MAINTENANCE },
+    rentals: { ...BASE_RENTALS },
+    accidents: { ...BASE_ACCIDENTS },
+    claims: { ...BASE_CLAIMS },
+    vdFinance: { ...BASE_VD_FINANCE },
+    vdInvoice: { ...BASE_VD_INVOICE },
+    driverPay: { ...BASE_DRIVER_PAY },
+    pettyCash: { ...BASE_PETTY_CASH },
+    aiePettyCash: { ...BASE_PETTY_CASH },
+    incomeExpense: { ...BASE_INCOME_EXPENSE },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE },
+    finance: { ...BASE_FINANCE },
+    invoices: { ...BASE_INVOICES },
+    vatRecord: { ...BASE_VAT_RECORD },
+    share: { ...BASE_SHARE },
+    members: { ...BASE_MEMBERS },
+    customers: { ...BASE_CUSTOMERS },
+    products: { ...BASE_PRODUCTS },
+    whatsapp: { ...BASE_COMMUNICATION },
+    bulkEmail: { ...BASE_COMMUNICATION },
+    waiting: { ...BASE_WAITING },
+    company: { ...BASE_COMPANY },
+    trash: { ...BASE_TRASH },
+    users: { ...BASE_USERS },
+    todo: { ...BASE_TODO },
+    settings: { ...BASE_SETTINGS, view: true },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
   },
 
   // ---------------- CLAIMS ----------------
-  // All permissions FALSE by default (only relevant keys listed)
   claims: {
-    dashboard:     { view: false } as any,
-    bulkEmail:     { view: false, send: false } as any,
-    waiting:       { view: false } as any,
-    whatsapp:      { view: false, send: false } as any,
-    settings: { view: false, update: false } as any,
-    todo: { view: false } as any,
-    vehicles:      { view: false, mileage: false, export: false, owner: false } as any,
-    maintenance:   { view: false, export: false } as any,
-    rentals:       { view: false, daily: false, weekly: false, claim: false, export: false } as any,
-    accidents:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    claims:        { view: false, create: false, update: false, delete: false, export: false } as any,
-    //personalInjury:{ view: false, create: false, update: false, delete: false } as any,
+    dashboard: { ...BASE_DASHBOARD },
+    vehicles: { ...BASE_VEHICLES },
+    maintenance: { ...BASE_MAINTENANCE },
+    rentals: { ...BASE_RENTALS },
+    accidents: { ...BASE_ACCIDENTS },
+    claims: { ...BASE_CLAIMS },
+    vdFinance: { ...BASE_VD_FINANCE },
+    vdInvoice: { ...BASE_VD_INVOICE },
+    driverPay: { ...BASE_DRIVER_PAY },
+    pettyCash: { ...BASE_PETTY_CASH },
+    aiePettyCash: { ...BASE_PETTY_CASH },
+    incomeExpense: { ...BASE_INCOME_EXPENSE },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE },
+    finance: { ...BASE_FINANCE },
+    invoices: { ...BASE_INVOICES },
+    vatRecord: { ...BASE_VAT_RECORD },
+    share: { ...BASE_SHARE },
+    members: { ...BASE_MEMBERS },
+    customers: { ...BASE_CUSTOMERS },
+    products: { ...BASE_PRODUCTS },
+    whatsapp: { ...BASE_COMMUNICATION },
+    bulkEmail: { ...BASE_COMMUNICATION },
+    waiting: { ...BASE_WAITING },
+    company: { ...BASE_COMPANY },
+    trash: { ...BASE_TRASH },
+    users: { ...BASE_USERS },
+    todo: { ...BASE_TODO },
+    settings: { ...BASE_SETTINGS },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
+  },
 
-    finance:       { view: false, export: false } as any,
-    invoices:      { view: false, create: false, update: false, delete: false, export: false } as any,
-    pettyCash:     { view: false, export: false } as any,
-    aiePettyCash:  { view: false, export: false } as any,
-    share:         { view: false, share: false, export: false } as any,
-
-    driverPay:     { view: false, create: false, update: false, delete: false, recordPayment: false, export: false, lock: false, unlock: false } as any,
-
-    vdFinance:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    vdInvoice:     { view: false, create: false, update: false, delete: false } as any,
-
-    users:         { view: false } as any,
-    vatRecord:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    customers:     { view: false, create: false, update: false, delete: false, export: false } as any,
-    company:       { view: false } as any,
-    products:      { view: false, export: false } as any,
-
-    incomeExpense:        { view: false } as any,
-    skylineIncomeExpense: { view: false } as any,
-
-    // Admin actions on members
-    members:       { view: false } as any,
-
-    // Member-portal modules
-    memberProfile:      { view: false } as any,
-    memberRentals:      { view: false } as any,
-    memberTransactions: { view: false } as any,
-    memberInvoices:     { view: false } as any,
+  // ---------------- COMPANY (New Role) ----------------
+  company: {
+    dashboard: { ...BASE_DASHBOARD },
+    vehicles: { ...BASE_VEHICLES },
+    maintenance: { ...BASE_MAINTENANCE },
+    rentals: { ...BASE_RENTALS },
+    accidents: { ...BASE_ACCIDENTS },
+    claims: { ...BASE_CLAIMS },
+    vdFinance: { ...BASE_VD_FINANCE },
+    vdInvoice: { ...BASE_VD_INVOICE },
+    driverPay: { ...BASE_DRIVER_PAY },
+    pettyCash: { ...BASE_PETTY_CASH },
+    aiePettyCash: { ...BASE_PETTY_CASH },
+    incomeExpense: { ...BASE_INCOME_EXPENSE },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE },
+    finance: { ...BASE_FINANCE },
+    invoices: { ...BASE_INVOICES },
+    vatRecord: { ...BASE_VAT_RECORD },
+    share: { ...BASE_SHARE },
+    members: { ...BASE_MEMBERS },
+    customers: { ...BASE_CUSTOMERS },
+    products: { ...BASE_PRODUCTS },
+    whatsapp: { ...BASE_COMMUNICATION },
+    bulkEmail: { ...BASE_COMMUNICATION },
+    waiting: { ...BASE_WAITING },
+    company: { ...BASE_COMPANY },
+    trash: { ...BASE_TRASH },
+    users: { ...BASE_USERS },
+    todo: { ...BASE_TODO },
+    settings: { ...BASE_SETTINGS },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
   },
 
   // ---------------- MEMBER (portal user) ----------------
-  // All permissions FALSE by default (only relevant keys listed)
   member: {
-    // Admin-side modules — all OFF for members
-    bulkEmail:     { view: false } as any,
-    waiting:       { view: false } as any,
-    todo: { view: false } as any,
-    whatsapp:      { view: false } as any,
-    settings: { view: false } as any,
-    dashboard:     { view: false } as any,
-    vehicles:      { view: false, owner: false } as any,
-    maintenance:   { view: false } as any,
-    rentals:       { view: false } as any,
-    accidents:     { view: false } as any,
-    claims:        { view: false } as any,
-    //:{ view: false } as any,
-    finance:       { view: false } as any,
-    invoices:      { view: false } as any,
-    pettyCash:     { view: false } as any,
-    aiePettyCash:  { view: false } as any,
-    share:         { view: false } as any,
-    driverPay:     { view: false, lock: false, unlock: false } as any,
-    vdFinance:     { view: false } as any,
-    vdInvoice:     { view: false } as any,
-    users:         { view: false } as any,
-    vatRecord:     { view: false } as any,
-    customers:     { view: false } as any,
-    company:       { view: false } as any,
-    products:      { view: false } as any,
-    incomeExpense: { view: false } as any,
-    skylineIncomeExpense: { view: false } as any,
-
-    // Admin actions on members — members cannot manage other members
-    members:       { view: false } as any,
-
-    // Member-portal modules — OFF (you had them ON before; per your latest rule all false by default)
-    memberProfile:      { view: false, update: false } as any,
-    memberRentals:      { view: false } as any,
-    memberTransactions: { view: false } as any,
-    memberInvoices:     { view: false } as any,
+    dashboard: { ...BASE_DASHBOARD },
+    vehicles: { ...BASE_VEHICLES },
+    maintenance: { ...BASE_MAINTENANCE },
+    rentals: { ...BASE_RENTALS },
+    accidents: { ...BASE_ACCIDENTS },
+    claims: { ...BASE_CLAIMS },
+    vdFinance: { ...BASE_VD_FINANCE },
+    vdInvoice: { ...BASE_VD_INVOICE },
+    driverPay: { ...BASE_DRIVER_PAY },
+    pettyCash: { ...BASE_PETTY_CASH },
+    aiePettyCash: { ...BASE_PETTY_CASH },
+    incomeExpense: { ...BASE_INCOME_EXPENSE },
+    skylineIncomeExpense: { ...BASE_INCOME_EXPENSE },
+    finance: { ...BASE_FINANCE },
+    invoices: { ...BASE_INVOICES },
+    vatRecord: { ...BASE_VAT_RECORD },
+    share: { ...BASE_SHARE },
+    members: { ...BASE_MEMBERS },
+    customers: { ...BASE_CUSTOMERS },
+    products: { ...BASE_PRODUCTS },
+    whatsapp: { ...BASE_COMMUNICATION },
+    bulkEmail: { ...BASE_COMMUNICATION },
+    waiting: { ...BASE_WAITING },
+    company: { ...BASE_COMPANY },
+    trash: { ...BASE_TRASH },
+    users: { ...BASE_USERS },
+    todo: { ...BASE_TODO },
+    settings: { ...BASE_SETTINGS },
+    memberProfile: { ...BASE_PORTAL },
+    memberRentals: { ...BASE_PORTAL },
+    memberTransactions: { ...BASE_PORTAL },
+    memberInvoices: { ...BASE_PORTAL },
   },
 };
 
-// Convenience helper (kept for compatibility with your code)
+// Safely fetches the permissions array. If a newly defined role is somehow missing, it falls back to 'member' instead of returning undefined.
 export function getDefaultPermissions(role: Role): RolePermissions {
-  return DEFAULT_PERMISSIONS[role];
+  return DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['member'];
 }

@@ -28,6 +28,8 @@ import { useInvoices } from '../hooks/useInvoices';
 import { useClaims } from '../hooks/useClaims';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFinances } from '../hooks/useFinances'; // Added for Finance
+import { Navigate } from 'react-router-dom';
+import { ROUTES } from '../routes';
 
 import { fetchLegalHandlers } from '../utils/legalHandlers';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
@@ -199,12 +201,32 @@ const getInvoiceManualPhone = (inv: any) =>
 
 type RecipientFilterType = 'all' | 'customer' | 'serviceCenter' | 'legalHandler' | 'invoiceManual' | 'account' | 'owner';
 
+const TARGET_PERMISSIONS: Record<string, any> = {
+  custom: 'targetCustom',
+  rental: 'targetRental',
+  maintenance: 'targetMaintenance',
+  invoice: 'targetInvoice',
+  finance: 'targetFinance',
+  claim: 'targetClaim',
+};
+
 export default function WhatsappCommunication() {
   const { user } = useAuth();
   const { can, isManager }  = usePermissions();
 
+  if (!can('whatsapp', 'view')) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  const availableTabs = useMemo(() => {
+    return (Object.keys(emailTemplates) as EmailType[]).filter(type => {
+       const permKey = TARGET_PERMISSIONS[type];
+       return permKey ? can('whatsapp', permKey) : false;
+    });
+  }, [can]);
+
   // ── State
-  const [emailType, setEmailType] = useState<EmailType>('custom');
+  const [emailType, setEmailType] = useState<EmailType>(availableTabs[0] || 'custom');
   const [recipientFilter, setRecipientFilter] = useState<RecipientFilterType>('all');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -250,9 +272,38 @@ export default function WhatsappCommunication() {
 
   // On-demand claim docs cache
   const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
+  
+  // Database Templates state
+  const [dbTemplates, setDbTemplates] = useState<Record<string, any[]>>({});
 
-  // Templates for selected type
-  const templates = emailTemplates[emailType] || [];
+  // Fetch live templates from Firestore
+  useEffect(() => {
+    const fetchLiveTemplates = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'messageTemplates'));
+        if (!snap.empty) {
+          const templatesData: Record<string, any[]> = {
+            custom: [], rental: [], maintenance: [], invoice: [], claim: [], finance: []
+          };
+          snap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.category && templatesData[data.category]) {
+              templatesData[data.category].push({ id: doc.id, ...data });
+            }
+          });
+          setDbTemplates(templatesData);
+        }
+      } catch (e) {
+        console.error('Failed to load live templates, falling back to defaults', e);
+      }
+    };
+    fetchLiveTemplates();
+  }, []);
+
+  // Templates for selected type (Uses live database templates if available, otherwise falls back to the static file)
+  const templates = dbTemplates[emailType]?.length > 0 
+    ? dbTemplates[emailType] 
+    : (emailTemplates[emailType] || []);
   const currentTemplate = templates.find(t => t.id === selectedTemplateId);
 
   // Load legal handlers on Claim tab
@@ -762,6 +813,8 @@ export default function WhatsappCommunication() {
         }
     }
 
+    // src/pages/WhatsappCommunication.tsx
+
     /* ---------- MAINTENANCE ---------- */
     if (emailType === 'maintenance' && selectedMaintenanceId) {
       const m = maintenanceLogs.find(x => x.id === selectedMaintenanceId);
@@ -787,6 +840,34 @@ export default function WhatsappCommunication() {
         ctx['Mileage'] = String((m as any).currentMileage || (m as any).mileage || 'N/A');
         ctx['NextMileage'] = String((m as any).nextServiceMileage || 'N/A');
         ctx['Insert Mileage'] = ctx['Mileage'];
+
+        // --- NEW DRIVER LOOKUP FOR SERVICE CENTER MESSAGES ---
+        let driverName = (m as any).customerName || (m as any).driverName || v?.owner?.name;
+        
+        // Try finding the active rental for this vehicle
+        if (!driverName && v) {
+          const activeRental = rentals.find((r: any) => r.vehicleId === v.id && r.status === 'active');
+          if (activeRental && activeRental.customerId) {
+            const matchedCust = customers.find(c => c.id === activeRental.customerId);
+            if (matchedCust) driverName = matchedCust.name || (matchedCust as any).fullName;
+          }
+        }
+        
+        // Try fallback IDs on the maintenance log or vehicle
+        if (!driverName) {
+          const possibleCustId = (m as any).customerId || v?.customerId || (v as any)?.ownerId;
+          if (possibleCustId) {
+            const matchedCust = customers.find(c => c.id === possibleCustId);
+            if (matchedCust) driverName = matchedCust.name || (matchedCust as any).fullName;
+          }
+        }
+
+        if (driverName) {
+          ctx['Driver Name'] = driverName;
+          ctx['Customer Name'] = driverName;
+          ctx["Driver's Name"] = driverName;
+        }
+        // -----------------------------------------------------
 
         const parts = ((m as any).parts || []).filter(Boolean);
         if (parts.length) {
@@ -1143,9 +1224,13 @@ export default function WhatsappCommunication() {
   // ─── UI ─────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-semibold text-gray-900">WhatsApp Messaging</h1>
+      </div>
+
       {/* Type + Template */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        {(Object.keys(emailTemplates) as EmailType[]).map(t => (
+        {availableTabs.map(t => (
           <button
             key={t}
             onClick={() => {
@@ -1197,7 +1282,7 @@ export default function WhatsappCommunication() {
                 {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
                 <button
                     onClick={() => setRecipientFilter('customer')}
-                    className={`px-3 py-1 rounded text-sm ${recipientFilter === 'customer' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`}
+                    className={`px-3 py-1 rounded text-sm ${recipientFilter === 'customer' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'}`}
                 >
                     Customers
                 </button>
@@ -1243,9 +1328,9 @@ export default function WhatsappCommunication() {
           <Search className="absolute left-2 top-2 text-green-400" />
           <input
             className="pl-8 pr-4 py-2 border rounded w-full focus:ring-2 focus:ring-green-400"
-            placeholder="Search recipients…"
+            placeholder="Search recipients by name or phone..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e=>setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -1519,12 +1604,12 @@ export default function WhatsappCommunication() {
           <h2 className="font-medium text-green-700">WhatsApp History</h2>
           <div className="flex space-x-2">
             <select
-              className="border p-1 rounded"
+              className="border p-1 rounded focus:ring-green-500 focus:border-green-500"
               value={historyTypeFilter}
               onChange={e => setHistoryTypeFilter(e.target.value as any)}
             >
               <option value="all">All Types</option>
-              {(Object.keys(emailTemplates) as EmailType[]).map(t => (<option key={t} value={t}>{t}</option>))}
+              {availableTabs.map(t => (<option key={t} value={t}>{t}</option>))}
             </select>
             <select
               className="border p-1 rounded"
@@ -1542,7 +1627,7 @@ export default function WhatsappCommunication() {
             />
           </div>
 
-          {user?.role === 'manager' && (
+          {can('whatsapp', 'clearHistory') && (
             <button
               onClick={async () => {
                 if (!window.confirm('Delete ALL WhatsApp history entries forever?')) return;
@@ -1560,29 +1645,34 @@ export default function WhatsappCommunication() {
 
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr>
-              <th className="border px-2 py-1">Date</th>
-              <th className="border px-2 py-1">Type</th>
-              <th className="border px-2 py-1">Template</th>
-              <th className="border px-2 py-1">Recipients</th>
-              <th className="border px-2 py-1">Subject</th>
+            <tr className="bg-gray-50">
+              <th className="border px-2 py-2 text-sm font-medium text-gray-500">Date</th>
+              <th className="border px-2 py-2 text-sm font-medium text-gray-500">Type</th>
+              <th className="border px-2 py-2 text-sm font-medium text-gray-500">Template</th>
+              <th className="border px-2 py-2 text-sm font-medium text-gray-500">Recipients</th>
+              <th className="border px-2 py-2 text-sm font-medium text-gray-500">Subject Log</th>
             </tr>
           </thead>
           <tbody>
             {filteredHistory.map(h => (
-              <tr key={h.id}>
-                <td className="border px-2 py-1">{safeFmt(h.timestamp, 'dd/MM/yyyy HH:mm')}</td>
-                <td className="border px-2 py-1">{h.type}</td>
-                <td className="border px-2 py-1">{h.templateId}</td>
-                <td className="border px-2 py-1">
+              <tr key={h.id} className="hover:bg-gray-50">
+                <td className="border px-2 py-1 text-sm">{safeFmt(h.timestamp, 'dd/MM/yyyy HH:mm')}</td>
+                <td className="border px-2 py-1 text-sm capitalize">{h.type}</td>
+                <td className="border px-2 py-1 text-sm">{h.templateId}</td>
+                <td className="border px-2 py-1 text-sm font-medium">
                   {h.recipients.map(rid => {
                     const rec = getRecipientPhoneEmailAndName(rid);
                     return rec?.name;
                   }).filter(Boolean).join(', ')}
                 </td>
-                <td className="border px-2 py-1">{h.subject}</td>
+                <td className="border px-2 py-1 text-sm text-gray-600 truncate max-w-xs">{h.subject}</td>
               </tr>
             ))}
+            {filteredHistory.length === 0 && (
+              <tr>
+                <td colSpan={5} className="border px-2 py-4 text-center text-sm text-gray-500">No WhatsApp history found.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

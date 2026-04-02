@@ -99,6 +99,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
             <Edit className="h-4 w-4" />
           </button>
           )}
+          {can('vdInvoice', 'singleDoc') && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -109,6 +110,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           >
             <FileText className="h-4 w-4" />
           </button>
+          )}
           {can('vdInvoice', 'delete') && (
           <button
             onClick={(e) => {
@@ -121,7 +123,8 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
             <Trash2 className="h-4 w-4" />
           </button>
       )}
-          {row.original.documentUrl && (
+      {can('vdInvoice', 'singleDoc') && row.original.documentUrl && (
+  
             <button
               onClick={(e) => {
                 e.stopPropagation();

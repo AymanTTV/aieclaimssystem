@@ -128,21 +128,24 @@ const PettyCashTable: React.FC<PettyCashTableProps> = ({
             </button>
           )}
           {can(moduleKey, 'update') && (
-            <>
+            
               <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} title="Edit">
                 <Edit className="h-4 w-4 text-blue-600 hover:text-blue-800" />
               </button>
+          )}
+          {can(moduleKey, 'singleDoc') && (
               <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} title="Generate Document">
                 <FileText className="h-4 w-4 text-green-600 hover:text-green-800" />
               </button>
-            </>
+            
           )}
           {can(moduleKey, 'delete') && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} title="Delete">
               <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
             </button>
           )}
-          {row.original.documentUrl && (
+          {can(moduleKey, 'singleDoc') && row.original.documentUrl && (
+          
             <button onClick={(e) => { e.stopPropagation(); onViewDocument(row.original.documentUrl); }} title="View Document">
               <Eye className="h-4 w-4 text-blue-600 hover:text-blue-800" />
             </button>

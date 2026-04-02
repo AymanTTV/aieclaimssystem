@@ -11,6 +11,8 @@ interface RentalFiltersProps {
   onVehicleFilterChange: (vehicleId: string) => void;
   reasonFilter: RentalReason | 'all';
   onReasonFilterChange: (reason: RentalReason | 'all') => void;
+  paymentStatusFilter: string; // <-- ADDED
+  onPaymentStatusFilterChange: (status: string) => void; // <-- ADDED
   startDateFilter: string;
   onStartDateChange: (date: string) => void;
   endDateFilter: string;
@@ -29,6 +31,8 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
   onVehicleFilterChange,
   reasonFilter,
   onReasonFilterChange,
+  paymentStatusFilter, // <-- ADDED
+  onPaymentStatusFilterChange, // <-- ADDED
   startDateFilter,
   onStartDateChange,
   endDateFilter,
@@ -90,6 +94,22 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
             <option value="workshop">Workshop</option>
             <option value="c-substitute">C Substitute</option>
             <option value="h-substitute">H Substitute</option>
+          </select>
+        </div>
+
+        {/* Payment Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Payment</label>
+          <select
+            value={paymentStatusFilter}
+            onChange={(e) => onPaymentStatusFilterChange(e.target.value)}
+            className="form-select mt-1 w-full"
+            disabled={isDisabled}
+          >
+            <option value="all">All Payments</option>
+            <option value="paid">Paid</option>
+            <option value="partially_paid">Partially Paid</option>
+            <option value="pending">Pending (Unpaid)</option>
           </select>
         </div>
 

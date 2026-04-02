@@ -14,7 +14,7 @@ export interface VehicleOwner {
   name: string;
   address: string;
   isDefault?: boolean;
-  // NEW: Link to Finance Account
+  // Link to Finance Account
   accountId?: string;
   accountName?: string;
 }
@@ -56,7 +56,7 @@ export interface Vehicle {
   lastMaintenance?: Date | null;
   nextMaintenance?: Date | null;
 
-  // NEW: when the car was purchased
+  // when the car was purchased
   purchasedDate?: Date | null;
 
   // Pricing
@@ -64,13 +64,15 @@ export interface Vehicle {
   dailyRentalPrice: number;
   claimRentalPrice: number;
 
-  // NEW: Rental insurance amounts
+  // Rental insurance amounts
   weeklyInsuranceAmount?: number;
   dailyInsuranceAmount?: number;
   claimInsuranceAmount?: number;
 
-  // Ownership
+  // Ownership & Assignments
   owner?: VehicleOwner;
+  assignedGarageId?: string | null;   // ✅ Added for company/garage filtering
+  assignedGarageName?: string | null; // ✅ Added for display in tables
 
   // Media & docs
   image?: string;
@@ -78,6 +80,7 @@ export interface Vehicle {
 
   // Status & audit
   status: VehicleStatus;
+  activeStatuses?: string[]; // ✅ Added for multi-status support (e.g. rented + scheduled-maintenance)
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: string;
@@ -86,7 +89,7 @@ export interface Vehicle {
   soldDate?: Date | null;
   salePrice?: number | null;
 
-  // NEW: mileage history
+  // mileage history
   mileageUpdates?: MileageUpdate[];
 }
 

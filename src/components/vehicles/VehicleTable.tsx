@@ -1,13 +1,65 @@
 // src/components/vehicles/VehicleTable.tsx
+
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle } from 'lucide-react';
+import { Eye, Edit, AlertCircle, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired, isServiceOverdue, isServiceDueSoon } from '../../utils/vehicleUtils';
 import { addDays } from 'date-fns';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+
+// --- NEW HELPER FUNCTION FOR THE 28TH OF THE MONTH LOGIC ---
+const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
+  const now = new Date();
+  
+  // Find the most recent 28th of a month
+  let last28th = new Date(now.getFullYear(), now.getMonth(), 28);
+  if (now.getDate() < 28) {
+    // If today is before the 28th, the threshold is the 28th of the previous month
+    last28th = new Date(now.getFullYear(), now.getMonth() - 1, 28);
+  }
+  last28th.setHours(0, 0, 0, 0);
+
+  // 1. SAFELY SCAN THE ENTIRE ARRAY FOR THE NEWEST DATE
+  if (vehicle.mileageUpdates && Array.isArray(vehicle.mileageUpdates) && vehicle.mileageUpdates.length > 0) {
+    
+    // Extract all valid dates and convert them to milliseconds
+    const validDateTimes = vehicle.mileageUpdates.map((u: any) => {
+      if (!u || !u.date) return 0;
+      const d = u.date?.toDate ? u.date.toDate() : new Date(u.date);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    }).filter((time: number) => time > 0);
+
+    if (validDateTimes.length > 0) {
+      // Find the absolute highest (newest) time in the array
+      const maxDateMs = Math.max(...validDateTimes);
+      const lastUpdateDate = new Date(maxDateMs);
+      lastUpdateDate.setHours(0, 0, 0, 0);
+      
+      // If the newest date is older than the 28th, trigger warning
+      return lastUpdateDate < last28th;
+    }
+  }
+
+  // 2. Fallback to creation date if no updates exist
+  if (vehicle.createdAt) {
+    const createdDate = vehicle.createdAt?.toDate ? vehicle.createdAt.toDate() : new Date(vehicle.createdAt);
+    if (!isNaN(createdDate.getTime())) {
+       createdDate.setHours(0, 0, 0, 0);
+       return createdDate < last28th;
+    }
+  }
+
+  // 3. Absolute fallback
+  return true;
+};
+// -----------------------------------------------------------
+// -----------------------------------------------------------
+// -----------------------------------------------------------
 
 interface VehicleTableProps {
   vehicles: Vehicle[];
@@ -19,6 +71,12 @@ interface VehicleTableProps {
   onGenerateDocument: (vehicle: Vehicle) => Promise<void>;
   onViewDocument: (url: string) => void;
   onSetServiceMileage: (vehicle: Vehicle) => void;
+
+  // ✅ New Multi-Select Props
+  selectedIds: Set<string>;
+  onToggleAll: (checked: boolean) => void;
+  onToggleOne: (id: string) => void;
+  onAssignGarage: (vehicle: Vehicle) => void;
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -30,9 +88,17 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onUndoSale,
   onGenerateDocument,
   onSetServiceMileage,
-  onViewDocument
+  onViewDocument,
+  selectedIds,
+  onToggleAll,
+  onToggleOne,
+  onAssignGarage
 }) => {
-  const { can } = usePermissions();
+  const { can, isCompany } = usePermissions(); 
+  const { user } = useAuth();
+
+  const allSelected = vehicles.length > 0 && selectedIds.size === vehicles.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
 
   const sortedVehicles = [...vehicles].sort((a, b) => {
     const now = new Date();
@@ -53,7 +119,6 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       if (aMileage >= aNextServiceMileage) count += 15;
       if (aMileage < aNextServiceMileage && aNextServiceMileage - aMileage <= 1000) count += 7;
 
-      // Check expiring soon
       const checkSoon = (d: Date | null | undefined) => {
          if (!d) return false;
          const dt = new Date(d);
@@ -84,6 +149,29 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       : '-';
 
   const columns = [
+    // ✅ CHECKBOX COLUMN (Hidden for Company role)
+    (!isCompany && can('vehicles', 'update')) ? {
+      id: 'select',
+      header: (
+        <input
+          type="checkbox"
+          className="form-checkbox h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+          checked={allSelected}
+          ref={(input) => { if (input) input.indeterminate = someSelected; }}
+          onChange={(e) => onToggleAll(e.target.checked)}
+        />
+      ),
+      cell: ({ row }: any) => (
+        <input
+          type="checkbox"
+          className="form-checkbox h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+          checked={selectedIds.has(row.original.id)}
+          onChange={() => onToggleOne(row.original.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    } : null,
+
     {
       header: 'Vehicle',
       cell: ({ row }: any) => (
@@ -100,28 +188,36 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
             </div>
           )}
           <div>
-            {/* UPDATED: Show Assigned Account Name */}
-            <div className={`text-xs font-semibold mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-gray-400 italic'}`}>
-                {row.original.owner?.accountName || 'No Account Assigned'}
-            </div>
+            {!isCompany && (
+              <div className={`text-xs font-semibold mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-gray-400 italic'}`}>
+                  {row.original.owner?.accountName || 'No Account Assigned'}
+              </div>
+            )}
             <div className="font-medium">
               {row.original.make} {row.original.model}
             </div>
             <div className="text-sm text-gray-500">{row.original.registrationNumber}</div>
+            
+            {/* ✅ Assigned Garage Info Display */}
+            {!isCompany && row.original.assignedGarageName && (
+               <div className="text-xs font-semibold text-orange-600 mt-1 flex items-center bg-orange-50 w-max px-1.5 py-0.5 rounded border border-orange-100">
+                 <Building2 className="h-3 w-3 mr-1" /> {row.original.assignedGarageName}
+               </div>
+            )}
           </div>
         </div>
       ),
     },
 
-    // Owner column (kept for explicit ownership details if permission allows)
-    can('vehicles', 'owner') && {
+    // Owner column (Hidden for Company)
+    (!isCompany && can('vehicles', 'owner')) ? {
       header: 'Owner',
       cell: ({ row }: any) => (
         <div>
           <div className="font-medium">{row.original.owner?.name || 'AIE Skyline'}</div>
         </div>
       ),
-    },
+    } : null,
 
     {
       header: 'Status',
@@ -131,12 +227,9 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
         const getDisplayStatus = (status: string) => {
           switch (status) {
-            case 'rented':
-              return 'hired';
-            case 'scheduled-rental':
-              return 'scheduled for hire';
-            default:
-              return status.replace('-', ' ');
+            case 'rented': return 'hired';
+            case 'scheduled-rental': return 'scheduled for hire';
+            default: return status.replace('-', ' ');
           }
         };
 
@@ -166,7 +259,8 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       },
     },
 
-    {
+    // Rental Rates column (Hidden for Company)
+    !isCompany ? {
       header: 'Rental Rates',
       cell: ({ row }: any) => {
         const v = row.original;
@@ -193,7 +287,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           </div>
         );
       },
-    },
+    } : null,
 
     {
       header: 'Vehicle Documents',
@@ -230,29 +324,36 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         const nextServiceMileageStored =
           typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : currentMileage + 25000;
         const milesToNext = nextServiceMileageStored - currentMileage;
+        
+        // Check using the new 28th logic
+        const needsUpdate = checkNeedsMonthlyUpdate(vehicle);
 
         return (
           <div className="space-y-1">
             <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>
               Current: {currentMileage.toLocaleString()} Mi
             </div>
-            <div
-              className={
-                isServiceOverdue(vehicle)
-                  ? 'text-red-600 font-medium flex items-center'
-                  : isServiceDueSoon(vehicle)
-                  ? 'text-yellow-600 font-medium flex items-center'
-                  : 'flex items-center'
-              }
-            >
+            <div className="flex items-center font-medium">
               Next Service: {nextServiceMileageStored.toLocaleString()} Mi
-              {isServiceOverdue(vehicle) && <AlertTriangle className="h-4 w-4 ml-1" title="Service Overdue!" />}
-              {!isServiceOverdue(vehicle) && isServiceDueSoon(vehicle) && (
-                <Wrench className="h-4 w-4 ml-1" title="Service Due Soon!" />
-              )}
             </div>
             <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
             
+            {/* Show 5,000 mile warning */}
+            {milesToNext >= 0 && milesToNext < 5000 && (
+              <div className="text-yellow-700 font-medium text-xs mt-2 flex items-center bg-yellow-100 p-1 rounded w-max">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Vehicle next service mileage is soon
+              </div>
+            )}
+            
+            {/* Show 28th Monthly Update Warning */}
+            {needsUpdate && (
+              <div className="text-blue-700 font-medium text-xs mt-2 flex items-center bg-blue-100 p-1 rounded w-max">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Check vehicle current mileage and update
+              </div>
+            )}
+
             <div className="pt-2 mt-1 border-t border-gray-100 text-xs">
                <div className="text-gray-600">Last Maint: {formatDate(vehicle.lastMaintenance)}</div>
                <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>
@@ -266,42 +367,71 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
     {
       header: 'Actions',
       cell: ({ row }: any) => (
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2 items-center justify-end max-w-[140px]">
+          
+          {can('vehicles', 'copyId') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(row.original.id);
+                toast.success(`Copied DB ID: ${row.original.id}`, { duration: 4000, icon: '🔑' });
+              }}
+              className="p-1.5 rounded hover:bg-purple-50 text-purple-600"
+              title="Copy Firebase Document ID"
+            >
+              <Key className="h-4 w-4" />
+            </button>
+          )}
+
           {can('vehicles', 'view') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onView(row.original);
               }}
-              className="text-blue-600 hover:text-blue-800"
+              className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
               title="View Details"
             >
               <Eye className="h-4 w-4" />
             </button>
           )}
           {can('vehicles', 'update') && row.original.status !== 'sold' && (
-            <>
+            
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(row.original);
                 }}
-                className="text-blue-600 hover:text-blue-800"
+                className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
                 title="Edit"
               >
                 <Edit className="h-4 w-4" />
               </button>
+              )}
+
+          {/* ✅ ASSIGN TO GARAGE ACTION BUTTON */}
+          {!isCompany && can('vehicles', 'update') && (
+             <button
+                onClick={(e) => { e.stopPropagation(); onAssignGarage(row.original); }}
+                className="p-1.5 rounded hover:bg-orange-50 text-orange-600"
+                title="Assign/Update Garage"
+              >
+                <Building2 className="h-4 w-4" />
+              </button>
+          )}
+
+              {can('vehicles', 'sale') && row.original.status !== 'sold' && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onMarkAsSold(row.original);
                 }}
-                className="text-green-600 hover:text-green-800"
+                className="p-1.5 rounded hover:bg-green-50 text-green-600"
                 title="Mark as Sold"
               >
                 <DollarSign className="h-4 w-4" />
               </button>
-            </>
+            
           )}
           {can('vehicles', 'mileage') && (
             <button
@@ -309,19 +439,19 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                 e.stopPropagation();
                 onSetServiceMileage(row.original);
               }}
-              className="text-gray-600 hover:text-gray-800"
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
               title="Set Next Service"
             >
               <Wrench className="h-4 w-4" />
             </button>
           )}
-          {can('vehicles', 'update') && row.original.status === 'sold' && (
+          {can('vehicles', 'sale') && row.original.status === 'sold' && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onUndoSale(row.original);
               }}
-              className="text-orange-600 hover:text-orange-800"
+              className="p-1.5 rounded hover:bg-orange-50 text-orange-600"
               title="Undo Sale"
             >
               <RotateCw className="h-4 w-4" />
@@ -333,31 +463,31 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                 e.stopPropagation();
                 onDelete(row.original);
               }}
-              className="text-red-600 hover:text-red-800"
+              className="p-1.5 rounded hover:bg-red-50 text-red-600"
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
             </button>
           )}
-          {can('vehicles', 'update') && (
+          {can('vehicles', 'singleDoc') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onGenerateDocument(row.original);
               }}
-              className="text-green-600 hover:text-green-800"
+              className="p-1.5 rounded hover:bg-green-50 text-green-600"
               title="Generate Document"
             >
               <FileText className="h-4 w-4" />
             </button>
           )}
-          {row.original.documentUrl && can('vehicles', 'view') && (
+          {row.original.documentUrl && can('vehicles', 'singleDoc') && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onViewDocument(row.original.documentUrl!);
               }}
-              className="text-blue-600 hover:text-blue-800"
+              className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
               title="View Document"
             >
               <Eye className="h-4 w-4" />
@@ -366,7 +496,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         </div>
       ),
     },
-  ].filter(Boolean);
+  ].filter(Boolean); // Clean up null columns
 
   return (
     <DataTable
@@ -378,8 +508,19 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         const now = new Date();
         const thirtyDays = addDays(now, 30);
 
-        if (isServiceOverdue(vehicle)) return 'bg-red-100';
-        if (isServiceDueSoon(vehicle)) return 'bg-yellow-100';
+        const currentMileage = vehicle.mileage || 0;
+        const nextService = vehicle.nextServiceMileage || (currentMileage + 25000);
+        const remaining = nextService - currentMileage;
+        
+        const needsUpdate = checkNeedsMonthlyUpdate(vehicle);
+
+        // LOCK HOVER STATES SO ROWS STOP BLINKING
+        if (remaining < 0) return 'bg-red-100 hover:bg-red-100'; 
+        if (remaining < 5000) return 'bg-yellow-100 hover:bg-yellow-100'; 
+        if (needsUpdate) return 'bg-blue-50 hover:bg-blue-50'; 
+
+        if (isServiceOverdue(vehicle)) return 'bg-red-100 hover:bg-red-100';
+        if (isServiceDueSoon(vehicle)) return 'bg-yellow-100 hover:bg-yellow-100';
 
         const checkExp = (d?: Date | null) => d && new Date(d) < now;
         const checkSoon = (d?: Date | null) => d && new Date(d) <= thirtyDays && new Date(d) >= now;
@@ -390,7 +531,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           checkExp(vehicle.nslExpiry) ||
           checkExp(vehicle.roadTaxExpiry)
         ) {
-          return 'bg-red-50';
+          return 'bg-red-50 hover:bg-red-50';
         }
 
         if (
@@ -399,7 +540,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           checkSoon(vehicle.nslExpiry) ||
           checkSoon(vehicle.roadTaxExpiry)
         ) {
-          return 'bg-yellow-50';
+          return 'bg-yellow-50 hover:bg-yellow-50';
         }
 
         return '';

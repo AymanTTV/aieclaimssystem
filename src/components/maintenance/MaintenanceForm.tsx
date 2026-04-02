@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceForm.tsx
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, getDocs, deleteField } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, deleteField } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, MaintenanceLog, Part, VehicleOwner } from '../../types';
 import { addYears, format, addDays } from 'date-fns';
@@ -35,7 +35,7 @@ interface PartSuggestion {
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { can, isCompany } = usePermissions(); // ✅ Get company flag to hide invoice
   const [loading, setLoading] = useState(false);
 
   // Initialize manual entry state based on whether the log has vehicleDetails but no vehicleId
@@ -93,53 +93,13 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     return format(d, "yyyy-MM-dd'T'HH:mm");
   };
 
+  // ✅ Auto-generation logic removed to allow completely blank order/invoice fields
   const [orderNumber, setOrderNumber] = useState(editLog?.orderNumber || '');
   const [invoiceNumber, setInvoiceNumber] = useState(editLog?.invoiceNumber || '');
-  const [invoiceDate, setInvoiceDate] = useState(editLog?.invoiceDate ? toDateTimeInput(editLog.invoiceDate) : toDateTimeInput(new Date()));
-  const [invoiceDueDate, setInvoiceDueDate] = useState(editLog?.invoiceDueDate ? toDateTimeInput(editLog.invoiceDueDate) : toDateTimeInput(addDays(new Date(), 30)));
+  
+  const [invoiceDate, setInvoiceDate] = useState(editLog?.invoiceDate ? toDateTimeInput(editLog.invoiceDate) : '');
+  const [invoiceDueDate, setInvoiceDueDate] = useState(editLog?.invoiceDueDate ? toDateTimeInput(editLog.invoiceDueDate) : '');
   const [completedDate, setCompletedDate] = useState(editLog?.completedDate ? toDateTimeInput(editLog.completedDate) : '');
-
-  // Effect to auto-generate numbers for new logs
-  useEffect(() => {
-    const fetchNextNumbers = async () => {
-      if (!editLog) {
-        // Fetch all logs to reliably find the maximum sequence number
-        const snapshot = await getDocs(collection(db, 'maintenanceLogs'));
-        
-        let maxOrderSeq = 0;
-        let maxInvoiceSeq = 0;
-
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          
-          if (data.orderNumber && typeof data.orderNumber === 'string' && data.orderNumber.startsWith('MaintenanceOrder')) {
-             const num = parseInt(data.orderNumber.replace('MaintenanceOrder', ''), 10);
-             if (!isNaN(num) && num > maxOrderSeq) {
-               maxOrderSeq = num;
-             }
-          }
-          
-          if (data.invoiceNumber && typeof data.invoiceNumber === 'string' && data.invoiceNumber.startsWith('MaintenanceInvoice')) {
-             const num = parseInt(data.invoiceNumber.replace('MaintenanceInvoice', ''), 10);
-             if (!isNaN(num) && num > maxInvoiceSeq) {
-               maxInvoiceSeq = num;
-             }
-          }
-        });
-
-        const nextOrder = `MaintenanceOrder${String(maxOrderSeq + 1).padStart(4, '0')}`;
-        const nextInvoice = `MaintenanceInvoice${String(maxInvoiceSeq + 1).padStart(4, '0')}`;
-        
-        setOrderNumber(nextOrder);
-        setInvoiceNumber(nextInvoice);
-        
-        const now = new Date();
-        const due = addDays(now, 30);
-        setInvoiceDueDate(toDateTimeInput(due));
-      }
-    };
-    fetchNextNumbers();
-  }, [editLog]);
 
   useEffect(() => {
     setLoadingTypes(true);
@@ -218,7 +178,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   useEffect(() => { if (editLog) setExistingPaidAmount(editLog.paidAmount || 0); }, [editLog]);
 
   useEffect(() => {
-    // Auto-update mileage when creating or editing based directly on the selected vehicle
     if (!manualEntry && selectedVehicleId) {
       const v = vehicles.find(v => v.id === selectedVehicleId);
       if (v) {
@@ -306,6 +265,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       toast.error('Please log in');
       return;
     }
+
+    // ✅ Conditional Require Logic for Order & Invoice Numbers when marked as Completed
+    if (formData.status === 'completed') {
+      if (!orderNumber.trim()) {
+        toast.error('Maintenance Order Number is required when setting status to Completed.');
+        return;
+      }
+      if (!isCompany && !invoiceNumber.trim()) {
+        toast.error('Maintenance Invoice Number is required when setting status to Completed.');
+        return;
+      }
+    }
+
     if (!manualEntry && !selectedVehicleId) {
       toast.error('Please select a vehicle');
       return;
@@ -372,8 +344,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             model: manualModel.trim(),
             registrationNumber: manualRegNumber.trim(),
           },
-          // When manually entering, ensure we clear any previous vehicleId linkage
-          vehicleId: deleteField() as any, // Cast to any to bypass type check if interface expects string
+          vehicleId: deleteField() as any, 
         };
         vehicleToUseForTransaction = {
           make: manualMake.trim(),
@@ -385,7 +356,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         maintenanceData = {
           ...commonMaintenanceData,
           vehicleId: selectedVehicleId,
-          // When selecting a vehicle, ensure we clear any previous manual details
           vehicleDetails: deleteField() as any,
         };
         vehicleToUseForTransaction = existingVehicle;
@@ -439,13 +409,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       } else { 
         const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
           ...maintenanceData,
-          // For new docs, we don't need deleteField, so we clean up the object
-          // However, manualEntry logic above handles structure properly.
-          // Note: create requires no `deleteField`.
-          // We should sanitize maintenanceData for creation
           vehicleId: manualEntry ? null : selectedVehicleId,
           vehicleDetails: manualEntry ? maintenanceData.vehicleDetails : null,
-
           createdAt: new Date(),
           createdBy: user.id,
         });
@@ -455,7 +420,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             type: 'expense',
             category: maintenanceData.type,
             amount: totalPaidAmount,
-            // UPDATED DESCRIPTION: Include Order and Invoice numbers
             description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
             customerName: maintenanceData.serviceProvider,
             referenceId: docRef.id,
@@ -464,7 +428,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             vehicleOwner,
             accountFrom: vehicleOwner?.accountId || undefined,
             paymentMethod: paymentMethod,
-            // UPDATED REFERENCE: Using the Invoice Number as the primary finance reference
             paymentReference: invoiceNumber || paymentReference || undefined, 
             paymentStatus: maintenanceData.paymentStatus,
             status: 'completed',
@@ -519,29 +482,37 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           <h4 className="text-sm font-medium text-gray-900 mb-3">Order & Invoice Details</h4>
           <div className="grid grid-cols-2 gap-4">
               <FormField 
-                label="Order Number" 
+                label="Maintenance Order Number" 
                 value={orderNumber} 
                 onChange={e => setOrderNumber(e.target.value)} 
-                placeholder="Auto-generated"
+                placeholder="e.g. ORD-1234"
+                required={formData.status === 'completed'}
               />
-              <FormField 
-                label="Invoice Number" 
-                value={invoiceNumber} 
-                onChange={e => setInvoiceNumber(e.target.value)} 
-                placeholder="Auto-generated"
-              />
-              <FormField 
-                type="datetime-local"
-                label="Invoice Date" 
-                value={invoiceDate} 
-                onChange={e => setInvoiceDate(e.target.value)} 
-              />
-              <FormField 
-                type="datetime-local"
-                label="Invoice Due Date" 
-                value={invoiceDueDate} 
-                onChange={e => setInvoiceDueDate(e.target.value)} 
-              />
+
+              {/* ✅ Hide Invoice Fields for Company Users */}
+              {!isCompany && (
+                <>
+                  <FormField 
+                    label="Maintenance Invoice Number" 
+                    value={invoiceNumber} 
+                    onChange={e => setInvoiceNumber(e.target.value)} 
+                    placeholder="e.g. INV-1234"
+                    required={formData.status === 'completed'}
+                  />
+                  <FormField 
+                    type="datetime-local"
+                    label="Invoice Date" 
+                    value={invoiceDate} 
+                    onChange={e => setInvoiceDate(e.target.value)} 
+                  />
+                  <FormField 
+                    type="datetime-local"
+                    label="Invoice Due Date" 
+                    value={invoiceDueDate} 
+                    onChange={e => setInvoiceDueDate(e.target.value)} 
+                  />
+                </>
+              )}
           </div>
         </div>
 
@@ -695,8 +666,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             >
               <option value="scheduled">Scheduled</option>
               <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              {can('maintenance', 'complete') && <option value="completed">Completed</option>}
+              {can('maintenance', 'completed') && !isCompany && <option value="cancelled">Cancelled</option>}
             </select>
           </div>
         </div>
@@ -713,211 +684,214 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           />
         </div>
 
-        {/* Parts Section with Discount + VAT */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-lg font-medium text-gray-900">Parts</label>
-            <button
-              type="button"
-              onClick={() =>
-                setParts([
-                  ...parts,
-                  { name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }
-                ])
-              }
-              className="text-sm text-primary hover:text-primary-600"
-            >
-              Add Part
-            </button>
-          </div>
-          <div className="space-y-3">
-            {parts.map((part, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
+        {/* Parts Section */}
+        {!isCompany && (
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-lg font-medium text-gray-900">Parts</label>
+              <button
+                type="button"
+                onClick={() =>
+                  setParts([
+                    ...parts,
+                    { name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }
+                  ])
+                }
+                className="text-sm text-primary hover:text-primary-600"
               >
-                <div className="relative col-span-1 sm:col-span-2">
+                Add Part
+              </button>
+            </div>
+            <div className="space-y-3">
+              {parts.map((part, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
+                >
+                  <div className="relative col-span-1 sm:col-span-2">
+                    <FormField
+                      label="Part Name"
+                      value={part.name}
+                      onChange={e => {
+                        const newParts = [...parts];
+                        newParts[index] = { ...newParts[index], name: e.target.value };
+                        setParts(newParts);
+                      }}
+                      onFocus={() => {
+                        const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+                        }, 200); 
+                      }}
+                      placeholder="Type to search products (name or part number)…"
+                      inputClassName="w-full"
+                    />
+
+                    {showPartSuggestions[index] && (
+                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+                        {partSuggestionsList
+                          .filter(s => {
+                            const q = part.name?.toLowerCase() || '';
+                            return s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q);
+                          })
+                          .map((s) => (
+                          <li
+                            key={s.id}
+                            className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                            onMouseDown={() => {
+                              const newParts = [...parts];
+                              newParts[index] = {
+                                ...newParts[index],
+                                name: s.name,
+                                cost: s.lastCost,
+                              };
+                              setParts(newParts);
+                              const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+                            }}
+                            title={`${s.name} (${s.partNumber})`}
+                          >
+                            <span className="truncate">
+                              {s.name}
+                              {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+                            </span>
+                            <span className="text-gray-500 text-sm ml-3">
+                              {formatCurrency(s.lastCost)}
+                            </span>
+                          </li>
+                        ))}
+
+                        <li 
+                          className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
+                          onMouseDown={(e) => {
+                            e.preventDefault(); 
+                            setPendingPartIndex(index);
+                            setShowProductModal(true);
+                          }}
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                          Create New Product
+                        </li>
+                      </ul>
+                    )}
+                  </div>
+
                   <FormField
-                    label="Part Name"
-                    value={part.name}
+                    type="number"
+                    label="Quantity"
+                    value={part.quantity}
                     onChange={e => {
                       const newParts = [...parts];
-                      newParts[index] = { ...newParts[index], name: e.target.value };
+                      newParts[index] = { ...newParts[index], quantity: parseInt(e.target.value) || 0 };
                       setParts(newParts);
                     }}
-                    onFocus={() => {
-                      const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
-                    }}
-                    onBlur={() => {
-                      setTimeout(() => {
-                        const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                      }, 200); 
-                    }}
-                    placeholder="Type to search products (name or part number)…"
+                    min={1}
                     inputClassName="w-full"
                   />
 
-                  {showPartSuggestions[index] && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-                      {partSuggestionsList
-                        .filter(s => {
-                          const q = part.name?.toLowerCase() || '';
-                          return s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q);
-                        })
-                        .map((s) => (
-                        <li
-                          key={s.id}
-                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                          onMouseDown={() => {
-                            const newParts = [...parts];
-                            newParts[index] = {
-                              ...newParts[index],
-                              name: s.name,
-                              cost: s.lastCost,
-                            };
-                            setParts(newParts);
-                            const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                          }}
-                          title={`${s.name} (${s.partNumber})`}
-                        >
-                          <span className="truncate">
-                            {s.name}
-                            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-                          </span>
-                          <span className="text-gray-500 text-sm ml-3">
-                            {formatCurrency(s.lastCost)}
-                          </span>
-                        </li>
-                      ))}
+                  <FormField
+                    type="number"
+                    label="Unit Price (£)"
+                    value={part.cost}
+                    onChange={e => {
+                      const newParts = [...parts];
+                      newParts[index] = { ...newParts[index], cost: parseFloat(e.target.value) || 0 };
+                      setParts(newParts);
+                    }}
+                    min={0}
+                    step={0.01}
+                    inputClassName="w-full"
+                  />
 
-                      {/* NEW: Create Product Button */}
-                      <li 
-                        className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
-                        onMouseDown={(e) => {
-                          e.preventDefault(); 
-                          setPendingPartIndex(index);
-                          setShowProductModal(true);
+                  <FormField
+                    type="number"
+                    label="Discount (%)"
+                    value={part.discount}
+                    onChange={e => {
+                      const newParts = [...parts];
+                      newParts[index] = { ...newParts[index], discount: parseFloat(e.target.value) || 0 };
+                      setParts(newParts);
+                    }}
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    inputClassName="w-full"
+                  />
+
+                  <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={part.includeVAT}
+                        onChange={e => {
+                          const newParts = [...parts];
+                          newParts[index] = { ...newParts[index], includeVAT: e.target.checked };
+                          setParts(newParts);
                         }}
-                      >
-                        <PlusCircle className="w-4 h-4" />
-                        Create New Product
-                      </li>
-                    </ul>
-                  )}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-600">+VAT</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setParts(parts.filter((_, i) => i !== index))}
+                      className="text-red-600 hover:text-red-800"
+                      title="Remove Part"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
-
-                <FormField
-                  type="number"
-                  label="Quantity"
-                  value={part.quantity}
-                  onChange={e => {
-                    const newParts = [...parts];
-                    newParts[index] = { ...newParts[index], quantity: parseInt(e.target.value) || 0 };
-                    setParts(newParts);
-                  }}
-                  min={1}
-                  inputClassName="w-full"
-                />
-
-                <FormField
-                  type="number"
-                  label="Unit Price (£)"
-                  value={part.cost}
-                  onChange={e => {
-                    const newParts = [...parts];
-                    newParts[index] = { ...newParts[index], cost: parseFloat(e.target.value) || 0 };
-                    setParts(newParts);
-                  }}
-                  min={0}
-                  step={0.01}
-                  inputClassName="w-full"
-                />
-
-                <FormField
-                  type="number"
-                  label="Discount (%)"
-                  value={part.discount}
-                  onChange={e => {
-                    const newParts = [...parts];
-                    newParts[index] = { ...newParts[index], discount: parseFloat(e.target.value) || 0 };
-                    setParts(newParts);
-                  }}
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  inputClassName="w-full"
-                />
-
-                <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={part.includeVAT}
-                      onChange={e => {
-                        const newParts = [...parts];
-                        newParts[index] = { ...newParts[index], includeVAT: e.target.checked };
-                        setParts(newParts);
-                      }}
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm text-gray-600">+VAT</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setParts(parts.filter((_, i) => i !== index))}
-                    className="text-red-600 hover:text-red-800"
-                    title="Remove Part"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Labor Section */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Labor</label>
-          <div className="flex items-center space-x-2 mt-1">
-            <input
-              type="number"
-              value={formData.laborHours}
-              onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
-              placeholder="Hours"
-              className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              min={0}
-              step="any"
-              inputMode="decimal"
-            />
-
-            <span className="py-2">×</span>
-            <input
-              type="number"
-              value={formData.laborRate}
-              onChange={e => setFormData(prev => ({ ...prev, laborRate: parseFloat(e.target.value) || 0 }))}
-              placeholder="Rate/hour"
-              className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              min={0}
-              step={0.01}
-            />
-            <label className="flex items-center space-x-2">
+        {!isCompany && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Labor</label>
+            <div className="flex items-center space-x-2 mt-1">
               <input
-                type="checkbox"
-                checked={includeVATOnLabor}
-                onChange={e => setIncludeVATOnLabor(e.target.checked)}
-                className="rounded border-gray-300 text-primary focus:ring-primary"
+                type="number"
+                value={formData.laborHours}
+                onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
+                placeholder="Hours"
+                className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                min={0}
+                step="any"
+                inputMode="decimal"
               />
-              <span className="text-sm text-gray-600">+VAT</span>
-            </label>
-            <span className="py-2 font-medium text-gray-800">
-              = {formatCurrency(includeVATOnLabor
-                ? formData.laborHours * formData.laborRate * 1.2
-                : formData.laborHours * formData.laborRate
-              )}
-            </span>
+
+              <span className="py-2">×</span>
+              <input
+                type="number"
+                value={formData.laborRate}
+                onChange={e => setFormData(prev => ({ ...prev, laborRate: parseFloat(e.target.value) || 0 }))}
+                placeholder="Rate/hour"
+                className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                min={0}
+                step={0.01}
+              />
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={includeVATOnLabor}
+                  onChange={e => setIncludeVATOnLabor(e.target.checked)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-600">+VAT</span>
+              </label>
+              <span className="py-2 font-medium text-gray-800">
+                = {formatCurrency(includeVATOnLabor
+                  ? formData.laborHours * formData.laborRate * 1.2
+                  : formData.laborHours * formData.laborRate
+                )}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
         
         <FileUpload
           label="Add Attachments"
@@ -958,80 +932,82 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         )}
 
         {/* Payment Section */}
-        <div className="border-t pt-4 space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
-          {editLog && (
-            <div className="bg-gray-50 p-4 rounded-lg mb-4">
-              <div className="flex justify-between text-sm">
-                <span>Previously Paid Amount:</span>
-                <span className="font-medium text-green-600">{formatCurrency(existingPaidAmount)}</span>
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              type="number"
-              step={0.01}
-              label={editLog ? "Additional Payment" : "Amount to Pay"}
-              value={additionalPayment}
-              onChange={handleAdditionalPaymentChange}
-              min={0}
-              max={maxAdditionalPayment}
-              placeholder={`Up to ${formatCurrency(maxAdditionalPayment)}`}
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <select
-                value={paymentMethod}
-                onChange={e => setPaymentMethod(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
-              </select>
-            </div>
-            <div className="col-span-2">
-              <FormField
-                label="Payment Reference"
-                value={paymentReference}
-                onChange={e => setPaymentReference(e.target.value)}
-                placeholder="Enter payment reference or transaction ID"
-              />
-            </div>
-          </div>
-
-          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span>NET:</span>
-              <span>{formatCurrency(netAmount)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>VAT:</span>
-              <span>{formatCurrency(vatAmount)}</span>
-            </div>
-            {totalDiscount > 0 && (
-              <div className="flex justify-between text-sm text-red-600">
-                <span>Discount:</span>
-                <span>–{formatCurrency(totalDiscount)}</span>
+        {!isCompany && (
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
+            {editLog && (
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="flex justify-between text-sm">
+                  <span>Previously Paid Amount:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(existingPaidAmount)}</span>
+                </div>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold pt-2 border-t">
-              <span>Total:</span>
-              <span>{formatCurrency(totalAmount)}</span>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                type="number"
+                step={0.01}
+                label={editLog ? "Additional Payment" : "Amount to Pay"}
+                value={additionalPayment}
+                onChange={handleAdditionalPaymentChange}
+                min={0}
+                max={maxAdditionalPayment}
+                placeholder={`Up to ${formatCurrency(maxAdditionalPayment)}`}
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={e => setPaymentMethod(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <FormField
+                  label="Payment Reference"
+                  value={paymentReference}
+                  onChange={e => setPaymentReference(e.target.value)}
+                  placeholder="Enter payment reference or transaction ID"
+                />
+              </div>
             </div>
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Paid:</span>
-              <span>{formatCurrency(totalPaidAmount)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-amber-600">
-              <span>Owing:</span>
-              <span>{formatCurrency(remainingAmount)}</span>
-            </div>
-          </div>
 
-        </div>
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm font-medium">
+                <span>NET:</span>
+                <span>{formatCurrency(netAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>VAT:</span>
+                <span>{formatCurrency(vatAmount)}</span>
+              </div>
+              {totalDiscount > 0 && (
+                <div className="flex justify-between text-sm text-red-600">
+                  <span>Discount:</span>
+                  <span>–{formatCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                <span>Total:</span>
+                <span>{formatCurrency(totalAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Paid:</span>
+                <span>{formatCurrency(totalPaidAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-amber-600">
+                <span>Owing:</span>
+                <span>{formatCurrency(remainingAmount)}</span>
+              </div>
+            </div>
+
+          </div>
+        )}
 
         <div className="flex justify-end space-x-3">
           <button

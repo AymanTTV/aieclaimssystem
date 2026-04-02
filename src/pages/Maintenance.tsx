@@ -1,7 +1,6 @@
 // src/pages/Maintenance.tsx
 
 import React, { useState, useCallback, useEffect } from 'react';
-// ... (keep existing imports)
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
@@ -14,8 +13,8 @@ import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
-import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock } from 'lucide-react'; // Added CalendarClock icon
-import { startOfDay, differenceInCalendarDays, format } from 'date-fns'; 
+import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock } from 'lucide-react'; 
+import { startOfDay, differenceInCalendarDays, format, parseISO } from 'date-fns'; 
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog, Vehicle, Customer } from '../types'; 
 import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails, generateMaintenanceInvoiceDocument } from '../utils/documentGenerator'; 
@@ -29,13 +28,13 @@ import maintenanceCategoryService from '../services/maintenanceCategory.service'
 import { useCustomers } from '../hooks/useCustomers'; 
 import { updateDoc, doc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase'; 
+import FormField from '../components/ui/FormField';
 
 const Maintenance: React.FC = () => {
-  // ... (keep existing hooks and state setup)
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { customers, loading: customersLoading } = useCustomers(); 
-  const { can } = usePermissions();
+  const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
   const { companyDetails } = useCompanyDetails();
 
@@ -75,9 +74,8 @@ const Maintenance: React.FC = () => {
   const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
   const [deletingLog, setDeletingLog] = useState<MaintenanceLog | null>(null);
   
-  // NEW: State for completion modal
+  // State for completion modal
   const [completingLog, setCompletingLog] = useState<MaintenanceLog | null>(null);
-  const [completionDate, setCompletionDate] = useState<string>(''); // NEW State
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [maintCategories, setMaintCategories] = useState<{ id: string; name: string }[]>([]);
@@ -87,7 +85,6 @@ const Maintenance: React.FC = () => {
 
   const [payLog, setPayLog] = useState<MaintenanceLog | null>(null);
   
-  // ... (keep existing category loading logic and effects)
   const loadCategories = useCallback(() => {
     setLoadingCats(true);
     maintenanceCategoryService
@@ -104,7 +101,6 @@ const Maintenance: React.FC = () => {
     loadCategories();
   }, [loadCategories]);
 
-  // ... (keep category handlers: openCatForm, handleCatSubmit, handleCatDelete)
   const openCatForm = (cat?: { id: string; name: string }) => {
     if (cat) {
       setEditCat(cat);
@@ -152,7 +148,6 @@ const Maintenance: React.FC = () => {
     }
   };
 
-
   const handleDelete = useCallback(
     (log: MaintenanceLog) => {
       if (!can('maintenance', 'delete')) {
@@ -165,7 +160,6 @@ const Maintenance: React.FC = () => {
   );
 
   const orderedLogs = React.useMemo(() => {
-    // ... (keep existing sorting logic)
     const now = startOfDay(new Date());
     const priority = (log: MaintenanceLog) => {
       if (log.status === 'scheduled') return 0;
@@ -186,17 +180,15 @@ const Maintenance: React.FC = () => {
     });
   }, [filteredLogs]);
 
-  // ... (keep export, document generation handlers)
   const handleExport = useCallback(() => {
-  try {
-    // Pass both logs AND the vehiclesMap to the utility
-    exportMaintenanceLogs(logs, vehiclesMap);
-    toast.success('Maintenance logs exported successfully');
-  } catch (error) {
-    console.error('Error exporting maintenance logs:', error);
-    toast.error('Failed to export maintenance logs');
-  }
-}, [logs, vehiclesMap]); // Added vehiclesMap to the dependency array
+    try {
+      exportMaintenanceLogs(logs, vehiclesMap);
+      toast.success('Maintenance logs exported successfully');
+    } catch (error) {
+      console.error('Error exporting maintenance logs:', error);
+      toast.error('Failed to export maintenance logs');
+    }
+  }, [logs, vehiclesMap]); 
 
   const handleGenerateDocument = useCallback(
     async (log: MaintenanceLog) => {
@@ -268,36 +260,11 @@ const Maintenance: React.FC = () => {
      }
   };
 
-  // --- CHANGED: Completion Handlers ---
-
-  // UPDATED: Initialize Date when opening modal
+  // --- Completion Handlers ---
   const handleCompleteMaintenance = (log: MaintenanceLog) => {
-     setCompletionDate(format(new Date(), "yyyy-MM-dd'T'HH:mm")); // Default to now
      setCompletingLog(log);
   };
 
-  // UPDATED: Use the specific date from the input
-  const confirmCompleteMaintenance = async () => {
-     if (!completingLog) return;
-     try {
-       const dateToSave = completionDate ? new Date(completionDate) : new Date();
-
-       await updateDoc(doc(db, 'maintenanceLogs', completingLog.id), {
-         status: 'completed',
-         completedDate: dateToSave, 
-         updatedAt: new Date(),
-         updatedBy: user?.id
-       });
-       toast.success("Maintenance marked as completed");
-       setCompletingLog(null);
-       setCompletionDate('');
-     } catch(e) {
-       console.error(e);
-       toast.error("Failed to update status");
-     }
-  };
-
-  // NEW: Handle direct status changes from table (other than 'completed')
   const handleStatusChange = async (log: MaintenanceLog, newStatus: string) => {
     try {
       const updates: any = {
@@ -305,16 +272,128 @@ const Maintenance: React.FC = () => {
         updatedAt: new Date(),
         updatedBy: user?.id
       };
-      // If moving away from completed, maybe clear the completion date?
-      // For now, let's keep it simple. If moving TO completed, the table logic
-      // calls handleCompleteMaintenance instead of this function.
-      
       await updateDoc(doc(db, 'maintenanceLogs', log.id), updates);
       toast.success(`Status updated to ${newStatus}`);
     } catch (e) {
       console.error(e);
       toast.error('Failed to update status');
     }
+  };
+
+  // ✅ INLINE COMPONENT: Complete Maintenance Form
+  const CompleteMaintenanceModalContent = ({ log, onClose }: { log: MaintenanceLog, onClose: () => void }) => {
+    const [modalLoading, setModalLoading] = useState(false);
+    const [formData, setFormData] = useState({
+      orderNumber: log.orderNumber || '',
+      invoiceNumber: log.invoiceNumber || '',
+      serviceProvider: log.serviceProvider || '',
+      nextServiceDate: log.nextServiceDate ? format(log.nextServiceDate, 'yyyy-MM-dd') : '',
+      description: log.description || '',
+      notes: log.notes || ''
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      // ✅ Require Invoice/Order Numbers only when completing
+      if (!formData.orderNumber.trim()) {
+        return toast.error('Maintenance Order Number is required to complete this record.');
+      }
+      if (!isCompany && !formData.invoiceNumber.trim()) {
+        return toast.error('Maintenance Invoice Number is required to complete this record.');
+      }
+
+      setModalLoading(true);
+      try {
+         await updateDoc(doc(db, 'maintenanceLogs', log.id), {
+            orderNumber: formData.orderNumber,
+            invoiceNumber: formData.invoiceNumber,
+            serviceProvider: formData.serviceProvider,
+            nextServiceDate: formData.nextServiceDate ? parseISO(formData.nextServiceDate) : null,
+            description: formData.description,
+            notes: formData.notes,
+            status: 'completed',
+            completedDate: new Date(), 
+            updatedAt: new Date()
+         });
+         toast.success('Maintenance marked as completed!');
+         onClose();
+      } catch (err) {
+         toast.error('Failed to complete maintenance');
+         console.error(err);
+      } finally {
+         setModalLoading(false);
+      }
+    };
+
+    return (
+       <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600 mb-4 border-b pb-4">
+             Please provide the final invoice/order numbers and verify the service details below before completing the maintenance record.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+             <FormField 
+               label="Maintenance Order Number" 
+               value={formData.orderNumber} 
+               onChange={e => setFormData({...formData, orderNumber: e.target.value})} 
+               placeholder="e.g. ORD-1234" 
+               required 
+             />
+             
+               <FormField 
+                 label="Maintenance Invoice Number" 
+                 value={formData.invoiceNumber} 
+                 onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} 
+                 placeholder="e.g. INV-1234" 
+                 required 
+               />
+            
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+             <FormField 
+               label="Service Center" 
+               value={formData.serviceProvider} 
+               onChange={e => setFormData({...formData, serviceProvider: e.target.value})} 
+               required 
+             />
+             <FormField 
+               type="date" 
+               label="Next Service Date" 
+               value={formData.nextServiceDate} 
+               onChange={e => setFormData({...formData, nextServiceDate: e.target.value})} 
+             />
+          </div>
+
+          <FormField 
+            label="Description" 
+            as="textarea" 
+            rows={2} 
+            value={formData.description} 
+            onChange={e => setFormData({...formData, description: e.target.value})} 
+            required 
+          />
+
+          <div>
+             <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+             <textarea 
+               rows={2} 
+               value={formData.notes} 
+               onChange={e => setFormData({...formData, notes: e.target.value})} 
+               placeholder="Leave a note if needed..." 
+               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm px-3 py-2 border"
+             />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50 text-gray-700 font-medium">Cancel</button>
+             <button type="submit" disabled={modalLoading} className="px-6 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 font-medium disabled:opacity-50">
+                {modalLoading ? 'Saving...' : 'Complete Maintenance'}
+             </button>
+          </div>
+       </form>
+    );
   };
 
   if (vehiclesLoading || logsLoading || customersLoading) {
@@ -365,8 +444,7 @@ const Maintenance: React.FC = () => {
               <span className="hidden sm:inline">&nbsp;Maintenance</span>
             </button>
           )}
-
-          {user?.role === 'manager' && (
+          {can('maintenance', 'categories') && (
             <button
               onClick={() => setShowCatModal(true)}
               className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -408,7 +486,7 @@ const Maintenance: React.FC = () => {
           onPay={setPayLog}
           onComplete={handleCompleteMaintenance}
           onGenerateInvoice={handleGenerateInvoice}
-          onStatusChange={handleStatusChange} // NEW PROP
+          onStatusChange={handleStatusChange} 
         />
       </div>
 
@@ -454,7 +532,15 @@ const Maintenance: React.FC = () => {
         {selectedLog && (
           <MaintenanceDetails
             log={selectedLog}
-            vehicle={vehiclesMap[selectedLog.vehicleId!] || (selectedLog.vehicleDetails as unknown as Vehicle)}
+            vehicle={
+              vehiclesMap[selectedLog.vehicleId!] || 
+              (selectedLog.vehicleDetails as unknown as Vehicle) || 
+              { 
+                make: 'Deleted', 
+                model: 'Vehicle', 
+                registrationNumber: `ID: ${selectedLog.vehicleId || 'Unknown'}` 
+              } as Vehicle
+            }
           />
         )}
       </Modal>
@@ -472,70 +558,17 @@ const Maintenance: React.FC = () => {
         )}
       </Modal>
 
-      {/* CHANGED: Completion Confirmation Modal with Date Input */}
+      {/* ✅ Completion Form Modal */}
       <Modal
         isOpen={!!completingLog}
         onClose={() => setCompletingLog(null)}
         title="Complete Maintenance"
-        size="sm"
+        size="lg" 
       >
-        <div className="space-y-4">
-          <div className="flex items-start">
-            <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
-              <CheckCircle className="h-6 w-6 text-green-600" aria-hidden="true" />
-            </div>
-            <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-              <h3 className="text-base font-semibold leading-6 text-gray-900">
-                Mark as Completed
-              </h3>
-              <div className="mt-2">
-                <p className="text-sm text-gray-500 mb-3">
-                  Confirm completion details below.
-                </p>
-                
-                {/* NEW: Date Input */}
-                <div className="text-left">
-                  <label htmlFor="compDate" className="block text-xs font-medium text-gray-700 mb-1">
-                    Completion Date & Time
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <CalendarClock className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="datetime-local"
-                      id="compDate"
-                      value={completionDate}
-                      onChange={(e) => setCompletionDate(e.target.value)}
-                      className="block w-full rounded-md border-gray-300 pl-10 focus:border-green-500 focus:ring-green-500 sm:text-sm"
-                    />
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-            <button
-              type="button"
-              className="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 sm:ml-3 sm:w-auto"
-              onClick={confirmCompleteMaintenance}
-            >
-              Complete
-            </button>
-            <button
-              type="button"
-              className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-              onClick={() => setCompletingLog(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        {completingLog && <CompleteMaintenanceModalContent log={completingLog} onClose={() => setCompletingLog(null)} />}
       </Modal>
 
-      {/* Category Modal - (Unchanged content) */}
+      {/* Category Modal */}
       <Modal
         isOpen={showCatModal}
         onClose={() => {

@@ -116,7 +116,7 @@ const IncomeExpenseTable: React.FC<Props> = ({
           {row.original.note && <div title="Has Notes" className="text-yellow-500 cursor-help"><MessageSquare className="h-3 w-3" /></div>}
           <button onClick={(e) => { e.stopPropagation(); onView(row.original); }} title="View" className="text-gray-400 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
           {can(permissionScope, 'update') && <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} title="Edit" className="text-gray-400 hover:text-orange-600 transition-colors"><Edit className="h-4 w-4" /></button>}
-          <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} title="PDF" className="text-gray-400 hover:text-green-600 transition-colors"><FileText className="h-4 w-4" /></button>
+         {can(permissionScope, 'singleDoc') &&( <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} title="PDF" className="text-gray-400 hover:text-green-600 transition-colors"><FileText className="h-4 w-4" /></button>)}
           {can(permissionScope, 'delete') && <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} title="Delete" className="text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
         </div>
       )

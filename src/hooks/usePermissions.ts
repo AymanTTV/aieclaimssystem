@@ -15,7 +15,7 @@ export const usePermissions = () => {
       return Boolean(customModulePerms[action]);
     }
 
-    // 2) Fallback to defaults for the user’s role (now includes 'member')
+    // 2) Fallback to defaults for the user’s role
     const rolePerms = DEFAULT_PERMISSIONS[user.role];
     const defaultModulePerms = rolePerms?.[module];
     if (!defaultModulePerms) return false;
@@ -37,6 +37,7 @@ export const usePermissions = () => {
     isAdmin:   user?.role === 'admin',
     isFinance: user?.role === 'finance',
     isClaims:  user?.role === 'claims',
+    isCompany: user?.role === 'company', 
     isMember:  user?.role === 'member',
     role: user?.role ?? null,
     permissions: user?.permissions ?? null,

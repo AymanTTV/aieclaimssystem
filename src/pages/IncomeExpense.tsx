@@ -231,12 +231,12 @@ export default function IncomeExpense() {
     />
 
     <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
-      {can('incomeExpense', 'create') && <button onClick={() => setShowManageCats(true)} className="px-4 py-2 border bg-white rounded w-[48%] sm:w-auto flex items-center justify-center"><Settings className="h-4 w-4 mr-2"/> Cats</button>}
+      {can('incomeExpense', 'categories') && <button onClick={() => setShowManageCats(true)} className="px-4 py-2 border bg-white rounded w-[48%] sm:w-auto flex items-center justify-center"><Settings className="h-4 w-4 mr-2"/> Cats</button>}
       
       {can('incomeExpense', 'create') && <button onClick={() => { setShowIncome(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-4 py-2 bg-primary text-white rounded w-[48%] sm:w-auto flex items-center justify-center"><Plus className="h-4 w-4 mr-2" /> Income</button>}
       {can('incomeExpense', 'create') && <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-4 py-2 border rounded w-[48%] sm:w-auto flex items-center justify-center"><Plus className="h-4 w-4 mr-2" /> Expense</button>}
       
-      {can('incomeExpense', 'create') && (
+      {can('incomeExpense', 'reoccurring') && (
         <button onClick={() => setShowRecurringSelect(true)} className="px-4 py-2 border border-transparent bg-indigo-600 text-white rounded w-[48%] sm:w-auto flex items-center justify-center hover:bg-indigo-700">
             <Repeat className="h-4 w-4 mr-2" /> Recurring
         </button>
@@ -244,7 +244,7 @@ export default function IncomeExpense() {
 
       <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded w-[48%] sm:w-auto">Shares</button>
       {can('incomeExpense', 'share') && <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded w-[48%] sm:w-auto">Share Profit</button>}
-      {user?.role === 'manager' && (
+      {can('skylineIncomeExpense', 'export') && (
         <>
           <button onClick={handleExportBulkPDF} className="px-4 py-2 border bg-white text-gray-700 rounded hover:bg-gray-50"><Download className="h-5 w-5" /></button>
           <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"><FileSpreadsheet className="h-5 w-5" /></button>

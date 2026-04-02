@@ -49,7 +49,23 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
   const dc = d.deliveryCharge || 0;
   const cc = d.collectionCharge || 0;
   const ipd = d.insurancePerDay || 0;
+  
+  // Storage Cost Variables
   const st = claim.storage?.totalCost || 0;
+  const storageCostPerDay = claim.storage?.costPerDay || 0;
+  
+  // Calculate Storage Days
+  let storageDays = 0;
+  if (claim.storage?.startDate && claim.storage?.endDate) {
+    const s = claim.storage.startDate.toDate ? claim.storage.startDate.toDate() : new Date(claim.storage.startDate);
+    const e = claim.storage.endDate.toDate ? claim.storage.endDate.toDate() : new Date(claim.storage.endDate);
+    if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+      storageDays = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+    }
+  } else if (storageCostPerDay > 0) {
+    storageDays = Math.round(st / storageCostPerDay);
+  }
+
   const recoveryCost = claim.recovery?.cost || 0;
 
   const hireTotal = days * rate;
@@ -65,15 +81,21 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
       units: String(days),
       total: hireTotal.toFixed(2),
     },
-    { desc: 'Storage Charges', details: '', rate: '', units: '', total: st.toFixed(2) },
+    { 
+      desc: 'Storage Charges', 
+      details: storageDays > 0 ? `${storageDays} days cover` : '', 
+      rate: storageCostPerDay > 0 ? storageCostPerDay.toFixed(2) : '', 
+      units: storageDays > 0 ? String(storageDays) : '', 
+      total: st.toFixed(2) 
+    },
     { desc: 'Recovery Charges', details: '', rate: '', units: '', total: recoveryCost.toFixed(2) },
     { desc: 'Delivery Charges', details: '', rate: '', units: '', total: dc.toFixed(2) },
     { desc: 'Collection Charges', details: '', rate: '', units: '', total: cc.toFixed(2) },
     {
       desc: 'Insurance',
       details: `${days} day${days > 1 ? 's' : ''} cover`,
-      rate: ipd.toFixed(2),
-      units: String(days),
+      rate: ipd > 0 ? ipd.toFixed(2) : '',
+      units: ipd > 0 ? String(days) : '',
       total: insuranceTotal.toFixed(2),
     },
   ];

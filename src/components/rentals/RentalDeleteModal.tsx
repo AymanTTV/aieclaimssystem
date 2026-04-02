@@ -4,6 +4,8 @@ import { db } from '../../lib/firebase';
 import { Rental } from '../../types';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { moveToTrash } from '../../utils/trashService';
 
 interface RentalDeleteModalProps {
   rental: Rental;
@@ -12,26 +14,36 @@ interface RentalDeleteModalProps {
 
 const RentalDeleteModal: React.FC<RentalDeleteModalProps> = ({ rental, onClose }) => {
   const [loading, setLoading] = useState(false);
-
+  const { user } = useAuth(); // Add this at the top of the component
   const handleDelete = async () => {
-    if (rental.status === 'active') {
-      toast.error('Cannot delete an active rental');
-      return;
-    }
+  if (rental.status === 'active') {
+    toast.error('Cannot delete an active rental');
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
+  try {
+    const displayName = rental.rentalAgreementNumber 
+      ? `Rental AGR-${rental.rentalAgreementNumber}` 
+      : `Rental ${rental.id.slice(0,8)}`;
 
-    try {
-      await deleteDoc(doc(db, 'rentals', rental.id));
-      toast.success('Rental deleted successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error deleting rental:', error);
-      toast.error('Failed to delete rental');
-    } finally {
-      setLoading(false);
-    }
-  };
+    await moveToTrash(
+      'rentals', 
+      rental.id, 
+      rental, 
+      user?.id || 'system', 
+      displayName
+    );
+
+    toast.success('Rental moved to trash');
+    onClose();
+  } catch (error) {
+    console.error('Error deleting rental:', error);
+    toast.error('Failed to delete rental');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="space-y-4">

@@ -31,7 +31,6 @@ import {
   addDays,
   isBefore,
   isValid,
-  differenceInDays
 } from 'date-fns';
 import {
   calculateOverdueCost,
@@ -142,37 +141,33 @@ const RentalTable: React.FC<RentalTableProps> = ({
     // ALLOW BOTH ACTIVE AND COMPLETED RENTALS TO TRIGGER WARNINGS IF UNPAID
     if (r.status !== 'active' && r.status !== 'completed') return 'none';
     
+    // 1. Check if they actually owe money
     const owing = calculateOwingAmount(r);
     if (owing <= 0.01) return 'none';
 
-    const v = vehicles.find(veh => veh.id === r.vehicleId);
-    if (!v) return 'none';
+    // 2. Find the latest payment date, fallback to rental start date
+    const refDate = r.payments && r.payments.length > 0
+      ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
+      : ensureValidDate(r.startDate);
+    
+    // 3. Calculate days elapsed since last payment/start
+    const today = new Date();
+    const diffMs = today.getTime() - refDate.getTime();
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 
-    const vehicleRate =
-      r.type === 'daily' ? (v.dailyRentalPrice ?? 0)
-      : r.type === 'weekly' ? (v.weeklyRentalPrice ?? 0)
-      : (v.claimRentalPrice ?? 0);
-      
-    const fallback = RENTAL_RATES[r.type] ?? 0;
-    const effectiveRate = (r.negotiatedRate ?? vehicleRate ?? fallback) || 0;
-
-    if (effectiveRate <= 0) return 'none';
-
-    // Adding 0.01 buffer so exactly 1 week (e.g. 330.00) doesn't falsely trigger the warning
+    // 4. Trigger 'red' urgency based strictly on time elapsed
     if (r.type === 'weekly') {
-      // Warning ONLY if owing is strictly greater than 1 week's rate
-      if (owing > effectiveRate + 0.01) return 'red';
+      if (diffDays >= 7) return 'red'; // Unpaid for 1 week or more
     } 
     else if (r.type === 'daily') {
-      // Warning ONLY if owing is strictly greater than 7 days worth of the daily rate
-      if (owing > (effectiveRate * 7) + 0.01) return 'red';
+      if (diffDays >= 7) return 'red'; // Unpaid for 7 days or more
     } 
     else if (r.type === 'claim') {
-      // Warning ONLY if owing is strictly greater than 6 months (~180 days) worth of the claim rate
-      if (owing > (effectiveRate * 180) + 0.01) return 'red';
+      if (diffDays >= 180) return 'red'; // Unpaid for ~6 months or more
     }
 
-    return 'none';
+    // Optional: Return 'yellow' if they owe money but haven't hit the red time threshold yet
+    return 'none'; 
   };
 
   const sortedRentals = [...rentals].sort((a, b) => {
@@ -294,7 +289,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const ongoingUnits = showOngoingUnits ? getOverdueUnits(r, now) : 0;
 
         const isOngoing = r.status === 'active' && isAfter(now, end);
-        const canExtend = user?.role === 'manager' || user?.role === 'admin';
+        const canExtend = can('rentals', 'update');
 
         const subs = r.hireSubstitutionDetails || [];
         const hasSubs = subs.length > 0;
@@ -540,16 +535,42 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                 <span>
                   {(() => {
+                    // --- 1. Cost-Based Calculation (How much they owe in time) ---
+                    let costText = '';
                     if (r.type === 'weekly') {
                       const weeks = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
-                      return `Urgent: Unpaid ${weeks} Week${weeks !== 1 ? 's' : ''}`;
+                      costText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
                     } else if (r.type === 'daily') {
                       const days = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
-                      return `Urgent: Unpaid ${days} Day${days !== 1 ? 's' : ''}`;
+                      costText = `${days} Day${days !== 1 ? 's' : ''}`;
                     } else {
+                      // Claim (divided by 30 days to get months)
                       const months = effectiveRate > 0 ? Math.floor(remaining / (effectiveRate * 30)) : 0;
-                      return `Urgent: Unpaid ${months} Month${months !== 1 ? 's' : ''}`;
+                      costText = `${months} Month${months !== 1 ? 's' : ''}`;
                     }
+
+                    // --- 2. Real-Time Calculation (How long since last payment/start) ---
+                    const refDate = r.payments && r.payments.length > 0
+                      ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
+                      : ensureValidDate(r.startDate);
+                    
+                    const today = new Date();
+                    const diffMs = today.getTime() - refDate.getTime();
+                    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+                    let timeText = '';
+                    if (diffDays >= 30) {
+                      const months = Math.floor(diffDays / 30);
+                      timeText = `${months} Month${months !== 1 ? 's' : ''}`;
+                    } else if (diffDays >= 7) {
+                      const weeks = Math.floor(diffDays / 7);
+                      timeText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
+                    } else {
+                      timeText = `${diffDays} Day${diffDays !== 1 ? 's' : ''}`;
+                    }
+
+                    // --- 3. Final String Output ---
+                    return `Urgent: Unpaid ${costText} for ${timeText} up to date`;
                   })()}
                 </span>
               </div>
@@ -595,105 +616,56 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const hasInvoice = !!r.documents?.invoice;
 
         return (
-          <div className="flex flex-col gap-1 items-center justify-center py-1">
-            {can('rentals','view') && (
-              <ActionBtn 
-                onClick={() => onView(r)} 
-                icon={Eye} 
-                colorClass="text-blue-600" 
-                title="View Details" 
-              />
-            )}
-
-          <ActionBtn 
-            onClick={() => onShowNotes(r)} 
-            icon={StickyNote} 
-            colorClass={(r.notes?.length || 0) > 0 ? "text-yellow-600 fill-yellow-50" : "text-gray-400"} 
-            title="Rental Notes" 
-          />
-
-            {can('rentals','update') && (
-              <>
-                <ActionBtn 
-                  onClick={() => onEdit(r)} 
-                  icon={Pencil} 
-                  colorClass="text-indigo-600" 
-                  title="Edit Rental" 
-                />
-
-                {r.status === 'active' && (
-                  <ActionBtn
-                    onClick={() => onSetReturnExpectation?.(r)}
-                    icon={Clock}
-                    colorClass="text-purple-600"
-                    title="Set Expected Return Time"
-                  />
-                )}
-
-                {remaining > 0 && (
-                  <div className="flex gap-1">
-                    <ActionBtn 
-                      onClick={() => onRecordPayment(r)} 
-                      icon={CreditCard} 
-                      colorClass="text-emerald-600" 
-                      title="Record Payment" 
-                    />
-                    <ActionBtn 
-                      onClick={() => onApplyDiscount(r)} 
-                      icon={Percent} 
-                      colorClass="text-purple-600" 
-                      title="Apply Discount" 
-                    />
-                  </div>
-                )}
-
-                <ActionBtn 
-                  onClick={() => onComplete(r)} 
-                  icon={CheckCircle2} 
-                  colorClass="text-orange-600" 
-                  title="Complete / Return" 
-                />
-
-                <ActionBtn 
-                  onClick={() => onGenerate90DayAgreement?.(r)} 
-                  icon={CalendarClock} 
-                  colorClass="text-fuchsia-600" 
-                  title="Generate 90-day Agreement" 
-                />
-              </>
-            )}
-
-            <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-100">
-                <ActionBtn 
-                  onClick={() => onDownloadAgreement(r)} 
-                  icon={FileSignature} 
-                  colorClass={hasAgreement ? "text-blue-700" : "text-gray-400 hover:text-blue-700"} 
-                  title="Generate/Regenerate Agreement" 
-                />
-
-                <ActionBtn 
-                  onClick={() => onDownloadInvoice(r)} 
-                  icon={Receipt} 
-                  colorClass={hasInvoice ? "text-green-700" : "text-gray-400 hover:text-green-700"} 
-                  title="Generate/Regenerate Invoice" 
-                />
-
-                <ActionBtn 
-                   onClick={() => onDownloadPermit?.(r)} 
-                   icon={FileText} 
-                   colorClass="text-purple-700" 
-                   title="Parking Permit" 
-                />
+          <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[120px]">
+            
+            {/* ROW 1: Core Details & Editing */}
+            <div className="flex flex-wrap justify-center gap-1">
+              {can('rentals','view') && (
+                <ActionBtn onClick={() => onView(r)} icon={Eye} colorClass="text-blue-600" title="View Details" />
+              )}
+              {can('rentals', 'note') && (
+                <ActionBtn onClick={() => onShowNotes(r)} icon={StickyNote} colorClass={(r.notes?.length || 0) > 0 ? "text-yellow-600 fill-yellow-50" : "text-gray-400"} title="Rental Notes" />
+              )}
+              {can('rentals','update') && (
+                <ActionBtn onClick={() => onEdit(r)} icon={Pencil} colorClass="text-indigo-600" title="Edit Rental" />
+              )}
+              {r.status === 'active' && can('rentals', 'update') && (
+                <ActionBtn onClick={() => onSetReturnExpectation?.(r)} icon={Clock} colorClass="text-purple-600" title="Set Expected Return Time" />
+              )}
             </div>
 
-            {can('rentals','delete') && r.status !== 'active' && (
-              <ActionBtn 
-                onClick={() => onDelete(r)} 
-                icon={Trash2} 
-                colorClass="text-red-600 hover:bg-red-50" 
-                title="Delete Rental" 
-              />
+            {/* ROW 2: Financials & Lifecycle */}
+            {(remaining > 0 || can('rentals', 'completion')) && (
+              <div className="flex flex-wrap justify-center gap-1">
+                {remaining > 0 && can('rentals', 'recordPayment') && (
+                  <ActionBtn onClick={() => onRecordPayment(r)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
+                )}
+                {remaining > 0 && can('rentals', 'discount') && (
+                  <ActionBtn onClick={() => onApplyDiscount(r)} icon={Percent} colorClass="text-purple-600" title="Apply Discount" />
+                )}
+                {can('rentals', 'completion') && (
+                  <ActionBtn onClick={() => onComplete(r)} icon={CheckCircle2} colorClass="text-orange-600" title="Complete / Return" />
+                )}
+              </div>
             )}
+
+            {/* ROW 3: Documents Generation */}
+            {can('rentals', 'singleDoc') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
+                <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600" title="Generate 90-day Agreement" />
+                <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700" : "text-gray-400 hover:text-blue-700"} title="Generate/Regenerate Agreement" />
+                <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700" : "text-gray-400 hover:text-green-700"} title="Generate/Regenerate Invoice" />
+                <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700" title="Parking Permit" />
+              </div>
+            )}
+
+            {/* ROW 4: Destructive Actions */}
+            {can('rentals','delete') && r.status !== 'active' && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
+                <ActionBtn onClick={() => onDelete(r)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Rental" />
+              </div>
+            )}
+
           </div>
         );
       },

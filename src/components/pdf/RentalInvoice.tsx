@@ -312,31 +312,10 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           </View>
         </View>
 
-        {/* --- BANK DETAILS & SUMMARY (Simplified) --- */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }} wrap={false}>
-          {/* Bank Card */}
-          <View style={[compactCardStyles.card, { width: '48%' }]}>
-            <Text style={compactCardStyles.title}>Bank Details</Text>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Bank:</Text>
-              <Text style={compactCardStyles.value}>LLOYDS BANK</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Account Name:</Text>
-              <Text style={compactCardStyles.value}>AIE SKYLINE LIMITED</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Account No:</Text>
-              <Text style={compactCardStyles.value}>30513162</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Sort Code:</Text>
-              <Text style={compactCardStyles.value}>30-99-50</Text>
-            </View>
-          </View>
-
+        {/* --- SUMMARY (Full Width) --- */}
+        <View style={{ marginTop: 5 }} wrap={false}>
           {/* Summary Card (Simplified & Bold) */}
-          <View style={[compactCardStyles.card, { width: '48%' }]}>
+          <View style={[compactCardStyles.card, { width: '100%' }]}>
             <Text style={compactCardStyles.title}>Summary</Text>
             
             {/* Subtotal */}
@@ -601,7 +580,7 @@ const compactTableStyles = StyleSheet.create({
   },
 });
 
-// Compact Styles for Bank/Summary Cards (Page 1)
+// Compact Styles for Summary Card (Page 1)
 const compactCardStyles = StyleSheet.create({
   card: {
     backgroundColor: '#F9FAFB',

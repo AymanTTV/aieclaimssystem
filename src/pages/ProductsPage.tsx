@@ -280,7 +280,7 @@ useEffect(() => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Products</h1>
         <div className="flex space-x-2">
-          {user?.role === 'manager' && (
+          {can('products', 'categories') && (
             <button
               onClick={() => openCatForm()}
               className="px-4 py-2 border rounded hover:bg-gray-50"

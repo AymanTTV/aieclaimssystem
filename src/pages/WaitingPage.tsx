@@ -13,18 +13,20 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { usePermissions } from '../hooks/usePermissions'; // ✨ ADD THIS
+import { usePermissions } from '../hooks/usePermissions';
+import { Navigate } from 'react-router-dom';
+import { ROUTES } from '../routes';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
-import WaitingDeleteModal from '../components/waiting/WaitingDeleteModal'; //
+import WaitingDeleteModal from '../components/waiting/WaitingDeleteModal';
 
 // Shared UI
 import Modal from '../components/ui/Modal';
 import FormField from '../components/ui/FormField';
 import SearchableSelect from '../components/ui/SearchableSelect';
 
-// Waiting components (shared, DataTable-based)
+// Waiting components
 import WaitingTable from '../components/waiting/WaitingTable';
 import WaitingEntryForm from '../components/waiting/WaitingEntryForm';
 import WaitingDetailsModal from '../components/waiting/WaitingDetailsModal';
@@ -40,7 +42,7 @@ import {
   toDate,
 } from '../types/waiting';
 
-// Export helper (Excel)
+// Export helper
 import { exportWaitingEntriesToExcel } from '../utils/waitingExport';
 
 const STATUS_FLOW: WaitingStatus[] = [
@@ -56,7 +58,7 @@ const COMPLETED_STATUSES: WaitingStatus[] = ['booked', 'not_proceeding'];
 
 const WaitingPage: React.FC = () => {
   const { user } = useAuth();
-  const { can } = usePermissions(); // ✨ ADD THIS
+  const { can } = usePermissions();
 
   // ─────────────────── Data ───────────────────
   const [entries, setEntries] = useState<WaitingEntry[]>([]);
@@ -64,7 +66,11 @@ const WaitingPage: React.FC = () => {
   const [groups, setGroups] = useState<WaitingGroup[]>([]);
   const [deleting, setDeleting] = useState<WaitingEntry | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
-  
+
+  // Page Access Guard
+  if (!can('waiting', 'view')) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
 
   useEffect(() => {
     const unsubE = onSnapshot(
@@ -118,12 +124,10 @@ const WaitingPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
-      // ✨ ADD THIS LOGIC BLOCK AT THE TOP
       if (!showCompleted && COMPLETED_STATUSES.includes(e.status)) {
         return false;
       }
 
-      // Existing filter logic below...
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
       if (catFilter !== 'all' && !(e.categoryIds || []).includes(catFilter)) return false;
       if (grpFilter !== 'all' && !(e.groupIds || []).includes(grpFilter)) return false;
@@ -213,21 +217,10 @@ const WaitingPage: React.FC = () => {
   const [showCats, setShowCats] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
 
-  // Ensure ONLY ONE modal open at a time
   const openCreate = () => {
     setViewing(null);
     setEditing(null);
     setShowForm(true);
-  };
-  const openEdit = (e: WaitingEntry) => {
-    setViewing(null);
-    setEditing(e);
-    setShowForm(true);
-  };
-  const openView = (e: WaitingEntry) => {
-    setEditing(null);
-    setShowForm(false);
-    setViewing(e);
   };
 
   // ─────────────────── Quick Contact ───────────────────
@@ -259,31 +252,30 @@ const WaitingPage: React.FC = () => {
         <h1 className="text-2xl font-semibold">Waiting List</h1>
 
         <div className="flex flex-wrap gap-2">
-          {can('waiting', 'create') && ( // ✨ MODIFIED
+          {can('waiting', 'create') && (
             <button className="btn btn-primary" onClick={openCreate}>
               New Entry
             </button>
           )}
-          {can('waiting', 'export') && ( // ✨ MODIFIED
+          {can('waiting', 'export') && (
             <button className="btn" onClick={exportExcel}>
               Export
             </button>
           )}
-
-          {user?.role === 'manager' && (
-          <button className="btn" onClick={() => setShowCats(true)}>
-            Manage Categories
-          </button>
+          {can('waiting', 'categories') && (
+            <button className="btn" onClick={() => setShowCats(true)}>
+              Manage Categories
+            </button>
           )}
-          {user?.role === 'manager' && (
-          <button className="btn" onClick={() => setShowGroups(true)}>
-            Manage Groups
-          </button>
+          {can('waiting', 'groups') && (
+            <button className="btn" onClick={() => setShowGroups(true)}>
+              Manage Groups
+            </button>
           )}
         </div>
       </div>
 
-      {/* SUMMARY CARDS (responsive like other pages) */}
+      {/* SUMMARY CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-4 bg-white border rounded">
           <div className="text-xs text-gray-500">Total</div>
@@ -303,7 +295,7 @@ const WaitingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* FILTERS BAR (Finance-like responsive grid) */}
+      {/* FILTERS BAR */}
       <div className="p-3 bg-white border rounded grid grid-cols-1 md:grid-cols-4 gap-3">
         <FormField
           label="Search"
@@ -360,8 +352,6 @@ const WaitingPage: React.FC = () => {
       <WaitingTable
         entries={filtered}
         categoriesById={categoriesById}
-        canUpdate={can('waiting', 'update')} // ✨ ADDED
-        canDelete={can('waiting', 'delete')} // ✨ ADDED
         onView={(e) => setViewing(e)}
         onEdit={(e) => {
           setViewing(null);
@@ -374,7 +364,7 @@ const WaitingPage: React.FC = () => {
         onDelete={(e) => setDeleting(e)}
       />
 
-      {/* CREATE / EDIT FORM (single modal for both) */}
+      {/* CREATE / EDIT FORM */}
       <Modal
         isOpen={showForm}
         onClose={() => {
@@ -404,7 +394,7 @@ const WaitingPage: React.FC = () => {
         />
       </Modal>
 
-      {/* DETAILS (includes Notes / Reminders pane) */}
+      {/* DETAILS */}
       <WaitingDetailsModal
         isOpen={!!viewing}
         onClose={() => setViewing(null)}
@@ -420,7 +410,8 @@ const WaitingPage: React.FC = () => {
       {/* MANAGE GROUPS */}
       <ManageWaitingGroupsModal open={showGroups} onClose={() => setShowGroups(false)} />
 
-        <Modal
+      {/* DELETE MODAL */}
+      <Modal
         isOpen={!!deleting}
         onClose={() => setDeleting(null)}
         title="Delete Waiting Entry"
@@ -431,7 +422,6 @@ const WaitingPage: React.FC = () => {
             entryId={deleting.id}
             onClose={() => setDeleting(null)}
             onDeleted={() => {
-              // make sure other modals don’t stay open for a deleted row
               setViewing(null);
               setEditing(null);
               setShowForm(false);

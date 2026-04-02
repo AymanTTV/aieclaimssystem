@@ -287,8 +287,8 @@ export default function Share() {
       />
 
       <div className="flex flex-wrap justify-end gap-2">
-        {can('share', 'create') && <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><Settings className="h-5 w-5 mr-2" /> Categories</button>}
-        {can('share', 'create') && <button onClick={() => setShowRecurringSelect(true)} className="inline-flex items-center px-4 py-2 border border-transparent bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow-sm"><Repeat className="h-5 w-5 mr-2" /> Recurring</button>}
+        {can('share', 'categories') && <button onClick={() => setShowManageCats(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><Settings className="h-5 w-5 mr-2" /> Categories</button>}
+        {can('share', 'reoccurring') && <button onClick={() => setShowRecurringSelect(true)} className="inline-flex items-center px-4 py-2 border border-transparent bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow-sm"><Repeat className="h-5 w-5 mr-2" /> Recurring</button>}
         {can('share', 'create') && <button onClick={() => { setShowPay(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="inline-flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark shadow-sm"><Plus className="h-5 w-5 mr-2" /> Add Income</button>}
         {can('share', 'create') && <button onClick={() => { setShowExp(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><FileText className="h-5 w-5 mr-2" /> Record Expense</button>}
         {can('share', 'share') && <button onClick={() => setShowSplit(true)} className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"><FileText className="h-5 w-5 mr-2" /> Split</button>}

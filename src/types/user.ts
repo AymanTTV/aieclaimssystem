@@ -1,3 +1,4 @@
+// src/types/user.ts
 import type { Role, RolePermissions } from './roles';
 
 export interface User {
@@ -11,4 +12,5 @@ export interface User {
   address?: string;
   profileCompleted?: boolean;
   permissions?: RolePermissions;
+  companyName?: string; // ✅ Added for the new Company role
 }

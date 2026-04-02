@@ -169,7 +169,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
           {can('customers', 'view') && (
             <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-gray-600 hover:text-purple-800" title="Generate Document"><FileText className="h-4 w-4" /></button>
           )}
-          {row.original.documentUrl && (
+          { can('customers', 'view') && row.original.documentUrl && (
             <button onClick={(e) => { e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="text-gray-600 hover:text-indigo-800" title="View Document"><File className="h-4 w-4" /></button>
           )}
           {can('customers', 'delete') && (

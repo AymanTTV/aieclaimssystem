@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
-import { Eye, FileText, Edit, Trash2 } from 'lucide-react';
+import { Eye, FileText, Edit, Trash2, CreditCard } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -37,14 +37,14 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onGenerateDocument,
   onViewDocument,
 }) => {
+  const { can } = usePermissions();
+  const { formatCurrency } = useFormattedDisplay();
+
   const formatDateValue = (date: any): string => {
     if (date?.toDate) return format(date.toDate(), 'dd/MM/yyyy');
     if (date instanceof Date) return format(date, 'dd/MM/yyyy');
     return 'N/A';
   };
-
-  const { can } = usePermissions();
-  const { formatCurrency } = useFormattedDisplay();
 
   const isOverdue = (invoice: Invoice): boolean => {
     const status = invoice.paymentStatus;
@@ -56,15 +56,42 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     const bOver = isOverdue(b);
     if (aOver && !bOver) return -1;
     if (!aOver && bOver) return 1;
-    const dateA = a.date instanceof Date ? a.date : a.date.toDate();
-    const dateB = b.date instanceof Date ? b.date : b.date.toDate();
-    return dateB.getTime() - dateA.getTime();
+    
+    // Fallback to safe date parsing for sorting
+    const getSafeTime = (d: any) => {
+      if (!d) return 0;
+      if (d instanceof Date) return d.getTime();
+      if (d.toDate) return d.toDate().getTime();
+      return new Date(d).getTime() || 0;
+    };
+    
+    return getSafeTime(b.date) - getSafeTime(a.date);
   });
+
+  const ActionBtn = ({ 
+    onClick, 
+    icon: Icon, 
+    colorClass, 
+    title 
+  }: { 
+    onClick: (e: React.MouseEvent) => void, 
+    icon: any, 
+    colorClass: string, 
+    title: string 
+  }) => (
+    <button 
+      onClick={e => { e.stopPropagation(); onClick(e); }} 
+      title={title}
+      className={`p-1.5 rounded-md hover:bg-gray-50 hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
 
   const columns = [
     {
         header: 'Invoice #',
-        cell: ({ row }) => {
+        cell: ({ row }: any) => {
           return (
             <div className="font-medium text-gray-800">
               {row.original.invoiceNumber || 'N/A'}
@@ -74,7 +101,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     },
     {
       header: 'Customer',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         if (row.original.customerName) {
           return (
             <div>
@@ -98,7 +125,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         );
       },
     },
-    // --- ⬇️ NEW VEHICLE COLUMN ⬇️ ---
     {
       header: 'Vehicle',
       cell: ({ row }: { row: { original: Invoice } }) => {
@@ -107,20 +133,17 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
 
         if (regNumber) {
-          // Display only Reg Number, use full details in title for hover
-          return <div title={fullDetails}>{regNumber}</div>;
+          return <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit" title={fullDetails}>{regNumber}</div>;
         }
-        if(row.original.vehicleName) {
-             // Display cached name if no vehicle found but name exists
+        if (row.original.vehicleName) {
              return <div title={row.original.vehicleName}>{row.original.vehicleName}</div>
         }
-        return <div className="text-gray-400">N/A</div>; // Fallback
+        return <div className="text-gray-400">N/A</div>;
       },
     },
-    // --- ⬆️ END NEW VEHICLE COLUMN ⬆️ ---
     { 
       header: 'Type',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         if (row.original.isLoan) {
           return (
             <span className="px-2 py-1 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">
@@ -133,11 +156,13 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     },
     {
       header: 'Due Date',
-      cell: ({ row }) => formatDateValue(row.original.dueDate),
+      cell: ({ row }: any) => (
+        <span className="text-sm text-gray-900">{formatDateValue(row.original.dueDate)}</span>
+      ),
     },
     {
       header: 'Status',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const inv = row.original;
         if (inv.remainingAmount <= 0.001 && inv.paidAmount > 0) {
           return <StatusBadge status="paid" />;
@@ -149,42 +174,51 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     },
     {
       header: 'Category',
-      cell: ({ row }) => (
-        <span className="capitalize">
+      cell: ({ row }: any) => (
+        <span className="capitalize font-medium text-sm text-gray-700">
           {row.original.category === 'Other'
             ? row.original.customCategory
             : row.original.category}
         </span>
       ),
     },
-   {
+    {
       header: 'Cost Breakdown',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const inv = row.original;
         return (
-          <div className="text-sm space-y-1">
-            <div>Total: {formatCurrency(inv.total)}</div>
-            <div className="text-green-600">Paid: {formatCurrency(inv.paidAmount)}</div>
-            <div className="font-medium">Owing: {formatCurrency(inv.remainingAmount)}</div>
+          <div className="text-sm space-y-0.5">
+            <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
+              <span>Total:</span>
+              <span>{formatCurrency(inv.total)}</span>
+            </div>
+            <div className="flex justify-between text-green-600">
+              <span>Paid:</span>
+              <span>{formatCurrency(inv.paidAmount)}</span>
+            </div>
+            <div className={`flex justify-between font-medium ${inv.remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              <span>Owing:</span>
+              <span>{formatCurrency(inv.remainingAmount)}</span>
+            </div>
           </div>
         );
       },
     },
     {
       header: 'Payment History',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const payments = row.original.payments || [];
         return payments.length > 0 ? (
           <div className="space-y-1">
-            {payments.map((payment) => (
+            {payments.map((payment: any) => (
               <div
                 key={payment.id}
-                className="text-sm flex items-center justify-between"
+                className="text-sm flex items-center justify-between bg-gray-50 p-1.5 rounded"
               >
                 <div>
                   <div className="flex items-center">
-                    <span>{formatCurrency(payment.amount)}</span>
-                    {can('finance', 'delete') && (
+                    <span className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</span>
+                    {can('invoices', 'delete') && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -197,7 +231,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
                       </button>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 mt-0.5">
                     <span className="capitalize">
                       {payment.method.replace('_', ' ')}
                     </span>
@@ -209,68 +243,65 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
             ))}
           </div>
         ) : (
-          <span className="text-gray-500 text-sm">No payments</span>
+          <span className="text-gray-400 text-xs font-medium">No payments</span>
         );
       },
     },
     {
       header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex space-x-2 items-center">
-          {can('finance', 'view') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onView(row.original); }}
-              className="text-gray-500 hover:text-blue-600" title="View Details"
-            > <Eye className="h-4 w-4" /> </button>
-          )}
+      cell: ({ row }: any) => {
+        const inv = row.original;
+        
+        return (
+          <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[100px]">
+            
+            {/* ROW 1: Editing & Core Actions */}
+            <div className="flex flex-wrap justify-center gap-1">
+              {can('invoices', 'view') && (
+                <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />
+              )}
+              {can('invoices', 'update') && (
+                <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />
+              )}
+            </div>
 
-          {can('finance', 'update') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onEdit(row.original); }}
-              className="text-gray-500 hover:text-blue-600" title="Edit"
-            > <Edit className="h-4 w-4" /> </button>
-          )}
+            {/* ROW 2: Financials */}
+            {inv.remainingAmount > 0 && can('invoices', 'recordPayment') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1 border-t border-gray-100">
+                £<ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
+              </div>
+            )}
 
-          {can('finance', 'update') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }}
-              className="text-green-600 hover:text-green-800" title="Generate PDF"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          
-          {row.original.documentUrl && can('finance', 'view') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDocument(row.original); }}
-              className="text-gray-500 hover:text-blue-600" title="View PDF"
-            > <Eye className="h-4 w-4" /> </button>
-          )}
+            {/* ROW 3: Documents */}
+            {can('invoices', 'singleDoc') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
+                {inv.documentUrl ? (
+                    <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-green-700" title="View Document" />
+                ) : (
+                    <ActionBtn onClick={() => onGenerateDocument(inv)} icon={FileText} colorClass="text-gray-400 hover:text-green-700" title="Generate Document" />
+                )}
+              </div>
+            )}
 
-          {can('finance', 'delete') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(row.original); }}
-              className="text-gray-500 hover:text-red-600" title="Delete"
-            > <Trash2 className="h-4 w-4" /> </button>
-          )}
-
-          {row.original.remainingAmount > 0 && can('finance', 'create') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRecordPayment(row.original); }}
-              className="text-primary hover:text-primary-dark font-bold" title="Record Payment"
-            > £ </button>
-          )}
-        </div>
-      ),
+            {/* ROW 4: Destructive */}
+            {can('invoices', 'delete') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
+                <ActionBtn onClick={() => onDelete(inv)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Invoice" />
+              </div>
+            )}
+            
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <DataTable
       data={sortedInvoices}
-      columns={columns}
-      onRowClick={(inv) => onView(inv)}
-      rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50')}
+      columns={columns as any}
+      onRowClick={(inv) => can('invoices', 'view') && onView(inv)}
+      rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500' : 'hover:bg-gray-50')}
     />
   );
 };

@@ -1,3 +1,4 @@
+// src/components/company/CompanyDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -7,7 +8,8 @@ import CompanyLogo from './CompanyLogo';
 import FormField from '../ui/FormField';
 import { Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
-import SignaturePad from "../ui/SignaturePad"
+import SignaturePad from "../ui/SignaturePad";
+import { usePermissions } from '../../hooks/usePermissions'; // Added Permissions
 
 interface CompanySettings {
   // Basic company info
@@ -59,6 +61,8 @@ interface CompanySettings {
 
 const CompanyDetails = () => {
   const { user } = useAuth();
+  const { can } = usePermissions(); // Initialize Permissions
+  
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -98,7 +102,6 @@ const CompanyDetails = () => {
     disclaimerText: ''
   });
 
-  // Array of border colors for the "condition terms bords" when editing
   const borderColors = ['border-red-500', 'border-green-500', 'border-blue-500'];
   const [currentBorderColorIndex, setCurrentBorderColorIndex] = useState(0);
 
@@ -125,15 +128,14 @@ const CompanyDetails = () => {
     fetchCompanyDetails();
   }, []);
 
-  // Effect to cycle border colors when editing is true
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (editing) {
       interval = setInterval(() => {
         setCurrentBorderColorIndex((prevIndex) => (prevIndex + 1) % borderColors.length);
-      }, 1000); // Change color every 1 second
+      }, 1000); 
     }
-    return () => clearInterval(interval); // Clear interval on unmount or when editing becomes false
+    return () => clearInterval(interval); 
   }, [editing, borderColors.length]);
 
 
@@ -164,14 +166,11 @@ const CompanyDetails = () => {
   const getBorderClasses = (isTermsField: boolean) => {
     const baseClasses = 'mt-1 block w-full rounded-md shadow-sm sm:text-sm p-2 transition-colors duration-300 ease-in-out';
     if (editing) {
-      // Apply the cycling border color for terms fields when editing
       if (isTermsField) {
         return `${baseClasses} ${borderColors[currentBorderColorIndex]} focus:ring-primary focus:border-primary`;
       }
-      // For non-terms fields, just a standard focus color when editing
       return `${baseClasses} border-gray-300 focus:ring-primary focus:border-primary`;
     } else {
-      // Consistent subtle border when not editing
       return `${baseClasses} border-gray-200 focus:ring-transparent focus:border-gray-200 cursor-not-allowed`;
     }
   };
@@ -189,13 +188,17 @@ const CompanyDetails = () => {
     <div className="space-y-6 p-4 md:p-6 bg-white shadow-lg rounded-lg">
       <div className="flex justify-between items-center border-b pb-4">
         <h2 className="text-2xl font-semibold text-gray-900">Company Details</h2>
+        
+        {/* Permission Check on Edit Button */}
         {!editing ? (
-          <button
-            onClick={() => setEditing(true)}
-            className="px-6 py-2 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Edit Details
-          </button>
+          can('company', 'update') && (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-6 py-2 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Edit Details
+            </button>
+          )
         ) : (
           <div className="space-x-3">
             <button
@@ -215,8 +218,9 @@ const CompanyDetails = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Company Logo */}
-        <div className="md:col-span-2 lg:col-span-3 mb-6">
+        
+        {/* Company Logo - Blocks clicks if not editing */}
+        <div className={`md:col-span-2 lg:col-span-3 mb-6 ${!editing ? 'pointer-events-none' : ''}`}>
           <CompanyLogo
             currentLogo={formData.logoUrl}
             onLogoUpdate={(url) => setFormData({ ...formData, logoUrl: url })}
@@ -232,7 +236,7 @@ const CompanyDetails = () => {
             onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
             disabled={!editing}
             required
-            className={getBorderClasses(false)} // Apply general styles for FormField
+            className={getBorderClasses(false)} 
           />
           <FormField
             label="Trading Name"
@@ -335,8 +339,8 @@ const CompanyDetails = () => {
           <textarea
             value={formData.officialAddress}
             onChange={(e) => setFormData({ ...formData, officialAddress: e.target.value })}
-            rows={4} // Slightly increased for better address visibility
-            className={getBorderClasses(false)} // Apply general styles, not cycling
+            rows={4} 
+            className={getBorderClasses(false)} 
             disabled={!editing}
             required
             placeholder="Enter official company address..."
@@ -354,7 +358,7 @@ const CompanyDetails = () => {
               value={formData.termsAndConditions}
               onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
               rows={12}
-              className={getBorderClasses(true)} // Apply cycling border
+              className={getBorderClasses(true)} 
               disabled={!editing}
               placeholder="Enter general terms and conditions..."
             />
@@ -370,7 +374,7 @@ const CompanyDetails = () => {
                   value={formData.conditionOfHireText}
                   onChange={(e) => setFormData({ ...formData, conditionOfHireText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Condition of Hire document..."
                 />
@@ -382,7 +386,7 @@ const CompanyDetails = () => {
                   value={formData.creditHireMitigationText}
                   onChange={(e) => setFormData({ ...formData, creditHireMitigationText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Credit Hire Mitigation document..."
                 />
@@ -394,7 +398,7 @@ const CompanyDetails = () => {
                   value={formData.noticeOfRightToCancelText}
                   onChange={(e) => setFormData({ ...formData, noticeOfRightToCancelText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Notice of Right to Cancel document..."
                 />
@@ -406,7 +410,7 @@ const CompanyDetails = () => {
                   value={formData.creditStorageAndRecoveryText}
                   onChange={(e) => setFormData({ ...formData, creditStorageAndRecoveryText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Credit Storage and Recovery document..."
                 />
@@ -418,13 +422,12 @@ const CompanyDetails = () => {
                   value={formData.hireAgreementText}
                   onChange={(e) => setFormData({ ...formData, hireAgreementText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Hire Agreement document..."
                 />
               </div>
 
-              {/* Add this new block for Rental Invoice Terms */}
               <div className="pt-4 border-t border-gray-200">
                 <label className="block text-base font-medium text-gray-700 mb-2">Rental Invoice Terms</label>
                 <textarea
@@ -443,7 +446,7 @@ const CompanyDetails = () => {
                   value={formData.satisfactionNoticeText}
                   onChange={(e) => setFormData({ ...formData, satisfactionNoticeText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Satisfaction Notice document..."
                 />
@@ -461,7 +464,7 @@ const CompanyDetails = () => {
                   value={formData.vehicleTerms}
                   onChange={(e) => setFormData({ ...formData, vehicleTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Vehicle documents..."
                 />
@@ -473,7 +476,7 @@ const CompanyDetails = () => {
                   value={formData.maintenanceTerms}
                   onChange={(e) => setFormData({ ...formData, maintenanceTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Maintenance documents..."
                 />
@@ -485,7 +488,7 @@ const CompanyDetails = () => {
                   value={formData.accidentTerms}
                   onChange={(e) => setFormData({ ...formData, accidentTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Accident documents..."
                 />
@@ -503,7 +506,7 @@ const CompanyDetails = () => {
                   value={formData.personalInjuryTerms}
                   onChange={(e) => setFormData({ ...formData, personalInjuryTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Personal Injury documents..."
                 />
@@ -515,7 +518,7 @@ const CompanyDetails = () => {
                   value={formData.vdFinanceTerms}
                   onChange={(e) => setFormData({ ...formData, vdFinanceTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for VD Finance documents..."
                 />
@@ -533,7 +536,7 @@ const CompanyDetails = () => {
                   value={formData.driverPayTerms}
                   onChange={(e) => setFormData({ ...formData, driverPayTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Driver Pay documents..."
                 />
@@ -545,7 +548,7 @@ const CompanyDetails = () => {
                   value={formData.pettyCashTerms}
                   onChange={(e) => setFormData({ ...formData, pettyCashTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Petty Cash documents..."
                 />
@@ -557,7 +560,7 @@ const CompanyDetails = () => {
                   value={formData.vatRecordTerms}
                   onChange={(e) => setFormData({ ...formData, vatRecordTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for VAT Record documents..."
                 />
@@ -575,7 +578,7 @@ const CompanyDetails = () => {
                   value={formData.customerTerms}
                   onChange={(e) => setFormData({ ...formData, customerTerms: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for Customer documents..."
                 />
@@ -593,7 +596,7 @@ const CompanyDetails = () => {
                   value={formData.privacyPolicy}
                   onChange={(e) => setFormData({ ...formData, privacyPolicy: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter privacy policy..."
                 />
@@ -605,7 +608,7 @@ const CompanyDetails = () => {
                   value={formData.dataProtectionPolicy}
                   onChange={(e) => setFormData({ ...formData, dataProtectionPolicy: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter data protection policy..."
                 />
@@ -617,7 +620,7 @@ const CompanyDetails = () => {
                   value={formData.disclaimerText}
                   onChange={(e) => setFormData({ ...formData, disclaimerText: e.target.value })}
                   rows={10}
-                  className={getBorderClasses(true)} // Apply cycling border
+                  className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter disclaimer text..."
                 />
@@ -627,7 +630,7 @@ const CompanyDetails = () => {
         </div>
 
         {/* E-Signature */}
-        <div className="col-span-1 md:col-span-2 lg:col-span-3 p-4 border border-gray-200 rounded-lg shadow-sm">
+        <div className={`col-span-1 md:col-span-2 lg:col-span-3 p-4 border border-gray-200 rounded-lg shadow-sm ${!editing ? 'pointer-events-none' : ''}`}>
           <label className="block text-lg font-semibold text-gray-800 mb-3">
             Company E-Signature
           </label>

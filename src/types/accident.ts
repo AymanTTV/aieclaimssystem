@@ -69,8 +69,10 @@ export interface Accident {
   ambulanceService?: string;
 
   // System Fields
-  status: 'reported' | 'investigating' | 'processing' | 'resolved';
-  type?: 'fault' | 'non-fault' | 'pending';
+  isReported?: boolean; // <-- NEW
+  status: 'pending' | 'reported' | 'investigating' | 'processing' | 'resolved'; // <-- UPDATED
+  type?: 'fault' | 'non-fault' | 'pending' | 'other';
+  otherTypeDescription?: string;
   amount: number;
   images?: string[];
   submittedBy: string;

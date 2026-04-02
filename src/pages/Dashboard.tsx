@@ -55,7 +55,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Vehicle Metrics */}
-      {can('vehicles', 'view') && (
+      {can('vehicles', 'cards') && (
         <VehicleMetrics />
       )}
 
@@ -71,12 +71,12 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Maintenance Overview */}
-        {can('maintenance', 'view') && (
+        {can('maintenance', 'cards') && (
           <MaintenanceOverview logs={maintenanceLogs} />
         )}
 
         {/* Rental Overview */}
-        {can('rentals', 'view') && (
+        {can('rentals', 'cards') && (
           <RentalOverview rentals={rentals} />
         )}
       </div>
@@ -84,7 +84,7 @@ const Dashboard = () => {
       
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
   {/* Fleet Status Distribution */}
-  {can('vehicles', 'view') && (
+  {can('vehicles', 'cards') && (
     <div className="bg-white rounded-lg shadow-sm p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-4">Fleet Status Distribution</h2>
       <FleetStatusChart data={fleetStatusData} />
@@ -93,7 +93,7 @@ const Dashboard = () => {
   )}
 
   {/* Urgent Alerts */}
-  {can('vehicles', 'view') && (
+  {can('vehicles', 'cards') && (
     <UrgentAlerts vehicles={vehicles} maintenanceLogs={maintenanceLogs} />
   )}
 </div>

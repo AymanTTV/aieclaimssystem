@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'; // Import StyleSheet
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'; 
 import { styles } from '../styles';
 import { format } from 'date-fns';
 import logo from '../../../assets/logo.png';
@@ -19,15 +19,14 @@ const localStyles = StyleSheet.create({
   bodyTextContainer: {
     marginBottom: 20,
     padding: 15,
-    backgroundColor: '#F9FAFB', // Light background for the main notice text
+    backgroundColor: '#F9FAFB', 
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  // NEW: Styles for the horizontal info card, copied from InvoiceDocument for consistency
   infoCard: {
     borderWidth: 1,
-    borderColor: '#3B82F6',   // same blue‐500 as in RentalInvoice
+    borderColor: '#3B82F6',   
     borderRadius: 6,
     padding: 8,
     flexDirection: 'row',
@@ -42,24 +41,41 @@ const localStyles = StyleSheet.create({
   infoLabel: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#1E40AF',         // blue‐800
+    color: '#1E40AF',         
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 10,
-    color: '#1F2937',         // gray‐800
+    color: '#1F2937',         
   },
 });
 
 interface SatisfactionNoticeProps {
-  claim: any; // Consider a more specific type if available
-  companyDetails: any; // Consider a more specific type if available
+  claim: any; 
+  companyDetails: any; 
 }
 
 const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
   claim,
   companyDetails,
 }) => {
+  // --- FIXED: Safely extract the rental end date from hireDetails ---
+  const getSignatureDate = () => {
+    // Look inside hireDetails first, fallback to top-level endDate if it exists
+    const rawDate = claim?.hireDetails?.endDate || claim?.endDate;
+    
+    if (!rawDate) return new Date();
+    
+    // Handle Firestore Timestamps
+    if (typeof rawDate.toDate === 'function') return rawDate.toDate();
+    
+    const parsedDate = new Date(rawDate);
+    return isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+  };
+
+  const signatureDate = getSignatureDate();
+  // ------------------------------------------------------------------
+
   const defaultSatisfactionText = `
   I, ${claim.clientInfo?.name || '____________________'}, hereby certify that I am fully satisfied with the services rendered for my vehicle, registration number ${claim.clientVehicle?.registration || '____________________'}.
 
@@ -82,17 +98,16 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
           </View>
         </View>
 
-
         {/* Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.title}>SATISFACTION NOTICE</Text>
         </View>
 
-        {/* NEW: Horizontal Card for Key Details */}
+        {/* Horizontal Card for Key Details */}
         <View style={localStyles.infoCard} wrap={false}>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Date</Text>
-            <Text style={localStyles.infoValue}>{format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text style={localStyles.infoValue}>{format(signatureDate, 'dd/MM/yyyy')}</Text>
           </View>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Customer Name</Text>
@@ -104,16 +119,14 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
           </View>
         </View>
 
-        {/* Body Text using a new container style for better visual appeal */}
+        {/* Body Text */}
         <View style={localStyles.bodyTextContainer}>
           <Text style={styles.text}>
             {companyDetails.satisfactionNoticeText || defaultSatisfactionText}
           </Text>
         </View>
 
-        
-
-        {/* Signatures - Positioned above footer like ConditionOfHire */}
+        {/* Signatures */}
         <View style={localStyles.signatureSectionPositioning} wrap={false}>
           {/* Customer Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
@@ -122,7 +135,7 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
               <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
             <Text>{claim.clientInfo?.name}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text>Date: {format(signatureDate, 'dd/MM/yyyy')}</Text>
           </View>
 
           {/* Company Representative Signature */}
@@ -132,7 +145,7 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
             <Text>{companyDetails.fullName}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text>Date: {format(signatureDate, 'dd/MM/yyyy')}</Text>
           </View>
         </View>
 

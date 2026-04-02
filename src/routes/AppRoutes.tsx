@@ -18,6 +18,7 @@ const spinner = (
 /* ─────────────────────────────
    Public (admin/staff)
 ────────────────────────────── */
+const TrashPage = lazyLoad('TrashPage');
 const Login      = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
 const SignCustomer = lazyLoad('SignCustomer'); // <--- Add this line
@@ -111,6 +112,17 @@ export default function AppRoutes() {
     </ProtectedRoute>
   }
 />
+
+<Route
+        path={ROUTES.TRASH}
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TrashPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
 
 
       {/* ─────────── Member portal (protected) ─────────── */}

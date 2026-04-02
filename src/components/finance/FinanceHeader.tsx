@@ -1,13 +1,10 @@
 // src/components/finance/FinanceHeader.tsx
 import React from 'react';
 import { Download, Plus, Search, FileText, Settings, Repeat, Upload } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface FinanceHeaderProps {
   onSearch: (query: string) => void;
-  // Changed to () => void because the Header just triggers the click, 
-  // the Parent component handles the actual file input change event.
   onImport: () => void; 
   onExport: () => void;
   onAddIncome: () => void;
@@ -27,7 +24,7 @@ interface FinanceHeaderProps {
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onSearch,
-  onImport, // <--- Destructured here
+  onImport, 
   onExport,
   onAddIncome,
   onAddExpense,
@@ -38,7 +35,6 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onAddRecurring,
 }) => {
   const { can } = usePermissions();
-  const { user } = useAuth();
 
   return (
     <div className="space-y-3">
@@ -60,8 +56,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
 
         {/* Management Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-            {user?.role === 'manager' && (
-              <>
+            {can('finance', 'accounts') && (
                 <button
                     onClick={onManageAccounts}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -69,6 +64,8 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                     <Settings className="h-5 w-5 mr-2" />
                     Manage Accounts
                 </button>
+            )}
+            {can('finance', 'groups') && (
                 <button
                     onClick={onManageGroups}
                     className="inline-flex items-center justify-center px-4 py-2 border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 rounded"
@@ -76,6 +73,8 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                     <Settings className="h-5 w-5 mr-2" />
                     Manage Groups
                 </button>
+            )}
+            {can('finance', 'categories') && (
                 <button
                     onClick={onManageCategories}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -83,14 +82,12 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                     <Settings className="h-5 w-5 mr-2" />
                     Manage Categories
                 </button>
-              </>
             )}
         </div>
         
         {/* Functional Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-            {/* Import Button */}
-            {can('finance', 'create') && (
+            {can('finance', 'export') && (
                 <button
                     onClick={onImport}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -110,7 +107,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
                 </button>
             )}
 
-            {user?.role === 'manager' && (
+            {can('finance', 'export') && (
                 <button
                     onClick={onGeneratePDF}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -121,7 +118,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
             )}
 
              {/* Recurring Button */}
-             {can('finance', 'create') && (
+             {can('finance', 'reoccurring') && (
                 <button
                     onClick={onAddRecurring}
                     className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"

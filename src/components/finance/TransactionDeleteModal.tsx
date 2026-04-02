@@ -3,7 +3,8 @@ import { doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-
+import { useAuth } from '../../context/AuthContext';
+import { moveToTrash } from '../../utils/trashService';
 interface TransactionDeleteModalProps {
   transactionId: string;
   onClose: () => void;
@@ -11,7 +12,7 @@ interface TransactionDeleteModalProps {
 
 const TransactionDeleteModal: React.FC<TransactionDeleteModalProps> = ({ transactionId, onClose }) => {
   const [loading, setLoading] = useState(false);
-
+  const { user } = useAuth(); // Add this at the top of the component
   const handleDelete = async () => {
     setLoading(true);
     try {
@@ -86,7 +87,17 @@ const TransactionDeleteModal: React.FC<TransactionDeleteModalProps> = ({ transac
       } // End of balance update block (if amount > 0)
 
       // 4. Delete the transaction document itself
-      await deleteDoc(transactionRef);
+      const displayName = transactionData.referenceId 
+  ? `${transactionData.type.toUpperCase()} - Ref: ${transactionData.referenceId}` 
+  : `${transactionData.type.toUpperCase()} - £${transactionData.amount}`;
+
+await moveToTrash(
+  'transactions', 
+  transactionId, 
+  transactionData, 
+  user?.id || 'system', 
+  displayName
+);
       toast.success('Transaction deleted successfully');
       onClose(); // Close modal only on full success
 

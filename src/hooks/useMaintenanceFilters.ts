@@ -2,61 +2,94 @@
 import { useState, useMemo } from 'react';
 import { MaintenanceLog, Vehicle } from '../types';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import { usePermissions } from './usePermissions';
 
 export const useMaintenanceFilters = (
   logs: MaintenanceLog[],
   vehicles: Record<string, Vehicle>
 ) => {
+  const { can, isCompany } = usePermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [vehicleFilter, setVehicleFilter] = useState('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
-  
-  // NEW: Date Range State
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
 
   const filteredLogs = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
+    const canViewCompleted = can('maintenance', 'completed') && !isCompany;
 
     return logs.filter(log => {
+      // ✅ SECURITY RULE 1: Hide completed/cancelled logs if the user lacks permission
+      if (!canViewCompleted && (log.status === 'completed' || log.status === 'cancelled')) {
+         return false;
+      }
+
+      // ✅ SECURITY RULE 2: COMPANY GHOST RECORD FIX
+      if (isCompany && log.vehicleId && !vehicles[log.vehicleId]) {
+        return false;
+      }
+
+      // ✅ NEW: DEFAULT DASHBOARD VIEW
+      // Hide completely finished records at first, UNLESS the user interacts with any filter/search.
+      const isDefaultState = 
+        statusFilter === 'all' && 
+        paymentStatusFilter === 'all' && 
+        vehicleFilter === 'all' && 
+        typeFilter === 'all' &&
+        !searchQuery && 
+        !dateRange.from && 
+        !dateRange.to;
+
+      if (isDefaultState) {
+        // A record is considered "finished" if it's cancelled, OR if it's both completed AND paid.
+        // (If it's completed but unpaid, it will still show so you know to collect payment).
+        // For company users (who don't track payments), just hide completed entirely.
+        const isCancelled = log.status === 'cancelled';
+        const isCompletedAndPaid = log.status === 'completed' && log.paymentStatus === 'paid';
+        const isCompanyFinished = isCompany && log.status === 'completed';
+
+        if (isCancelled || isCompletedAndPaid || isCompanyFinished) {
+            return false;
+        }
+      }
+
       const vehicle = vehicles[log.vehicleId || ''] || (log.vehicleDetails as any);
 
-      // Expanded Search Logic
       const matchesSearch = (() => {
         if (!searchQuery) return true;
         
         const vehicleText = vehicle 
           ? `${vehicle.make} ${vehicle.model} ${vehicle.registrationNumber}`.toLowerCase() 
-          : '';
+          : (log.vehicleId ? log.vehicleId.toLowerCase() : '');
 
         return (
           vehicleText.includes(searchLower) ||
-          log.serviceProvider.toLowerCase().includes(searchLower) ||
-          log.location.toLowerCase().includes(searchLower) ||
-          log.description.toLowerCase().includes(searchLower) ||
-          // NEW FIELDS
-          log.orderNumber?.toLowerCase().includes(searchLower) ||
-          log.invoiceNumber?.toLowerCase().includes(searchLower)
+          (log.serviceProvider || '').toLowerCase().includes(searchLower) ||
+          (log.location || '').toLowerCase().includes(searchLower) ||
+          (log.description || '').toLowerCase().includes(searchLower) ||
+          (log.orderNumber || '').toLowerCase().includes(searchLower) ||
+          (log.invoiceNumber || '').toLowerCase().includes(searchLower)
         );
       })();
 
       const matchesStatus =
         statusFilter === 'all' ||
-        log.status.toLowerCase() === statusFilter.toLowerCase();
+        (log.status || '').toLowerCase() === statusFilter.toLowerCase();
 
       const matchesType =
         typeFilter === 'all' ||
-        log.type.toLowerCase() === typeFilter.toLowerCase();
+        (log.type || '').toLowerCase() === typeFilter.toLowerCase();
 
       const matchesVehicle =
-        !vehicleFilter || log.vehicleId === vehicleFilter;
+        !vehicleFilter || vehicleFilter === 'all' || log.vehicleId === vehicleFilter;
 
       const matchesPaymentStatus =
         paymentStatusFilter === 'all' ||
-        log.paymentStatus.toLowerCase() === paymentStatusFilter.toLowerCase();
+        (log.paymentStatus || '').toLowerCase() === paymentStatusFilter.toLowerCase();
 
-      // NEW: Date Range Logic
+      // Date Range Logic
       let matchesDate = true;
       if (dateRange.from || dateRange.to) {
         const logDate = log.date instanceof Date ? log.date : (log.date as any).toDate();
@@ -89,7 +122,9 @@ export const useMaintenanceFilters = (
     typeFilter,
     vehicleFilter,
     paymentStatusFilter,
-    dateRange // Add dependency
+    dateRange,
+    can,
+    isCompany
   ]);
 
   return {
@@ -103,9 +138,8 @@ export const useMaintenanceFilters = (
     setVehicleFilter,
     paymentStatusFilter,
     setPaymentStatusFilter,
-    // Export new state
     dateRange,
     setDateRange,
-    filteredLogs,
+    filteredLogs
   };
 };

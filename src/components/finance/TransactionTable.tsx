@@ -167,11 +167,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           </div>
         ),
       },
-      // 2. Type & Status (SIMPLIFIED: Only Type & Payment Status)
+      // 2. Type & Status
       {
         header: 'Type & Status',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          // Excluded 'status' (completed/pending/cancelled)
           const bits = [row.original.type, row.original.paymentStatus].filter(Boolean) as string[];
           const isMultiOrLinked = (row.original.accountsFrom && row.original.accountsFrom.length > 1) || (row.original.accountsTo && row.original.accountsTo.length > 1) || !!row.original.referenceId;
           const isLatestRecurring = row.original.isRecurring && !!row.original.nextRecurringDate;
@@ -210,7 +209,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           );
         }
       },
-      // 4. Customer (BIGGER FONT)
+      // 4. Customer
       {
         header: 'Customer',
         cell: ({ row }: { row: { original: Transaction } }) => {
@@ -239,7 +238,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           );
         },
       },
-      // 6. Description (BOLD TEXT)
+      // 6. Description
       {
         header: 'Description',
         cell: ({ row }: { row: { original: Transaction } }) => (
@@ -248,7 +247,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           </div>
         )
       },
-      // 7. Credit (Income) (BIGGER AMOUNT TEXT)
+      // 7. Credit (Income)
       {
         header: 'Credit',
         cell: ({ row }: { row: { original: Transaction } }) => {
@@ -257,7 +256,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             : <span className="text-gray-300 text-sm">-</span>;
         }
       },
-      // 8. Debit (Expense) (BIGGER AMOUNT TEXT)
+      // 8. Debit (Expense)
       {
         header: 'Debit',
         cell: ({ row }: { row: { original: Transaction } }) => {
@@ -266,7 +265,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             : <span className="text-gray-300 text-sm">-</span>;
         }
       },
-      // 9. Balance (REMOVED ACCOUNT NAME, BIGGER AMOUNT TEXT)
+      // 9. Balance
       {
         header: 'Balance',
         cell: ({ row }: { row: { original: Transaction } }) => {
@@ -283,7 +282,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                   
                   return (
                     <div key={accId} className="flex flex-col items-end leading-none">
-                       {/* REMOVED ACCOUNT NAME HERE */}
                        <span className={`text-base font-bold ${bal < 0 ? 'text-red-600' : 'text-gray-900'}`}>
                          {formatCurrency(bal)}
                        </span>
@@ -298,77 +296,42 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       {
         header: 'Actions',
         cell: ({ row }: { row: { original: Transaction } }) => (
-          <div className="flex flex-col gap-1 items-center justify-center py-1">
+          <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[100px]">
             
-            {/* View */}
-            {can('finance', 'view') && (
-               <ActionBtn 
-                 onClick={() => onView(row.original)} 
-                 icon={Eye} 
-                 colorClass="text-blue-600" 
-                 title="View Details" 
-               />
-            )}
-
-            {/* Edit & Assign */}
-            {can('finance', 'update') && (
-              <>
-                <ActionBtn 
-                  onClick={() => onEdit(row.original)} 
-                  icon={Edit} 
-                  colorClass="text-indigo-600" 
-                  title="Edit Transaction" 
-                />
-                <ActionBtn 
-                  onClick={() => onAssign(row.original)} 
-                  icon={Tag} 
-                  colorClass="text-purple-600" 
-                  title="Assign Group/Category" 
-                />
-              </>
-            )}
-
-            {/* Documents & Receipts */}
-            <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-100">
-                {/* Generate/View Document */}
-                {row.original.documentUrl ? (
-                    <ActionBtn 
-                        onClick={() => onViewDocument(row.original.documentUrl!)} 
-                        icon={FileText} 
-                        colorClass="text-green-700" 
-                        title="View Document" 
-                    />
-                ) : (
-                    can('finance', 'update') && (
-                        <ActionBtn 
-                            onClick={() => onGenerateDocument(row.original)} 
-                            icon={FileText} 
-                            colorClass="text-gray-400 hover:text-green-700" 
-                            title="Generate Document" 
-                        />
-                    )
-                )}
-
-                {/* Print Receipt */}
-                {onPrintReceipt && (
-                    <ActionBtn 
-                        onClick={() => onPrintReceipt(row.original)} 
-                        icon={Printer} 
-                        colorClass="text-gray-500 hover:text-gray-900" 
-                        title="Print Receipt" 
-                    />
-                )}
+            {/* ROW 1: Editing & Core Actions */}
+            <div className="flex flex-wrap justify-center gap-1">
+              {can('finance', 'view') && (
+                <ActionBtn onClick={() => onView(row.original)} icon={Eye} colorClass="text-blue-600" title="View Details" />
+              )}
+              {can('finance', 'update') && (
+                <ActionBtn onClick={() => onEdit(row.original)} icon={Edit} colorClass="text-indigo-600" title="Edit Transaction" />
+              )}
+              {can('finance', 'assign') && (
+                <ActionBtn onClick={() => onAssign(row.original)} icon={Tag} colorClass="text-purple-600" title="Assign Group/Category" />
+              )}
             </div>
 
-            {/* Delete */}
-            {can('finance', 'delete') && (
-              <ActionBtn 
-                onClick={() => onDelete(row.original)} 
-                icon={Trash2} 
-                colorClass="text-red-600 hover:bg-red-50" 
-                title="Delete Transaction" 
-              />
+            {/* ROW 2: Documents Generation & Receipt */}
+            {can('finance', 'singleDoc') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
+                {row.original.documentUrl ? (
+                    <ActionBtn onClick={() => onViewDocument(row.original.documentUrl!)} icon={FileText} colorClass="text-green-700" title="View Document" />
+                ) : (
+                    <ActionBtn onClick={() => onGenerateDocument(row.original)} icon={FileText} colorClass="text-gray-400 hover:text-green-700" title="Generate Document" />
+                )}
+                {onPrintReceipt && (
+                    <ActionBtn onClick={() => onPrintReceipt(row.original)} icon={Printer} colorClass="text-gray-500 hover:text-gray-900" title="Print Receipt" />
+                )}
+              </div>
             )}
+
+            {/* ROW 3: Destructive */}
+            {can('finance', 'delete') && (
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
+                <ActionBtn onClick={() => onDelete(row.original)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Transaction" />
+              </div>
+            )}
+            
           </div>
         ),
       },

@@ -159,15 +159,17 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
         const claim = row.original;
         return (
           <div className="flex space-x-2">
-
+            {can('claims', 'note') && (
             <button
               onClick={e => { e.stopPropagation(); onNotes(claim); }}
               className="text-gray-600 hover:text-gray-800"
               title="Notes"
             >
+              
               <MessageSquare className="h-4 w-4" />
             </button>
-            {can('claims', 'update') && (
+            )}
+            {can('claims', 'state') && (
             <button
               onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }}
               className="text-blue-600 hover:text-blue-800"
@@ -208,6 +210,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             )}
 
             {/* ALWAYS show the PDF button */}
+            {can('claims', 'singleDoc') && (
             <button
               onClick={e => { e.stopPropagation(); onGeneratePdf(claim); }}
               className="text-green-600 hover:text-green-800"
@@ -215,6 +218,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             >
               <FileText className="h-4 w-4" />
             </button>
+            )}
           </div>
         );
       },

@@ -225,7 +225,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                     </button>
                   )}
 
-                {can('driverPay', 'update') && (
+                {can('driverPay', 'singleDoc') && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -238,7 +238,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                   </button>
                 )}
 
-                {can('driverPay', 'create') && (
+                {can('driverPay', 'period') && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -263,8 +263,8 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                     <Lock className="h-4 w-4" />
                   </button>
                 )}
-
-                {onViewDocument && record.documentUrl && (
+                {can('driverPay', 'singleDoc') && onViewDocument && record.documentUrl && (
+                
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

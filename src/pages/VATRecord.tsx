@@ -356,18 +356,18 @@ const VATRecordPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
         <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
-          {user?.role === 'manager' && (
-            <>
-             <button onClick={handleGeneratePDF} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"><FileText className="h-5 w-5 mr-2" /> Generate PDF</button>
-             <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Categories</button>
-             <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Groups</button>
-            </>
-          )}
+          {can('vatRecord', 'export') && (
+            
+             <button onClick={handleGeneratePDF} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"><FileText className="h-5 w-5 mr-2" /> Generate PDF</button> )}
+             {can('vatRecord', 'categories') && (<button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Categories</button>)}
+             {can('vatRecord', 'groups') && (<button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Groups</button>)}
+            
+          
           {can('vatRecord', 'export') && (
             <button onClick={handleExport} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"><Download className="h-5 w-5 mr-2" /> Export</button>
           )}
           
-          {can('vatRecord', 'create') && (
+          {can('vatRecord', 'reoccurring') && (
             <button
               onClick={() => { setIsCreatingRecurring(true); setShowForm(true); }}
               className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"

@@ -1,6 +1,8 @@
 // src/components/finance/InvoiceDeleteModal.tsx
 import React from 'react';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore'; // Replace deleteDoc with getDoc
+import { useAuth } from '../../context/AuthContext';
+import { moveToTrash } from '../../utils/trashService';
 import { db } from '../../lib/firebase';
 import { AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,19 +15,43 @@ interface InvoiceDeleteModalProps {
 const InvoiceDeleteModal: React.FC<InvoiceDeleteModalProps> = ({ invoiceId, onClose }) => {
   const [loading, setLoading] = React.useState(false);
 
-  const handleDelete = async () => {
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'invoices', invoiceId));
-      toast.success('Invoice deleted successfully');
-      onClose();
-    } catch (error) {
-      console.error('Error deleting invoice:', error);
-      toast.error('Failed to delete invoice');
-    } finally {
-      setLoading(false);
+  const { user } = useAuth(); // Add this at the top of the component
+
+const handleDelete = async () => {
+  setLoading(true);
+  try {
+    // 1. Fetch the invoice data
+    const invRef = doc(db, 'invoices', invoiceId);
+    const invSnap = await getDoc(invRef);
+    
+    if (!invSnap.exists()) {
+      toast.error('Invoice not found');
+      return;
     }
-  };
+    
+    const invData = invSnap.data();
+    const displayName = invData.invoiceNumber 
+      ? `Invoice #${invData.invoiceNumber}` 
+      : `Invoice for £${invData.total}`;
+
+    // 2. Move to trash
+    await moveToTrash(
+      'invoices', 
+      invoiceId, 
+      invData, 
+      user?.id || 'system', 
+      displayName
+    );
+
+    toast.success('Invoice moved to trash');
+    onClose();
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    toast.error('Failed to delete invoice');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="space-y-4">

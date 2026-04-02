@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle } from '../../types/vehicle';
 import { useAuth } from '../../context/AuthContext';
@@ -10,13 +10,14 @@ import toast from 'react-hot-toast';
 interface MileageUpdateFormProps {
   vehicle: Vehicle;
   onClose: () => void;
+  onSuccess?: (vehicle: Vehicle) => void; // ✅ NEW
 }
 
-const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose }) => {
+const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose, onSuccess }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    newMileage: vehicle.mileage,
+    newMileage: vehicle.mileage || 0,
     notes: '',
   });
 
@@ -24,28 +25,51 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose 
     e.preventDefault();
     if (!user) return;
 
-    if (formData.newMileage < vehicle.mileage) {
-      toast.error('New mileage cannot be less than current mileage');
+    const updatedMileage = parseInt(String(formData.newMileage), 10);
+
+    if (isNaN(updatedMileage) || updatedMileage < (vehicle.mileage || 0)) {
+      toast.error('New mileage must be greater than or equal to current mileage');
       return;
     }
 
     setLoading(true);
 
     try {
-      // Update vehicle mileage
+      const safeNote = formData.notes ? formData.notes.trim() : 'Monthly update';
+      const safeName = user.name || user.displayName || 'Staff';
+
+      const newEntry = {
+        date: new Date(),
+        mileage: updatedMileage,
+        note: safeNote,
+        updatedBy: safeName,
+        source: 'form' as const
+      };
+
       await updateDoc(doc(db, 'vehicles', vehicle.id), {
-        mileage: formData.newMileage,
+        mileage: updatedMileage,
+        updatedAt: new Date(),
+        mileageUpdates: arrayUnion(newEntry)
       });
 
-      // Create mileage history record
       await addDoc(collection(db, 'mileageHistory'), {
         vehicleId: vehicle.id,
-        previousMileage: vehicle.mileage,
-        newMileage: formData.newMileage,
+        previousMileage: vehicle.mileage || 0,
+        newMileage: updatedMileage,
         date: new Date(),
-        recordedBy: user.name,
-        notes: formData.notes || null,
+        recordedBy: safeName,
+        notes: safeNote,
       });
+
+      // ✅ OPTIMISTIC UPDATE (instant UI fix)
+      if (onSuccess) {
+        onSuccess({
+          ...vehicle,
+          mileage: updatedMileage,
+          updatedAt: new Date(),
+          mileageUpdates: [...(vehicle.mileageUpdates || []), newEntry],
+        });
+      }
 
       toast.success('Mileage updated successfully');
       onClose();
@@ -61,14 +85,19 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose 
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <p className="text-sm text-gray-500 mb-4">
-          Current mileage: {vehicle.mileage.toLocaleString()}
+          Current mileage: {(vehicle.mileage || 0).toLocaleString()}
         </p>
         <FormField
           type="number"
           label="New Mileage"
           value={formData.newMileage}
-          onChange={(e) => setFormData({ ...formData, newMileage: parseInt(e.target.value) })}
-          min={vehicle.mileage}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              newMileage: e.target.value ? parseInt(e.target.value, 10) : 0,
+            })
+          }
+          min={vehicle.mileage || 0}
           required
         />
       </div>
@@ -77,21 +106,21 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose 
         label="Notes (Optional)"
         value={formData.notes}
         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        placeholder="Add any relevant notes about the mileage update"
+        placeholder="Add any relevant notes"
       />
 
       <div className="flex justify-end space-x-3">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-md hover:bg-gray-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+          className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary-600"
         >
           {loading ? 'Updating...' : 'Update Mileage'}
         </button>

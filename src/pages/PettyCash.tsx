@@ -138,23 +138,27 @@ const PettyCash = () => {
         onImport={() => setShowImportModal(true)} // NEW: Wire up import button
         transactions={listToShow}
       />
-      {user?.role === 'manager' && (
+      
       <div className="flex flex-wrap gap-2 justify-end">
+         {can('pettyCash', 'categories') && (
         <button
           onClick={() => setShowManageCategories(true)}
           className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
         >
           Manage Categories
         </button>
+         )}
+         {can('pettyCash', 'groups') && (
         <button
           onClick={() => setShowManageGroups(true)}
           className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
         >
           Manage Groups
         </button>
+         )}
       </div>
 
-      )}
+      
 
       <PettyCashFilters
         moduleKey="pettyCash"

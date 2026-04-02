@@ -1,173 +1,117 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+// src/components/company/ManagerGroups.tsx
+import React from 'react';
 import Badge from '../ui/Badge';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { useAuth } from '../../context/AuthContext';
-import toast from 'react-hot-toast';
+import { DEFAULT_PERMISSIONS, RolePermissions, Role } from '../../types/roles';
+import { ShieldAlert } from 'lucide-react';
 
-interface ManagerGroup {
-  id: string;
-  name: string;
-  permissions: string[];
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  updatedBy: string;
-}
+// Map the raw module keys to friendly display names
+const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
+  dashboard: 'Dashboard',
+  vehicles: 'Vehicles',
+  maintenance: 'Maintenance',
+  rentals: 'Rentals',
+  accidents: 'Accidents',
+  claims: 'Claims',
+  finance: 'Finance',
+  invoices: 'Invoices',
+  pettyCash: 'AiePettyCash',
+  aiePettyCash: 'SkylinePettyCash',
+  share: 'Share',
+  driverPay: 'Driver Pay',
+  vdFinance: 'VD Finance',
+  vdInvoice: 'VD Invoice',
+  users: 'Users',
+  vatRecord: 'VAT Record',
+  customers: 'Customers',
+  company: 'Company',
+  products: 'Products',
+  incomeExpense: 'Income & Expense',
+  skylineIncomeExpense: 'Skyline Income & Expense',
+  members: 'Members',
+  waiting: 'Waiting List',
+  whatsapp: 'WhatsApp',
+  bulkEmail: 'Bulk Email',
+  todo: 'Todo List',
+  settings: 'Settings',
+  trash: 'Trash'
+};
 
-interface GroupFormData {
-  name: string;
-  permissions: string[];
-}
+const getActiveModules = (perms: RolePermissions) => {
+  const active: string[] = [];
+  
+  Object.entries(perms).forEach(([key, actions]) => {
+    // We filter out the member-portal specific keys just to keep the admin summary clean
+    if (!key.startsWith('member') && (actions as any).view) {
+      active.push(SECTION_TITLE_MAP[key as keyof RolePermissions] || key);
+    }
+  });
 
-const DEFAULT_PERMISSIONS = {
-  admin: {
-    name: 'Admin',
-    permissions: ['Full system access', 'User management', 'Financial controls', 'System settings']
-  },
-  manager: {
-    name: 'Manager',
-    permissions: ['Vehicle management', 'Maintenance scheduling', 'Rental management', 'Staff management']
-  },
-  finance: {
-    name: 'Finance',
-    permissions: ['Financial reports', 'Payment processing', 'Invoice management', 'Financial analytics']
-  }
+  return active;
 };
 
 const ManagerGroups = () => {
-  const { user } = useAuth();
-  const [groups, setGroups] = useState<ManagerGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<ManagerGroup | null>(null);
-  const [formData, setFormData] = useState<GroupFormData>({
-    name: '',
-    permissions: []
-  });
-
-  useEffect(() => {
-    const q = query(collection(db, 'managerGroups'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const groupData: ManagerGroup[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        groupData.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date()
-        } as ManagerGroup);
-      });
-      setGroups(groupData);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching manager groups:', error);
-      toast.error('Failed to load manager groups');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    if (!formData.name.trim()) {
-      toast.error('Group name is required');
-      return;
-    }
-
-    try {
-      const groupData = {
-        name: formData.name.trim(),
-        permissions: formData.permissions,
-        updatedAt: new Date(),
-        updatedBy: user.id
-      };
-
-      if (editingGroup) {
-        await updateDoc(doc(db, 'managerGroups', editingGroup.id), groupData);
-        toast.success('Group updated successfully');
-      } else {
-        await addDoc(collection(db, 'managerGroups'), {
-          ...groupData,
-          createdAt: new Date(),
-          createdBy: user.id
-        });
-        toast.success('Group created successfully');
-      }
-
-      setShowForm(false);
-      setEditingGroup(null);
-      setFormData({ name: '', permissions: [] });
-    } catch (error) {
-      console.error('Error saving group:', error);
-      toast.error('Failed to save group');
-    }
-  };
-
-  const handleDelete = async (groupId: string) => {
-    if (!window.confirm('Are you sure you want to delete this group?')) return;
-
-    try {
-      await deleteDoc(doc(db, 'managerGroups', groupId));
-      toast.success('Group deleted successfully');
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      toast.error('Failed to delete group');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-32">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // We extract the actual roles defined in the system
+  const systemRoles = Object.keys(DEFAULT_PERMISSIONS) as Role[];
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Role Groups</h2>
+    <div>
+      <div className="flex justify-between items-center mb-6 border-b pb-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">System Role Groups</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            These are the default base templates applied to users based on their assigned role. 
+            Individual user permissions can be further customized in the Users page.
+          </p>
         </div>
+      </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Permissions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Object.entries(DEFAULT_PERMISSIONS).map(([role, details]) => (
-                <tr key={role}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {details.name}
+      <div className="overflow-hidden border border-gray-200 rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                Role Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Base Module Access
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {systemRoles.map((role) => {
+              // The "member" role is heavily restricted to the customer portal side
+              // For the admin dashboard view, we can highlight that they don't have standard admin modules
+              const permissions = DEFAULT_PERMISSIONS[role];
+              const activeModules = getActiveModules(permissions);
+
+              return (
+                <tr key={role} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm">
+                    <div className="font-bold text-gray-900 capitalize flex items-center gap-2">
+                      {role === 'admin' && <ShieldAlert className="w-4 h-4 text-red-500" />}
+                      {role}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
-                      {details.permissions.map((permission, index) => (
-                        <Badge key={index} variant="primary">
-                          {permission}
-                        </Badge>
-                      ))}
+                      {activeModules.length > 0 ? (
+                        activeModules.map((mod, index) => (
+                          <Badge key={index} variant="primary">
+                            {mod}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm italic text-gray-400">
+                          Portal User Only / No Admin Modules
+                        </span>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

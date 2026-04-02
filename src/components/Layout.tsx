@@ -26,6 +26,7 @@ import {
   Car,
   Clock,
   MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import MobileMenu from './navigation/MobileMenu';
@@ -284,7 +285,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           { name: 'Automation Control', href: ROUTES.AUTOMATION, icon: Zap, permission: { module: 'settings', action: 'view' } },
           { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.BULK_EMAIL) },
           { name: resolveLabel(ROUTES.WAITING), href: ROUTES.WAITING, icon: resolveIcon(ROUTES.WAITING), permission: resolvePerm(ROUTES.WAITING) ?? { module: 'waiting', action: 'view' } },
-        ],
+          // Add the new line here:
+          ...(user?.role === 'manager' ? [
+      { name: 'Recycle Bin', href: ROUTES.TRASH, icon: Trash2 }
+    ] : []),
+  ],
       },
     ];
   }, [isMemberArea]);

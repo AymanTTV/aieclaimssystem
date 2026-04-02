@@ -3,21 +3,26 @@ import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
-import { Wrench, DollarSign, MapPin, Calendar, FileText } from 'lucide-react';
+import { Wrench, DollarSign, MapPin, Calendar, FileText, Car } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { format } from 'date-fns';
+import { usePermissions } from '../../hooks/usePermissions'; 
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
-  vehicle: Vehicle;
+  vehicle?: Vehicle; // Note: Can be undefined if vehicle was deleted
 }
 
 const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle }) => {
   const serviceDate = ensureValidDate(log.date);
   const nextServiceDate = ensureValidDate(log.nextServiceDate);
+  const completedDate = ensureValidDate(log.completedDate);
   const [createdByName, setCreatedByName] = useState<string | null>(null);
+  
+  const { formatCurrency } = useFormattedDisplay();
+  const { isCompany } = usePermissions(); 
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
@@ -67,8 +72,6 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
       );
     };
 
-    const { formatCurrency } = useFormattedDisplay();
-
   return (
     <div className="space-y-6">
       {/* Basic Information */}
@@ -76,16 +79,26 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         <div>
           <h3 className="text-sm font-medium text-gray-500">Vehicle</h3>
           <div className="mt-1 flex items-center">
-            {vehicle.image && (
+            {/* ✅ CRASH FIX: Safely check vehicle?.image */}
+            {vehicle?.image ? (
               <img 
                 src={vehicle.image} 
                 alt={`${vehicle.make} ${vehicle.model}`}
                 className="h-10 w-10 object-cover rounded-md mr-2"
               />
+            ) : (
+              <div className="h-10 w-10 bg-gray-100 rounded-md mr-2 flex items-center justify-center">
+                <Car className="h-5 w-5 text-gray-400" />
+              </div>
             )}
             <div>
-              <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-              <p className="text-sm text-gray-500">{vehicle.registrationNumber}</p>
+              {/* ✅ CRASH FIX: Safely access vehicle fields */}
+              <p className="font-medium">
+                {vehicle?.make || log.vehicleDetails?.make || 'Unknown'} {vehicle?.model || log.vehicleDetails?.model || ''}
+              </p>
+              <p className="text-sm text-gray-500">
+                {vehicle?.registrationNumber || log.vehicleDetails?.registrationNumber || 'Deleted Vehicle'}
+              </p>
             </div>
           </div>
         </div>
@@ -93,7 +106,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
           <h3 className="text-sm font-medium text-gray-500">Status</h3>
           <div className="mt-1 space-y-1">
             <StatusBadge status={log.status} />
-            <StatusBadge status={log.paymentStatus} />
+            {!isCompany && <StatusBadge status={log.paymentStatus} />}
           </div>
         </div>
       </div>
@@ -149,13 +162,21 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
         </div>
         <div className="grid grid-cols-2 gap-4">
             <DetailItem label="Order Number" value={log.orderNumber || '-'} />
-            <DetailItem label="Invoice Number" value={log.invoiceNumber || '-'} />
-            <DetailItem label="Invoice Date" value={log.invoiceDate} isDate />
-            <DetailItem label="Invoice Due Date" value={log.invoiceDueDate} isDate />
+            
+            {!isCompany && <DetailItem label="Invoice Number" value={log.invoiceNumber || '-'} />}
+            
+            {!isCompany && (
+              <>
+                <DetailItem label="Invoice Date" value={log.invoiceDate} isDate />
+                <DetailItem label="Invoice Due Date" value={log.invoiceDueDate} isDate />
+              </>
+            )}
+
             <DetailItem label="Booking Start" value={log.date} isDate />
             <DetailItem label="Completed Date" value={log.completedDate} isDate />
         </div>
-        {log.invoiceUrl && (
+
+        {!isCompany && log.invoiceUrl && (
             <div className="mt-2 pt-2 border-t border-gray-200">
                 <a href={log.invoiceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center font-medium">
                     <FileText className="h-4 w-4 mr-1" /> View Maintenance Invoice (PDF)
@@ -165,107 +186,106 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle })
       </div>
 
       {/* Cost Breakdown */}
-      <div className="border-t pt-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Breakdown</h3>
-        
-        {/* Parts List */}
-        {log.parts && log.parts.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Parts</h4>
-            <div className="space-y-2">
-              {log.parts.map((part, index) => (
-                <div key={index} className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                  <div>
-                    <span className="font-medium">{part.name}</span>
-                    <span className="text-gray-500 ml-2">x{part.quantity}</span>
-                  </div>
-                  <div className="text-right">
-                    <div>{formatCurrency(part.cost * part.quantity)}</div>
-                    {log.vatDetails?.partsVAT[index].includeVAT && (
-                      <div className="text-sm text-gray-500">+VAT</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Labor Cost */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Labor</h4>
-          <div className="bg-gray-50 p-2 rounded flex justify-between items-center">
-            <div>
-              <span>Labor Cost</span>
-              <span className="text-sm text-gray-500 ml-2">
-                ({log.laborHours} hours @ £{log.laborRate}/hour)
-              </span>
-            </div>
-            <div className="text-right">
-              <div>{formatCurrency(log.laborCost)}</div>
-              {log.vatDetails?.laborVAT && (
-                <div className="text-sm text-gray-500">+VAT</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {log.attachments && log.attachments.length > 0 && (
-          <section className="mt-4">
-            <h3 className="font-semibold mb-2">Attachments</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {log.attachments.map((att, idx) => (
-                <a
-                  key={idx}
-                  href={att.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block border rounded p-2 hover:bg-gray-50"
-                >
-                  {att.type?.startsWith('image/') ? (
-                    <img src={att.url} alt={att.name} className="w-full h-32 object-cover rounded" />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-32">
-                      <FileText className="h-8 w-8 text-gray-600 mb-2" />
-                      <span className="mt-1 text-sm truncate w-full text-center px-2">{att.name}</span>
+      {!isCompany && (
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Breakdown</h3>
+          
+          {log.parts && log.parts.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Parts</h4>
+              <div className="space-y-2">
+                {log.parts.map((part, index) => (
+                  <div key={index} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                    <div>
+                      <span className="font-medium">{part.name}</span>
+                      <span className="text-gray-500 ml-2">x{part.quantity}</span>
                     </div>
-                  )}
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Payment Summary */}
-        <div className="border-t pt-4 space-y-2">
-          <div className="flex justify-between text-sm font-medium">
-            <span>NET:</span>
-            <span>{formatCurrency(log.netAmount!)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>VAT:</span>
-            <span>{formatCurrency(log.vatAmount!)}</span>
-          </div>
-          {log.totalDiscount! > 0 && (
-            <div className="flex justify-between text-sm text-red-600">
-              <span>Discount:</span>
-              <span>–{formatCurrency(log.totalDiscount!)}</span>
+                    <div className="text-right">
+                      <div>{formatCurrency(part.cost * part.quantity)}</div>
+                      {log.vatDetails?.partsVAT[index].includeVAT && (
+                        <div className="text-sm text-gray-500">+VAT</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <div className="flex justify-between text-lg font-bold pt-2 border-t">
-            <span>Total:</span>
-            <span>{formatCurrency(log.cost)}</span>
+
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Labor</h4>
+            <div className="bg-gray-50 p-2 rounded flex justify-between items-center">
+              <div>
+                <span>Labor Cost</span>
+                <span className="text-sm text-gray-500 ml-2">
+                  ({log.laborHours} hours @ £{log.laborRate}/hour)
+                </span>
+              </div>
+              <div className="text-right">
+                <div>{formatCurrency(log.laborCost)}</div>
+                {log.vatDetails?.laborVAT && (
+                  <div className="text-sm text-gray-500">+VAT</div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between text-sm text-green-600">
-            <span>Paid:</span>
-            <span>{formatCurrency(log.paidAmount || 0)}</span>
-          </div>
-          <div className="flex justify-between text-sm text-amber-600">
-            <span>Owing:</span>
-            <span>{formatCurrency(log.remainingAmount)}</span>
+
+          {log.attachments && log.attachments.length > 0 && (
+            <section className="mt-4">
+              <h3 className="font-semibold mb-2">Attachments</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {log.attachments.map((att, idx) => (
+                  <a
+                    key={idx}
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border rounded p-2 hover:bg-gray-50"
+                  >
+                    {att.type?.startsWith('image/') ? (
+                      <img src={att.url} alt={att.name} className="w-full h-32 object-cover rounded" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-32">
+                        <FileText className="h-8 w-8 text-gray-600 mb-2" />
+                        <span className="mt-1 text-sm truncate w-full text-center px-2">{att.name}</span>
+                      </div>
+                    )}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div className="border-t pt-4 space-y-2">
+            <div className="flex justify-between text-sm font-medium">
+              <span>NET:</span>
+              <span>{formatCurrency(log.netAmount!)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>VAT:</span>
+              <span>{formatCurrency(log.vatAmount!)}</span>
+            </div>
+            {log.totalDiscount! > 0 && (
+              <div className="flex justify-between text-sm text-red-600">
+                <span>Discount:</span>
+                <span>–{formatCurrency(log.totalDiscount!)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-lg font-bold pt-2 border-t">
+              <span>Total:</span>
+              <span>{formatCurrency(log.cost)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-green-600">
+              <span>Paid:</span>
+              <span>{formatCurrency(log.paidAmount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-amber-600">
+              <span>Owing:</span>
+              <span>{formatCurrency(log.remainingAmount)}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 text-sm text-gray-500 border-t pt-4">
         <DetailItem

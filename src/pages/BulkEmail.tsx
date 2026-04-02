@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
 import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
+import { Navigate } from 'react-router-dom';
+import { ROUTES } from '../routes';
 import {
   collection,
   query,
@@ -38,6 +40,7 @@ import { LegalHandler } from '../types/legalHandler';
 import { Account } from '../types';
 import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
+import { Permission } from '../types/roles';
 
 // ---------------- DEBUG TOGGLE ----------------
 const DEBUG = true;
@@ -236,18 +239,40 @@ const getCleanAttachmentName = (filename: string) => {
   if (lower.includes('agreement')) return 'Rental Agreement';
   if (lower.includes('invoice')) return 'Invoice';
   if (lower.includes('permit')) return 'Parking Permit';
-  // Fallback: remove timestamps and file extensions for custom uploads
   return filename.replace(/^[0-9]+_/, '').replace(/\.[^/.]+$/, "").replace(/_/g, ' ');
 };
 
 type RecipientFilterType = 'all' | 'customer' | 'serviceCenter' | 'legalHandler' | 'invoiceManual' | 'account' | 'owner';
 
+// Mappings for target permissions
+const TARGET_PERMISSIONS: Record<string, keyof Permission> = {
+  custom: 'targetCustom',
+  rental: 'targetRental',
+  maintenance: 'targetMaintenance',
+  invoice: 'targetInvoice',
+  finance: 'targetFinance',
+  claim: 'targetClaim',
+};
+
 export default function BulkEmail() {
   const { user } = useAuth();
   const { can, isManager } = usePermissions();
 
+  // ─── PERMISSION CHECK ───────────────────────────────────────────
+  if (!can('bulkEmail', 'view')) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  // ─── DETERMINE AVAILABLE TABS ───────────────────────────────────
+  const availableTabs = useMemo(() => {
+    return (Object.keys(emailTemplates) as EmailType[]).filter(type => {
+       const permKey = TARGET_PERMISSIONS[type];
+       return permKey ? can('bulkEmail', permKey) : false;
+    });
+  }, [can]);
+
   // ─── STATE ──────────────────────────────────────────────────────
-  const [emailType, setEmailType]                   = useState<EmailType>('custom');
+  const [emailType, setEmailType]                   = useState<EmailType>(availableTabs[0] || 'custom');
   const [recipientFilter, setRecipientFilter]       = useState<RecipientFilterType>('all');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [searchQuery, setSearchQuery]               = useState<string>('');
@@ -264,6 +289,33 @@ export default function BulkEmail() {
   // ─── Attachments State ──────────────────────────────────────────
   const [selectedRentalDocs, setSelectedRentalDocs] = useState<{name: string, url: string}[]>([]);
   const [customFiles, setCustomFiles] = useState<File[]>([]);
+
+  // Database Templates state
+  const [dbTemplates, setDbTemplates] = useState<Record<string, any[]>>({});
+
+  // Fetch live templates from Firestore
+  useEffect(() => {
+    const fetchLiveTemplates = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'messageTemplates'));
+        if (!snap.empty) {
+          const templatesData: Record<string, any[]> = {
+            custom: [], rental: [], maintenance: [], invoice: [], claim: [], finance: []
+          };
+          snap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.category && templatesData[data.category]) {
+              templatesData[data.category].push({ id: doc.id, ...data });
+            }
+          });
+          setDbTemplates(templatesData);
+        }
+      } catch (e) {
+        console.error('Failed to load live templates, falling back to defaults', e);
+      }
+    };
+    fetchLiveTemplates();
+  }, []);
 
   // ─── DATA HOOKS ─────────────────────────────────────────────────
   const { customers }             = useCustomers();
@@ -287,11 +339,12 @@ export default function BulkEmail() {
 
   // ─── LEGAL HANDLERS & CLAIMS CACHE ──────────────────────────────
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
-  const [claimOptionsByRecipient, setClaimOptionsByRecipient] =
-    useState<Record<string, { id: string; label: string }[]>>({});
   const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
 
-  const templates       = emailTemplates[emailType] || [];
+  // Uses live database templates if available, otherwise falls back to the static file
+  const templates = dbTemplates[emailType]?.length > 0 
+    ? dbTemplates[emailType] 
+    : (emailTemplates[emailType] || []);
   const currentTemplate = templates.find(t => t.id === selectedTemplateId);
 
   // Clear attachments when context changes
@@ -458,7 +511,6 @@ export default function BulkEmail() {
       }
 
       case 'claim': {
-        // Direct local filtering of claims
         return claims.filter(c => 
             c.customerId === recipientId || 
             c.clientId === recipientId || 
@@ -666,6 +718,8 @@ export default function BulkEmail() {
       }
     }
 
+    // src/pages/BulkEmail.tsx
+
     if (emailType === 'maintenance' && selectedMaintenanceId) {
       const m = maintenanceLogs.find(x => x.id === selectedMaintenanceId);
       if (m) {
@@ -689,6 +743,34 @@ export default function BulkEmail() {
         ctx['Mileage'] = String((m as any).currentMileage || (m as any).mileage || 'N/A');
         ctx['NextMileage'] = String((m as any).nextServiceMileage || 'N/A');
         ctx['Insert Mileage'] = ctx['Mileage'];
+
+        // --- NEW DRIVER LOOKUP FOR SERVICE CENTER MESSAGES ---
+        let driverName = (m as any).customerName || (m as any).driverName || v?.owner?.name;
+        
+        // Try finding the active rental for this vehicle
+        if (!driverName && v) {
+          const activeRental = rentals.find((r: any) => r.vehicleId === v.id && r.status === 'active');
+          if (activeRental && activeRental.customerId) {
+            const matchedCust = customers.find(c => c.id === activeRental.customerId);
+            if (matchedCust) driverName = matchedCust.name || (matchedCust as any).fullName;
+          }
+        }
+        
+        // Try fallback IDs on the maintenance log or vehicle
+        if (!driverName) {
+          const possibleCustId = (m as any).customerId || v?.customerId || (v as any)?.ownerId;
+          if (possibleCustId) {
+            const matchedCust = customers.find(c => c.id === possibleCustId);
+            if (matchedCust) driverName = matchedCust.name || (matchedCust as any).fullName;
+          }
+        }
+
+        if (driverName) {
+          ctx['Driver Name'] = driverName;
+          ctx['Customer Name'] = driverName;
+          ctx["Driver's Name"] = driverName;
+        }
+        // -----------------------------------------------------
 
         const parts = ((m as any).parts || []).filter(Boolean);
         if (parts.length) {
@@ -1012,7 +1094,7 @@ export default function BulkEmail() {
     <div className="space-y-6">
       {/* Type + Template */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        {(Object.keys(emailTemplates) as EmailType[]).map(t => (
+        {availableTabs.map(t => (
           <button
             key={t}
             onClick={() => {
@@ -1318,7 +1400,7 @@ export default function BulkEmail() {
               onChange={e=>setHistoryTypeFilter(e.target.value as any)}
             >
               <option value="all">All Types</option>
-              {(Object.keys(emailTemplates) as EmailType[]).map(t => (
+              {availableTabs.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -1330,7 +1412,7 @@ export default function BulkEmail() {
             />
           </div>
 
-          {user?.role==='manager' && (
+          {can('bulkEmail', 'clearHistory') && (
             <button
               onClick={async () => {
                 if (!window.confirm('Delete ALL history?')) return;

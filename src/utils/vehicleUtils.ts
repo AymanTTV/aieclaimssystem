@@ -40,6 +40,37 @@ export const getUpcomingExpirations = (vehicles: Vehicle[], daysThreshold = 30):
   });
 };
 
+export const needsMonthlyMileageUpdate = (vehicle: any): boolean => {
+  const now = new Date();
+  
+  // The warning ONLY triggers on the 28th, 29th, 30th, or 31st of the month
+  if (now.getDate() < 28) return false;
+
+  let lastUpdateDate: Date | null = null;
+
+  // Find the most recent update date
+  if (vehicle.mileageUpdates && vehicle.mileageUpdates.length > 0) {
+    const lastUpdate = vehicle.mileageUpdates[vehicle.mileageUpdates.length - 1];
+    lastUpdateDate = lastUpdate.date?.toDate ? lastUpdate.date.toDate() : new Date(lastUpdate.date);
+  } else if (vehicle.updatedAt) {
+    lastUpdateDate = vehicle.updatedAt?.toDate ? vehicle.updatedAt.toDate() : new Date(vehicle.updatedAt);
+  }
+
+  // If we have no record of an update, it needs one
+  if (!lastUpdateDate) return true;
+
+  // Check if the last update was done on or after the 28th of the CURRENT month
+  const isSameMonth = lastUpdateDate.getMonth() === now.getMonth();
+  const isSameYear = lastUpdateDate.getFullYear() === now.getFullYear();
+  const isUpdatedAfter28th = lastUpdateDate.getDate() >= 28;
+
+  if (isSameMonth && isSameYear && isUpdatedAfter28th) {
+    return false; // Already updated for this month's cycle!
+  }
+
+  return true; // It's past the 28th and hasn't been updated yet this cycle
+};
+
 /**
  * Checks if a given date is expiring soon (within 30 days) or has already expired.
  * @param date The date to check.

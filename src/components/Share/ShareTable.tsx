@@ -173,6 +173,7 @@ const ShareTable: React.FC<Props> = ({
               <Edit className="h-4 w-4" />
             </button>
           )}
+          {can('share', 'singleDoc') && (
           <button
             onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original) }}
             title="Generate PDF"
@@ -180,6 +181,7 @@ const ShareTable: React.FC<Props> = ({
           >
             <FileText className="h-4 w-4" />
           </button>
+          )}
           {can('share', 'delete') && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(row.original) }}

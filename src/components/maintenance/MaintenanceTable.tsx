@@ -1,5 +1,5 @@
 // src/components/maintenance/MaintenanceTable.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle } from '../../types';
 import {
@@ -16,7 +16,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { useAuth } from '../../context/AuthContext'; // ✅ NEW
+import { useAuth } from '../../context/AuthContext';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
@@ -32,6 +32,29 @@ interface MaintenanceTableProps {
   onStatusChange: (log: MaintenanceLog, newStatus: string) => void;
 }
 
+const ActionBtn = ({
+  onClick,
+  icon: Icon,
+  colorClass,
+  title
+}: {
+  onClick: (e: React.MouseEvent) => void;
+  icon: any;
+  colorClass: string;
+  title: string;
+}) => (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick(e);
+    }}
+    title={title}
+    className={`p-1.5 rounded-md hover:bg-white hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
+  >
+    <Icon className="h-4 w-4" />
+  </button>
+);
+
 const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   logs,
   vehicles,
@@ -45,35 +68,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onGenerateInvoice,
   onStatusChange
 }) => {
-  const { can } = usePermissions();
-  const { user } = useAuth(); // ✅ NEW
+  const { can, isCompany } = usePermissions();
+  const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
 
-  // ✅ Manager-only status editing (still respects permission if you want)
-  const canEditStatusFromTable = user?.role === 'manager' && can('maintenance', 'update');
-
-  const ActionBtn = ({
-    onClick,
-    icon: Icon,
-    colorClass,
-    title
-  }: {
-    onClick: (e: React.MouseEvent) => void;
-    icon: any;
-    colorClass: string;
-    title: string;
-  }) => (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick(e);
-      }}
-      title={title}
-      className={`p-1.5 rounded-md hover:bg-white hover:shadow-sm transition-all flex items-center justify-center w-8 h-8 ${colorClass}`}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
+  const canSeeCompleted = can('maintenance', 'completed') && !isCompany;
+  const canEditStatusFromTable = can('maintenance', 'tableStatus');
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -88,7 +88,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     }
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       id: 'orderNumber',
       header: <div className="w-16">Order #</div>,
@@ -103,6 +103,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="min-w-[140px]">Vehicle</div>,
       cell: ({ row }: any) => {
         const log = row.original;
+        
         if (log.vehicleDetails) {
           return (
             <div className="max-w-[180px]">
@@ -118,22 +119,37 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             </div>
           );
         }
+
         const vehicle = vehicles[log.vehicleId!];
-        return vehicle ? (
-          <div className="max-w-[180px]">
-            <div
-              className="font-medium text-gray-900 truncate"
-              title={`${vehicle.make} ${vehicle.model}`}
-            >
-              {vehicle.make} {vehicle.model}
+        
+        if (vehicle) {
+          return (
+            <div className="max-w-[180px]">
+              <div
+                className="font-medium text-gray-900 truncate"
+                title={`${vehicle.make} ${vehicle.model}`}
+              >
+                {vehicle.make} {vehicle.model}
+              </div>
+              <div className="text-sm text-gray-500 truncate">
+                {vehicle.registrationNumber}
+              </div>
             </div>
-            <div className="text-sm text-gray-500 truncate">
-              {vehicle.registrationNumber}
+          );
+        } else if (log.vehicleId) {
+          return (
+            <div className="max-w-[180px]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 border border-red-200 mb-1">
+                Deleted Vehicle
+              </span>
+              <div className="text-xs text-gray-500 truncate font-mono" title={log.vehicleId}>
+                ID: {log.vehicleId.slice(0, 8)}...
+              </div>
             </div>
-          </div>
-        ) : (
-          <span className="text-gray-400">N/A</span>
-        );
+          );
+        } else {
+          return <span className="text-gray-400">N/A</span>;
+        }
       }
     },
     {
@@ -194,6 +210,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         );
       }
     },
+    
     {
       id: 'status',
       header: <div className="w-28">Status</div>,
@@ -221,16 +238,22 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               >
                 <option value="scheduled">Scheduled</option>
                 <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                {can('maintenance', 'complete') && (
+                  <option value="completed">Completed</option>
+                )}
+                {canSeeCompleted && (
+                  <option value="cancelled">Cancelled</option>
+                )}
               </select>
             ) : (
               <StatusBadge status={log.status} />
             )}
 
-            <div className="pl-1">
-              <StatusBadge status={log.paymentStatus} />
-            </div>
+            {!isCompany && (
+              <div className="pl-1">
+                <StatusBadge status={log.paymentStatus} />
+              </div>
+            )}
           </div>
         );
       }
@@ -249,7 +272,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         </div>
       )
     },
-    {
+    !isCompany ? {
       id: 'cost',
       header: <div className="w-28">Cost</div>,
       cell: ({ row }: any) => {
@@ -275,7 +298,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           </div>
         );
       }
-    },
+    } : null,
     {
       id: 'actions',
       header: <div className="w-10 text-center">Actions</div>,
@@ -291,33 +314,33 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
 
           {can('maintenance', 'update') && (
-            <>
-              <ActionBtn
-                onClick={() => onEdit(row.original)}
-                icon={Pencil}
-                colorClass="text-indigo-600"
-                title="Edit"
-              />
-
-              <div className="flex gap-1">
-                {row.original.status !== 'completed' && (
-                  <ActionBtn
-                    onClick={() => onComplete(row.original)}
-                    icon={CheckCircle2}
-                    colorClass="text-orange-600"
-                    title="Complete Maintenance"
-                  />
-                )}
-
-                <ActionBtn
-                  onClick={() => onPay(row.original)}
-                  icon={CreditCard}
-                  colorClass="text-emerald-600"
-                  title="Record Payment"
-                />
-              </div>
-            </>
+            <ActionBtn
+              onClick={() => onEdit(row.original)}
+              icon={Pencil}
+              colorClass="text-indigo-600"
+              title="Edit"
+            />
           )}
+
+          <div className="flex gap-1">
+            {row.original.status !== 'completed' && can('maintenance', 'complete') && (
+              <ActionBtn
+                onClick={() => onComplete(row.original)}
+                icon={CheckCircle2}
+                colorClass="text-orange-600"
+                title="Complete Maintenance"
+              />
+            )}
+            
+            {!isCompany && can('maintenance', 'recordPayment') && (
+              <ActionBtn
+                onClick={() => onPay(row.original)}
+                icon={CreditCard}
+                colorClass="text-emerald-600"
+                title="Record Payment"
+              />
+            )}
+          </div>
 
           {can('maintenance', 'delete') && (
             <ActionBtn
@@ -329,7 +352,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           )}
 
           <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-200">
-            {can('maintenance', 'update') && (
+            {can('maintenance', 'singleDoc') && (
               <>
                 {row.original.documentUrl ? (
                   <ActionBtn
@@ -346,32 +369,36 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                     title="Generate Work Order"
                   />
                 )}
-                <ActionBtn
-                  onClick={() => onGenerateInvoice(row.original)}
-                  icon={Receipt}
-                  colorClass={row.original.invoiceUrl ? 'text-green-700' : 'text-gray-400 hover:text-green-600'}
-                  title="Generate/Regenerate Invoice"
-                />
+                
+                {!isCompany && (
+                  <ActionBtn
+                    onClick={() => onGenerateInvoice(row.original)}
+                    icon={Receipt}
+                    colorClass={row.original.invoiceUrl ? 'text-green-700' : 'text-gray-400 hover:text-green-600'}
+                    title="Generate/Regenerate Invoice"
+                  />
+                )}
               </>
             )}
           </div>
         </div>
       )
     }
-  ];
+  ].filter(Boolean), [vehicles, canEditStatusFromTable, isCompany, canSeeCompleted, onView, onEdit, onComplete, onPay, onDelete, onGenerateDocument, onViewDocument, onGenerateInvoice, onStatusChange, formatCurrency, can]);
 
   const rowClassName = (row: { original: MaintenanceLog }) => {
     const { date, status } = row.original;
     if (status === 'scheduled') {
       const days = differenceInCalendarDays(date, new Date());
-      if (days <= 7) return 'bg-red-50 hover:bg-red-100';
+      if (days <= 7) return '!bg-red-50 hover:!bg-red-100 transition-colors duration-200';
     }
     return '';
   };
 
   return (
     <DataTable
-      data={logs}
+      // ✅ FIX: Use logs directly, as filtering is fully handled by useMaintenanceFilters now
+      data={logs} 
       columns={columns as any}
       onRowClick={(log) => can('maintenance', 'view') && onView(log)}
       rowClassName={rowClassName as any}
