@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
-import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2 } from 'lucide-react';
+import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
+import { usePermissions } from '../hooks/usePermissions'; // <-- ADDED HOOK
 
 // Valid tags based on BulkEmail and Whatsapp context builders
 const AVAILABLE_TAGS: Record<string, string[]> = {
@@ -19,6 +20,9 @@ const AVAILABLE_TAGS: Record<string, string[]> = {
 const CATEGORIES: EmailType[] = ['custom', 'rental', 'maintenance', 'invoice', 'claim', 'finance'];
 
 export default function AutomationSettings() {
+  const { can } = usePermissions(); // <-- INITIALIZE HOOK
+  const canUpdate = can('automation', 'update');
+
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
   const [activeCategory, setActiveCategory] = useState<EmailType>('custom');
@@ -38,10 +42,18 @@ export default function AutomationSettings() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
+// 1. Evaluate the permission into a simple boolean first
+  const canViewAutomation = can('automation', 'view');
+
   // Load templates from Firestore
   useEffect(() => {
-    fetchTemplates();
-  }, []);
+    // 2. Use the boolean to check access
+    if (canViewAutomation) {
+      fetchTemplates();
+    } else {
+      setLoading(false);
+    }
+  }, [canViewAutomation]);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -62,6 +74,12 @@ export default function AutomationSettings() {
   };
 
   const seedDatabase = async () => {
+    // Safety check: Only seed if user can create
+    if (!can('automation', 'create')) {
+      toast.error('Database empty, and you lack permissions to initialize default templates.');
+      return;
+    }
+
     toast.loading('Initializing database with default templates...');
     const batch = writeBatch(db);
     const seededTemplates: any[] = [];
@@ -101,22 +119,24 @@ export default function AutomationSettings() {
   };
 
   const undo = useCallback(() => {
-    if (historyIndex > 0) {
+    if (historyIndex > 0 && canUpdate) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
       setEditingTemplate(history[newIndex]);
     }
-  }, [history, historyIndex]);
+  }, [history, historyIndex, canUpdate]);
 
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
+    if (historyIndex < history.length - 1 && canUpdate) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
       setEditingTemplate(history[newIndex]);
     }
-  }, [history, historyIndex]);
+  }, [history, historyIndex, canUpdate]);
 
   const handleEditorChange = (field: 'subjectTemplate' | 'bodyTemplate' | 'name', value: string) => {
+    if (!canUpdate) return;
+    
     const newTpl = { ...editingTemplate, [field]: value };
     setEditingTemplate(newTpl);
 
@@ -129,6 +149,8 @@ export default function AutomationSettings() {
 
   // Keyboard shortcut listener
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!canUpdate) return;
+    
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) redo();
@@ -159,7 +181,7 @@ export default function AutomationSettings() {
   };
 
   const handleSave = async () => {
-    if (!editingTemplate) return;
+    if (!editingTemplate || !canUpdate) return;
     setSaving(true);
     try {
       await setDoc(doc(db, 'messageTemplates', editingTemplate.id), editingTemplate, { merge: true });
@@ -174,7 +196,7 @@ export default function AutomationSettings() {
   };
 
   const insertTagAtCursor = (tag: string) => {
-    if (!editingTemplate) return;
+    if (!editingTemplate || !canUpdate) return;
     const ref = activeField === 'subjectTemplate' ? subjectRef.current : bodyRef.current;
     
     if (ref) {
@@ -199,6 +221,28 @@ export default function AutomationSettings() {
   const activeTemplates = templates.filter(t => t.category === activeCategory);
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Template Manager...</div>;
+
+  // ─── PERMISSION CHECK: VIEW ──────────────────────────────────────
+  if (!can('automation', 'view')) {
+    return (
+      <div className="max-w-7xl mx-auto flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-gray-100 mt-10">
+        <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900">Access Denied</h2>
+        <p className="text-gray-500 mt-2 text-center max-w-md">
+          You do not have the required permissions to view or edit the Automation Templates. Please contact your system administrator if you believe this is an error.
+        </p>
+      </div>
+    );
+  }
+
+  // ─── HELPER FOR RENDER ──────────────────────────────────────────
+  // Determines styles for tag buttons based on update permissions
+  const getTagClass = (colorClass: string) => {
+    if (!canUpdate) {
+      return "text-xs px-2 py-1 bg-gray-50 text-gray-400 rounded border border-gray-200 cursor-not-allowed opacity-75";
+    }
+    return `text-xs px-2 py-1 rounded border transition cursor-grab active:cursor-grabbing ${colorClass}`;
+  };
 
   return (
     <div className="max-w-7xl mx-auto pb-20 space-y-6" onKeyDown={handleKeyDown}>
@@ -256,14 +300,18 @@ export default function AutomationSettings() {
                   </button>
                 ))}
              </div>
-             <div className="p-3 border-t border-gray-200 bg-gray-50">
-               <button 
-                 onClick={handleCreateNew}
-                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
-               >
-                 <Plus className="w-4 h-4" /> New Template
-               </button>
-             </div>
+             
+             {/* ─── PERMISSION CHECK: CREATE ─── */}
+             {can('automation', 'create') && (
+               <div className="p-3 border-t border-gray-200 bg-gray-50">
+                 <button 
+                   onClick={handleCreateNew}
+                   className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+                 >
+                   <Plus className="w-4 h-4" /> New Template
+                 </button>
+               </div>
+             )}
           </div>
         </div>
 
@@ -281,8 +329,8 @@ export default function AutomationSettings() {
                   <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden mr-2">
                     <button 
                       onClick={undo} 
-                      disabled={historyIndex <= 0}
-                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition"
+                      disabled={historyIndex <= 0 || !canUpdate}
+                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
                       title="Undo (Ctrl+Z)"
                     >
                       <Undo2 className="w-4 h-4" />
@@ -290,31 +338,42 @@ export default function AutomationSettings() {
                     <div className="w-px h-5 bg-gray-300"></div>
                     <button 
                       onClick={redo} 
-                      disabled={historyIndex >= history.length - 1}
-                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition"
+                      disabled={historyIndex >= history.length - 1 || !canUpdate}
+                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
                       title="Redo (Ctrl+Y)"
                     >
                       <Redo2 className="w-4 h-4" />
                     </button>
                   </div>
 
+                  {/* ─── PERMISSION CHECK: UPDATE (Save Button) ─── */}
                   <button
                     onClick={handleSave}
-                    disabled={saving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50 transition"
+                    disabled={saving || !canUpdate}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
+                      canUpdate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Template'}
                   </button>
                 </div>
               </div>
               <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                 {!canUpdate && (
+                   <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm mb-4">
+                     You are viewing this template in <strong>Read-Only</strong> mode. You do not have permission to make changes.
+                   </div>
+                 )}
+
+                 {/* ─── PERMISSION CHECK: UPDATE (Inputs disabled if false) ─── */}
                  <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Template Name (Internal)</label>
                     <input
                       type="text"
-                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       value={editingTemplate.name}
                       onChange={e => handleEditorChange('name', e.target.value)}
+                      disabled={!canUpdate}
                     />
                  </div>
                  <div>
@@ -325,9 +384,10 @@ export default function AutomationSettings() {
                       ref={subjectRef}
                       type="text"
                       onFocus={() => setActiveField('subjectTemplate')}
-                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       value={editingTemplate.subjectTemplate}
                       onChange={e => handleEditorChange('subjectTemplate', e.target.value)}
+                      disabled={!canUpdate}
                     />
                  </div>
                  <div className="flex-1 flex flex-col h-full">
@@ -335,9 +395,10 @@ export default function AutomationSettings() {
                     <textarea
                       ref={bodyRef}
                       onFocus={() => setActiveField('bodyTemplate')}
-                      className="w-full flex-1 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm leading-relaxed min-h-[350px]"
+                      className="w-full flex-1 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm leading-relaxed min-h-[350px] disabled:bg-gray-50 disabled:text-gray-500"
                       value={editingTemplate.bodyTemplate}
                       onChange={e => handleEditorChange('bodyTemplate', e.target.value)}
+                      disabled={!canUpdate}
                     />
                  </div>
               </div>
@@ -356,9 +417,13 @@ export default function AutomationSettings() {
              <Tag className="w-4 h-4" /> Available Tags
            </div>
            <div className="p-4 overflow-y-auto space-y-6">
-             <p className="text-xs text-gray-500 leading-relaxed">
-               <strong>Click</strong> a tag to insert it at your cursor, or <strong>drag and drop</strong> it directly into the text boxes.
-             </p>
+             {canUpdate ? (
+               <p className="text-xs text-gray-500 leading-relaxed">
+                 <strong>Click</strong> a tag to insert it at your cursor, or <strong>drag and drop</strong> it directly into the text boxes.
+               </p>
+             ) : (
+               <p className="text-xs text-gray-400 italic">Tag insertion is disabled in Read-Only mode.</p>
+             )}
              
              {/* Global Tags */}
              <div>
@@ -367,10 +432,11 @@ export default function AutomationSettings() {
                  {AVAILABLE_TAGS.global.map(tag => (
                    <button 
                      key={tag} 
-                     draggable 
-                     onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                     draggable={canUpdate} 
+                     onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                      onClick={() => insertTagAtCursor(tag)} 
-                     className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 hover:bg-blue-100 transition cursor-grab active:cursor-grabbing"
+                     className={getTagClass("bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100")}
+                     disabled={!canUpdate}
                    >
                      {tag}
                    </button>
@@ -385,10 +451,11 @@ export default function AutomationSettings() {
                  {AVAILABLE_TAGS.vehicle.map(tag => (
                    <button 
                      key={tag} 
-                     draggable 
-                     onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                     draggable={canUpdate} 
+                     onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                      onClick={() => insertTagAtCursor(tag)} 
-                     className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded border border-green-100 hover:bg-green-100 transition cursor-grab active:cursor-grabbing"
+                     className={getTagClass("bg-green-50 text-green-700 border-green-100 hover:bg-green-100")}
+                     disabled={!canUpdate}
                    >
                      {tag}
                    </button>
@@ -404,10 +471,11 @@ export default function AutomationSettings() {
                     {AVAILABLE_TAGS[activeCategory].map(tag => (
                       <button 
                         key={tag} 
-                        draggable 
-                        onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                        draggable={canUpdate} 
+                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                         onClick={() => insertTagAtCursor(tag)} 
-                        className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-100 hover:bg-purple-100 transition cursor-grab active:cursor-grabbing"
+                        className={getTagClass("bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100")}
+                        disabled={!canUpdate}
                       >
                         {tag}
                       </button>
@@ -423,10 +491,11 @@ export default function AutomationSettings() {
                     {AVAILABLE_TAGS.maintenance.map(tag => (
                       <button 
                         key={tag} 
-                        draggable 
-                        onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                        draggable={canUpdate} 
+                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                         onClick={() => insertTagAtCursor(tag)} 
-                        className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded border border-orange-100 hover:bg-orange-100 transition cursor-grab active:cursor-grabbing"
+                        className={getTagClass("bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100")}
+                        disabled={!canUpdate}
                       >
                         {tag}
                       </button>
@@ -442,10 +511,11 @@ export default function AutomationSettings() {
                     {AVAILABLE_TAGS.invoice.map(tag => (
                       <button 
                         key={tag} 
-                        draggable 
-                        onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                        draggable={canUpdate} 
+                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                         onClick={() => insertTagAtCursor(tag)} 
-                        className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 hover:bg-indigo-100 transition cursor-grab active:cursor-grabbing"
+                        className={getTagClass("bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100")}
+                        disabled={!canUpdate}
                       >
                         {tag}
                       </button>
@@ -461,10 +531,11 @@ export default function AutomationSettings() {
                     {AVAILABLE_TAGS.claim.map(tag => (
                       <button 
                         key={tag} 
-                        draggable 
-                        onDragStart={(e) => e.dataTransfer.setData('text/plain', tag)}
+                        draggable={canUpdate} 
+                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
                         onClick={() => insertTagAtCursor(tag)} 
-                        className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded border border-red-100 hover:bg-red-100 transition cursor-grab active:cursor-grabbing"
+                        className={getTagClass("bg-red-50 text-red-700 border-red-100 hover:bg-red-100")}
+                        disabled={!canUpdate}
                       >
                         {tag}
                       </button>

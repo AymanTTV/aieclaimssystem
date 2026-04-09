@@ -97,6 +97,7 @@ export interface RolePermissions {
   users: Permission;                
   todo: Permission;
   settings: Permission;
+  automation: Permission; // <-- NEW: Template Automation Control Page
   memberProfile: Permission;
   memberRentals: Permission;
   memberTransactions: Permission;
@@ -130,6 +131,7 @@ const BASE_TRASH = { view: false, cards: false, restore: false, deletePermanentl
 const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false };
 const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false };
 const BASE_SETTINGS = { view: false, update: false };
+const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false }; // <-- NEW: Template
 const BASE_PORTAL = { view: false, update: false };
 
 // ------------------------- DEFAULTS -------------------------
@@ -165,6 +167,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true },
     todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true },
     settings: { ...BASE_SETTINGS, view: true, update: true },
+    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -201,6 +204,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO, view: true, create: true, export: true },
     settings: { ...BASE_SETTINGS, view: true },
+    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -237,6 +241,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS, view: true },
+    automation: { ...BASE_AUTOMATION }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -273,6 +278,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
+    automation: { ...BASE_AUTOMATION }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -309,6 +315,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
+    automation: { ...BASE_AUTOMATION }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -345,6 +352,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
+    automation: { ...BASE_AUTOMATION }, // <-- NEW
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },

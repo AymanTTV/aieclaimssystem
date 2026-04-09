@@ -166,7 +166,21 @@ const MaintenanceBulkDocument: React.FC<MaintenanceBulkDocumentProps> = ({
                   )
                 )
                 .map((record) => {
-                  const vehicle = record.vehicleId ? vehicles[record.vehicleId] : null;
+                //  const vehicle = record.vehicleId ? vehicles[record.vehicleId] : null;
+
+const vehicle = record.vehicleId ? vehicles[record.vehicleId] : null;
+
+let registrationDisplay = 'N/A';
+
+if (vehicle?.registrationNumber) {
+  registrationDisplay = vehicle.registrationNumber;
+} else if (record.vehicleDetails?.registrationNumber) {
+  registrationDisplay = record.vehicleDetails.registrationNumber;
+} else {
+  console.warn('Missing vehicle data for record:', record);
+  registrationDisplay = `Unknown (${record.vehicleId?.slice(0, 6) || 'no-id'})`;
+}
+
                   const customer = record.customerId ? customers[record.customerId] : null;
                   return (
                     <View key={record.id} style={styles.tableRow}>
@@ -174,7 +188,7 @@ const MaintenanceBulkDocument: React.FC<MaintenanceBulkDocumentProps> = ({
                         {formatDate(record.date)}
                       </Text>
                       <Text style={[styles.tableCell, { width: '20%' }]}>
-                        {vehicle?.registrationNumber || 'N/A'}
+                        {registrationDisplay} 
                       </Text>
                       <Text style={[styles.tableCell, { width: '20%' }]}>
                         {customer?.name || 'N/A'}

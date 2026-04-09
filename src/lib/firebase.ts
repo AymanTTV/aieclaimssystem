@@ -1,7 +1,8 @@
 // src/lib/firebase.ts
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+// 1. ✅ ADDED initializeFirestore here:
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -20,11 +21,15 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// 2. ✅ THE MAGIC FIX: Force Long Polling to bypass cross-domain browser blocks
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+});
+
 export const storage = getStorage(app);
 
 // IMPORTANT: must match your deployed Cloud Functions region
-// You deployed in europe-west2 earlier, so use that here:
 export const functions = getFunctions(app, 'europe-west2');
 
 // Configure storage settings (optional)

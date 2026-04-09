@@ -352,12 +352,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           registrationNumber: manualRegNumber.trim(),
         };
       } else {
-        const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
-        maintenanceData = {
-          ...commonMaintenanceData,
-          vehicleId: selectedVehicleId,
-          vehicleDetails: deleteField() as any,
-        };
+  const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
+
+  maintenanceData = {
+    ...commonMaintenanceData,
+    vehicleId: selectedVehicleId,
+
+    // ✅ SAVE SNAPSHOT HERE
+    vehicleDetails: {
+      make: existingVehicle.make,
+      model: existingVehicle.model,
+      registrationNumber: existingVehicle.registrationNumber,
+    },
+  };
         vehicleToUseForTransaction = existingVehicle;
       }
   

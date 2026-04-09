@@ -40,11 +40,11 @@ const Maintenance: React.FC = () => {
 
   // Maps
   const vehiclesMap = React.useMemo(() => {
-    return vehicles.reduce((acc, vehicle) => {
-      acc[vehicle.id] = vehicle;
-      return acc;
-    }, {} as Record<string, Vehicle>);
-  }, [vehicles]);
+  return vehicles.reduce((acc, vehicle) => {
+    acc[vehicle.id] = vehicle;
+    return acc;
+  }, {} as Record<string, Vehicle>);
+}, [vehicles]);
 
   const customersMap = React.useMemo(() => {
     return customers.reduce((acc, customer) => {
@@ -220,6 +220,10 @@ const Maintenance: React.FC = () => {
 
   const handleGenerateBulkPDF = useCallback(
     async () => {
+      if (!vehicles.length) {
+  toast.error('Vehicles not loaded yet. Please wait...');
+  return;
+}
       try {
         toast.loading('Generating bulk maintenance report...');
         const companyDetailsData = await getCompanyDetails();

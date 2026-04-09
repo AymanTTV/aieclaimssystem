@@ -4,16 +4,17 @@ import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Vehicle } from '../types';
 import { ensureValidDate } from '../utils/dateHelpers'; 
-import { useAuth } from '../context/AuthContext'; // ✅ Import Auth context
+import { useAuth } from '../context/AuthContext'; 
 
 export const useVehicles = () => {
-  const { user } = useAuth(); // ✅ Get logged in user
+  const { user } = useAuth(); 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return; // Wait until auth is loaded
+    // ❌ REMOVED: if (!user) return; 
+    // Public visitors must be allowed to bypass the auth check to see vehicles!
 
     const q = query(collection(db, 'vehicles'), orderBy('make'));
 
@@ -24,9 +25,8 @@ export const useVehicles = () => {
         snapshot.forEach((doc) => {
           const data = doc.data();
 
-          // ✅ SECURITY RULE: If the user has a 'company' role, 
-          // filter out any vehicle that isn't explicitly assigned to their user ID.
-          if (user.role === 'company' && data.assignedGarageId !== user.id) {
+          // ✅ SAFELY check user.role. If user is null (public visitor), this safely skips and shows the car.
+          if (user && (user as any).role === 'company' && data.assignedGarageId !== user.id) {
              return; 
           }
 

@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  // ✅ UPDATED: Matches your Hostinger subfolder so assets load correctly
-  base: '/', 
+  // ✅ FIX: Force the script to ALWAYS load its chunks from your .com system domain
+  base: 'https://system.aieskyline.com/', 
   plugins: [react()],
   resolve: {
     alias: {
@@ -14,19 +14,16 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // ✅ Multiple entry points: Main App + WordPress Showcase
       input: {
         main: path.resolve(__dirname, 'index.html'), 
         showcase: path.resolve(__dirname, 'src/public-view.tsx'), 
       },
       output: {
-        // ✅ Ensures the WordPress script always has a fixed name
         entryFileNames: (chunkInfo) => {
           return chunkInfo.name === 'showcase' 
             ? 'assets/aie-rental-showcase.js' 
             : 'assets/[name]-[hash].js';
         },
-        // ✅ Predictable names for the internal chunks (React, Firebase, etc.)
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
         
@@ -43,5 +40,5 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
-  },
+  }, 
 });
