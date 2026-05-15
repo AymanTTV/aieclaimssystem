@@ -13,7 +13,6 @@ export const useVehicles = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // ❌ REMOVED: if (!user) return; 
     // Public visitors must be allowed to bypass the auth check to see vehicles!
 
     const q = query(collection(db, 'vehicles'), orderBy('make'));
@@ -25,9 +24,22 @@ export const useVehicles = () => {
         snapshot.forEach((doc) => {
           const data = doc.data();
 
-          // ✅ SAFELY check user.role. If user is null (public visitor), this safely skips and shows the car.
-          if (user && (user as any).role === 'company' && data.assignedGarageId !== user.id) {
-             return; 
+          // ✅ FIX: Match company users by `companyName` instead of strictly `user.id`
+          if (user && (user as any).role === 'company') {
+            const u = user as any;
+            
+            // Normalize strings to avoid case-sensitivity or trailing space issues
+            const userCompanyName = u.companyName?.trim().toLowerCase();
+            const vehicleGarageName = data.assignedGarageName?.trim().toLowerCase();
+
+            // Check if the names match, fallback to ID just in case it's a legacy record missing the name
+            const matchesName = Boolean(userCompanyName && vehicleGarageName && userCompanyName === vehicleGarageName);
+            const matchesId = data.assignedGarageId === u.id;
+
+            // If neither the company name nor the user ID matches, skip this vehicle
+            if (!matchesName && !matchesId) {
+               return; 
+            }
           }
 
           vehicleData.push({

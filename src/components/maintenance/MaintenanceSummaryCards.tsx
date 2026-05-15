@@ -9,7 +9,8 @@ interface MaintenanceSummaryCardsProps {
 }
 
 const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs }) => {
-  const { can } = usePermissions();
+  // Destructure isCompany from usePermissions
+  const { can, isCompany } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
 
   if (!can('maintenance', 'cards')) return null;
@@ -86,40 +87,42 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
         </div>
       </div>
 
-      {/* Financial Breakdown */}
-      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-        <div className="flex items-start">
-          <DollarSign className="w-7 h-7 sm:w-8 sm:h-8 text-purple-500" />
-          <div className="ml-3 sm:ml-4 space-y-1 text-sm w-full">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-gray-500">NET:</span>
-              <span className="font-medium">{formatCurrency(totalNet)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-gray-500">VAT:</span>
-              <span className="font-medium">{formatCurrency(totalVat)}</span>
-            </div>
-            {totalDiscount > 0 && (
-              <div className="flex items-center justify-between gap-3 text-red-600">
-                <span className="text-gray-500">Discount:</span>
-                <span className="font-medium">–{formatCurrency(totalDiscount)}</span>
+      {/* Financial Breakdown - Hidden for Company role */}
+      {!isCompany && (
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <div className="flex items-start">
+            <DollarSign className="w-7 h-7 sm:w-8 sm:h-8 text-purple-500" />
+            <div className="ml-3 sm:ml-4 space-y-1 text-sm w-full">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">NET:</span>
+                <span className="font-medium">{formatCurrency(totalNet)}</span>
               </div>
-            )}
-            <div className="flex items-center justify-between gap-3 font-semibold">
-              <span className="text-gray-700">Total:</span>
-              <span>{formatCurrency(totalCost)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-green-600">
-              <span className="text-gray-500">Paid:</span>
-              <span className="font-semibold">{formatCurrency(totalPaid)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-amber-600">
-              <span className="text-gray-500">Owing:</span>
-              <span className="font-semibold">{formatCurrency(totalOwing)}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">VAT:</span>
+                <span className="font-medium">{formatCurrency(totalVat)}</span>
+              </div>
+              {totalDiscount > 0 && (
+                <div className="flex items-center justify-between gap-3 text-red-600">
+                  <span className="text-gray-500">Discount:</span>
+                  <span className="font-medium">–{formatCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 font-semibold">
+                <span className="text-gray-700">Total:</span>
+                <span>{formatCurrency(totalCost)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-green-600">
+                <span className="text-gray-500">Paid:</span>
+                <span className="font-semibold">{formatCurrency(totalPaid)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-amber-600">
+                <span className="text-gray-500">Owing:</span>
+                <span className="font-semibold">{formatCurrency(totalOwing)}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

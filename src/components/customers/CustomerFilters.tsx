@@ -1,47 +1,59 @@
 // src/components/customers/CustomerFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
+import SearchableSelect from '../ui/SearchableSelect';
 import { Gender, CustomerType } from '../../types/customer';
 
 interface CustomerFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  filterExpired: boolean;
-  onFilterExpired: (filter: boolean) => void;
-  filterSoonExpiring: boolean;
-  onFilterSoonExpiring: (filter: boolean) => void;
+  
+  expiryFilters: string[];
+  onExpiryFiltersChange: (filters: string[]) => void;
+  
+  statusFilter: 'active' | 'inactive' | 'all';
+  onStatusFilterChange: (status: 'active' | 'inactive' | 'all') => void;
+
   selectedGender: Gender | 'all';
   onGenderFilter: (gender: Gender | 'all') => void;
+  
   ageRange: { min: number; max: number } | null;
   onAgeRangeFilter: (range: { min: number; max: number } | null) => void;
+  
   selectedType: CustomerType | 'all';
   onTypeFilter: (type: CustomerType | 'all') => void;
 }
 
+const EXPIRY_OPTIONS = [
+  { id: 'all', label: 'All Document Statuses' },
+  { id: 'hide_expired', label: 'Hide Expired Documents' },
+  { id: 'soon_all', label: 'Soon Expiring (Both in 2 wks)' },
+  { id: 'soon_license', label: 'Soon Expiring License (2 wks)' },
+  { id: 'soon_bill', label: 'Soon Expiring Bill (2 wks)' },
+];
+
+const STATUS_OPTIONS = [
+  { id: 'active', label: 'Active Only' },
+  { id: 'inactive', label: 'Inactive Only' },
+  { id: 'all', label: 'All Statuses' },
+];
+
 const CustomerFilters: React.FC<CustomerFiltersProps> = ({
-  searchQuery,
-  onSearchChange,
-  filterExpired,
-  onFilterExpired,
-  filterSoonExpiring,
-  onFilterSoonExpiring,
-  selectedGender,
-  onGenderFilter,
-  ageRange,
-  onAgeRangeFilter,
-  selectedType,
-  onTypeFilter,
+  searchQuery, onSearchChange,
+  expiryFilters, onExpiryFiltersChange,
+  statusFilter, onStatusFilterChange,
+  selectedGender, onGenderFilter,
+  ageRange, onAgeRangeFilter,
+  selectedType, onTypeFilter,
 }) => {
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
         </div>
         <input
           type="text"
-          // Updated Placeholder
           placeholder="Search by name, email, phone, badge no, account no..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -49,77 +61,57 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         />
       </div>
 
-      {/* Filter Controls */}
-      <div className="flex flex-wrap gap-4">
-        {/* Document Status Filters */}
-        <div className="flex items-center space-x-4">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={filterExpired}
-              onChange={(e) => onFilterExpired(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            <span className="text-sm text-gray-700">Hide Expired Documents</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={filterSoonExpiring}
-              onChange={(e) => onFilterSoonExpiring(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            <span className="text-sm text-gray-700">Show Soon Expiring</span>
-          </label>
+      <div className="flex flex-wrap gap-4 items-end">
+        
+        {/* Status Dropdown */}
+        <div className="w-48">
+          <SearchableSelect
+            label="Customer Status"
+            options={STATUS_OPTIONS}
+            value={statusFilter}
+            onChange={(val) => onStatusFilterChange(val as any)}
+          />
         </div>
 
-        {/* Type Filter */}
-        <select
-          value={selectedType}
-          onChange={(e) => onTypeFilter(e.target.value as CustomerType | 'all')}
-          className="block w-32 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
-          <option value="all">All Types</option>
-          <option value="customer">Customer</option>
-          <option value="claim">Claim</option>
-          <option value="company">Company</option>
-        </select>
-
-        {/* Gender Filter */}
-        <select
-          value={selectedGender}
-          onChange={(e) => onGenderFilter(e.target.value as Gender | 'all')}
-          className="block w-32 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
-          <option value="all">All Genders</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-          <option value="other">Other</option>
-        </select>
-
-        {/* Age Range Filter */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="number"
-            placeholder="Min Age"
-            value={ageRange?.min || ''}
-            onChange={(e) => {
-              const min = parseInt(e.target.value);
-              onAgeRangeFilter(min ? { min, max: ageRange?.max || 100 } : null);
-            }}
-            className="w-24 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary focus:border-primary"
+        {/* Expiry Multi-Select Dropdown */}
+        <div className="w-64">
+          <SearchableSelect
+            label="Document Expiry"
+            options={EXPIRY_OPTIONS}
+            value={expiryFilters}
+            onChange={(val) => onExpiryFiltersChange(val as string[])}
+            isMulti
+            isClearable
           />
-          <span>-</span>
-          <input
-            type="number"
-            placeholder="Max Age"
-            value={ageRange?.max || ''}
-            onChange={(e) => {
-              const max = parseInt(e.target.value);
-              onAgeRangeFilter(max ? { min: ageRange?.min || 0, max } : null);
-            }}
-            className="w-24 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary focus:border-primary"
-          />
+        </div>
+
+        <div className="w-32">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          <select value={selectedType} onChange={(e) => onTypeFilter(e.target.value as CustomerType | 'all')} className="block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md text-sm">
+            <option value="all">All</option>
+            <option value="customer">Customer</option>
+            <option value="claim">Claim</option>
+            <option value="company">Company</option>
+          </select>
+        </div>
+
+        <div className="w-32">
+           <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+          <select value={selectedGender} onChange={(e) => onGenderFilter(e.target.value as Gender | 'all')} className="block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md text-sm">
+            <option value="all">All</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Age Range</label>
+          <div className="flex items-center space-x-2">
+            <input type="number" placeholder="Min" value={ageRange?.min || ''} onChange={(e) => { const min = parseInt(e.target.value); onAgeRangeFilter(min ? { min, max: ageRange?.max || 100 } : null); }} className="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm" />
+            <span className="text-gray-400">-</span>
+            <input type="number" placeholder="Max" value={ageRange?.max || ''} onChange={(e) => { const max = parseInt(e.target.value); onAgeRangeFilter(max ? { min: ageRange?.min || 0, max } : null); }} className="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm" />
+          </div>
         </div>
       </div>
     </div>

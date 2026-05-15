@@ -4,31 +4,30 @@ import { addYears, addDays } from 'date-fns';
 
 export type Gender = 'male' | 'female' | 'other';
 export type CustomerType = 'customer' | 'claim' | 'company';
+export type CustomerStatus = 'active' | 'inactive'; // [NEW]
 
 export interface Customer {
   id: string;
   type: CustomerType;
+  status?: CustomerStatus; // [NEW] Default assumed 'active' if missing
   name: string;
   mobile: string;
   email: string;
   address: string;
 
-  // New Company Fields
   accountNumber?: string;
   vatNumber?: string;
 
-  // Add this new field:
   signatureRequestToken?: string;
-
-  // Optional fields not applicable to 'company' type
+  signatureRequestExpiresAt?: Date;
+  
   gender?: Gender;
   dateOfBirth?: Date;
   nationalInsuranceNumber?: string;
   
-  // License Details
   driverLicenseNumber?: string;
-  issueNumber?: string; // [NEW]
-  countryOfIssue?: string; // [NEW]
+  issueNumber?: string;
+  countryOfIssue?: string;
   
   licenseValidFrom?: Date;
   licenseExpiry?: Date;
@@ -37,7 +36,6 @@ export interface Customer {
   age?: number;
   signature?: string;
 
-  // Document URLs
   licenseFrontUrl?: string;
   licenseBackUrl?: string;
   billDocumentUrl?: string;
@@ -59,17 +57,21 @@ export const calculateAge = (dateOfBirth: Date): number => {
   return age;
 };
 
-export const isExpiringOrExpired = (date: Date | undefined | null): boolean => {
-  if (!date) return false; // Handle null or undefined dates
-
-  const now = new Date();
-  const thirtyDaysFromNow = addDays(now, 30);
-
-  return date < now || (date <= thirtyDaysFromNow && date >= now); // Expired OR expiring soon
+export const isExpired = (date: Date | undefined | null): boolean => {
+  if (!date) return false;
+  return new Date() > date;
 };
 
-export const isExpired = (date: Date): boolean => {
-  return new Date() > date;
+// [UPDATED] Check if expiring in the next 14 days (2 weeks)
+export const isExpiringSoon = (date: Date | undefined | null): boolean => {
+  if (!date) return false;
+  const now = new Date();
+  const warningDate = addDays(now, 14); // 2 weeks
+  return date >= now && date <= warningDate;
+};
+
+export const isExpiringOrExpired = (date: Date | undefined | null): boolean => {
+  return isExpired(date) || isExpiringSoon(date);
 };
 
 export const getDefaultExpiryDate = (): Date => {

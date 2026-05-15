@@ -2,32 +2,39 @@ import React from 'react';
 import { MaintenanceLog } from '../../types';
 import { Wrench, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
+
 interface MaintenanceOverviewProps {
   logs: MaintenanceLog[];
 }
 
 const MaintenanceOverview: React.FC<MaintenanceOverviewProps> = ({ logs }) => {
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  const { formatCurrency } = useFormattedDisplay();
+  const { user } = useAuth();
+  const { can, isCompany } = usePermissions();
+
+  if (!can('maintenance', 'view')) return null;
 
   const completedCount = logs.filter(log => log.status === 'completed').length;
   const inProgressCount = logs.filter(log => log.status === 'in-progress').length;
   const scheduledCount = logs.filter(log => log.status === 'scheduled').length;
-  const { user } = useAuth();
   const totalExpenses = logs.reduce((sum, log) => sum + log.cost, 0);
 
   return (
     <Card title="Maintenance Overview">
       <div className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <span className="ml-2 text-xl font-semibold text-gray-900">{completedCount}</span>
+        <div className={`grid ${isCompany ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
+          {!isCompany && (
+            <div className="text-center">
+              <div className="flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="ml-2 text-xl font-semibold text-gray-900">{completedCount}</span>
+              </div>
+              <p className="mt-1 text-sm text-gray-600">Completed</p>
             </div>
-            <p className="mt-1 text-sm text-gray-600">Completed</p>
-          </div>
+          )}
           <div className="text-center">
             <div className="flex items-center justify-center">
               <Clock className="w-5 h-5 text-yellow-500" />

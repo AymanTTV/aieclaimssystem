@@ -2,26 +2,29 @@ import React from 'react';
 import { Rental } from '../../types';
 import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Card from '../Card';
-import { useFormattedDisplay } from '../../hooks/useFormattedDisplay'; // Import the hook
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
+
 interface RentalOverviewProps {
   rentals: Rental[];
 }
 
 const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
-  const { formatCurrency } = useFormattedDisplay(); // Use the hook
+  const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
+  const { user } = useAuth();
+
+  // Hide if they do not have the permission to view the rental page
+  if (!can('rentals', 'view')) {
+    return null;
+  }
+
   const completedCount = rentals.filter(rental => rental.status === 'completed').length;
   const activeCount = rentals.filter(rental => rental.status === 'active').length;
   const scheduledCount = rentals.filter(rental => rental.status === 'scheduled').length;
-  const { user } = useAuth();
   const totalIncome = rentals.reduce((sum, rental) => sum + rental.cost, 0);
 
-  // Don't even render the cards if the user lacks the 'cards' permission
-  if (!can('rentals', 'cards')) {
-    return null;
-  }
   return (
     <Card title="Rental Overview">
       <div className="space-y-6">

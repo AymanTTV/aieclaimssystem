@@ -13,6 +13,7 @@ import FinancialSummary from '../components/dashboard/FinancialSummary';
 import VehicleReport from '../components/dashboard/VehicleReport';
 import UrgentAlerts from '../components/dashboard/UrgentAlerts';
 import { useAuth } from '../context/AuthContext';
+
 const Dashboard = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs: maintenanceLogs, loading: logsLoading } = useMaintenanceLogs();
@@ -59,8 +60,6 @@ const Dashboard = () => {
         <VehicleMetrics />
       )}
 
-      
-
       {/* Financial Summary */}
       {user?.role === 'manager' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -71,33 +70,31 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Maintenance Overview */}
-        {can('maintenance', 'cards') && (
+        {can('maintenance', 'view') && (
           <MaintenanceOverview logs={maintenanceLogs} />
         )}
 
         {/* Rental Overview */}
-        {can('rentals', 'cards') && (
+        {can('rentals', 'view') && (
           <RentalOverview rentals={rentals} />
         )}
       </div>
 
-      
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  {/* Fleet Status Distribution */}
-  {can('vehicles', 'cards') && (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-4">Fleet Status Distribution</h2>
-      <FleetStatusChart data={fleetStatusData} />
-      <VehicleReport vehicles={vehicles} />
-    </div>
-  )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Fleet Status Distribution */}
+        {can('vehicles', 'cards') && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Fleet Status Distribution</h2>
+            <FleetStatusChart data={fleetStatusData} />
+            <VehicleReport vehicles={vehicles} />
+          </div>
+        )}
 
-  {/* Urgent Alerts */}
-  {can('vehicles', 'cards') && (
-    <UrgentAlerts vehicles={vehicles} maintenanceLogs={maintenanceLogs} />
-  )}
-</div>
-
+        {/* Urgent Alerts */}
+        {can('vehicles', 'cards') && (
+          <UrgentAlerts vehicles={vehicles} maintenanceLogs={maintenanceLogs} />
+        )}
+      </div>
     </div>
   );
 };

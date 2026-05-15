@@ -138,17 +138,30 @@ const Vehicles: React.FC = () => {
     fetchAccounts();
   }, []);
 
-  // ✅ Fetch Companies for the Assign Dropdown
+  // ✅ Fetch Companies and REMOVE DUPLICATES
   useEffect(() => {
     if (can('vehicles', 'update') && !isCompany) {
       const fetchCompanies = async () => {
         try {
           const q = query(collection(db, 'users'), where('role', '==', 'company'));
           const snap = await getDocs(q);
-          const companies = snap.docs.map(d => ({
-            id: d.id,
-            name: d.data().companyName || d.data().name || 'Unnamed Company'
-          }));
+          
+          // Use a Map to deduplicate based on the company name
+          const uniqueCompaniesMap = new Map<string, {id: string, name: string}>();
+          
+          snap.docs.forEach(d => {
+            const name = d.data().companyName || d.data().name || 'Unnamed Company';
+            // Only add if we haven't seen this exact name before
+            if (!uniqueCompaniesMap.has(name)) {
+              uniqueCompaniesMap.set(name, { id: d.id, name: name });
+            }
+          });
+          
+          // Convert back to an array and sort alphabetically
+          const companies = Array.from(uniqueCompaniesMap.values()).sort((a, b) => 
+            a.name.localeCompare(b.name)
+          );
+          
           setCompanyUsers(companies);
         } catch (error) {
           console.error("Failed to load companies:", error);
@@ -525,30 +538,31 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
       {/* ✅ Assign to Garage Modal */}
       <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage">
         <form onSubmit={handleAssignGarageSubmit} className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 mb-2">
             {assigningSingleVehicle 
               ? `Select a company/garage to assign to ${assigningSingleVehicle.registrationNumber}.`
               : `Select a company/garage to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company / Garage</label>
+          <div className="min-h-[250px]">
+            {/* Added a min-height wrapper to ensure the SearchableSelect dropdown has room to open without causing the modal to clip it */}
             <SearchableSelect
+              label="Available Garages / Companies"
               options={[
-                { id: 'clear', label: '-- Clear Assignment (Remove from Garage) --' },
+                { id: 'clear', label: '🚫 -- Clear Assignment (Remove from Garage) --' },
                 ...companyUsers.map(c => ({ id: c.id, label: c.name }))
               ]}
               value={selectedGarageId}
-              onChange={(val) => setSelectedGarageId(val)}
+              onChange={(val) => setSelectedGarageId(val as string)}
               placeholder="Search companies..."
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
               Cancel
             </button>
-            <button type="submit" disabled={!selectedGarageId} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50">
+            <button type="submit" disabled={!selectedGarageId} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50 font-medium shadow-sm">
               Confirm Assignment
             </button>
           </div>
@@ -556,18 +570,18 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
       </Modal>
 
       {serviceVehicle && (
-  <Modal
-    isOpen
-    onClose={() => setServiceVehicle(null)}
-    title="Update Mileage"
-  >
-    <MileageUpdateForm
-      vehicle={serviceVehicle}
-      onClose={() => setServiceVehicle(null)}
-      onSuccess={handleMileageUpdated} // 🔥 THIS FIXES YOUR ISSUE
-    />
-  </Modal>
-)}
+        <Modal
+          isOpen
+          onClose={() => setServiceVehicle(null)}
+          title="Update Mileage"
+        >
+          <MileageUpdateForm
+            vehicle={serviceVehicle}
+            onClose={() => setServiceVehicle(null)}
+            onSuccess={handleMileageUpdated}
+          />
+        </Modal>
+      )}
 
       {/* Modals */}
       {selectedVehicle && (

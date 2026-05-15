@@ -1,4 +1,3 @@
-// src/components/dashboard/VehicleMetrics.tsx
 import React from 'react';
 import StatCard from './StatCard';
 import {
@@ -14,6 +13,7 @@ import { useFleetStatus } from '../../hooks/useFleetStatus';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useRentals } from '../../hooks/useRentals';
 import { useMaintenanceLogs } from '../../hooks/useMaintenanceLogs';
+import { usePermissions } from '../../hooks/usePermissions';
 
 function isWithinDays(date: Date | null | undefined, days: number) {
   if (!date) return false;
@@ -37,14 +37,17 @@ const VehicleMetrics: React.FC = () => {
   const { vehicles } = useVehicles();
   const { rentals, loading: rentalsLoading } = useRentals();
   const { logs: maintenanceLogs, loading: maintLoading } = useMaintenanceLogs();
+  
+  // Permissions Hook
+  const { isCompany } = usePermissions();
 
   const loading = fleetLoading || rentalsLoading || maintLoading;
 
-  // Fleet counts (unchanged)
+  // Fleet counts
   const inService = total - (counts.sold + counts.unavailable);
   const activeHires = counts.hired;
 
-  // Compliance attention from vehicles (unchanged)
+  // Compliance attention from vehicles
   const needAttention =
     vehicles.filter((v) =>
       isWithinDays((v as any).insuranceExpiry as Date, 30) ||
@@ -53,14 +56,14 @@ const VehicleMetrics: React.FC = () => {
       isWithinDays((v as any).nslExpiry as Date, 30)
     ).length;
 
-  // Rentals KPIs (read from rentals)
+  // Rentals KPIs 
   const scheduledHires =
     rentals?.filter((r) => normStatus((r as any).status) === 'scheduled').length || 0;
 
   const hiresCompleted =
     rentals?.filter((r) => normStatus((r as any).status) === 'completed').length || 0;
 
-  // Maintenance KPIs (read from maintenance logs — this fixes your issue)
+  // Maintenance KPIs 
   const maintScheduled =
     maintenanceLogs?.filter((m) => normStatus((m as any).status) === 'scheduled').length || 0;
 
@@ -78,25 +81,30 @@ const VehicleMetrics: React.FC = () => {
         icon={Car}
         iconColor="text-emerald-500"
       />
-      <StatCard
-        title="Scheduled Hires"
-        value={loading ? '—' : scheduledHires}
-        icon={CalendarCheck}
-        iconColor="text-indigo-500"
-      />
-      <StatCard
-        title="Active Hires"
-        value={loading ? '—' : activeHires}
-        icon={Car}
-        iconColor="text-blue-500"
-      />
       
-      <StatCard
-        title="Hires Completed"
-        value={loading ? '—' : hiresCompleted}
-        icon={CheckCircle2}
-        iconColor="text-green-600"
-      />
+      {/* Hide Hired vehicle metrics if user is a company */}
+      {!isCompany && (
+        <>
+          <StatCard
+            title="Scheduled Hires"
+            value={loading ? '—' : scheduledHires}
+            icon={CalendarCheck}
+            iconColor="text-indigo-500"
+          />
+          <StatCard
+            title="Active Hires"
+            value={loading ? '—' : activeHires}
+            icon={Car}
+            iconColor="text-blue-500"
+          />
+          <StatCard
+            title="Hires Completed"
+            value={loading ? '—' : hiresCompleted}
+            icon={CheckCircle2}
+            iconColor="text-green-600"
+          />
+        </>
+      )}
 
       {/* Maintenance from logs */}
       <StatCard
@@ -111,12 +119,16 @@ const VehicleMetrics: React.FC = () => {
         icon={Activity}
         iconColor="text-amber-500"
       />
-      <StatCard
-        title="Maintenances Completed"
-        value={loading ? '—' : maintCompleted}
-        icon={CheckCircle2}
-        iconColor="text-teal-600"
-      />
+      
+      {/* Hide Completed maintenance if user is a company */}
+      {!isCompany && (
+        <StatCard
+          title="Maintenances Completed"
+          value={loading ? '—' : maintCompleted}
+          icon={CheckCircle2}
+          iconColor="text-teal-600"
+        />
+      )}
 
       <StatCard
         title="Need Attention"

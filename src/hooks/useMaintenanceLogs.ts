@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MaintenanceLog } from '../types';
-import { useAuth } from '../context/AuthContext'; // ✅ Added Auth Context
+import { useAuth } from '../context/AuthContext'; 
 
 export const useMaintenanceLogs = (vehicleId?: string) => {
-  const { user } = useAuth(); // ✅ Get the current logged-in user
+  const { user } = useAuth(); 
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,20 +26,12 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
       q,
       (snapshot) => {
         const logsData: MaintenanceLog[] = [];
-        
-        // Prepare the company name for case-insensitive matching
-        const companyNameLower = (user.companyName || user.name || '').toLowerCase().trim();
 
         snapshot.forEach((doc) => {
           const data = doc.data();
 
-          // ✅ SECURITY RULE: Company users ONLY see records where they are the Service Center
-          if (user.role === 'company') {
-             const providerLower = (data.serviceProvider || '').toLowerCase().trim();
-             if (providerLower !== companyNameLower) {
-                 return; // Skip this log entirely, it belongs to another garage
-             }
-          }
+          // ✅ SECURITY RULE Note: The strict company filter has been moved to 
+          // `useMaintenanceFilters.ts` to intelligently cross-check against assigned vehicles.
           
           // Ensure all Timestamp fields are converted to JS Date objects
           const date = data.date ? data.date.toDate() : undefined;
@@ -56,7 +48,6 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
             ...data,
             date: date,
             nextServiceDate: nextServiceDate,
-            // Also convert any other date fields like createdAt/updatedAt if they exist
             createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
             updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
             invoiceDate: data.invoiceDate ? data.invoiceDate.toDate() : undefined,
@@ -74,7 +65,7 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
     );
 
     return () => unsubscribe();
-  }, [vehicleId, user]); // Re-run if user context changes
+  }, [vehicleId, user]); 
 
   return { logs, loading, error };
 };

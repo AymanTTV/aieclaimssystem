@@ -3,12 +3,15 @@ import { useState, useMemo } from 'react';
 import { MaintenanceLog, Vehicle } from '../types';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { usePermissions } from './usePermissions';
+import { useAuth } from '../context/AuthContext'; 
 
 export const useMaintenanceFilters = (
   logs: MaintenanceLog[],
   vehicles: Record<string, Vehicle>
 ) => {
   const { can, isCompany } = usePermissions();
+  const { user } = useAuth(); 
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -19,6 +22,9 @@ export const useMaintenanceFilters = (
   const filteredLogs = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
     const canViewCompleted = can('maintenance', 'completed') && !isCompany;
+    
+    // ✅ Normalize company name for safe matching (ignoring case and extra spaces)
+    const companyNameLower = (user?.companyName || user?.name || '').toLowerCase().trim();
 
     return logs.filter(log => {
       // ✅ SECURITY RULE 1: Hide completed/cancelled logs if the user lacks permission
@@ -26,13 +32,29 @@ export const useMaintenanceFilters = (
          return false;
       }
 
-      // ✅ SECURITY RULE 2: COMPANY GHOST RECORD FIX
-      if (isCompany && log.vehicleId && !vehicles[log.vehicleId]) {
-        return false;
+      // ✅ SECURITY RULE 2: STRICT SERVICE PROVIDER CHECK FOR COMPANIES
+      if (isCompany) {
+        // 1. Ghost Record check: If it has a vehicleId but we don't have access to that vehicle, hide it
+        if (log.vehicleId && !vehicles[log.vehicleId]) {
+          return false;
+        }
+
+        // 2. STRICT NAME CHECK: The Service Provider MUST match this company's name.
+        const providerLower = (log.serviceProvider || '').trim().toLowerCase();
+        
+        // If a service provider is listed and it's NOT this company, hide the record!
+        if (providerLower && providerLower !== companyNameLower) {
+          return false; 
+        }
+
+        // 3. Fallback: If service provider is entirely blank, ensure the vehicle is assigned to them
+        const isAssignedVehicle = Boolean(log.vehicleId && vehicles[log.vehicleId]);
+        if (!providerLower && !isAssignedVehicle) {
+          return false;
+        }
       }
 
       // ✅ NEW: DEFAULT DASHBOARD VIEW
-      // Hide completely finished records at first, UNLESS the user interacts with any filter/search.
       const isDefaultState = 
         statusFilter === 'all' && 
         paymentStatusFilter === 'all' && 
@@ -43,9 +65,6 @@ export const useMaintenanceFilters = (
         !dateRange.to;
 
       if (isDefaultState) {
-        // A record is considered "finished" if it's cancelled, OR if it's both completed AND paid.
-        // (If it's completed but unpaid, it will still show so you know to collect payment).
-        // For company users (who don't track payments), just hide completed entirely.
         const isCancelled = log.status === 'cancelled';
         const isCompletedAndPaid = log.status === 'completed' && log.paymentStatus === 'paid';
         const isCompanyFinished = isCompany && log.status === 'completed';
@@ -124,7 +143,8 @@ export const useMaintenanceFilters = (
     paymentStatusFilter,
     dateRange,
     can,
-    isCompany
+    isCompany,
+    user 
   ]);
 
   return {

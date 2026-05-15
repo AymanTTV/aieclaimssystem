@@ -6,8 +6,6 @@ import { Eye, Edit, Trash2, FileText, File, Tag, Send } from 'lucide-react';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../types/customer';
 import { usePermissions } from '../../hooks/usePermissions';
-
-// 1. ADD THESE IMPORTS
 import { doc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -20,161 +18,147 @@ interface CustomerTableProps {
   onGenerateDocument: (customer: Customer) => void;
   onViewDocument: (url: string) => void;
   onAssignType: (customer: Customer) => void;
+  rowSelection: any;
+  onRowSelectionChange: any;
 }
 
 const CustomerTable: React.FC<CustomerTableProps> = ({
-  customers,
-  onView,
-  onEdit,
-  onDelete,
-  onGenerateDocument,
-  onViewDocument,
-  onAssignType
+  customers, onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onAssignType,
+  rowSelection, onRowSelectionChange
 }) => {
   const { can } = usePermissions();
 
-  // 2. REPLACE THE PREVIOUS sendSignatureRequest FUNCTION WITH THIS:
   const sendSignatureRequest = async (customer: Customer) => {
-    if (!customer.mobile) {
-      toast.error('This customer has no mobile number.');
-      return;
-    }
-
-    const toastId = toast.loading('Generating secure link...');
-
-    try {
-      // Generate a simple unique token
-      const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-
-      // Save token to Firestore
-      const customerRef = doc(db, 'customers', customer.id);
-      await updateDoc(customerRef, {
-        signatureRequestToken: token
-      });
-
-      // Construct URL with the token
-      const baseUrl = window.location.origin;
-      // We append ?token=xyz to the URL
-      const signingLink = `${baseUrl}/sign/${customer.id}?token=${token}`;
-      
-      const message = `Hello ${customer.name}, please click the link below to digitally sign your document for AIE Skyline:\n\n${signingLink}`;
-      
-      // Format phone
-      let phone = customer.mobile.replace(/\s+/g, '');
-      if (phone.startsWith('0')) {
-        phone = '44' + phone.substring(1);
-      }
-
-      toast.success('Link generated! Opening WhatsApp...', { id: toastId });
-
-      // Open WhatsApp
-      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-
-    } catch (error) {
-      console.error('Error generating link:', error);
-      toast.error('Failed to generate link', { id: toastId });
-    }
+      if (!customer.mobile) { toast.error('This customer has no mobile number.'); return; }
+      const toastId = toast.loading('Generating secure link...');
+      try {
+        const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 1);
+        await updateDoc(doc(db, 'customers', customer.id), { signatureRequestToken: token, signatureRequestExpiresAt: expiresAt });
+        const signingLink = `${window.location.origin}/sign/${customer.id}?token=${token}`;
+        const message = `Hello ${customer.name}, please click the link below to digitally sign your document for AIE Skyline. This link will expire in 1 hour:\n\n${signingLink}`;
+        let phone = customer.mobile.replace(/\s+/g, '');
+        if (phone.startsWith('0')) phone = '44' + phone.substring(1);
+        toast.success('Link generated! Opening WhatsApp...', { id: toastId });
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+      } catch (error) { toast.error('Failed to generate link', { id: toastId }); }
   };
 
+  // Manually track if all visible rows are selected
+  const allSelected = customers.length > 0 && Object.keys(rowSelection).length === customers.length;
+
   const columns = [
-    { header: 'Name', accessorKey: 'name' },
+    {
+      id: 'select',
+      header: () => (
+        <input
+          type="checkbox"
+          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+          checked={allSelected}
+          onChange={() => {
+            if (allSelected) {
+              onRowSelectionChange({}); // Deselect all
+            } else {
+              const newSel: any = {};
+              customers.forEach(c => newSel[c.id] = true);
+              onRowSelectionChange(newSel); // Select all visible
+            }
+          }}
+        />
+      ),
+      cell: ({ row }: any) => {
+        const customerId = row.original.id;
+        const isSelected = !!rowSelection[customerId];
+
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+              checked={isSelected}
+              onChange={() => {
+                onRowSelectionChange((prev: any) => {
+                  const newSel = { ...prev };
+                  if (newSel[customerId]) {
+                    delete newSel[customerId]; // Toggle off
+                  } else {
+                    newSel[customerId] = true; // Toggle on
+                  }
+                  return newSel;
+                });
+              }}
+            />
+          </div>
+        );
+      },
+    },
+    { 
+      header: 'Name', 
+      accessorKey: 'name',
+      cell: ({ row }: any) => <span className="font-medium text-gray-900 text-sm">{row.original.name}</span>
+    },
+    {
+      header: 'Age',
+      accessorKey: 'age',
+      cell: ({ row }: any) => <span className="text-gray-600 text-sm">{row.original.age || '-'}</span>,
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      cell: ({ row }: any) => {
+        const status = row.original.status || 'active';
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wider ${status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+            {status}
+          </span>
+        );
+      }
+    },
     {
       header: 'Type',
       accessorKey: 'type',
-      cell: ({ row }) => <span className="capitalize">{row.original.type || 'Customer'}</span>,
+      cell: ({ row }: any) => <span className="capitalize text-gray-600 text-sm">{row.original.type || 'Customer'}</span>,
     },
     {
       header: 'Mobile',
       accessorKey: 'mobile',
-      cell: ({ row }) => (
-        <a
-          href={`tel:${row.original.mobile}`}
-          className="text-blue-600 hover:underline"
-          onClick={(e) => e.stopPropagation()}
-        >
+      cell: ({ row }: any) => (
+        <a href={`tel:${row.original.mobile}`} className="text-blue-600 hover:underline text-sm whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
           {row.original.mobile}
         </a>
       ),
     },
     {
       header: 'License Expiry',
-      cell: ({ row }) => {
-        if (row.original.type === 'company' || !row.original.licenseExpiry) return <span className="text-gray-400">N/A</span>;
+      cell: ({ row }: any) => {
+        if (row.original.type === 'company' || !row.original.licenseExpiry) return <span className="text-gray-400 text-sm">-</span>;
         const date = row.original.licenseExpiry;
-        const expiredOrExpiring = isExpiringOrExpired(date);
-        return (
-          <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
-            {formatDate(date)}
-          </div>
-        );
+        return <div className={`${isExpiringOrExpired(date) ? 'text-red-600 font-medium' : 'text-gray-600'} text-sm whitespace-nowrap`}>{formatDate(date)}</div>;
       },
     },
     {
       header: 'Bill Expiry',
-      cell: ({ row }) => {
-        if (row.original.type === 'company' || !row.original.billExpiry) return <span className="text-gray-400">N/A</span>;
+      cell: ({ row }: any) => {
+        if (row.original.type === 'company' || !row.original.billExpiry) return <span className="text-gray-400 text-sm">-</span>;
         const date = row.original.billExpiry;
-        const expiredOrExpiring = isExpiringOrExpired(date);
-        return (
-          <div className={`${expiredOrExpiring ? 'text-red-500' : 'text-gray-900'}`}>
-            {formatDate(date)}
-          </div>
-        );
-      },
-    },
-    {
-      header: 'Signature',
-      cell: ({ row }) => {
-        if (row.original.type === 'company' || !row.original.signature) {
-          return <span className="text-gray-400">N/A</span>;
-        }
-        return (
-          <img
-            src={row.original.signature}
-            alt="Signature"
-            className="h-8 bg-gray-100 rounded border"
-            onClick={(e) => e.stopPropagation()}
-          />
-        );
+        return <div className={`${isExpiringOrExpired(date) ? 'text-red-600 font-medium' : 'text-gray-600'} text-sm whitespace-nowrap`}>{formatDate(date)}</div>;
       },
     },
     {
       header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex items-center space-x-3">
-          {can('customers', 'view') && (
-            <button onClick={(e) => { e.stopPropagation(); onView(row.original); }} className="text-gray-600 hover:text-blue-800" title="View Details"><Eye className="h-4 w-4" /></button>
-          )}
+      cell: ({ row }: any) => (
+        <div className="flex items-center space-x-2.5">
+          {can('customers', 'view') && <button onClick={(e) => { e.stopPropagation(); onView(row.original); }} className="text-gray-500 hover:text-blue-600" title="View"><Eye className="h-4 w-4" /></button>}
           {can('customers', 'update') && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-gray-600 hover:text-blue-800" title="Edit"><Edit className="h-4 w-4" /></button>
-              <button onClick={(e) => { e.stopPropagation(); onAssignType(row.original); }} className="text-gray-600 hover:text-green-800" title="Assign Type"><Tag className="h-4 w-4" /></button>
+              <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-gray-500 hover:text-blue-600" title="Edit"><Edit className="h-4 w-4" /></button>
+              <button onClick={(e) => { e.stopPropagation(); onAssignType(row.original); }} className="text-gray-500 hover:text-green-600" title="Assign Type"><Tag className="h-4 w-4" /></button>
+              <button onClick={(e) => { e.stopPropagation(); sendSignatureRequest(row.original); }} className="text-gray-500 hover:text-green-600" title="Signature Request"><Send className="h-4 w-4" /></button>
             </>
           )}
-          {/* NEW: Send Signature Request Button */}
-          {/* Send Button */}
-           {can('customers', 'update') && (
-            <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                sendSignatureRequest(row.original); 
-              }} 
-              className="text-gray-600 hover:text-green-600" 
-              title="Send Signature Request"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          )}
-          {can('customers', 'view') && (
-            <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-gray-600 hover:text-purple-800" title="Generate Document"><FileText className="h-4 w-4" /></button>
-          )}
-          { can('customers', 'view') && row.original.documentUrl && (
-            <button onClick={(e) => { e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="text-gray-600 hover:text-indigo-800" title="View Document"><File className="h-4 w-4" /></button>
-          )}
-          {can('customers', 'delete') && (
-            <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} className="text-gray-600 hover:text-red-800" title="Delete"><Trash2 className="h-4 w-4" /></button>
-          )}
+          {can('customers', 'view') && <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-gray-500 hover:text-purple-600" title="Generate Doc"><FileText className="h-4 w-4" /></button>}
+          {can('customers', 'view') && row.original.documentUrl && <button onClick={(e) => { e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="text-gray-500 hover:text-indigo-600" title="View Doc"><File className="h-4 w-4" /></button>}
+          {can('customers', 'delete') && <button onClick={(e) => { e.stopPropagation(); onDelete(row.original); }} className="text-gray-500 hover:text-red-600" title="Delete"><Trash2 className="h-4 w-4" /></button>}
         </div>
       ),
     },
@@ -185,6 +169,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       data={customers}
       columns={columns}
       onRowClick={(customer) => can('customers', 'view') && onView(customer)}
+      rowSelection={rowSelection}
+      onRowSelectionChange={onRowSelectionChange}
     />
   );
 };
