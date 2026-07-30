@@ -4,12 +4,18 @@ import { addYears, addDays } from 'date-fns';
 
 export type Gender = 'male' | 'female' | 'other';
 export type CustomerType = 'customer' | 'claim' | 'company';
-export type CustomerStatus = 'active' | 'inactive'; // [NEW]
+export type CustomerStatus = 'active' | 'inactive';
+export type BillCopyStatus = 'available' | 'unavailable'; // [NEW]
 
 export interface Customer {
   id: string;
   type: CustomerType;
-  status?: CustomerStatus; // [NEW] Default assumed 'active' if missing
+  status?: CustomerStatus; 
+  
+  // [NEW] Physical Bill Copy tracking
+  billCopyStatus?: BillCopyStatus; 
+  billCopyNote?: string;
+
   name: string;
   mobile: string;
   email: string;
@@ -62,7 +68,6 @@ export const isExpired = (date: Date | undefined | null): boolean => {
   return new Date() > date;
 };
 
-// [UPDATED] Check if expiring in the next 14 days (2 weeks)
 export const isExpiringSoon = (date: Date | undefined | null): boolean => {
   if (!date) return false;
   const now = new Date();

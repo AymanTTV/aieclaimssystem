@@ -48,6 +48,7 @@ const Dashboard            = lazyLoad('Dashboard');
 const Profile              = lazyLoad('Profile');
 const ProductsPage         = lazyLoad('ProductsPage');
 const Vehicles             = lazyLoad('Vehicles');
+const Utilisation          = lazyLoad('Utilisation');
 const Maintenance          = lazyLoad('Maintenance');
 const Rentals              = lazyLoad('Rentals');
 const Accidents            = lazyLoad('Accidents');
@@ -355,6 +356,16 @@ export default function AppRoutes() {
           <ProtectedRoute requiredPermission={{ module: 'vehicles', action: 'view' }}>
             <Layout>
               <Vehicles />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/utilisation"
+        element={
+          <ProtectedRoute requiredPermission={{ module: 'utilisation', action: 'view' }}>
+            <Layout>
+              <Utilisation />
             </Layout>
           </ProtectedRoute>
         }

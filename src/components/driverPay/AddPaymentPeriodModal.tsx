@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { format, addDays } from 'date-fns'
 import { ensureValidDate } from '../../utils/dateHelpers'
 
-// Helper function to round to 2 decimal places consistently
 const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 interface AddPaymentPeriodModalProps {
@@ -31,13 +30,15 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
     startDate: '',
     endDate: '',
     totalAmount: '',
-    commissionPercentage: '6', // Default commission is 6%
+    // 🟢 Pull defaults from the passed in parent document
+    commissionPercentageA: driverPayRecord.defaultCommissionA?.toString() ?? '6', 
+    commissionPercentageB: driverPayRecord.defaultCommissionB?.toString() ?? '0',
     notes: '',
   })
-  const [commissionAmount, setCommissionAmount] = useState(0)
+  const [commissionAmountA, setCommissionAmountA] = useState(0)
+  const [commissionAmountB, setCommissionAmountB] = useState(0)
   const [netPay, setNetPay] = useState(0)
 
-  // auto-prefill start/end based on last period
   useEffect(() => {
     const periods = driverPayRecord.paymentPeriods || []
     if (periods.length) {
@@ -60,19 +61,26 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
 
   useEffect(() => {
     const total = parseFloat(formData.totalAmount)
-    const commissionP = parseFloat(formData.commissionPercentage)
-    if (!isNaN(total) && !isNaN(commissionP)) {
-      const commAmt = (total * commissionP) / 100
-      // FIX: Round the calculated values to prevent floating point issues
-      const roundedCommAmt = round2(commAmt);
-      const roundedNetPay = round2(total - roundedCommAmt);
-      setCommissionAmount(roundedCommAmt);
+    const commPctA = parseFloat(formData.commissionPercentageA)
+    const commPctB = parseFloat(formData.commissionPercentageB)
+    
+    if (!isNaN(total) && !isNaN(commPctA) && !isNaN(commPctB)) {
+      const commAmtA = (total * commPctA) / 100
+      const commAmtB = (total * commPctB) / 100
+      
+      const roundedCommAmtA = round2(commAmtA);
+      const roundedCommAmtB = round2(commAmtB);
+      const roundedNetPay = round2(total - (roundedCommAmtA + roundedCommAmtB));
+      
+      setCommissionAmountA(roundedCommAmtA);
+      setCommissionAmountB(roundedCommAmtB);
       setNetPay(roundedNetPay);
     } else {
-      setCommissionAmount(0)
+      setCommissionAmountA(0)
+      setCommissionAmountB(0)
       setNetPay(0)
     }
-  }, [formData.totalAmount, formData.commissionPercentage])
+  }, [formData.totalAmount, formData.commissionPercentageA, formData.commissionPercentageB])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,8 +90,8 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
       setLoading(false)
       return
     }
-    const { startDate, endDate, totalAmount, commissionPercentage, notes } = formData
-    if (!startDate || !endDate || !totalAmount || !commissionPercentage) {
+    const { startDate, endDate, totalAmount, commissionPercentageA, commissionPercentageB, notes } = formData
+    if (!startDate || !endDate || !totalAmount || !commissionPercentageA || !commissionPercentageB) {
       toast.error('Please fill in all required fields.')
       setLoading(false)
       return
@@ -95,11 +103,13 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         startDate: ensureValidDate(startDate),
         endDate: ensureValidDate(endDate),
         totalAmount: parseFloat(totalAmount),
-        commissionPercentage: parseFloat(commissionPercentage),
-        commissionAmount, // This is now the rounded value from state
-        netPay,           // This is now the rounded value from state
+        commissionPercentageA: parseFloat(commissionPercentageA),
+        commissionPercentageB: parseFloat(commissionPercentageB),
+        commissionAmountA, 
+        commissionAmountB, 
+        netPay,            
         paidAmount: 0,
-        remainingAmount: netPay, // This will also be the rounded value
+        remainingAmount: netPay, 
         status: 'unpaid' as PaymentStatus,
         payments: [],
         notes: notes || '',
@@ -112,25 +122,30 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         return
       }
       const currentRecord = docSnap.data() as DriverPay
-      const updatedTotalAmount = round2(currentRecord.totalAmount + newPaymentPeriod.totalAmount)
-      const updatedCommissionAmount = round2(currentRecord.commissionAmount + newPaymentPeriod.commissionAmount)
-      const updatedNetPay = round2(currentRecord.netPay + newPaymentPeriod.netPay)
-      const updatedRemainingAmount = round2(currentRecord.remainingAmount + newPaymentPeriod.remainingAmount)
+      
+      const updatedTotalAmount = round2((currentRecord.totalAmount || 0) + newPaymentPeriod.totalAmount)
+      const updatedCommissionAmountA = round2((currentRecord.commissionAmountA || 0) + newPaymentPeriod.commissionAmountA)
+      const updatedCommissionAmountB = round2((currentRecord.commissionAmountB || 0) + newPaymentPeriod.commissionAmountB)
+      const updatedNetPay = round2((currentRecord.netPay || 0) + newPaymentPeriod.netPay)
+      const updatedRemainingAmount = round2((currentRecord.remainingAmount || 0) + newPaymentPeriod.remainingAmount)
       
       let newStatus: PaymentStatus = 'paid'
       if (updatedRemainingAmount > 0) {
         newStatus =
           updatedRemainingAmount === updatedNetPay ? 'unpaid' : 'partially_paid'
       }
+      
       await updateDoc(recordRef, {
         paymentPeriods: arrayUnion(newPaymentPeriod),
         totalAmount: updatedTotalAmount,
-        commissionAmount: updatedCommissionAmount,
+        commissionAmountA: updatedCommissionAmountA,
+        commissionAmountB: updatedCommissionAmountB,
         netPay: updatedNetPay,
         remainingAmount: updatedRemainingAmount,
         status: newStatus,
         updatedAt: new Date(),
       })
+      
       const updatedDocSnap = await getDoc(recordRef)
       if (updatedDocSnap.exists()) {
         onPeriodAdded(updatedDocSnap.data() as DriverPay)
@@ -171,25 +186,47 @@ const AddPaymentPeriodModal: React.FC<AddPaymentPeriodModalProps> = ({
         placeholder="e.g., 1000"
         required
       />
-      <FormField
-        label="Commission Percentage (%)"
-        type="number"
-        value={formData.commissionPercentage}
-        onChange={e =>
-          setFormData({ ...formData, commissionPercentage: e.target.value })
-        }
-        placeholder="e.g., 6"
-        min="0"
-        max="100"
-        step="0.01"
-        required
-      />
-
+      
       <div className="grid grid-cols-2 gap-4">
+        <FormField
+          label="Commission A Percentage (%)"
+          type="number"
+          value={formData.commissionPercentageA}
+          onChange={e =>
+            setFormData({ ...formData, commissionPercentageA: e.target.value })
+          }
+          placeholder="e.g., 6"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+        <FormField
+          label="Commission B Percentage (%)"
+          type="number"
+          value={formData.commissionPercentageB}
+          onChange={e =>
+            setFormData({ ...formData, commissionPercentageB: e.target.value })
+          }
+          placeholder="e.g., 0"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border">
         <div>
-          <p className="text-sm text-gray-500">Calculated Commission Amount</p>
+          <p className="text-sm text-gray-500">Comm A Amount</p>
           <p className="font-medium text-yellow-600">
-            £{commissionAmount.toFixed(2)}
+            £{commissionAmountA.toFixed(2)}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Comm B Amount</p>
+          <p className="font-medium text-yellow-600">
+            £{commissionAmountB.toFixed(2)}
           </p>
         </div>
         <div>

@@ -1,3 +1,14 @@
+export interface MaintenancePayment {
+  id: string;
+  date: Date;
+  amount: number;
+  method: string;
+  reference?: string;
+  notes?: string;
+  createdAt: Date;
+  createdBy: string;
+}
+
 export interface MaintenanceLog {
   id: string;
   vehicleId?: string;
@@ -57,7 +68,14 @@ export interface MaintenanceLog {
   date: Date;
   description: string;
   cost: number;
+  // ✅ UPDATE: Add these new payment tracking fields
   paidAmount?: number;
+  remainingAmount?: number;
+  payments?: MaintenancePayment[];
+  paymentMethod?: string;
+  paymentReference?: string;
+
+  
   netAmount?: number;
   vatAmount?: number;
   serviceProvider: string;

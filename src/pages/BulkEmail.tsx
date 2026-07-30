@@ -14,6 +14,7 @@ import {
   writeBatch,
   doc,
   orderBy,
+  updateDoc,
   limit as fbLimit,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -41,6 +42,12 @@ import { Account } from '../types';
 import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
 import { isAfter } from 'date-fns';
 import { Permission } from '../types/roles';
+
+// PDF Document Generation Imports
+import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
+import { FinanceDocument, InvoiceDocument, MaintenanceDocument } from '../components/pdf/documents';
+import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
+import MaintenanceInvoice from '../components/pdf/MaintenanceInvoice';
 
 // ---------------- DEBUG TOGGLE ----------------
 const DEBUG = true;
@@ -239,6 +246,9 @@ const getCleanAttachmentName = (filename: string) => {
   if (lower.includes('agreement')) return 'Rental Agreement';
   if (lower.includes('invoice')) return 'Invoice';
   if (lower.includes('permit')) return 'Parking Permit';
+  if (lower.includes('receipt')) return 'Receipt';
+  if (lower.includes('finance')) return 'Finance Document';
+  if (lower.includes('work_order') || lower.includes('work-order')) return 'Work Order';
   return filename.replace(/^[0-9]+_/, '').replace(/\.[^/.]+$/, "").replace(/_/g, ' ');
 };
 
@@ -285,9 +295,11 @@ export default function BulkEmail() {
   const [subject, setSubject] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
+  const isUserEdited = React.useRef<boolean>(false);
 
   // ─── Attachments State ──────────────────────────────────────────
-  const [selectedRentalDocs, setSelectedRentalDocs] = useState<{name: string, url: string}[]>([]);
+  const [selectedSystemDocs, setSelectedSystemDocs] = useState<{name: string, url: string}[]>([]);
   const [customFiles, setCustomFiles] = useState<File[]>([]);
 
   // Database Templates state
@@ -349,35 +361,160 @@ export default function BulkEmail() {
 
   // Clear attachments when context changes
   useEffect(() => {
-    setSelectedRentalDocs([]);
+    setSelectedSystemDocs([]);
     setCustomFiles([]);
   }, [selectedRecordId, emailType]);
 
-  const availableRentalDocs = useMemo(() => {
-    if (emailType !== 'rental' || !selectedRecordId) return [];
-    const r = rentals.find(x => x.id === selectedRecordId);
-    if (!r || !r.documents) return [];
+  const availableSystemDocs = useMemo(() => {
+    if (!selectedRecordId) return [];
 
     const docs: { name: string; url: string }[] = [];
-    if (r.documents.invoice) docs.push({ name: 'Invoice.pdf', url: r.documents.invoice });
-    if (r.documents.permit) docs.push({ name: 'Parking_Permit.pdf', url: r.documents.permit });
-    
-    if (r.documents.agreements) {
-      const keys = Object.keys(r.documents.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
-      const latest = keys.pop();
-      if (latest) {
-        docs.push({ name: 'Rental_Agreement.pdf', url: r.documents.agreements[latest] });
+
+    if (emailType === 'rental') {
+      const r = rentals.find(x => x.id === selectedRecordId);
+      if (r) {
+        if ((r as any).agreementUrl) docs.push({ name: 'Rental_Agreement.pdf', url: (r as any).agreementUrl });
+        if ((r as any).documentUrl) docs.push({ name: 'Rental_Document.pdf', url: (r as any).documentUrl });
+        
+        if (r.documents) {
+          if (r.documents.invoice) docs.push({ name: 'Rental_Invoice.pdf', url: r.documents.invoice });
+          if (r.documents.permit) docs.push({ name: 'Parking_Permit.pdf', url: r.documents.permit });
+          
+          if (r.documents.agreements && typeof r.documents.agreements === 'object') {
+            const keys = Object.keys(r.documents.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
+            const latest = keys.pop();
+            if (latest && r.documents.agreements[latest]) {
+              docs.push({ name: 'Rental_Agreement.pdf', url: r.documents.agreements[latest] });
+            }
+          }
+        }
+      }
+    } else if (emailType === 'finance') {
+      const t = transactions.find(x => x.id === selectedRecordId);
+      if (t) {
+        if (t.receiptUrl) docs.push({ name: 'Receipt.pdf', url: t.receiptUrl });
+        if (t.documentUrl) docs.push({ name: 'Finance_Document.pdf', url: t.documentUrl });
+      }
+    } else if (emailType === 'invoice') {
+      const i = invoices.find(x => x.id === selectedRecordId);
+      if (i && (i as any).documentUrl) {
+        docs.push({ name: 'Invoice.pdf', url: (i as any).documentUrl });
+      }
+    } else if (emailType === 'maintenance') {
+      const m = maintenanceLogs.find(x => x.id === selectedRecordId);
+      if (m) {
+        if ((m as any).documentUrl) docs.push({ name: 'Work_Order.pdf', url: (m as any).documentUrl });
+        if ((m as any).invoiceUrl) docs.push({ name: 'Maintenance_Invoice.pdf', url: (m as any).invoiceUrl });
       }
     }
-    return docs;
-  }, [emailType, selectedRecordId, rentals]);
 
-  const toggleRentalDoc = (doc: {name: string, url: string}) => {
-    setSelectedRentalDocs(prev => 
+    return docs;
+  }, [emailType, selectedRecordId, rentals, transactions, invoices, maintenanceLogs]);
+
+  const toggleSystemDoc = (doc: {name: string, url: string}) => {
+    setSelectedSystemDocs(prev => 
       prev.some(d => d.url === doc.url) 
         ? prev.filter(d => d.url !== doc.url)
         : [...prev, doc]
     );
+  };
+
+  const handleGenerateMissingDocument = async (docType: 'finance' | 'receipt' | 'invoice' | 'maintenance' | 'maintenance_invoice') => {
+    if (!selectedRecordId) return;
+    setIsGeneratingDoc(true);
+    const toastId = toast.loading(`Generating ${docType.replace('_', ' ')} document...`);
+    
+    try {
+      const companyDetails = await getCompanyDetails();
+      
+      if (docType === 'finance') {
+        const t = transactions.find(x => x.id === selectedRecordId);
+        if (!t) throw new Error('Transaction not found');
+        const vehicle = vehicles.find(v => v.id === t.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          FinanceDocument, 
+          { ...t, vehicle, customer: { name: t.customerName }, accounts }, 
+          'finance', 
+          t.id, 
+          'transactions'
+        );
+        await updateDoc(doc(db, 'transactions', t.id), { documentUrl: url });
+        toast.success('Finance Document generated!', { id: toastId });
+        
+      } else if (docType === 'receipt') {
+        const t = transactions.find(x => x.id === selectedRecordId);
+        if (!t) throw new Error('Transaction not found');
+        const vehicle = vehicles.find(v => v.id === t.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          ReceiptDocument, 
+          { ...t, vehicle, customer: { name: t.customerName } }, 
+          'finance', 
+          t.id, 
+          'transactions', 
+          'receiptUrl'
+        );
+        await updateDoc(doc(db, 'transactions', t.id), { receiptUrl: url });
+        toast.success('Receipt generated!', { id: toastId });
+        
+      } else if (docType === 'invoice') {
+        const i = invoices.find(x => x.id === selectedRecordId);
+        if (!i) throw new Error('Invoice not found');
+        const vehicle = vehicles.find(v => v.id === i.vehicleId);
+        const customer = customers.find(c => c.id === i.customerId);
+        
+        const url = await generateAndUploadDocument(
+          InvoiceDocument,
+          { ...i, vehicle, customer }, 
+          'invoices',
+          i.id,
+          'invoices',
+          companyDetails
+        );
+        await updateDoc(doc(db, 'invoices', i.id), { documentUrl: url });
+        toast.success('Invoice Document generated!', { id: toastId });
+
+      } else if (docType === 'maintenance') {
+        const m = maintenanceLogs.find(x => x.id === selectedRecordId);
+        if (!m) throw new Error('Maintenance log not found');
+        const vehicle = vehicles.find(v => v.id === m.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          MaintenanceDocument,
+          { ...m, vehicle, parts: m.parts || [] }, 
+          'maintenance',
+          m.id,
+          'maintenanceLogs',
+          companyDetails,
+          'documentUrl'
+        );
+        await updateDoc(doc(db, 'maintenanceLogs', m.id), { documentUrl: url });
+        toast.success('Work Order generated!', { id: toastId });
+
+      } else if (docType === 'maintenance_invoice') {
+        const m = maintenanceLogs.find(x => x.id === selectedRecordId);
+        if (!m) throw new Error('Maintenance log not found');
+        const vehicle = vehicles.find(v => v.id === m.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          MaintenanceInvoice,
+          { ...m, vehicle, parts: m.parts || [] }, 
+          'maintenance',
+          m.id,
+          'maintenanceLogs',
+          companyDetails,
+          'invoiceUrl'
+        );
+        await updateDoc(doc(db, 'maintenanceLogs', m.id), { invoiceUrl: url });
+        toast.success('Maintenance Invoice generated!', { id: toastId });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Generation failed: ${e.message}`, { id: toastId });
+    } finally {
+      setIsGeneratingDoc(false);
+    }
   };
 
   useEffect(() => {
@@ -457,8 +594,27 @@ export default function BulkEmail() {
 
   function getRelatedRecords(recipientId: string) {
     switch (emailType) {
-      case 'custom':
-        return vehicles.map(v => ({ id: v.id, label: v.registrationNumber }));
+      case 'custom': {
+        const activeRental = rentals.find((r: any) => r.customerId === recipientId && r.status === 'active');
+        const activeVehicleId = activeRental?.vehicleId;
+        const ownedVehicles = vehicles
+          .filter(v => v.customerId === recipientId || (v as any).ownerId === recipientId)
+          .map(v => v.id);
+
+        return vehicles.map(v => {
+          let label = v.registrationNumber || 'Unknown Reg';
+          if (v.id === activeVehicleId) label += ' (Active Rental)';
+          else if (ownedVehicles.includes(v.id)) label += ' (Owned/Assigned)';
+          return { id: v.id, label };
+        }).sort((a, b) => {
+          // Sort active rentals and owned vehicles to the top of the dropdown
+          if (a.id === activeVehicleId) return -1;
+          if (b.id === activeVehicleId) return 1;
+          if (a.label.includes('(Owned')) return -1;
+          if (b.label.includes('(Owned')) return 1;
+          return a.label.localeCompare(b.label);
+        });
+      }
 
       case 'rental':
         return rentals
@@ -594,6 +750,12 @@ export default function BulkEmail() {
     
     if (ctx['New Balance']) ctx['Total Amount'] = ctx['New Balance'];
 
+    // Vehicle Date & Maintenance Aliases
+    if (ctx['Purchased Date']) alias['Purchase Date'] = ctx['Purchased Date'];
+    if (ctx['Insurance Expiry']) alias['Insurance Expiry Date'] = ctx['Insurance Expiry'];
+    if (ctx['Last Maintenance']) alias['Last Maintenance Date'] = ctx['Last Maintenance'];
+    if (ctx['Next Maintenance']) alias['Next Maintenance Date'] = ctx['Next Maintenance'];
+
     return { ...ctx, ...alias };
   };
 
@@ -601,7 +763,12 @@ export default function BulkEmail() {
     body.replace(/Claim Type:\s*\[Vehicle Damage\][\s\S]*?\[Other\]/i, 'Claim Type: [Claim Type]');
 
   useEffect(() => {
+    isUserEdited.current = false;
+  }, [emailType, selectedTemplateId, selectedRecipients, selectedRecordId, selectedVehicleId, selectedMaintenanceId]);
+
+  useEffect(() => {
     if (!currentTemplate || !selectedTemplateId || !templateReady || selectedRecipients.length !== 1) return;
+    if (isUserEdited.current) return;
 
     const rid = selectedRecipients[0];
     const ctx: Record<string, string> = {};
@@ -708,17 +875,27 @@ export default function BulkEmail() {
         }
     }
 
-    if (selectedVehicleId) {
+   if (selectedVehicleId) {
       const v = vehicles.find(vx => vx.id === selectedVehicleId);
       if (v) {
+        // Standard Vehicle Details
         ctx['Vehicle Registration Number'] = v.registrationNumber || '';
         ctx['Vehicle Reg'] = v.registrationNumber || '';
         ctx['Make & Model'] = [v.make, v.model].filter(Boolean).join(' ');
         if (v.year) ctx['Year'] = `${v.year}`;
+
+        // Extended Vehicle Values & Dates (Strictly typed to Vehicle interface)
+        ctx['Mileage'] = String(v.mileage || 'N/A');
+        ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
+        ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
+        ctx['MOT Expiry'] = safeFmt(v.motExpiry) || 'N/A';
+        ctx['Tax Expiry'] = safeFmt(v.roadTaxExpiry) || 'N/A';
+        
+        // Maintenance Tracking
+        ctx['Last Maintenance'] = safeFmt(v.lastMaintenance) || 'N/A';
+        ctx['Next Maintenance'] = safeFmt(v.nextMaintenance) || 'N/A';
       }
     }
-
-    // src/pages/BulkEmail.tsx
 
     if (emailType === 'maintenance' && selectedMaintenanceId) {
       const m = maintenanceLogs.find(x => x.id === selectedMaintenanceId);
@@ -916,7 +1093,30 @@ export default function BulkEmail() {
           : (String(c.claimType) || 'Other');
       }
     }
-
+    // --- GLOBAL VEHICLE DATA INJECTION ---
+    // If ANY of the previous logic found a vehicle registration, automatically append all extended vehicle dates and details!
+    const regToFind = ctx['Vehicle Registration Number'] || ctx['Vehicle Reg'] || ctx['Client Registration'] || ctx['Main Reg the rental main vehicle registration number'];
+    
+    if (regToFind) {
+      // Find the vehicle in the database by matching the registration number
+      const v = vehicles.find(vx => (vx.registrationNumber || '').toLowerCase() === regToFind.toLowerCase());
+      
+      if (v) {
+        ctx['Make & Model'] = [v.make, v.model].filter(Boolean).join(' ');
+        if (v.year) ctx['Year'] = `${v.year}`;
+        
+        // Extended Dates & Mandatory Fields
+        ctx['Mileage'] = String(v.mileage || 'N/A');
+        ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
+        ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
+        ctx['MOT Expiry'] = safeFmt(v.motExpiry) || 'N/A';
+        ctx['Tax Expiry'] = safeFmt(v.roadTaxExpiry) || 'N/A';
+        ctx['Last Maintenance'] = safeFmt(v.lastMaintenance) || 'N/A';
+        ctx['Next Maintenance'] = safeFmt(v.nextMaintenance) || 'N/A';
+      }
+    }
+    // -------------------------------------
+    
     const withAliases = addTemplateAliases(ctx);
     const subjT = currentTemplate.subjectTemplate;
     const bodyT = emailType === 'claim'
@@ -952,13 +1152,13 @@ export default function BulkEmail() {
         toast.dismiss();
       }
 
-      // 2. Format Rental Docs into the attachment structure your email service expects
-      const formattedRentalDocs = selectedRentalDocs.map(doc => ({
+      // 2. Format System Docs into the attachment structure your email service expects
+      const formattedSystemDocs = selectedSystemDocs.map(doc => ({
         filename: doc.name,
         url: doc.url
       }));
 
-      const allAttachments = [...formattedRentalDocs, ...uploadedCustomDocs];
+      const allAttachments = [...formattedSystemDocs, ...uploadedCustomDocs];
 
       const masterSubject = subject;
       let masterMessage = message;
@@ -1003,6 +1203,10 @@ export default function BulkEmail() {
                 to_email = cust?.email || '';
                 to_name = cust?.name || '';
             }
+        } else if (emailType === 'maintenance' && recipientFilter === 'serviceCenter') {
+            const sc = serviceCenters.find(c => c.id === rid);
+            to_email = sc?.email || '';
+            to_name = sc?.name || '';
         } else {
             const cust = customers.find(c => c.id === rid);
             const sc = serviceCenters.find(c => c.id === rid);
@@ -1055,7 +1259,7 @@ export default function BulkEmail() {
 
           // Reset attachments
           setCustomFiles([]);
-          setSelectedRentalDocs([]);
+          setSelectedSystemDocs([]);
       }
     } catch (error) {
       console.error(error);
@@ -1235,6 +1439,22 @@ export default function BulkEmail() {
                         setSelectedMaintenanceId('');
                         setSelectedVehicleId('');
                       }
+
+                      // --- NEW: AUTO-SELECT DRIVEN VEHICLE FOR CUSTOM MESSAGES ---
+                      if (newSelection.length === 1 && emailType === 'custom') {
+                        const activeRental = rentals.find((r: any) => r.customerId === id && r.status === 'active');
+                        if (activeRental) {
+                          setSelectedVehicleId(activeRental.vehicleId);
+                        } else {
+                          // Fallback: check if they own or are directly assigned to a vehicle
+                          const assignedVehicle = vehicles.find(v => v.customerId === id || (v as any).ownerId === id);
+                          if (assignedVehicle) {
+                            setSelectedVehicleId(assignedVehicle.id);
+                          }
+                        }
+                      }
+                      // -----------------------------------------------------------
+
                       setSelectedRecipients(newSelection);
                     }}
                     className="p-1 bg-gray-100 rounded"
@@ -1244,53 +1464,57 @@ export default function BulkEmail() {
                   </button>
                 </div>
 
-                {selected && selectedRecipients.length === 1 && emailType === 'custom' && currentTemplate?.requiredFields?.includes('vehicle') && (
-                  <SearchableSelect
-                    label="Select Vehicle"
-                    options={getRelatedRecords(id)}
-                    value={selectedVehicleId}
-                    onChange={setSelectedVehicleId}
-                  />
-                )}
-                {selected && selectedRecipients.length === 1 && emailType === 'rental' && (
-                  <SearchableSelect
-                    label="Select Rental"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {selected && selectedRecipients.length === 1 && emailType === 'maintenance' && (
-                  <SearchableSelect
-                    label="Select Maintenance"
-                    options={getRelatedRecords(id)}
-                    value={selectedMaintenanceId}
-                    onChange={setSelectedMaintenanceId}
-                  />
-                )}
-                {selected && selectedRecipients.length === 1 && emailType === 'invoice' && (
-                  <SearchableSelect
-                    label="Select Invoice"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {selected && selectedRecipients.length === 1 && emailType === 'claim' && (
-                  <SearchableSelect
-                    label="Select Claim"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {selected && selectedRecipients.length === 1 && emailType === 'finance' && (
-                  <SearchableSelect
-                    label="Select Transaction"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
+                {selected && selectedRecipients.length === 1 && (
+                  <div className="mt-3">
+                    {emailType === 'custom' && (
+                      <SearchableSelect
+                        label="Select Vehicle"
+                        options={getRelatedRecords(id)}
+                        value={selectedVehicleId}
+                        onChange={setSelectedVehicleId}
+                      />
+                    )}
+                    {emailType === 'rental' && (
+                      <SearchableSelect
+                        label="Select Rental"
+                        options={getRelatedRecords(id)}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'maintenance' && (
+                      <SearchableSelect
+                        label="Select Maintenance"
+                        options={getRelatedRecords(id)}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'invoice' && (
+                      <SearchableSelect
+                        label="Select Invoice"
+                        options={getRelatedRecords(id)}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'claim' && (
+                      <SearchableSelect
+                        label="Select Claim"
+                        options={getRelatedRecords(id)}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'finance' && (
+                      <SearchableSelect
+                        label="Select Transaction"
+                        options={getRelatedRecords(id)}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -1305,7 +1529,10 @@ export default function BulkEmail() {
           <input
             className="mt-1 w-full border rounded p-2"
             value={subject}
-            onChange={e=>setSubject(e.target.value)}
+            onChange={e => {
+              setSubject(e.target.value);
+              isUserEdited.current = true;
+            }}
             placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
           />
         </div>
@@ -1315,7 +1542,10 @@ export default function BulkEmail() {
         <textarea
           className="mt-1 w-full border rounded p-2 h-[600px]"
           value={message}
-          onChange={e=>setMessage(e.target.value)}
+          onChange={e => {
+            setMessage(e.target.value);
+            isUserEdited.current = true;
+          }}
           placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
         />
 
@@ -1324,18 +1554,74 @@ export default function BulkEmail() {
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
             <Paperclip className="w-4 h-4" /> Attachments
           </h3>
-          
-          {/* Rental Pre-generated Docs */}
-          {availableRentalDocs.length > 0 && (
+
+          {/* On-The-Fly Generate Document Buttons */}
+          {selectedRecordId && (emailType === 'finance' || emailType === 'invoice' || emailType === 'maintenance') && (
             <div className="mb-4">
-              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Rental Documents</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+                Generate Documents
+              </span>
               <div className="flex flex-wrap gap-2">
-                {availableRentalDocs.map((doc, idx) => {
-                  const isSelected = selectedRentalDocs.some(d => d.url === doc.url);
+                {emailType === 'finance' && (
+                  <>
+                    {!transactions.find(t => t.id === selectedRecordId)?.documentUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Finance Document'}
+                      </button>
+                    )}
+                    {!transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Receipt'}
+                      </button>
+                    )}
+                  </>
+                )}
+                {emailType === 'invoice' && !invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
+                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors">
+                    {isGeneratingDoc ? 'Generating...' : '+ Generate Invoice PDF'}
+                  </button>
+                )}
+                {emailType === 'maintenance' && (
+                  <>
+                    {!maintenanceLogs.find(m => m.id === selectedRecordId)?.documentUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Work Order'}
+                      </button>
+                    )}
+                    {!maintenanceLogs.find(m => m.id === selectedRecordId)?.invoiceUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance_invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Maintenance Invoice'}
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {emailType === 'finance' && transactions.find(t => t.id === selectedRecordId)?.documentUrl && transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
+                  <span className="text-xs text-gray-400 italic py-1.5">All standard documents generated.</span>
+                )}
+                {emailType === 'invoice' && invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
+                  <span className="text-xs text-gray-400 italic py-1.5">Invoice PDF already generated.</span>
+                )}
+                {emailType === 'maintenance' && maintenanceLogs.find(m => m.id === selectedRecordId)?.documentUrl && maintenanceLogs.find(m => m.id === selectedRecordId)?.invoiceUrl && (
+                  <span className="text-xs text-gray-400 italic py-1.5">All standard documents generated.</span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* System Pre-generated Docs */}
+          {availableSystemDocs.length > 0 && (
+            <div className="mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+                {emailType === 'rental' ? 'Rental Documents' : emailType === 'finance' ? 'Finance Documents' : emailType === 'invoice' ? 'Invoice Documents' : emailType === 'maintenance' ? 'Maintenance Documents' : 'System Documents'}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {availableSystemDocs.map((doc, idx) => {
+                  const isSelected = selectedSystemDocs.some(d => d.url === doc.url);
                   return (
                     <button
                       key={idx}
-                      onClick={() => toggleRentalDoc(doc)}
+                      onClick={() => toggleSystemDoc(doc)}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
                         isSelected 
                           ? 'bg-blue-100 border-blue-500 text-blue-800' 

@@ -1,5 +1,5 @@
 // src/pages/WhatsappCommunication.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
 import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
@@ -7,13 +7,12 @@ import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Pap
 import {
   collection,
   query,
-  where,
   getDocs,
   getDoc,
   writeBatch,
   doc,
   orderBy,
-  limit as fbLimit,
+  updateDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -27,27 +26,28 @@ import { useServiceCenters } from '../hooks/useServiceCenters';
 import { useInvoices } from '../hooks/useInvoices';
 import { useClaims } from '../hooks/useClaims';
 import { usePermissions } from '../hooks/usePermissions';
-import { useFinances } from '../hooks/useFinances'; // Added for Finance
+import { useFinances } from '../hooks/useFinances'; 
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
 
 import { fetchLegalHandlers } from '../utils/legalHandlers';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
 import { fillPlaceholders } from '../utils/templateUtils';
-
 import { sendWhatsAppMessage, buildWhatsAppMessage } from '../utils/whatsapp';
-
 import { useWhatsappHistory, logWhatsappHistory } from '../hooks/useWhatsappHistory';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { LegalHandler } from '../types/legalHandler';
 import { Account } from '../types';
 
+// PDF Document Generation Imports
+import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
+import { FinanceDocument, InvoiceDocument } from '../components/pdf/documents';
+import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
+
 // ---------------- DEBUG TOGGLE ----------------
 const DEBUG = true;
 // ---------------- DEBUG HELPERS ----------------
 const dlog = (...args: any[]) => DEBUG && console.log(...args);
-const dgroup = (label: string) => DEBUG && console.group(label);
-const dgroupEnd = () => DEBUG && console.groupEnd();
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helper Functions (render/format)
@@ -69,7 +69,6 @@ const waMdToHtml = (s: string) => {
   return out;
 };
 
-// Normalizers/matchers
 const norm = (s?: string) => (s || '').toLowerCase().trim();
 const normEmail = (s?: string) => norm(s);
 const normPhone = (s?: string) => (s || '').replace(/\D/g, '');
@@ -97,62 +96,7 @@ function anyPhoneMatch(customerPhone?: string, ...candidates: any[]) {
   const cp = normPhone(customerPhone);
   if (!cp) return false;
   const flat = candidates.flatMap(splitMulti).map(normPhone).filter(Boolean);
-  // allow suffix match to tolerate country codes (e.g. 447… vs 07…)
   return flat.some(p => p.endsWith(cp) || cp.endsWith(p));
-}
-
-// Pretty-print a claim’s key fields so we can see what we’re comparing
-function logClaimSummary(tag: string, claim: any) {
-  if (!DEBUG) return;
-  const summary = {
-    id: claim?.id,
-    customerId: claim?.customerId,
-    clientId: claim?.clientId,
-    'client.id': claim?.client?.id,
-    'clientInfo.customerId': claim?.clientInfo?.customerId,
-    emails: [
-      claim?.clientInfo?.email,
-      claim?.submitter?.email,
-      claim?.driver?.email,
-      ...(splitMulti(claim?.contact?.emails || [])),
-      ...(splitMulti(claim?.contactDetails?.emails || [])),
-    ].filter(Boolean),
-    phones: [
-      claim?.clientInfo?.phone,
-      claim?.submitter?.contactNumber,
-      claim?.driver?.contactNumber,
-      ...(splitMulti(claim?.contact?.phones || [])),
-      ...(splitMulti(claim?.contactDetails?.phones || [])),
-    ].filter(Boolean),
-    names: [
-      claim?.clientInfo?.name,
-      claim?.submitter?.fullName,
-      claim?.driver?.fullName,
-    ].filter(Boolean),
-  };
-  dlog(tag, summary);
-}
-
-function claimMatchesCustomer(claim: any, customer: any): boolean {
-  // Logic simplified for brevity, assumes helpers above work
-  const custPhone = (customer as any)?.whatsapp || (customer as any)?.phone || (customer as any)?.mobile || (customer as any)?.tel;
-  const custEmail = (customer as any)?.email;
-  const custName  = (customer as any)?.name;
-  const custId    = customer?.id;
-
-  // 1) Direct links
-  if (claim?.customerId === custId || claim?.clientId === custId || claim?.client?.id === custId || claim?.clientInfo?.customerId === custId || claim?.clientVehicle?.ownerId === custId) return true;
-
-  // 2) Email-based
-  if (anyEmailMatch(custEmail, claim?.clientInfo?.email, claim?.submitter?.email, claim?.driver?.email, claim?.contact?.emails, claim?.contactDetails?.emails)) return true;
-
-  // 3) Phone-based
-  if (anyPhoneMatch(custPhone, claim?.clientInfo?.phone, claim?.submitter?.contactNumber, claim?.driver?.contactNumber, claim?.contact?.phones, claim?.contactDetails?.phones)) return true;
-
-  // 4) Name-based
-  if (nameLooseEqual(custName, claim?.clientInfo?.name) || nameLooseEqual(custName, claim?.submitter?.fullName) || nameLooseEqual(custName, claim?.driver?.fullName)) return true;
-
-  return false;
 }
 
 // date safety
@@ -169,13 +113,6 @@ const safeFmt = (d: any, pat = 'dd/MM/yyyy') => {
   return dt ? format(dt, pat) : '';
 };
 
-// Normalizes phone numbers to digits only for reliable comparison
-const normalizePhone = (phone: string | undefined | null): string => {
-  if (!phone) return '';
-  return phone.replace(/\D/g, '');
-};
-
-// Helpers to pull manual invoice contact safely
 const firstNonEmpty = (...vals: any[]) =>
   vals.find(v => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
 
@@ -239,12 +176,14 @@ export default function WhatsappCommunication() {
   const [subject, setSubject] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
+  const isUserEdited = useRef<boolean>(false);
 
   // Preview modal
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // ── Attachments State
-  const [selectedRentalDocs, setSelectedRentalDocs] = useState<{name: string, url: string}[]>([]);
+  const [selectedSystemDocs, setSelectedSystemDocs] = useState<{name: string, url: string}[]>([]);
   const [customFiles, setCustomFiles] = useState<File[]>([]);
 
   // ── Data hooks
@@ -256,9 +195,8 @@ export default function WhatsappCommunication() {
   const { invoices } = useInvoices();
   const { claims } = useClaims();
   const { history } = useWhatsappHistory();
-  const { transactions } = useFinances(); // Load transactions for Finance features
+  const { transactions } = useFinances();
 
-  // Fetch accounts manually 
   const [accounts, setAccounts] = useState<Account[]>([]);
   useEffect(() => {
     const q = query(collection(db, 'accounts'), orderBy('name'));
@@ -269,14 +207,9 @@ export default function WhatsappCommunication() {
   }, []);
 
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
-
-  // On-demand claim docs cache
   const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
-  
-  // Database Templates state
   const [dbTemplates, setDbTemplates] = useState<Record<string, any[]>>({});
 
-  // Fetch live templates from Firestore
   useEffect(() => {
     const fetchLiveTemplates = async () => {
       try {
@@ -294,146 +227,267 @@ export default function WhatsappCommunication() {
           setDbTemplates(templatesData);
         }
       } catch (e) {
-        console.error('Failed to load live templates, falling back to defaults', e);
+        console.error('Failed to load live templates', e);
       }
     };
     fetchLiveTemplates();
   }, []);
 
-  // Templates for selected type (Uses live database templates if available, otherwise falls back to the static file)
   const templates = dbTemplates[emailType]?.length > 0 
     ? dbTemplates[emailType] 
     : (emailTemplates[emailType] || []);
   const currentTemplate = templates.find(t => t.id === selectedTemplateId);
 
-  // Load legal handlers on Claim tab
   useEffect(() => {
     if (emailType === 'claim') {
-      fetchLegalHandlers()
-        .then(setLegalHandlers)
-        .catch(() => toast.error('Failed to load legal handlers'));
+      fetchLegalHandlers().then(setLegalHandlers).catch(() => toast.error('Failed to load legal handlers'));
     }
   }, [emailType]);
 
-  // Clear attachments when context changes
   useEffect(() => {
-    setSelectedRentalDocs([]);
+    setSelectedSystemDocs([]);
     setCustomFiles([]);
   }, [selectedRecordId, emailType]);
 
-  // Determine available rental docs for the selected rental
-  const availableRentalDocs = useMemo(() => {
-    if (emailType !== 'rental' || !selectedRecordId) return [];
-    const r = rentals.find(x => x.id === selectedRecordId);
-    if (!r || !r.documents) return [];
+  // High performance O(1) Dictionary Lookup Engine
+  const recipientMap = useMemo(() => {
+    const map = new Map<string, { phone: string; email: string; name: string }>();
+
+    customers.forEach(c => {
+      const phone = (c as any)?.whatsapp || (c as any)?.phone || (c as any)?.mobile || (c as any)?.tel || '';
+      map.set(c.id, { phone, email: c.email || '', name: c.name || '' });
+    });
+
+    serviceCenters.forEach(sc => {
+      map.set(sc.id, { phone: sc.phone || '', email: sc.email || '', name: sc.name || '' });
+    });
+
+    legalHandlers.forEach(lh => {
+      map.set(lh.id, { phone: lh.phone || '', email: lh.email || '', name: lh.name || '' });
+    });
+
+    accounts.forEach(a => {
+      map.set(a.id, { phone: '', email: '', name: a.name || 'Account' });
+    });
+
+    return map;
+  }, [customers, serviceCenters, legalHandlers, accounts]);
+
+  // Determine available system docs for the selected tab and record
+  const availableSystemDocs = useMemo(() => {
+    if (!selectedRecordId) return [];
 
     const docs: { name: string; url: string }[] = [];
-    if (r.documents.invoice) docs.push({ name: 'Invoice.pdf', url: r.documents.invoice });
-    if (r.documents.permit) docs.push({ name: 'Parking_Permit.pdf', url: r.documents.permit });
-    
-    if (r.documents.agreements) {
-      const keys = Object.keys(r.documents.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
-      const latest = keys.pop();
-      if (latest) {
-        docs.push({ name: 'Rental_Agreement.pdf', url: r.documents.agreements[latest] });
+
+    if (emailType === 'rental') {
+      const r = rentals.find(x => x.id === selectedRecordId);
+      if (r) {
+        if ((r as any).agreementUrl) docs.push({ name: 'Rental_Agreement.pdf', url: (r as any).agreementUrl });
+        if ((r as any).documentUrl) docs.push({ name: 'Rental_Document.pdf', url: (r as any).documentUrl });
+        
+        if (r.documents) {
+          if (r.documents.invoice) docs.push({ name: 'Rental_Invoice.pdf', url: r.documents.invoice });
+          if (r.documents.permit) docs.push({ name: 'Parking_Permit.pdf', url: r.documents.permit });
+          
+          if (r.documents.agreements && typeof r.documents.agreements === 'object') {
+            const keys = Object.keys(r.documents.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
+            const latest = keys.pop();
+            if (latest && r.documents.agreements[latest]) {
+              docs.push({ name: 'Rental_Agreement.pdf', url: r.documents.agreements[latest] });
+            }
+          }
+        }
+      }
+    } else if (emailType === 'finance') {
+      const t = transactions.find(x => x.id === selectedRecordId);
+      if (t) {
+        if (t.receiptUrl) docs.push({ name: 'Receipt.pdf', url: t.receiptUrl });
+        if (t.documentUrl) docs.push({ name: 'Finance_Document.pdf', url: t.documentUrl });
+      }
+    } else if (emailType === 'invoice') {
+      const i = invoices.find(x => x.id === selectedRecordId);
+      if (i && (i as any).documentUrl) {
+        docs.push({ name: 'Invoice.pdf', url: (i as any).documentUrl });
       }
     }
-    return docs;
-  }, [emailType, selectedRecordId, rentals]);
 
-  const toggleRentalDoc = (doc: {name: string, url: string}) => {
-    setSelectedRentalDocs(prev => 
+    return docs;
+  }, [emailType, selectedRecordId, rentals, transactions, invoices]);
+
+  const toggleSystemDoc = (doc: {name: string, url: string}) => {
+    setSelectedSystemDocs(prev => 
       prev.some(d => d.url === doc.url) 
         ? prev.filter(d => d.url !== doc.url)
         : [...prev, doc]
     );
   };
 
-  // recipients (null-safe)
+  const handleGenerateMissingDocument = async (docType: 'finance' | 'receipt' | 'invoice') => {
+    if (!selectedRecordId) return;
+    setIsGeneratingDoc(true);
+    const toastId = toast.loading(`Generating ${docType} document...`);
+    
+    try {
+      const companyDetails = await getCompanyDetails();
+      
+      if (docType === 'finance') {
+        const t = transactions.find(x => x.id === selectedRecordId);
+        if (!t) throw new Error('Transaction not found');
+        const vehicle = vehicles.find(v => v.id === t.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          FinanceDocument, 
+          { ...t, vehicle, customer: { name: t.customerName }, accounts }, 
+          'finance', 
+          t.id, 
+          'transactions'
+        );
+        await updateDoc(doc(db, 'transactions', t.id), { documentUrl: url });
+        toast.success('Finance Document generated!', { id: toastId });
+        
+      } else if (docType === 'receipt') {
+        const t = transactions.find(x => x.id === selectedRecordId);
+        if (!t) throw new Error('Transaction not found');
+        const vehicle = vehicles.find(v => v.id === t.vehicleId);
+        
+        const url = await generateAndUploadDocument(
+          ReceiptDocument, 
+          { ...t, vehicle, customer: { name: t.customerName } }, 
+          'finance', 
+          t.id, 
+          'transactions', 
+          'receiptUrl'
+        );
+        await updateDoc(doc(db, 'transactions', t.id), { receiptUrl: url });
+        toast.success('Receipt generated!', { id: toastId });
+        
+      } else if (docType === 'invoice') {
+        const i = invoices.find(x => x.id === selectedRecordId);
+        if (!i) throw new Error('Invoice not found');
+        const vehicle = vehicles.find(v => v.id === i.vehicleId);
+        const customer = customers.find(c => c.id === i.customerId);
+        
+        const url = await generateAndUploadDocument(
+          InvoiceDocument,
+          { ...i, vehicle, customer }, 
+          'invoices',
+          i.id,
+          'invoices',
+          companyDetails
+        );
+        await updateDoc(doc(db, 'invoices', i.id), { documentUrl: url });
+        toast.success('Invoice Document generated!', { id: toastId });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Generation failed: ${e.message}`, { id: toastId });
+    } finally {
+      setIsGeneratingDoc(false);
+    }
+  };
+
+  // HIGH PERFORMANCE RECIPIENT FILTER - STOPS FREEZING
   const filteredRecipients = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    // For non-managers, recipients are only shown after a search is initiated.
-    if (!isManager && !q) {
-      return [];
-    }
+    if (!isManager && !q) return [];
 
-    let allRecipients: any[] = [];
+    const matched: any[] = [];
 
-    // Maintenance recipients can be service centers OR customers
+    const checkMatch = (r: any, extraLabel: string = '') => {
+      if (!q) return true;
+      const name = (r.name || r.fullName || '').toLowerCase();
+      const email = (r.email || '').toLowerCase();
+      const phone = ((r as any).phone || (r as any).mobile || (r as any).whatsapp || '').toLowerCase();
+      const label = extraLabel.toLowerCase();
+      return name.includes(q) || email.includes(q) || phone.includes(q) || label.includes(q);
+    };
+
+    const addIfMatches = (item: any, type: string, label: string = '') => {
+      if (matched.length >= 50) return false;
+      if (checkMatch(item, label)) {
+        matched.push({ ...item, type, _label: label });
+      }
+      return matched.length < 50;
+    };
+
     if (emailType === 'maintenance') {
-      const sc = serviceCenters.map(r => ({ ...r, type: 'serviceCenter' as const }));
-      const cust = customers.map(r => ({ ...r, type: 'customer' as const }));
-      
-      if (recipientFilter === 'serviceCenter') allRecipients = sc;
-      else if (recipientFilter === 'customer') allRecipients = cust;
-      else allRecipients = [...sc, ...cust];
+      if (recipientFilter === 'serviceCenter' || recipientFilter === 'all') {
+        for (const r of serviceCenters) { if (!addIfMatches(r, 'serviceCenter')) break; }
+      }
+      if (matched.length < 50 && (recipientFilter === 'customer' || recipientFilter === 'all')) {
+        for (const r of customers) { if (!addIfMatches(r, 'customer')) break; }
+      }
     }
-    // Claim tab can target customers or legal handlers
     else if (emailType === 'claim') {
-      const cust = customers.map(r => ({ ...r, type: 'customer' as const }));
-      const hand = legalHandlers.map(r => ({ ...r, type: 'legalHandler' as const }));
-
-      if (recipientFilter === 'customer') allRecipients = cust;
-      else if (recipientFilter === 'legalHandler') allRecipients = hand;
-      else allRecipients = [...cust, ...hand];
+      if (recipientFilter === 'customer' || recipientFilter === 'all') {
+        for (const r of customers) { if (!addIfMatches(r, 'customer')) break; }
+      }
+      if (matched.length < 50 && (recipientFilter === 'legalHandler' || recipientFilter === 'all')) {
+        for (const r of legalHandlers) { if (!addIfMatches(r, 'legalHandler')) break; }
+      }
     }
-    // Invoice type includes ad-hoc invoice contacts
     else if (emailType === 'invoice') {
-        const cust = customers.map(r => ({ ...r, type: 'customer' as const }));
-        const manual = invoices.map(inv => {
-            const hasSavedCustomer = !!inv.customerId;
-            const manualName = getInvoiceManualName(inv);
-            const manualPhone = getInvoiceManualPhone(inv);
-            if (hasSavedCustomer || !manualName || !manualPhone) return null;
-            const id = `invoice:${inv.id}`; 
-            const invNo = inv.invoiceNumber || `INV-${String(inv.id || '').slice(-8).toUpperCase()}`;
-            const label = [invNo, manualName, manualPhone].filter(Boolean).join(' • ');
-            return { id, name: manualName, email: '', phone: manualPhone, type: 'invoiceManual' as const, _label: label };
-        }).filter(Boolean as any);
-
-        allRecipients = [...cust, ...manual];
-    }
-    // Finance Type
-    else if (emailType === 'finance') {
-        if (recipientFilter === 'account') {
-            allRecipients = accounts.map(a => ({ ...a, type: 'account' as const, _label: 'Account' }));
-        } else if (recipientFilter === 'owner') {
-            const ownerSet = new Set<string>();
-            vehicles.forEach(v => { if (v.owner?.name) ownerSet.add(v.owner.name); });
-            transactions.forEach(t => { if (t.vehicleOwner?.name) ownerSet.add(t.vehicleOwner.name); });
-            allRecipients = Array.from(ownerSet).sort().map(name => ({
-                 id: name, name: name, type: 'owner' as const, _label: 'Vehicle Owner' 
-            }));
-        } else {
-            // Default to customers for finance
-            allRecipients = customers.map(r => ({ ...r, type: 'customer' as const }));
+      for (const r of customers) { if (!addIfMatches(r, 'customer')) break; }
+      if (matched.length < 50) {
+        for (const inv of invoices) {
+          if (inv.customerId) continue;
+          const manualName = getInvoiceManualName(inv);
+          const manualPhone = getInvoiceManualPhone(inv);
+          if (!manualName || !manualPhone) continue;
+          const invNo = inv.invoiceNumber || `INV-${String(inv.id || '').slice(-8).toUpperCase()}`;
+          const label = [invNo, manualName, manualPhone].filter(Boolean).join(' • ');
+          if (!addIfMatches({ id: `invoice:${inv.id}`, name: manualName, email: '', phone: manualPhone }, 'invoiceManual', label)) break;
         }
+      }
     }
-    // Default (Rental, Custom) = Customers only
+    else if (emailType === 'finance') {
+      if (recipientFilter === 'account') {
+        for (const a of accounts) { if (!addIfMatches({ ...a, name: a.name }, 'account', 'Account')) break; }
+      } else if (recipientFilter === 'owner') {
+        const ownerSet = new Set<string>();
+        for (const v of vehicles) { if (v.owner?.name) ownerSet.add(v.owner.name); }
+        for (const t of transactions) { if (t.vehicleOwner?.name) ownerSet.add(t.vehicleOwner.name); }
+        for (const name of Array.from(ownerSet).sort()) {
+          if (!addIfMatches({ id: name, name }, 'owner', 'Vehicle Owner')) break;
+        }
+      } else {
+        for (const r of customers) { if (!addIfMatches(r, 'customer')) break; }
+      }
+    }
     else {
-        allRecipients = customers.map(r => ({ ...r, type: 'customer' as const }));
+      for (const r of customers) { if (!addIfMatches(r, 'customer')) break; }
     }
 
-    // Apply Search Filter
-    return allRecipients.filter(r => {
-        const name = (r.name || r.fullName || '').toLowerCase();
-        const email = (r.email || '').toLowerCase();
-        const phone = ((r as any).phone || (r as any).mobile || (r as any).whatsapp || '').toLowerCase();
-        const label = (r._label || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || phone.includes(q) || label.includes(q);
-    });
-
+    return matched;
   }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, isManager, accounts, vehicles, transactions]);
 
-  // Related records provider (all labels use safeFmt now)
-  function getRelatedRecords(recipientId: string) {
+  // HIGH PERFORMANCE RELATED RECORDS CACHING - STOPS DELAY ON KEYSTROKE
+  const relatedRecordsOptions = useMemo(() => {
+    if (selectedRecipients.length !== 1) return [];
+    const recipientId = selectedRecipients[0];
+
     switch (emailType) {
       case 'custom': {
-        // For custom messages that need vehicle selection
-        return vehicles.map(v => ({ id: v.id, label: v.registrationNumber }));
-      }
+        const activeRental = rentals.find((r: any) => r.customerId === recipientId && r.status === 'active');
+        const activeVehicleId = activeRental?.vehicleId;
+        const ownedVehicles = vehicles
+          .filter(v => v.customerId === recipientId || (v as any).ownerId === recipientId)
+          .map(v => v.id);
 
+        return vehicles.map(v => {
+          let label = v.registrationNumber || 'Unknown Reg';
+          if (v.id === activeVehicleId) label += ' (Active Rental)';
+          else if (ownedVehicles.includes(v.id)) label += ' (Owned/Assigned)';
+          return { id: v.id, label };
+        }).sort((a, b) => {
+          if (a.id === activeVehicleId) return -1;
+          if (b.id === activeVehicleId) return 1;
+          if (a.label.includes('(Owned')) return -1;
+          if (b.label.includes('(Owned')) return 1;
+          return a.label.localeCompare(b.label);
+        });
+      }
       case 'rental': {
         return rentals
           .filter(r => r.customerId === recipientId)
@@ -442,17 +496,14 @@ export default function WhatsappCommunication() {
             return { id: r.id, label: `${v?.registrationNumber || 'N/A'} (${safeFmt(r.startDate, 'dd/MM/yyyy')})` };
           });
       }
-
       case 'maintenance': {
         return maintenanceLogs
-          .filter(m => true) // Show all logs for simplicity, or filter if matched to vehicle/customer
           .map(m => {
             const v = vehicles.find(vx => vx.id === m.vehicleId);
             const reg = v?.registrationNumber || 'Unknown Reg';
             return { id: m.id, label: `${reg} • ${m.type} • ${safeFmt(m.date, 'dd/MM/yyyy')}` };
           });
       }
-
       case 'invoice': {
         if (recipientId.startsWith('invoice:')) {
           const invId = recipientId.split(':')[1];
@@ -468,11 +519,14 @@ export default function WhatsappCommunication() {
             return { id: inv.id, label: `${invNo} (${safeFmt(inv.date, 'dd/MM/yyyy')})` };
           });
       }
-
       case 'finance': {
-          let relTransactions = [];
-          if (recipientFilter === 'customer') {
-              relTransactions = transactions.filter(t => t.customerId === recipientId);
+          let relTransactions: any[] = [];
+          if (recipientFilter === 'customer' || recipientFilter === 'all') {
+              const customer = customers.find(c => c.id === recipientId);
+              relTransactions = transactions.filter(t => 
+                  t.customerId === recipientId || 
+                  (customer && t.customerName === customer.name)
+              );
           } else if (recipientFilter === 'account') {
               relTransactions = transactions.filter(t => (t.accountsTo?.includes(recipientId) || t.accountsFrom?.includes(recipientId)));
           } else if (recipientFilter === 'owner') {
@@ -480,7 +534,11 @@ export default function WhatsappCommunication() {
           }
           
           return relTransactions
-             .sort((a,b) => (b.date > a.date ? 1 : -1))
+             .sort((a,b) => {
+                 const dA = safeToDate(a.date) || new Date();
+                 const dB = safeToDate(b.date) || new Date();
+                 return dB.getTime() - dA.getTime();
+             })
              .slice(0, 50) 
              .map(t => {
                  const typeLabel = t.type === 'income' ? 'Income' : 'Expense';
@@ -489,9 +547,7 @@ export default function WhatsappCommunication() {
                  return { id: t.id, label: `${typeLabel} £${amt} • ${date} • ${t.category}` };
              });
       }
-
       case 'claim': {
-        // Direct local filtering of claims (Fixes the empty dropdown bug)
         return claims.filter(c => 
             c.customerId === recipientId || 
             c.clientId === recipientId || 
@@ -505,13 +561,11 @@ export default function WhatsappCommunication() {
             return { id: c.id, label: `${ref} • ${reg} • ${safeFmt(c.dateOfEvent)}` };
           });
       }
-
       default:
         return [];
     }
-  }
+  }, [selectedRecipients, emailType, recipientFilter, rentals, vehicles, maintenanceLogs, invoices, transactions, claims, customers, accounts]);
 
-  // If a claim is selected but not cached, fetch it for auto-fill
   useEffect(() => {
     if (emailType !== 'claim' || !selectedRecordId) return;
     if (claimDocById[selectedRecordId]) return;
@@ -525,7 +579,6 @@ export default function WhatsappCommunication() {
     })();
   }, [emailType, selectedRecordId, claimDocById]);
 
-  // Template gating (aligned with BulkEmail)
   const templateReady = useMemo(() => {
     if (!currentTemplate) return false;
     const needs: string[] = currentTemplate.requiredFields || [];
@@ -535,25 +588,19 @@ export default function WhatsappCommunication() {
     if (emailType === 'rental' && needs.includes('rental') && !selectedRecordId) return false;
     if (emailType === 'finance' && needs.includes('transaction') && !selectedRecordId) return false;
     return true;
-  }, [currentTemplate, emailType, selectedRecipients, selectedVehicleId, selectedMaintenanceId, selectedRecordId]);
+  }, [currentTemplate, emailType, selectedRecipients, selectedMaintenanceId, selectedRecordId]);
 
-  // Helper to add aliases
   const addTemplateAliases = (ctx: Record<string, string>) => {
     const alias: Record<string, string> = {};
-
-    // Vehicle Reg aliases
     const reg = ctx['Vehicle Registration Number'] || ctx['Client Registration'] || ctx['TP Registration'] || ctx['Vehicle Reg'];
     if (reg) {
       alias['Insert Reg No.'] = reg;
       alias['Vehicle Reg'] = reg;
       alias['Registration Number'] = reg;
     }
-
-    // Date & Time aliases
     const dt = ctx['Date & Time'];
     if (dt) alias['Insert Date & Time'] = dt;
 
-    // Recipient names
     const rn = ctx["Recipient's Name"] || ctx['Recipient Name'];
     if (rn) {
       alias['Recipient Name'] = rn;
@@ -563,7 +610,6 @@ export default function WhatsappCommunication() {
       }
     }
 
-    // Customer/Driver
     const cn = ctx['Customer Name'] || ctx["Driver's Name"] || ctx['Client Name'];
     if (cn) {
       alias['Customer Name'] = cn;
@@ -572,29 +618,18 @@ export default function WhatsappCommunication() {
       alias['Client Name'] = cn;
     }
 
-    // Agreement Ref aliases
     if (ctx['Agreement Ref']) alias['Ref'] = ctx['Agreement Ref'];
     if (ctx['Ref']) alias['Agreement Ref'] = ctx['Ref'];
-
-    // Date aliases for generic DD/MM/YYYY placeholders
     if (ctx['Date']) alias['DD/MM/YYYY'] = ctx['Date'];
-    
-    // Finance Aliases
     if (ctx['New Balance']) ctx['Total Amount'] = ctx['New Balance'];
-
-    // Claim reference aliases
     if (ctx['Claim Reference']) {
       alias['Insert Claim Reference'] = ctx['Claim Reference'];
       alias['Claim Ref'] = ctx['Claim Reference'];
       alias['Claim Number'] = ctx['Claim Reference'];
     }
-
-    // Description alias (claims)
     if (ctx['Description']) {
       alias['Brief description of the incident'] = ctx['Description'];
     }
-
-    // Invoice fields
     if (ctx['Invoice Number']) {
       alias['Insert Invoice Number'] = ctx['Invoice Number'];
       alias['Invoice No.'] = ctx['Invoice Number'];
@@ -606,80 +641,83 @@ export default function WhatsappCommunication() {
       alias['Insert Invoice Date'] = ctx['Invoice Date'];
       alias['DD/MM/YYYY'] = alias['DD/MM/YYYY'] || ctx['Invoice Date'];
     }
-
-    // Generic location/date
     if (ctx['Location']) alias['Insert Location'] = ctx['Location'];
     if (ctx['Date']) alias['Insert Date'] = ctx['Date'];
-
-    // Parts helpers for the parts template
+    if (ctx['Purchased Date']) alias['Purchase Date'] = ctx['Purchased Date'];
+    if (ctx['Insurance Expiry']) alias['Insurance Expiry Date'] = ctx['Insurance Expiry'];
+    if (ctx['Last Maintenance']) alias['Last Maintenance Date'] = ctx['Last Maintenance'];
+    if (ctx['Next Maintenance']) alias['Next Maintenance Date'] = ctx['Next Maintenance'];
     if (ctx['Part(s) Required']) alias['Parts Required'] = ctx['Part(s) Required'];
 
     return { ...ctx, ...alias };
   };
 
-  // WhatsApp-only template fixups
-  function applyWhatsAppTemplateFixups(
-    templateId: string,
-    tplType: EmailType,
-    body: string
-  ) {
+  function applyWhatsAppTemplateFixups(templateId: string, tplType: EmailType, body: string) {
     let out = body;
-
     if (tplType === 'claim') {
-      out = out.replace(
-        /Claim Type:\s*\[Vehicle Damage\][\s\S]*?\[Other\]/i,
-        'Claim Type: [Claim Type]'
-      );
+      out = out.replace(/Claim Type:\s*\[Vehicle Damage\][\s\S]*?\[Other\]/i, 'Claim Type: [Claim Type]');
     }
-
     const isMaintenanceBooking =
       tplType === 'maintenance' &&
-      /nsl_booking_request|vehicle_service_request|mot_failure_repair_request|maintenance_repair_request|mot_booking_request/i.test(
-        templateId
-      );
+      /nsl_booking_request|vehicle_service_request|mot_failure_repair_request|maintenance_repair_request|mot_booking_request/i.test(templateId);
 
     if (isMaintenanceBooking) {
-      out = out.replace(
-        /(^|\n)\s*🔹?\s*Location:\s*.*$/im,
-        '\n🔹 Location: [Location]'
-      );
-      out = out.replace(
-        /(^|\n)\s*🔹?\s*Additional Notes:\s*.*$/im,
-        '\n🔹 Additional Notes: [Additional Notes]'
-      );
+      out = out.replace(/(^|\n)\s*🔹?\s*Location:\s*.*$/im, '\n🔹 Location: [Location]');
+      out = out.replace(/(^|\n)\s*🔹?\s*Additional Notes:\s*.*$/im, '\n🔹 Additional Notes: [Additional Notes]');
       out = out.replace(/Preferred Date\s*&\s*Time/gi, 'Preferred Date');
     }
-
     return out;
   }
 
   function normalizeWhatsAppSignature(body: string): string {
     let result = body;
-    
-    // ✅ ONLY remove the website URLs so WhatsApp doesn't create the Link Preview bubble.
-    // The rest of the signature (Best regards, Company Name, Address, Phone) remains fully intact.
     result = result.replace(/\n?🌐\s*www\.aieskyline\.co\.uk/gi, '');
     result = result.replace(/\n?🌐\s*www\.aieclaims\.co\.uk/gi, '');
     result = result.replace(/\n?www\.aieskyline\.co\.uk/gi, '');
     result = result.replace(/\n?www\.aieclaims\.co\.uk/gi, '');
-    
     return result.trim();
   }
 
-  // Auto-fill
+  const getRecipientPhoneEmailAndName = useCallback((rid: string): { phone?: string; email?: string; name: string } => {
+    if (recipientMap.has(rid)) {
+      return recipientMap.get(rid)!;
+    }
+
+    if (emailType === 'finance' && recipientFilter === 'owner') {
+      const cust = customers.find(c => c.name === rid);
+      if (cust) {
+        const phone = (cust as any)?.whatsapp || (cust as any)?.phone || (cust as any)?.mobile;
+        return { name: rid, phone, email: cust.email };
+      }
+      return { name: rid, phone: '', email: '' }; 
+    }
+
+    if (rid?.startsWith('invoice:')) {
+      const invId = rid.split(':')[1];
+      const inv = invoices.find(i => i.id === invId);
+      const name = inv ? getInvoiceManualName(inv) : '';
+      const phone = inv ? getInvoiceManualPhone(inv) : '';
+      return { phone, email: '', name: name || 'Invoice Contact' };
+    }
+
+    return { name: 'Unknown' };
+  }, [recipientMap, emailType, recipientFilter, customers, invoices]);
+
+  // Isolate Template Auto-Fill Logic to Prevent Infinite Rendering Loops
+  const selectionCacheKey = `${selectedTemplateId}-${selectedRecipients.join(',')}-${selectedRecordId}-${selectedVehicleId}-${selectedMaintenanceId}`;
+
   useEffect(() => {
     if (!currentTemplate || !selectedTemplateId || !templateReady) return;
+    if (isUserEdited.current) return; 
 
     const rid = selectedRecipients[0];
     const ctx: Record<string, string> = {};
 
-    // Today (fallback date)
     ctx['DD/MM/YYYY'] = format(new Date(), 'dd/MM/yyyy');
     ctx["Today's Date"] = format(new Date(), 'dd/MM/yyyy');
     ctx['the current date'] = format(new Date(), 'dd/MM/yyyy');
     ctx['current Date'] = format(new Date(), 'dd/MM/yyyy');
 
-    // Base recipient
     if (emailType === 'maintenance') {
       const sc = serviceCenters.find(c => c.id === rid);
       if (sc) {
@@ -695,7 +733,6 @@ export default function WhatsappCommunication() {
         }
       }
     } else if (rid?.startsWith('invoice:')) {
-      // Synthetic manual-invoice recipient
       const invId = rid.split(':')[1];
       const inv = invoices.find(i => i.id === invId);
       const manualName = inv ? getInvoiceManualName(inv) : '';
@@ -705,19 +742,17 @@ export default function WhatsappCommunication() {
         ctx['Customer Name'] = manualName;
       }
     } else if (emailType === 'finance') {
-        // FINANCE RECIPIENT FILL
         if (recipientFilter === 'account') {
             const acc = accounts.find(a => a.id === rid);
             ctx["Recipient's Name"] = acc?.name || 'Account Holder';
             ctx['Driver Name'] = acc?.name || 'Account Holder';
             ctx['selected account name'] = acc?.name || 'Account Holder';
         } else if (recipientFilter === 'owner') {
-             ctx["Recipient's Name"] = rid; // ID is name for owner
+             ctx["Recipient's Name"] = rid; 
              ctx['Driver Name'] = rid;
              ctx['Owner Name'] = rid;
              ctx['selected account name'] = rid;
         } else {
-            // Customer
             const cust = customers.find(c => c.id === rid);
             if (cust) {
                 ctx["Driver's Name"] = cust.name;
@@ -749,25 +784,28 @@ export default function WhatsappCommunication() {
     if (selectedVehicleId) {
       const v = vehicles.find(vx => vx.id === selectedVehicleId);
       if (v) {
-        ctx['Vehicle Registration Number'] = v.registrationNumber;
-        ctx['Vehicle Reg'] = v.registrationNumber;
+        ctx['Vehicle Registration Number'] = v.registrationNumber || '';
+        ctx['Vehicle Reg'] = v.registrationNumber || '';
         ctx['Make & Model'] = [v.make, v.model].filter(Boolean).join(' ');
         if (v.year) ctx['Year'] = `${v.year}`;
+        ctx['Mileage'] = String(v.mileage || 'N/A');
+        ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
+        ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
+        ctx['MOT Expiry'] = safeFmt(v.motExpiry) || 'N/A';
+        ctx['Tax Expiry'] = safeFmt(v.roadTaxExpiry) || 'N/A';
+        ctx['Last Maintenance'] = safeFmt(v.lastMaintenance) || 'N/A';
+        ctx['Next Maintenance'] = safeFmt(v.nextMaintenance) || 'N/A';
       }
     }
 
-    /* ---------- FINANCE LOGIC ---------- */
     if (emailType === 'finance') {
         let balance = 0;
-        
-        // Calculate "Net Income" / "Outstanding Balance"
-        if (recipientFilter === 'customer') {
+        if (recipientFilter === 'customer' || recipientFilter === 'all') {
             const custTxns = transactions.filter(t => t.customerId === rid);
             const inc = custTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
             const exp = custTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
             balance = inc - exp;
         } else if (recipientFilter === 'account') {
-             // Account Balance logic: (Income into account) - (Expenses from account)
              const accTxns = transactions.filter(t => (t.accountsTo?.includes(rid) || t.accountsFrom?.includes(rid)));
              const inc = accTxns.filter(t => t.type === 'income' && t.accountsTo?.includes(rid)).reduce((s,t) => s + t.amount, 0);
              const exp = accTxns.filter(t => t.type === 'expense' && t.accountsFrom?.includes(rid)).reduce((s,t) => s + t.amount, 0);
@@ -786,7 +824,6 @@ export default function WhatsappCommunication() {
         ctx['Due Date'] = format(addDays(new Date(), 1), 'dd/MM/yyyy');
         ctx['Date'] = format(addDays(new Date(), 1), 'dd/MM/yyyy'); 
 
-        // Specific Transaction details
         if (selectedRecordId) {
             const txn = transactions.find(t => t.id === selectedRecordId);
             if (txn) {
@@ -796,12 +833,10 @@ export default function WhatsappCommunication() {
                 ctx['Date'] = safeFmt(txn.date, 'dd/MM/yyyy');
                 ctx['Reason'] = txn.category;
                 
-                // Vehicle Reg from Transaction
                 if (txn.vehicleId) {
                     const v = vehicles.find(vh => vh.id === txn.vehicleId);
                     if (v) ctx['Vehicle Reg'] = v.registrationNumber;
                 } else if (txn.vehicleName) {
-                     // Try to extract reg from snapshot name if available, else use name
                      const match = txn.vehicleName.match(/\((.*?)\)/);
                      ctx['Vehicle Reg'] = match ? match[1] : txn.vehicleName;
                 } else {
@@ -813,9 +848,6 @@ export default function WhatsappCommunication() {
         }
     }
 
-    // src/pages/WhatsappCommunication.tsx
-
-    /* ---------- MAINTENANCE ---------- */
     if (emailType === 'maintenance' && selectedMaintenanceId) {
       const m = maintenanceLogs.find(x => x.id === selectedMaintenanceId);
       if (m) {
@@ -836,15 +868,12 @@ export default function WhatsappCommunication() {
         ctx['Additional Notes'] = (m as any).description || '';
         ctx['Maintenance Type'] = (m as any).type || '';
 
-        // Safe mapped currentMileage
         ctx['Mileage'] = String((m as any).currentMileage || (m as any).mileage || 'N/A');
         ctx['NextMileage'] = String((m as any).nextServiceMileage || 'N/A');
         ctx['Insert Mileage'] = ctx['Mileage'];
 
-        // --- NEW DRIVER LOOKUP FOR SERVICE CENTER MESSAGES ---
         let driverName = (m as any).customerName || (m as any).driverName || v?.owner?.name;
         
-        // Try finding the active rental for this vehicle
         if (!driverName && v) {
           const activeRental = rentals.find((r: any) => r.vehicleId === v.id && r.status === 'active');
           if (activeRental && activeRental.customerId) {
@@ -853,7 +882,6 @@ export default function WhatsappCommunication() {
           }
         }
         
-        // Try fallback IDs on the maintenance log or vehicle
         if (!driverName) {
           const possibleCustId = (m as any).customerId || v?.customerId || (v as any)?.ownerId;
           if (possibleCustId) {
@@ -867,7 +895,6 @@ export default function WhatsappCommunication() {
           ctx['Customer Name'] = driverName;
           ctx["Driver's Name"] = driverName;
         }
-        // -----------------------------------------------------
 
         const parts = ((m as any).parts || []).filter(Boolean);
         if (parts.length) {
@@ -885,7 +912,6 @@ export default function WhatsappCommunication() {
       }
     }
 
-    /* ---------- RENTAL ---------- */
     if (emailType === 'rental' && selectedRecordId) {
       const r = rentals.find(x => x.id === selectedRecordId);
       if (r) {
@@ -901,7 +927,7 @@ export default function WhatsappCommunication() {
 
         ctx['Start Date']  = `${safeFmt(start, 'dd/MM/yyyy HH:mm')}`;
         ctx['End Date']    = `${safeFmt(end, 'dd/MM/yyyy HH:mm')}`;
-        ctx['Date']        = `${safeFmt(end, 'dd/MM/yyyy')}`; // fallback
+        ctx['Date']        = `${safeFmt(end, 'dd/MM/yyyy')}`; 
         
         ctx['Rental Type'] = (r as any).type || '';
         ctx['rental type (daily weekly or claim)'] = String((r as any).type || '').toUpperCase();
@@ -919,7 +945,6 @@ export default function WhatsappCommunication() {
            ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
         }
 
-        // --- ACCURATE COST CALCULATION (Includes Return & Overdue Charges) ---
         const totalWithAllVAT = calculateRentalCost(
           start, end, (r as any).type, v, (r as any).reason, (r as any).negotiatedRate ?? undefined,
           (r as any).storageCost || 0, (r as any).recoveryCost || 0, 
@@ -943,7 +968,6 @@ export default function WhatsappCommunication() {
         let subtotalNum = totalAmountDue;
         let vatNum = 0;
 
-        // Calculate VAT accurately if the rental includes VAT
         if ((r as any).includeVAT || (r as any).type === 'claim') {
           subtotalNum = totalAmountDue / 1.2;
           vatNum = totalAmountDue - subtotalNum;
@@ -967,7 +991,6 @@ export default function WhatsappCommunication() {
         ctx['Balance (like the rental owing balance)'] = remStr;
 
         if (currentTemplate.id === 'rental_payment_received') {
-          // Fallback to total paid, but try to find the absolute latest payment amount
           let latestPaymentAmount = paidStr;
           const payments = (r as any).payments || [];
           if (payments.length > 0) {
@@ -987,16 +1010,13 @@ export default function WhatsappCommunication() {
       }
     }
 
-    /* ---------- INVOICE ---------- */
     if (emailType === 'invoice' && selectedRecordId) {
       const inv = invoices.find(i => i.id === selectedRecordId);
       if (inv) {
-        // ✅ Pull precise invoiceNumber, else fallback securely to INV-xxxxx
         const invNo = inv.invoiceNumber || `INV-${inv.id.slice(-8).toUpperCase()}`;
         ctx['Invoice Number'] = invNo;
         ctx['Invoice Date'] = `${safeFmt((inv as any).date, 'dd/MM/yyyy')}`;
         
-        // ✅ Use "total" correctly instead of legacy "amount"
         const totalAmount = Number((inv as any).remainingAmount ?? (inv as any).total ?? 0).toFixed(2);
         ctx['Amount'] = totalAmount;
         ctx['Total Amount'] = totalAmount;
@@ -1006,12 +1026,10 @@ export default function WhatsappCommunication() {
         ctx['Due Date'] = `${safeFmt((inv as any).dueDate, 'dd/MM/yyyy')}`;
         ctx['Invoice No.'] = invNo;
 
-        // set Customer Name from invoice manual fields if not set yet
         if (!ctx['Customer Name']) {
           const fromInv = getInvoiceManualName(inv);
           if (fromInv) ctx['Customer Name'] = String(fromInv);
         }
-        // If invoice links to a saved customer, set name from that too
         if (!ctx['Customer Name'] && inv.customerId) {
           const rc = customers.find(c => c.id === inv.customerId);
           if (rc?.name) ctx['Customer Name'] = rc.name;
@@ -1019,7 +1037,6 @@ export default function WhatsappCommunication() {
       }
     }
 
-    /* ---------- CLAIM ---------- */
     if (emailType === 'claim' && selectedRecordId) {
       const c: any = claimDocById[selectedRecordId] || claims.find(x => x.id === selectedRecordId);
       if (c) {
@@ -1054,74 +1071,29 @@ export default function WhatsappCommunication() {
       }
     }
 
+    const regToFind = ctx['Vehicle Registration Number'] || ctx['Vehicle Reg'] || ctx['Client Registration'] || ctx['Main Reg the rental main vehicle registration number'];
+    if (regToFind) {
+      const v = vehicles.find(vx => (vx.registrationNumber || '').toLowerCase() === regToFind.toLowerCase());
+      if (v) {
+        ctx['Make & Model'] = [v.make, v.model].filter(Boolean).join(' ');
+        if (v.year) ctx['Year'] = `${v.year}`;
+        ctx['Mileage'] = String(v.mileage || 'N/A');
+        ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
+        ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
+        ctx['MOT Expiry'] = safeFmt(v.motExpiry) || 'N/A';
+        ctx['Tax Expiry'] = safeFmt(v.roadTaxExpiry) || 'N/A';
+        ctx['Last Maintenance'] = safeFmt(v.lastMaintenance) || 'N/A';
+        ctx['Next Maintenance'] = safeFmt(v.nextMaintenance) || 'N/A';
+      }
+    }
+    
     const withAliases = addTemplateAliases(ctx);
     const subjectT = currentTemplate.subjectTemplate;
     const bodyT = applyWhatsAppTemplateFixups(currentTemplate.id, emailType, currentTemplate.bodyTemplate);
 
     setSubject(fillPlaceholders(subjectT, withAliases));
     setMessage(fillPlaceholders(bodyT, withAliases));
-  }, [
-    currentTemplate, selectedTemplateId, templateReady, emailType,
-    selectedRecipients, selectedVehicleId, selectedMaintenanceId, selectedRecordId,
-    customers, vehicles, rentals, maintenanceLogs, invoices, claims, legalHandlers, claimDocById, 
-    transactions, accounts, recipientFilter
-  ]);
-
-  // Returns phone/email/name for a recipient id (including synthetic invoice ids)
-  const getRecipientPhoneEmailAndName = (rid: string): { phone?: string; email?: string; name: string } => {
-    if (emailType === 'finance') {
-        if (recipientFilter === 'account') {
-            const acc = accounts.find(a => a.id === rid);
-            return { name: acc?.name || 'Account', phone: '', email: '' }; // Accounts might not have phones, user should probably manually handle or account has contact info
-        }
-        if (recipientFilter === 'owner') {
-            // Try to find an owner contact in vehicles? Or just return name
-            const cust = customers.find(c => c.name === rid);
-            if (cust) {
-                 const phone = (cust as any)?.whatsapp || (cust as any)?.phone || (cust as any)?.mobile;
-                 return { name: rid, phone, email: cust.email };
-            }
-            return { name: rid, phone: '', email: '' }; 
-        }
-        // Customer
-        const cust = customers.find(c => c.id === rid);
-        const phone = (cust as any)?.whatsapp || (cust as any)?.phone || (cust as any)?.mobile;
-        return { name: cust?.name || '', phone, email: cust?.email };
-    }
-
-    if (emailType === 'maintenance') {
-      const sc = serviceCenters.find(c => c.id === rid);
-      if (sc) return { phone: sc?.phone, email: sc?.email, name: sc?.name || '' };
-      // Fallback: check customers too
-      const cust = customers.find(c => c.id === rid);
-      if (cust) {
-        const phone = (cust as any)?.whatsapp || (cust as any)?.phone || (cust as any)?.mobile || (cust as any)?.tel;
-        return { phone, email: cust?.email, name: cust?.name || '' };
-      }
-    }
-
-    // Synthetic ad-hoc invoice contact
-    if (rid?.startsWith('invoice:')) {
-      const invId = rid.split(':')[1];
-      const inv = invoices.find(i => i.id === invId);
-      const name = inv ? getInvoiceManualName(inv) : '';
-      const phone = inv ? getInvoiceManualPhone(inv) : '';
-      return { phone, email: '', name: name || 'Invoice Contact' };
-    }
-
-    const customer = customers.find(x => x.id === rid);
-    if (customer) {
-      const phone = (customer as any)?.whatsapp || (customer as any)?.phone || (customer as any)?.mobile || (customer as any)?.tel;
-      return { phone, email: customer?.email, name: customer?.name || '' };
-    }
-
-    const handler = legalHandlers.find(h => h.id === rid);
-    if (handler) {
-      return { phone: handler?.phone, email: handler?.email, name: handler?.name || '' };
-    }
-
-    return { name: 'Unknown' };
-  };
+  }, [selectionCacheKey, currentTemplate, templateReady, emailType, claimDocById]);
 
   const handleSend = async () => {
     if (!subject || !message) return toast.error('Subject & message required');
@@ -1131,7 +1103,6 @@ export default function WhatsappCommunication() {
     let sent = 0;
 
     try {
-      // 1. Upload custom files to storage first to get URLs
       const uploadedCustomDocs: { name: string; url: string }[] = [];
       if (customFiles.length > 0) {
         toast.loading('Uploading attachments...');
@@ -1144,10 +1115,8 @@ export default function WhatsappCommunication() {
         toast.dismiss();
       }
 
-      // 2. Combine all attachments
-      const allAttachments = [...selectedRentalDocs, ...uploadedCustomDocs];
+      const allAttachments = [...selectedSystemDocs, ...uploadedCustomDocs];
 
-      // 3. Prepare the final text
       let rawText = buildWhatsAppMessage({
         type: `AIE Skyline ${emailType.charAt(0).toUpperCase() + emailType.slice(1)}`, 
         subject: subject?.trim(),
@@ -1156,7 +1125,6 @@ export default function WhatsappCommunication() {
 
       let text = normalizeWhatsAppSignature(rawText);
 
-      // Append attachment links if any exist
       if (allAttachments.length > 0) {
         text += '\n\n📎 *Attachments:*';
         allAttachments.forEach(att => {
@@ -1188,9 +1156,8 @@ export default function WhatsappCommunication() {
           timestamp: new Date()
         });
         
-        // Clear files after successful send
         setCustomFiles([]);
-        setSelectedRentalDocs([]);
+        setSelectedSystemDocs([]);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -1201,7 +1168,6 @@ export default function WhatsappCommunication() {
     }
   };
 
-  // History filters
   const [historyTypeFilter, setHistoryTypeFilter] = useState<EmailType | 'all'>('all');
   const [historyTemplateFilter, setHistoryTemplateFilter] = useState<string>('');
   const [historyRecipientFilter, setHistoryRecipientFilter] = useState<string>('');
@@ -1219,16 +1185,25 @@ export default function WhatsappCommunication() {
       }
       return true;
     });
-  }, [history, historyTypeFilter, historyTemplateFilter, historyRecipientFilter, serviceCenters, legalHandlers, customers, accounts, recipientFilter]);
+  }, [history, historyTypeFilter, historyTemplateFilter, historyRecipientFilter, getRecipientPhoneEmailAndName]);
 
-  // ─── UI ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    isUserEdited.current = false;
+  }, [
+    emailType,
+    selectedTemplateId,
+    selectedRecipients,
+    selectedRecordId,
+    selectedVehicleId,
+    selectedMaintenanceId
+  ]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">WhatsApp Messaging</h1>
       </div>
 
-      {/* Type + Template */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {availableTabs.map(t => (
           <button
@@ -1242,7 +1217,6 @@ export default function WhatsappCommunication() {
               setSelectedMaintenanceId('');
               setSubject('');
               setMessage('');
-              // If Finance selected, default filter to Customer first
               if (t === 'finance') setRecipientFilter('customer');
               else setRecipientFilter('all');
             }}
@@ -1264,10 +1238,8 @@ export default function WhatsappCommunication() {
         </select>
       </div>
 
-      {/* Recipients */}
       <div className="bg-white p-4 rounded shadow space-y-2 border border-green-100">
         
-        {/* Recipient Filter UI */}
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
             <div className="flex gap-2 mb-2 flex-wrap">
                 {emailType !== 'finance' && (
@@ -1365,75 +1337,87 @@ export default function WhatsappCommunication() {
                   </div>
                   <button
                     onClick={() => {
-                      setSelectedRecipients(selected ? [] : [id]);
-                      if (!selected) {
+                      const isCurrentlySelected = selectedRecipients.includes(id);
+                      const newSelection = isCurrentlySelected ? [] : [id]; 
+
+                      if (newSelection.length === 0) {
                         setSelectedRecordId('');
                         setSelectedMaintenanceId('');
                         setSelectedVehicleId('');
                       }
+
+                      if (newSelection.length === 1 && emailType === 'custom') {
+                        const activeRental = rentals.find((r: any) => r.customerId === id && r.status === 'active');
+                        if (activeRental) {
+                          setSelectedVehicleId(activeRental.vehicleId);
+                        } else {
+                          const assignedVehicle = vehicles.find(v => v.customerId === id || (v as any).ownerId === id);
+                          if (assignedVehicle) {
+                            setSelectedVehicleId(assignedVehicle.id);
+                          }
+                        }
+                      }
+
+                      setSelectedRecipients(newSelection);
                     }}
                     className="p-1 bg-green-100 rounded text-green-700"
-                    title="Select recipient"
+                    title={selected ? "Deselect recipient" : "Select recipient"}
                   >
                     <MessageSquareText className="h-4 w-4" />
                   </button>
                 </div>
 
-                {emailType === 'custom' && currentTemplate?.requiredFields?.includes('vehicle') && selected && (
-                  <SearchableSelect
-                    label="Select Vehicle"
-                    options={getRelatedRecords(id)}
-                    value={selectedVehicleId}
-                    onChange={setSelectedVehicleId}
-                  />
-                )}
-                {emailType === 'custom' && currentTemplate?.requiredFields?.includes('maintenance') && selected && (
-                  <SearchableSelect
-                    label="Select Maintenance"
-                    options={getRelatedRecords(id)}
-                    value={selectedMaintenanceId}
-                    onChange={setSelectedMaintenanceId}
-                  />
-                )}
-                {emailType === 'rental' && selected && (
-                  <SearchableSelect
-                    label="Select Rental"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {emailType === 'maintenance' && selected && (
-                  <SearchableSelect
-                    label="Select Maintenance"
-                    options={getRelatedRecords(id)}
-                    value={selectedMaintenanceId}
-                    onChange={setSelectedMaintenanceId}
-                  />
-                )}
-                {emailType === 'invoice' && selected && (
-                  <SearchableSelect
-                    label="Select Invoice"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {emailType === 'claim' && selected && (
-                  <SearchableSelect
-                    label="Select Claim"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
-                )}
-                {emailType === 'finance' && selected && (
-                  <SearchableSelect
-                    label="Select Transaction"
-                    options={getRelatedRecords(id)}
-                    value={selectedRecordId}
-                    onChange={setSelectedRecordId}
-                  />
+                {selected && selectedRecipients.length === 1 && (
+                  <div className="mt-3">
+                    {emailType === 'custom' && (
+                      <SearchableSelect
+                        label="Select Vehicle"
+                        options={relatedRecordsOptions}
+                        value={selectedVehicleId}
+                        onChange={setSelectedVehicleId}
+                      />
+                    )}
+                    {emailType === 'rental' && (
+                      <SearchableSelect
+                        label="Select Rental"
+                        options={relatedRecordsOptions}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'maintenance' && (
+                      <SearchableSelect
+                        label="Select Maintenance"
+                        options={relatedRecordsOptions}
+                        value={selectedMaintenanceId}
+                        onChange={setSelectedMaintenanceId}
+                      />
+                    )}
+                    {emailType === 'invoice' && (
+                      <SearchableSelect
+                        label="Select Invoice"
+                        options={relatedRecordsOptions}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'claim' && (
+                      <SearchableSelect
+                        label="Select Claim"
+                        options={relatedRecordsOptions}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                    {emailType === 'finance' && (
+                      <SearchableSelect
+                        label="Select Transaction"
+                        options={relatedRecordsOptions}
+                        value={selectedRecordId}
+                        onChange={setSelectedRecordId}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -1441,14 +1425,16 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      {/* Composer + Preview */}
       <div className="bg-white p-4 rounded shadow space-y-4 border border-green-100">
         <div>
           <label className="font-medium text-green-700">Subject</label>
           <input
             className="mt-1 w-full border rounded p-2 focus:ring-2 focus:ring-green-400"
             value={subject}
-            onChange={e => setSubject(e.target.value)}
+            onChange={e => {
+              setSubject(e.target.value); 
+              isUserEdited.current = true;
+            }}
             placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
           />
         </div>
@@ -1457,28 +1443,67 @@ export default function WhatsappCommunication() {
           <textarea
             className="mt-1 w-full border rounded p-2 h-[600px] focus:ring-2 focus:ring-green-400"
             value={message}
-            onChange={e => setMessage(e.target.value)}
+            onChange={e => {
+              setMessage(e.target.value);
+              isUserEdited.current = true;
+            }}
             placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
           />
         </div>
 
-        {/* --- ATTACHMENTS SECTION --- */}
         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
             <Paperclip className="w-4 h-4" /> Attachments
           </h3>
-          
-          {/* Rental Pre-generated Docs */}
-          {availableRentalDocs.length > 0 && (
+
+          {/* On-The-Fly Generate Document Buttons */}
+          {selectedRecordId && (emailType === 'finance' || emailType === 'invoice') && (
             <div className="mb-4">
-              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Rental Documents</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+                Generate Documents
+              </span>
               <div className="flex flex-wrap gap-2">
-                {availableRentalDocs.map((doc, idx) => {
-                  const isSelected = selectedRentalDocs.some(d => d.url === doc.url);
+                {emailType === 'finance' && (
+                  <>
+                    {!transactions.find(t => t.id === selectedRecordId)?.documentUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Finance Document'}
+                      </button>
+                    )}
+                    {!transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
+                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors">
+                        {isGeneratingDoc ? 'Generating...' : '+ Generate Receipt'}
+                      </button>
+                    )}
+                  </>
+                )}
+                {emailType === 'invoice' && !invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
+                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors">
+                    {isGeneratingDoc ? 'Generating...' : '+ Generate Invoice PDF'}
+                  </button>
+                )}
+                {emailType === 'finance' && transactions.find(t => t.id === selectedRecordId)?.documentUrl && transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
+                  <span className="text-xs text-gray-400 italic py-1.5">All standard documents generated.</span>
+                )}
+                {emailType === 'invoice' && invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
+                  <span className="text-xs text-gray-400 italic py-1.5">Invoice PDF already generated.</span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {availableSystemDocs.length > 0 && (
+            <div className="mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+                {emailType === 'rental' ? 'Rental Documents' : emailType === 'finance' ? 'Finance Documents' : emailType === 'invoice' ? 'Invoice Documents' : 'System Documents'}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {availableSystemDocs.map((doc, idx) => {
+                  const isSelected = selectedSystemDocs.some(d => d.url === doc.url);
                   return (
                     <button
                       key={idx}
-                      onClick={() => toggleRentalDoc(doc)}
+                      onClick={() => toggleSystemDoc(doc)}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
                         isSelected 
                           ? 'bg-green-100 border-green-500 text-green-800' 
@@ -1494,7 +1519,6 @@ export default function WhatsappCommunication() {
             </div>
           )}
 
-          {/* Custom Upload */}
           <div>
             <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Upload Files</span>
             <input 
@@ -1521,7 +1545,6 @@ export default function WhatsappCommunication() {
             )}
           </div>
         </div>
-        {/* --- END ATTACHMENTS SECTION --- */}
 
         <div className="flex items-center gap-2">
           <button
@@ -1542,7 +1565,6 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      {/* Preview Modal */}
       <Modal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} title="WhatsApp Preview" size="lg">
         {selectedRecipients.length !== 1 ? (
           <div className="text-sm text-gray-600">
@@ -1551,8 +1573,7 @@ export default function WhatsappCommunication() {
         ) : (
           <div className="space-y-3">
             {(() => {
-              // Note: The preview shows what text will look like, including attachment links
-              const allAttachments = [...selectedRentalDocs, ...customFiles.map(f => ({ name: f.name, url: '[Link generated upon sending]' }))];
+              const allAttachments = [...selectedSystemDocs, ...customFiles.map(f => ({ name: f.name, url: '[Link generated upon sending]' }))];
               
               let rawPreviewText = buildWhatsAppMessage({
                 type: `AIE Skyline ${emailType.charAt(0).toUpperCase() + emailType.slice(1)}`,
@@ -1598,7 +1619,6 @@ export default function WhatsappCommunication() {
         )}
       </Modal>
 
-      {/* History */}
       <div className="bg-white p-4 rounded shadow border border-green-100">
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-medium text-green-700">WhatsApp History</h2>
@@ -1660,10 +1680,7 @@ export default function WhatsappCommunication() {
                 <td className="border px-2 py-1 text-sm capitalize">{h.type}</td>
                 <td className="border px-2 py-1 text-sm">{h.templateId}</td>
                 <td className="border px-2 py-1 text-sm font-medium">
-                  {h.recipients.map(rid => {
-                    const rec = getRecipientPhoneEmailAndName(rid);
-                    return rec?.name;
-                  }).filter(Boolean).join(', ')}
+                  {h.recipients.map(rid => getRecipientPhoneEmailAndName(rid)?.name).filter(Boolean).join(', ')}
                 </td>
                 <td className="border px-2 py-1 text-sm text-gray-600 truncate max-w-xs">{h.subject}</td>
               </tr>

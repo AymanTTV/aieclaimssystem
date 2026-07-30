@@ -1,3 +1,4 @@
+// src/components/driverPay/DriverPayTable.tsx
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { DriverPay, PaymentPeriod } from '../../types/driverPay';
@@ -23,6 +24,10 @@ interface DriverPayTableProps {
   onAddPeriod: (record: DriverPay) => void;
   onLockDriver: (record: DriverPay) => void;
   onActivateDriver: (record: DriverPay) => void;
+  // 🟢 Added selection properties
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: (ids: string[], isSelected: boolean) => void;
 }
 
 const DriverPayTable: React.FC<DriverPayTableProps> = ({
@@ -36,6 +41,9 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   onAddPeriod,
   onLockDriver,
   onActivateDriver,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -64,6 +72,29 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   };
 
   const columns = [
+    // 🟢 NEW Column for selections
+    {
+      id: 'selection',
+      header: () => (
+        <input
+          type="checkbox"
+          className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          checked={records.length > 0 && selectedIds.size === records.length}
+          onChange={(e) => onToggleSelectAll(records.map(r => r.id), e.target.checked)}
+          aria-label="Select all drivers on page"
+        />
+      ),
+      cell: ({ row }: any) => (
+        <input
+          type="checkbox"
+          className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          checked={selectedIds.has(row.original.id)}
+          onChange={() => onToggleSelect(row.original.id)}
+          onClick={(e) => e.stopPropagation()} // Prevent row click bubbling
+          aria-label={`Select driver ${row.original.name}`}
+        />
+      ),
+    },
     {
       header: 'Driver Info',
       cell: ({ row }: any) => (
@@ -155,7 +186,6 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
         const record = row.original;
         return (
           <div className="flex space-x-1.5">
-            {/* --- 🟢 CONDITIONAL ACTIONS BASED ON isLocked STATUS 🟢 --- */}
             {record.isLocked ? (
               <>
                 {can('driverPay', 'view') && (

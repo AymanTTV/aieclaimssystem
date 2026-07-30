@@ -51,6 +51,16 @@ export interface Permission {
   signatureReq?: boolean;
   clearHistory?: boolean;
   
+  // Mileage History Permissions
+  mileageHistoryView?: boolean;
+  mileageHistoryEdit?: boolean;
+  mileageHistoryDelete?: boolean;
+  
+  // Payment specific permissions
+  viewPayment?: boolean;
+  editPayment?: boolean;
+  deletePayment?: boolean;
+  
   // WhatsApp & Email targets
   targetFinance?: boolean;
   targetRental?: boolean;
@@ -70,7 +80,8 @@ export interface Permission {
 // ▶ All modules used across the app
 export interface RolePermissions {
   dashboard: Permission;
-  vehicles: Permission;             
+  vehicles: Permission;
+  utilisation: Permission;             
   maintenance: Permission;          
   rentals: Permission;              
   accidents: Permission;            
@@ -97,7 +108,7 @@ export interface RolePermissions {
   users: Permission;                
   todo: Permission;
   settings: Permission;
-  automation: Permission; // <-- NEW: Template Automation Control Page
+  automation: Permission; 
   memberProfile: Permission;
   memberRentals: Permission;
   memberTransactions: Permission;
@@ -107,15 +118,16 @@ export interface RolePermissions {
 // ------------------------- TEMPLATES TO ENSURE ALL KEYS RENDER -------------------------
 
 const BASE_DASHBOARD = { view: false };
-const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false };
+const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false, mileageHistoryView: false, mileageHistoryEdit: false, mileageHistoryDelete: false };
+const BASE_UTILISATION = { view: false, export: true, singleDoc: true };
 const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, tableStatus: false, complete: false, completed: false, singleDoc: false, categories: false };
-const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false };
+const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false };
 const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false };
 const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false };
 const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false, groups: false, singleDoc: false, recordPayment: false };
 const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false };
 const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false };
-const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false, groups: false, singleDoc: false };
+const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false };
 const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, share: false, categories: false, reoccurring: false, singleDoc: false };
 const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, accounts: false, categories: false, groups: false, reoccurring: false, assign: false, singleDoc: false };
 const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, singleDoc: false };
@@ -129,9 +141,9 @@ const BASE_WAITING = { view: false, create: false, update: false, delete: false,
 const BASE_COMPANY = { view: false, create: false, update: false, delete: false, cards: false };
 const BASE_TRASH = { view: false, cards: false, restore: false, deletePermanently: false };
 const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false };
-const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false };
+const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false };
 const BASE_SETTINGS = { view: false, update: false };
-const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false }; // <-- NEW: Template
+const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false }; 
 const BASE_PORTAL = { view: false, update: false };
 
 // ------------------------- DEFAULTS -------------------------
@@ -140,16 +152,17 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- MANAGER ----------------
   manager: {
     dashboard: { ...BASE_DASHBOARD, view: true },
-    vehicles: { ...BASE_VEHICLES, view: true, create: true, update: true, delete: true, cards: true, mileage: true, export: true, owner: true, syncStatus: true, sale: true, copyId: true, singleDoc: true },
+    vehicles: { ...BASE_VEHICLES, view: true, create: true, update: true, delete: true, cards: true, mileage: true, export: true, owner: true, syncStatus: true, sale: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true },
+    utilisation: { ...BASE_UTILISATION, view: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, tableStatus: true, complete: true, completed: true, singleDoc: true, categories: true },
-    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true },
+    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
     accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true },
     claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true, recordPayment: true },
     vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, update: true, delete: true, cards: true, singleDoc: true },
     driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
-    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true },
-    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true },
+    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
+    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
     finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, accounts: true, categories: true, groups: true, reoccurring: true, assign: true, singleDoc: true },
@@ -165,9 +178,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     company: { ...BASE_COMPANY, view: true, create: true, update: true, delete: true, cards: true },
     trash: { ...BASE_TRASH, view: true, cards: true, restore: true, deletePermanently: true },
     users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true },
-    todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true },
+    todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true, categories: true, groups: true },
     settings: { ...BASE_SETTINGS, view: true, update: true },
-    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, // <-- NEW
+    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, 
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -177,16 +190,17 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   // ---------------- ADMIN ----------------
   admin: {
     dashboard: { ...BASE_DASHBOARD, view: true },
-    vehicles: { ...BASE_VEHICLES, view: true, cards: true, mileage: true, export: true, copyId: true, singleDoc: true },
+    vehicles: { ...BASE_VEHICLES, view: true, cards: true, mileage: true, export: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, cards: true, export: true, tableStatus: true, completed: true, singleDoc: true },
-    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true },
+    utilisation: { ...BASE_UTILISATION, view: true },
+    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
     accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true },
     claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, singleDoc: true, recordPayment: true },
     vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, cards: true, singleDoc: true },
-    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, recordPayment: true, cards: true, export: true, singleDoc: true },
-    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, singleDoc: true },
-    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, singleDoc: true },
+    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
+    pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
+    aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
     finance: { ...BASE_FINANCE, view: true, cards: true, export: true, singleDoc: true },
@@ -202,9 +216,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     company: { ...BASE_COMPANY, view: true, update: true, cards: true },
     trash: { ...BASE_TRASH, view: true, cards: true },
     users: { ...BASE_USERS },
-    todo: { ...BASE_TODO, view: true, create: true, export: true },
+    todo: { ...BASE_TODO, view: true, create: true, export: true, categories: true, groups: true },
     settings: { ...BASE_SETTINGS, view: true },
-    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, // <-- NEW
+    automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -215,8 +229,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   finance: {
     dashboard: { ...BASE_DASHBOARD },
     vehicles: { ...BASE_VEHICLES },
+    utilisation: { ...BASE_UTILISATION },
     maintenance: { ...BASE_MAINTENANCE },
-    rentals: { ...BASE_RENTALS },
+    rentals: { ...BASE_RENTALS, viewPayment: true, recordPayment: true },
     accidents: { ...BASE_ACCIDENTS },
     claims: { ...BASE_CLAIMS },
     vdFinance: { ...BASE_VD_FINANCE },
@@ -241,7 +256,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS, view: true },
-    automation: { ...BASE_AUTOMATION }, // <-- NEW
+    automation: { ...BASE_AUTOMATION }, 
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -252,6 +267,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   claims: {
     dashboard: { ...BASE_DASHBOARD },
     vehicles: { ...BASE_VEHICLES },
+    utilisation: { ...BASE_UTILISATION },
     maintenance: { ...BASE_MAINTENANCE },
     rentals: { ...BASE_RENTALS },
     accidents: { ...BASE_ACCIDENTS },
@@ -278,7 +294,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
-    automation: { ...BASE_AUTOMATION }, // <-- NEW
+    automation: { ...BASE_AUTOMATION }, 
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -289,6 +305,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   company: {
     dashboard: { ...BASE_DASHBOARD },
     vehicles: { ...BASE_VEHICLES },
+    utilisation: { ...BASE_UTILISATION },
     maintenance: { ...BASE_MAINTENANCE },
     rentals: { ...BASE_RENTALS },
     accidents: { ...BASE_ACCIDENTS },
@@ -315,7 +332,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
-    automation: { ...BASE_AUTOMATION }, // <-- NEW
+    automation: { ...BASE_AUTOMATION }, 
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -326,6 +343,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   member: {
     dashboard: { ...BASE_DASHBOARD },
     vehicles: { ...BASE_VEHICLES },
+    utilisation: { ...BASE_UTILISATION },
     maintenance: { ...BASE_MAINTENANCE },
     rentals: { ...BASE_RENTALS },
     accidents: { ...BASE_ACCIDENTS },
@@ -352,7 +370,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
-    automation: { ...BASE_AUTOMATION }, // <-- NEW
+    automation: { ...BASE_AUTOMATION },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -360,7 +378,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   },
 };
 
-// Safely fetches the permissions array. If a newly defined role is somehow missing, it falls back to 'member' instead of returning undefined.
 export function getDefaultPermissions(role: Role): RolePermissions {
   return DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['member'];
 }

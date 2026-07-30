@@ -54,6 +54,10 @@ export const useVehicles = () => {
             createdAt: ensureValidDate(data.createdAt),
             updatedAt: ensureValidDate(data.updatedAt),
             purchasedDate: ensureValidDate(data.purchasedDate),
+            // ✅ Add these two lines:
+            firstRegistrationDate: ensureValidDate(data.firstRegistrationDate),
+           warrantyStartDate: ensureValidDate(data.warrantyStartDate),
+            warrantyEndDate: ensureValidDate(data.warrantyEndDate),
           } as Vehicle);
         });
         

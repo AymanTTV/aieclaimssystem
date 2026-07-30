@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceForm.tsx
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, deleteField } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, deleteField, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, MaintenanceLog, Part, VehicleOwner } from '../../types';
 import { addYears, format, addDays } from 'date-fns';
@@ -37,6 +37,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const { user } = useAuth();
   const { can, isCompany } = usePermissions(); // ✅ Get company flag to hide invoice
   const [loading, setLoading] = useState(false);
+  const [isGeneratingNumbers, setIsGeneratingNumbers] = useState(false);
 
   // Initialize manual entry state based on whether the log has vehicleDetails but no vehicleId
   const [manualEntry, setManualEntry] = useState(
@@ -126,6 +127,63 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     notes: editLog?.notes || '',
     status: editLog?.status || 'scheduled',
   });
+
+  // Auto-generate Invoice and Order Numbers based on selected type
+  useEffect(() => {
+    if (editLog) return;
+    
+    if (!formData.type) {
+      setOrderNumber('');
+      setInvoiceNumber('');
+      return;
+    }
+
+    const generateNumbers = async () => {
+      setIsGeneratingNumbers(true);
+      try {
+        const prefix = formData.type.charAt(0).toUpperCase();
+        
+        const q = query(
+          collection(db, 'maintenanceLogs'), 
+          where('type', '==', formData.type)
+        );
+        const snapshot = await getDocs(q);
+
+        let maxOrder = 0;
+        let maxInvoice = 0;
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          
+          if (data.orderNumber) {
+            const orderMatch = data.orderNumber.match(/\d+/);
+            if (orderMatch) {
+              const num = parseInt(orderMatch[0], 10);
+              if (num > maxOrder) maxOrder = num;
+            }
+          }
+          
+          if (data.invoiceNumber) {
+            const invoiceMatch = data.invoiceNumber.match(/\d+/);
+            if (invoiceMatch) {
+              const num = parseInt(invoiceMatch[0], 10);
+              if (num > maxInvoice) maxInvoice = num;
+            }
+          }
+        });
+
+        setOrderNumber(`${prefix}${maxOrder + 1}`);
+        setInvoiceNumber(`${prefix}${maxInvoice + 1}`);
+
+      } catch (error) {
+        console.error("Error generating auto-numbers:", error);
+      } finally {
+        setIsGeneratingNumbers(false);
+      }
+    };
+
+    generateNumbers();
+  }, [formData.type, editLog]);
 
   const computeCosts = () => {
     const round = (n: number) => Math.round(n * 100) / 100;
@@ -487,6 +545,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         {/* Order & Invoice Section */}
         <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Order & Invoice Details</h4>
+          
+          {!editLog && !formData.type && (
+            <p className="text-sm font-medium text-yellow-700 bg-yellow-50 p-3 rounded-md border border-yellow-200 mb-4">
+              Select the maintenance type below for the invoice number and order number to be autofilled.
+            </p>
+          )}
+
+          {isGeneratingNumbers && (
+            <p className="text-sm font-medium text-blue-600 animate-pulse mb-4">
+              Generating next sequence numbers...
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
               <FormField 
                 label="Maintenance Order Number" 

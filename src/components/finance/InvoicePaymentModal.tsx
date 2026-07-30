@@ -1,5 +1,4 @@
 // src/components/finance/InvoicePaymentModal.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Invoice, Vehicle, Customer, Account } from '../../types/finance';
 import { doc, updateDoc, getDocs, collection } from 'firebase/firestore';
@@ -8,7 +7,7 @@ import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import FormField from '../ui/FormField';
-import { Upload } from 'lucide-react';
+import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,6 +15,7 @@ interface InvoicePaymentModalProps {
   invoice: Invoice;
   vehicle?: Vehicle;
   customers: Customer[];
+  accounts: Account[];
   onClose: () => void;
 }
 
@@ -23,13 +23,17 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
   invoice,
   vehicle,
   customers,
+  accounts,
   onClose
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   
-  // State for finding the account name if not on the invoice object
   const [accountName, setAccountName] = useState(invoice.accountName || '');
+
+  // Initialize accounts with values from the invoice
+  const [accountTo, setAccountTo] = useState((invoice as any).accountTo || invoice.accountId || '');
+  const [accountTo2, setAccountTo2] = useState('');
 
   const [formData, setFormData] = useState({
     amountToPay: invoice.remainingAmount.toString(),
@@ -39,7 +43,6 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
     document: null as File | null
   });
 
-  // Fetch account name if ID exists but name is missing
   useEffect(() => {
     if (invoice.accountId && !invoice.accountName) {
         (async () => {
@@ -58,7 +61,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
     if (!user) return;
     
     const paymentAmount = parseFloat(formData.amountToPay);
-    if (paymentAmount <= 0 || paymentAmount > (invoice.remainingAmount + 0.01)) { // Added tolerance
+    if (paymentAmount <= 0 || paymentAmount > (invoice.remainingAmount + 0.01)) { 
       toast.error('Invalid payment amount');
       return;
     }
@@ -66,7 +69,6 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
     setLoading(true);
 
     try {
-      // ✅ FIX: Initialize as null, not undefined
       let documentUrl: string | null = null;
       
       if (formData.document) {
@@ -75,13 +77,13 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         documentUrl = await getDownloadURL(snap.ref);
       }
 
+      const newPaymentId = uuidv4();
       const newPayment = {
-        id: uuidv4(),
+        id: newPaymentId,
         date: new Date(),
         amount: paymentAmount,
         method: formData.method,
-        reference: formData.reference,
-        // ✅ FIX: This will now be string or null, never undefined
+        reference: formData.reference || 'N/A', 
         document: documentUrl, 
         notes: formData.notes,
         createdAt: new Date(),
@@ -90,7 +92,10 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
 
       const newPaidAmount = (invoice.paidAmount || 0) + paymentAmount;
       const newRemaining = invoice.total - newPaidAmount;
-      const newStatus = newRemaining <= 0.001 ? 'paid' : 'partially_paid';
+      
+      let newStatus = 'unpaid';
+      if (newPaidAmount >= invoice.total - 0.01 && invoice.total > 0) newStatus = 'paid';
+      else if (newPaidAmount > 0) newStatus = 'partially_paid';
 
       await updateDoc(doc(db, 'invoices', invoice.id), {
         paidAmount: newPaidAmount,
@@ -100,23 +105,52 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         updatedAt: new Date()
       });
 
+      const totalLogCost = invoice.total || 1; 
+      const vatRatio = (invoice.vatAmount || 0) / totalLogCost;
+      const netRatio = (invoice.subTotal || invoice.total || 0) / totalLogCost;
+
+      const paymentVatAmount = paymentAmount * vatRatio;
+      const paymentNetAmount = paymentAmount * netRatio;
+
+      let finalAccountId = accountTo;
+      if (!finalAccountId) {
+          const defaultAcc = accounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
+          if (defaultAcc) finalAccountId = defaultAcc.id;
+      }
+
+      const mergedAccountsTo = [];
+      if (finalAccountId) mergedAccountsTo.push(finalAccountId);
+      if (accountTo2) mergedAccountsTo.push(accountTo2);
+
+      // Map the vehicle owner properly so the Finance ledger can filter it instantly
+      let mappedVehicleOwner = undefined;
+      if (invoice.vehicleId) {
+         if (vehicle && vehicle.owner) {
+             mappedVehicleOwner = { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false };
+         } else {
+             mappedVehicleOwner = { name: 'AIE Skyline Limited', isDefault: true };
+         }
+      }
+
       await createFinanceTransaction({
         type: 'income',
-        category: 'Invoice Payment',
+        category: invoice.category || 'Invoice Payment',
         amount: paymentAmount,
-        description: `Payment for ${invoice.invoiceNumber || 'Invoice'}`,
+        netAmount: parseFloat(paymentNetAmount.toFixed(2)),
+        vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
+        description: [invoice.description, formData.notes].filter(Boolean).join(' - ') || `Payment for ${invoice.invoiceNumber || 'Invoice'}`,
         referenceId: invoice.id,
         vehicleId: invoice.vehicleId,
         vehicleName: invoice.vehicleName || undefined,
+        vehicleOwner: mappedVehicleOwner, // Added Explicit Owner
         customerId: invoice.customerId,
         customerName: invoice.customerName,
         paymentMethod: formData.method,
-        paymentReference: formData.reference,
+        paymentReference: formData.reference || 'N/A',
         status: 'completed',
-        paymentStatus: newStatus,
+        paymentStatus: newStatus as any,
         date: new Date(),
-        // ✅ Pass Account To (Credit this account)
-        accountTo: invoice.accountId || undefined 
+        accountsTo: mergedAccountsTo 
       });
 
       toast.success('Payment recorded');
@@ -145,12 +179,28 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
           <span className="font-bold">£{invoice.remainingAmount.toFixed(2)}</span>
         </div>
         
-        {/* ✅ Show linked account if exists */}
         {accountName && (
            <div className="text-xs text-gray-500 mt-2 text-right">
              Linked Finance Account: <span className="font-semibold">{accountName}</span>
            </div>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-gray-100">
+        <SearchableSelect
+          label="Account To (Main Credit)"
+          options={accounts.map(a => ({ id: a.id, label: a.name }))}
+          value={accountTo}
+          onChange={(val) => setAccountTo(val || '')}
+          placeholder="Select main account..."
+        />
+        <SearchableSelect
+          label="Also Credit Account (Merged into Record)"
+          options={accounts.map(a => ({ id: a.id, label: a.name }))}
+          value={accountTo2}
+          onChange={(val) => setAccountTo2(val || '')}
+          placeholder="Select second account..."
+        />
       </div>
 
       <FormField 
@@ -176,7 +226,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
       </div>
 
       <FormField 
-        label="Reference" 
+        label="Reference (Optional)" 
         value={formData.reference} 
         onChange={e => setFormData({...formData, reference: e.target.value})} 
         placeholder="Transaction ID" 
@@ -192,7 +242,6 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         />
       </div>
 
-      {/* Upload */}
       <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
          <label className="cursor-pointer">
             <span className="text-primary text-sm font-medium">Upload Receipt</span>

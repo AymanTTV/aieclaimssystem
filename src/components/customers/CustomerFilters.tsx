@@ -14,6 +14,10 @@ interface CustomerFiltersProps {
   statusFilter: 'active' | 'inactive' | 'all';
   onStatusFilterChange: (status: 'active' | 'inactive' | 'all') => void;
 
+  // [NEW] Bill Copy props
+  billCopyFilter: 'available' | 'unavailable' | 'all';
+  onBillCopyFilterChange: (status: 'available' | 'unavailable' | 'all') => void;
+
   selectedGender: Gender | 'all';
   onGenderFilter: (gender: Gender | 'all') => void;
   
@@ -26,6 +30,7 @@ interface CustomerFiltersProps {
 
 const EXPIRY_OPTIONS = [
   { id: 'all', label: 'All Document Statuses' },
+  { id: 'already_expired', label: 'Already Expired' },
   { id: 'hide_expired', label: 'Hide Expired Documents' },
   { id: 'soon_all', label: 'Soon Expiring (Both in 2 wks)' },
   { id: 'soon_license', label: 'Soon Expiring License (2 wks)' },
@@ -38,10 +43,18 @@ const STATUS_OPTIONS = [
   { id: 'all', label: 'All Statuses' },
 ];
 
+// [NEW] Bill copy options
+const BILL_COPY_OPTIONS = [
+  { id: 'all', label: 'All Bill Copy Status' },
+  { id: 'available', label: 'Available (In Office)' },
+  { id: 'unavailable', label: 'Unavailable (Not in Office)' },
+];
+
 const CustomerFilters: React.FC<CustomerFiltersProps> = ({
   searchQuery, onSearchChange,
   expiryFilters, onExpiryFiltersChange,
   statusFilter, onStatusFilterChange,
+  billCopyFilter, onBillCopyFilterChange, // [NEW]
   selectedGender, onGenderFilter,
   ageRange, onAgeRangeFilter,
   selectedType, onTypeFilter,
@@ -63,7 +76,6 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
 
       <div className="flex flex-wrap gap-4 items-end">
         
-        {/* Status Dropdown */}
         <div className="w-48">
           <SearchableSelect
             label="Customer Status"
@@ -73,7 +85,6 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
           />
         </div>
 
-        {/* Expiry Multi-Select Dropdown */}
         <div className="w-64">
           <SearchableSelect
             label="Document Expiry"
@@ -82,6 +93,16 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             onChange={(val) => onExpiryFiltersChange(val as string[])}
             isMulti
             isClearable
+          />
+        </div>
+
+        {/* [NEW] Bill Copy Select */}
+        <div className="w-56">
+          <SearchableSelect
+            label="Office Bill Copy"
+            options={BILL_COPY_OPTIONS}
+            value={billCopyFilter}
+            onChange={(val) => onBillCopyFilterChange(val as any)}
           />
         </div>
 

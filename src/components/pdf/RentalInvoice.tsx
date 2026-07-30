@@ -2,11 +2,11 @@
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
-import { format, differenceInHours, isAfter, addDays } from 'date-fns';
+import { format, differenceInHours, isAfter } from 'date-fns';
 import { styles } from './styles';
 import {
   calculateOverdueCost,
-  calculateRentalCost,
+  calculateRentalCostDetailed,
   RENTAL_RATES,
   getOverdueUnits,
 } from '../../utils/rentalCalculations';
@@ -24,6 +24,9 @@ interface RentalInvoiceProps {
     registrationNumber: string;
     signature?: string;
     rentalInvoiceTerms?: string;
+    bankName?: string;
+    accountNumber?: string;
+    sortCode?: string;
   };
 }
 
@@ -56,16 +59,11 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     return dt ? format(dt, 'dd/MM/yyyy HH:mm') : 'N/A';
   };
 
-  const fmtDateOnly = (d: any) => {
-    const dt = toDate(d);
-    return dt ? format(dt, 'dd/MM/yyyy') : 'N/A';
-  };
-
   // ---------- Dates, units ----------
   const sd = toDate(rental.startDate)!;
   const ed = toDate(rental.endDate)!;
   const invoiceDate = ed || new Date();
-  const dueDate = addDays(invoiceDate, 30);
+  const dueDate = ed || new Date(); // Due date is now the rental end date
   const unit = rental.type === 'weekly' ? 'week' : 'day';
   
   const totalHours = differenceInHours(ed, sd);
@@ -75,112 +73,116 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
   // ---------- Rates & Formatting ----------
   const vehicleRate =
     rental.type === 'daily'
-      ? (vehicle.dailyRentalPrice ?? 0)
+      ? (rental.lockedDailyRate ?? vehicle.dailyRentalPrice ?? RENTAL_RATES.daily)
       : rental.type === 'weekly'
-      ? (vehicle.weeklyRentalPrice ?? 0)
-      : (vehicle.claimRentalPrice ?? 0);
+      ? (rental.lockedWeeklyRate ?? vehicle.weeklyRentalPrice ?? RENTAL_RATES.weekly)
+      : (rental.lockedClaimRate ?? vehicle.claimRentalPrice ?? RENTAL_RATES.claim);
+      
   const fallbackRate = RENTAL_RATES[rental.type] ?? 0;
   const effectiveRate = (rental.negotiatedRate ?? vehicleRate ?? fallbackRate) || 0;
   const hireRate = effectiveRate.toFixed(2);
   const hireUnits = `${baseUnits} ${unit}${baseUnits === 1 ? '' : 's'}`;
 
-  // ---------- 1. Calculations (Net & VAT Separation) ----------
+  // ---------- 1. Master Calculation (100% Synced with App) ----------
   
-  // Helper to extract Net and VAT from a Gross amount (if VAT is included)
-  const extractNetAndVat = (gross: number, hasVat: boolean) => {
-    if (!gross) return { net: 0, vat: 0 };
-    if (!hasVat) return { net: gross, vat: 0 };
-    const net = gross / 1.2;
-    return { net, vat: gross - net };
-  };
+  const storageNet = rental.type === 'claim' ? (rental.storageDays || 0) * (rental.storageCostPerDay || 0) : 0;
+  const netDelivery = rental.deliveryCharge || 0;
+  const netCollection = rental.collectionCharge || 0;
+  const netRecovery = rental.type === 'claim' ? (rental.recoveryCost || 0) : 0;
+  const netInsDay = rental.type !== 'weekly' ? (rental.insurancePerDay || 0) : 0;
+  const netInsWeek = rental.type === 'weekly' ? ((rental as any).insurancePerWeek || 0) : 0;
 
-  // Helper to calculate VAT from a Net amount
-  const calcVatFromNet = (net: number, hasVat: boolean) => {
-    if (!net || !hasVat) return 0;
-    return net * 0.2;
-  };
+  // Calculate Extra Charges Total
+  const extraTotal = (rental.extraCharges || []).reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
 
-  // 1. Hire Charges (Already Net from calculateRentalCost)
-  const netHireTotal = vehicle
-    ? calculateRentalCost(
-        sd, ed, rental.type, vehicle, rental.reason, rental.negotiatedRate ?? undefined,
-        0, 0, 0, 0, 0, 0, 
-        false, false, false, false, false, false
-      )
-    : 0;
-  const vatHire = calcVatFromNet(netHireTotal, rental.includeVAT);
+  // Resolve Discounts (Legacy vs History)
+  const hasHistory = rental.discounts && rental.discounts.length > 0;
+  const calcDiscountPct = hasHistory ? 0 : (rental.discountPercentage || 0);
+  const calcDiscountAmt = hasHistory 
+    ? rental.discounts!.reduce((sum, d) => sum + d.amount, 0) 
+    : (rental.discountAmount || 0);
 
-  // 2. Storage (Stored as Gross)
-  const { net: netStorage, vat: vatStorage } = extractNetAndVat(rental.storageCost || 0, rental.includeStorageVAT || false);
+  // Master Calculation for Proportional VAT & Discounts (Matches all other modals)
+  const masterDetails = calculateRentalCostDetailed(
+    sd, ed, rental.type, vehicle, rental.reason, rental.negotiatedRate ?? undefined,
+    storageNet, netRecovery, netDelivery, netCollection, netInsDay, netInsWeek,
+    rental.includeVAT || false, rental.deliveryChargeIncludeVAT || false, rental.collectionChargeIncludeVAT || false,
+    rental.insurancePerDayIncludeVAT || false, (rental as any).insurancePerWeekIncludeVAT || false, rental.includeRecoveryCostVAT || false, rental.includeStorageVAT || false,
+    calcDiscountPct, calcDiscountAmt, rental.status,
+    rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate,
+    extraTotal,
+    rental.discounts || [] // 👈 ADD THIS: Passes the discount targets into the engine
+  );
 
-  // 3. Delivery (Stored as Gross)
-  const { net: netDelivery, vat: vatDelivery } = extractNetAndVat(rental.deliveryCharge || 0, rental.deliveryChargeIncludeVAT || false);
+  // Get pure hire net for the line item breakdown
+  const hireDetails = calculateRentalCostDetailed(
+    sd, ed, rental.type, vehicle, rental.reason, rental.negotiatedRate ?? undefined,
+    0, 0, 0, 0, 0, 0, false, false, false, false, false, false, false, 0, 0, rental.status,
+    rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate, 0,
+    [] // 👈 ADD THIS: Explicitly empty array so it calculates pure base
+  );
+  const netHireTotal = hireDetails.gross; // Gross = Net when VAT flags are false
 
-  // 4. Collection (Stored as Gross)
-  const { net: netCollection, vat: vatCollection } = extractNetAndVat(rental.collectionCharge || 0, rental.collectionChargeIncludeVAT || false);
-
-  // 5. Recovery (Stored as Net)
-  const netRecovery = rental.recoveryCost || 0;
-  const vatRecovery = calcVatFromNet(netRecovery, rental.includeRecoveryCostVAT || false);
-
-  // 6. Insurance (Stored as Rate (Net))
   let netInsurance = 0;
   let insuranceDesc = 'Insurance';
   let insuranceRateDisplay = '0.00';
   let insuranceUnitDisplay = '0';
-  let insuranceHasVat = false;
 
   if (rental.type === 'weekly') {
     const weeks = Math.ceil(calculatedDays / 7);
-    netInsurance = (rental.insurancePerWeek || 0) * weeks;
+    netInsurance = netInsWeek * weeks;
     insuranceDesc = 'Insurance (Weekly)';
-    insuranceRateDisplay = (rental.insurancePerWeek || 0).toFixed(2);
+    insuranceRateDisplay = netInsWeek.toFixed(2);
     insuranceUnitDisplay = String(weeks);
-    insuranceHasVat = (rental as any).insurancePerWeekIncludeVAT || false;
   } else {
-    netInsurance = (rental.insurancePerDay || 0) * calculatedDays;
+    netInsurance = netInsDay * calculatedDays;
     insuranceDesc = 'Insurance (Daily)';
-    insuranceRateDisplay = (rental.insurancePerDay || 0).toFixed(2);
+    insuranceRateDisplay = netInsDay.toFixed(2);
     insuranceUnitDisplay = String(calculatedDays);
-    insuranceHasVat = rental.insurancePerDayIncludeVAT || false;
   }
-  const vatInsurance = calcVatFromNet(netInsurance, insuranceHasVat);
 
-  // 7. Overdue (Calculated as Gross usually, assuming includes VAT if rental does)
+  // Overdue
   const now = new Date();
   const showOverdue = rental.status === 'active' && isAfter(now, ed);
   const overdueUnits = showOverdue ? getOverdueUnits(rental, now) : 0;
   const overdueGross = showOverdue ? calculateOverdueCost(rental, now, vehicle) : 0;
-  const { net: netOverdue, vat: vatOverdue } = extractNetAndVat(overdueGross, rental.includeVAT);
+  const netOverdue = rental.includeVAT ? overdueGross / 1.2 : overdueGross;
+  const vatOverdue = overdueGross - netOverdue;
 
-  // 8. Return Charges (Stored as Gross usually)
+  // Return Charges
   const rc = rental.returnCondition;
   const returnFuelGross = rc?.fuelCharge || 0;
   const returnDamageGross = rc?.damageCost || 0;
   const returnCleaningGross = rc?.cleaningCharge || 0;
-  const returnTotalGross = returnFuelGross + returnDamageGross + returnCleaningGross;
-  // Assume return charges follow rental VAT setting or are non-VATable? 
-  // Standard practice: Damages often no VAT, Services yes. For simplicity, applying rental.includeVAT
-  const { net: netReturnTotal, vat: vatReturnTotal } = extractNetAndVat(returnTotalGross, rental.includeVAT);
-  // Breakdowns for table (Approximate Net for display)
-  const { net: netReturnFuel } = extractNetAndVat(returnFuelGross, rental.includeVAT);
-  const { net: netReturnDamage } = extractNetAndVat(returnDamageGross, rental.includeVAT);
-  const { net: netReturnCleaning } = extractNetAndVat(returnCleaningGross, rental.includeVAT);
+  
+  const mainReturnCharges = rc?.totalCharges || 0;
+  const subReturnCharges = (rental.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
+  const returnTotalGross = mainReturnCharges + subReturnCharges;
 
-  // ---------- Aggregates ----------
-  const totalNetSubtotal = 
-    netHireTotal + netStorage + netDelivery + netCollection + netRecovery + netInsurance + netOverdue + netReturnTotal;
+  const netReturnTotal = rental.includeVAT ? returnTotalGross / 1.2 : returnTotalGross;
+  const vatReturnTotal = returnTotalGross - netReturnTotal;
+  
+  const netReturnFuel = rental.includeVAT ? returnFuelGross / 1.2 : returnFuelGross;
+  const netReturnDamage = rental.includeVAT ? returnDamageGross / 1.2 : returnDamageGross;
+  const netReturnCleaning = rental.includeVAT ? returnCleaningGross / 1.2 : returnCleaningGross;
 
-  const totalVat = 
-    vatHire + vatStorage + vatDelivery + vatCollection + vatRecovery + vatInsurance + vatOverdue + vatReturnTotal;
-
-  // Discount (Applied to Gross usually)
-  const discountAmount = rental.discountAmount || 0;
-
-  const grandTotal = totalNetSubtotal + totalVat - discountAmount;
+  // Aggregates
+  const totalNetSubtotal = masterDetails.net + netOverdue + netReturnTotal;
+  const totalVat = masterDetails.vat + vatOverdue + vatReturnTotal;
+  const discountAmount = masterDetails.discountAmount;
+  const grandTotal = masterDetails.gross + overdueGross + returnTotalGross;
   
   const paidRaw = (rental.paidAmount || 0);
   const remainingRaw = grandTotal - paidRaw;
+
+  // Render individual extra charges for the breakdown table
+  const extraChargeRows = (rental.extraCharges || []).map(charge => ({
+    desc: `${charge.name}`,
+    details: 'Extra Charge',
+    rate: '',
+    units: '',
+    total: Number(charge.amount).toFixed(2),
+  }));
 
   // ---------- Breakdown rows (Displaying NET Amounts) ----------
   const rows = [
@@ -191,7 +193,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       units: hireUnits,
       total: netHireTotal.toFixed(2),
     },
-    ...(netStorage > 0 ? [{ desc: 'Storage Charges', details: '', rate: '', units: '', total: netStorage.toFixed(2) }] : []),
+    ...(storageNet > 0 ? [{ desc: 'Storage Charges', details: '', rate: '', units: '', total: storageNet.toFixed(2) }] : []),
     ...(netRecovery > 0 ? [{ desc: 'Recovery Charges', details: '', rate: '', units: '', total: netRecovery.toFixed(2) }] : []),
     ...(netDelivery > 0 ? [{ desc: 'Delivery Charges', details: '', rate: '', units: '', total: netDelivery.toFixed(2) }] : []),
     ...(netCollection > 0 ? [{ desc: 'Collection Charges', details: '', rate: '', units: '', total: netCollection.toFixed(2) }] : []),
@@ -204,6 +206,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           units: insuranceUnitDisplay,
           total: netInsurance.toFixed(2),
         }] : []),
+    ...extraChargeRows,
     ...(netOverdue > 0 ? [{
           desc: 'Overdue Charges',
           details: overdueUnits > 0 ? `${overdueUnits} ${unit}${overdueUnits === 1 ? '' : 's'}` : '',
@@ -211,8 +214,6 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           units: overdueUnits > 0 ? String(overdueUnits) : '',
           total: netOverdue.toFixed(2),
         }] : []),
-    // Note: Discount is handled in Summary, usually not as a "Charge" row, but can affect total. 
-    // We'll keep it in summary only as per request for simplified summary.
     ...(netReturnFuel > 0 ? [{ desc: 'Return – Fuel', details: '', rate: '', units: '', total: netReturnFuel.toFixed(2) }] : []),
     ...(netReturnDamage > 0 ? [{ desc: 'Return – Damage', details: '', rate: '', units: '', total: netReturnDamage.toFixed(2) }] : []),
     ...(netReturnCleaning > 0 ? [{ desc: 'Return – Cleaning', details: '', rate: '', units: '', total: netReturnCleaning.toFixed(2) }] : []),
@@ -224,6 +225,10 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       paymentPages.push(rental.payments.slice(i, i + 15));
     }
   }
+
+  const displayInvoiceNumber = rental.rentalAgreementNumber 
+    ? `#${rental.rentalAgreementNumber}` 
+    : `AIE-${rental.id.slice(-8).toUpperCase()}`;
 
   return (
     <Document>
@@ -249,9 +254,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <View style={localStyles.infoCard}>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Invoice Number</Text>
-            <Text style={localStyles.infoValue}>
-               {rental.rentalAgreementNumber ? `#${rental.rentalAgreementNumber}` : `AIE-${rental.id.slice(-8).toUpperCase()}`}
-            </Text>
+            <Text style={localStyles.infoValue}>{displayInvoiceNumber}</Text>
           </View>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Invoice Date</Text>
@@ -312,17 +315,44 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
           </View>
         </View>
 
-        {/* --- SUMMARY (Full Width) --- */}
-        <View style={{ marginTop: 5 }} wrap={false}>
-          {/* Summary Card (Simplified & Bold) */}
-          <View style={[compactCardStyles.card, { width: '100%' }]}>
+        {/* --- SIDE BY SIDE: PAYMENT DETAILS & SUMMARY --- */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }} wrap={false}>
+          
+          {/* Card 1: Payment Details */}
+          <View style={[compactCardStyles.card, { width: '48%' }]}>
+            <Text style={compactCardStyles.title}>Payment Details</Text>
+            <View style={compactCardStyles.row}>
+              <Text style={compactCardStyles.label}>Bank:</Text>
+              <Text style={compactCardStyles.value}>{companyDetails?.bankName || 'LLOYDS BANK'}</Text>
+            </View>
+            <View style={compactCardStyles.row}>
+              <Text style={compactCardStyles.label}>Account Name:</Text>
+              <Text style={compactCardStyles.value}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            </View>
+            <View style={compactCardStyles.row}>
+              <Text style={compactCardStyles.label}>Account Number:</Text>
+              <Text style={compactCardStyles.value}>{companyDetails?.accountNumber || '30513162'}</Text>
+            </View>
+            <View style={compactCardStyles.row}>
+              <Text style={compactCardStyles.label}>Sort Code:</Text>
+              <Text style={compactCardStyles.value}>{companyDetails?.sortCode || '30-99-50'}</Text>
+            </View>
+            <View style={{ marginTop: 8 }}>
+              <Text style={[compactCardStyles.label, { fontSize: 7.5, width: '100%', fontStyle: 'italic' }]}>
+                Please use Invoice {displayInvoiceNumber} as reference.
+              </Text>
+            </View>
+          </View>
+
+          {/* Card 2: Summary */}
+          <View style={[compactCardStyles.card, { width: '48%' }]}>
             <Text style={compactCardStyles.title}>Summary</Text>
             
             {/* Subtotal */}
             <View style={compactCardStyles.row}>
-              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Subtotal:</Text>
+              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>NET:</Text>
               <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
-                £{totalNetSubtotal.toFixed(2)}
+                £{(totalNetSubtotal + discountAmount).toFixed(2)}
               </Text>
             </View>
 
@@ -338,7 +368,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
 
             {/* VAT */}
             <View style={compactCardStyles.row}>
-              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>VAT </Text>
+              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>VAT:</Text>
               <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
                 £{totalVat.toFixed(2)}
               </Text>
@@ -346,7 +376,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
 
             {/* Total */}
             <View style={[compactCardStyles.row, { marginTop: 4, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 4 }]}>
-              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Total:</Text>
+              <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Gross Total:</Text>
               <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
                 £{grandTotal.toFixed(2)}
               </Text>
@@ -385,68 +415,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         </View>
       </Page>
 
-      {/* --- PAGE 2: Terms & Conditions and Signature --- */}
-      <Page size="A4" style={styles.page}>
-         <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} cache={false}/>}
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
-          </View>
-        </View>
-
-        <View style={{ marginTop: 0 }}>
-          <Text style={tcStyles.termTitle}>CREDIT HIRE AGREEMENT</Text>
-          <Text style={[tcStyles.termTitle, { fontSize: 9, marginTop: -6, marginBottom: 10 }]}>
-            (Terms and Conditions of Business)
-          </Text>
-
-          {/* DYNAMIC TERMS INJECTED HERE */}
-          <View style={tcStyles.termSection}>
-            <Text style={tcStyles.termText}>
-              {companyDetails.rentalInvoiceTerms || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this agreement.'}
-            </Text>
-          </View>
-
-          {/* --- SIGNATURE SECTION (Page 2) --- */}
-          <View style={localStyles.signatureSection} wrap={false}>
-            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-              {isValidPdfImageSrc(rental.signature) && (
-                <Image src={rental.signature} style={[styles.signature, localStyles.compactImage]} />
-              )}
-              <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
-              <Text style={localStyles.compactText}>{customer.name}</Text>
-              <Text style={localStyles.compactText}>Date: {fmtDateOnly(rental.startDate)}</Text>
-            </View>
-            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-              {isValidPdfImageSrc(companyDetails.signature) && (
-                <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
-              )}
-              <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
-              <Text style={localStyles.compactText}>{companyDetails.fullName}</Text>
-              <Text style={localStyles.compactText}>Date: {fmtDateOnly(rental.startDate)}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company
-            registration number 15616639, registered office address: United
-            House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
-          <Text
-            style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          />
-        </View>
-      </Page>
-
-      {/* Payment History Pages (Page 3+) */}
+      {/* Payment History Pages (Rendered BEFORE Terms & Conditions) */}
       {paymentPages.map((pagePayments, idx) => (
         <Page key={idx} size="A4" style={styles.page}>
           <Text style={styles.sectionTitle}>Payment History</Text>
@@ -466,14 +435,57 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
               </View>
             ))}
           </View>
-          <View style={styles.footer}>
+          <View style={styles.footer} fixed>
             <Text style={styles.footerText}>
-              AIE SKYLINE LIMITED...
+              AIE SKYLINE LIMITED, registered in England and Wales with the company
+              registration number 15616639, registered office address: United
+              House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
             </Text>
-            <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+            <Text 
+              style={styles.pageNumber} 
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} 
+            />
           </View>
         </Page>
       ))}
+
+      {/* --- FINAL PAGE: Terms & Conditions --- */}
+      <Page size="A4" style={styles.page}>
+         <View style={styles.header} fixed>
+          <View style={styles.headerLeft}>
+            {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} cache={false}/>}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
+            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
+            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 0 }}>
+          <Text style={tcStyles.termTitle}>Rental Invoice Terms</Text>
+
+          {/* DYNAMIC TERMS INJECTED HERE */}
+          <View style={tcStyles.termSection}>
+            <Text style={tcStyles.termText}>
+              {companyDetails.rentalInvoiceTerms || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this agreement.'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company
+            registration number 15616639, registered office address: United
+            House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
+      </Page>
     </Document>
   );
 };
@@ -482,7 +494,6 @@ export default RentalInvoice;
 
 // Local styles
 const localStyles = StyleSheet.create({
-  // Horizontal Info Card Style (Standard Size)
   infoCard: {
     borderWidth: 1,
     borderColor: '#3B82F6',
@@ -545,7 +556,6 @@ const localStyles = StyleSheet.create({
   },
 });
 
-// Styles for the Breakdown Table (Slightly Bigger)
 const compactTableStyles = StyleSheet.create({
   table: { width: '100%', marginVertical: 4 },
   headerRow: {
@@ -580,34 +590,37 @@ const compactTableStyles = StyleSheet.create({
   },
 });
 
-// Compact Styles for Summary Card (Page 1)
 const compactCardStyles = StyleSheet.create({
   card: {
     backgroundColor: '#F9FAFB',
-    padding: 6,
+    padding: 10,
     marginBottom: 2,
     borderRadius: 6,
     borderLeftWidth: 3,
     borderLeftColor: '#438BDC',
   },
   title: {
-    fontSize: 9, 
+    fontSize: 10, 
     fontWeight: 'bold',
-    marginBottom: 3,
+    marginBottom: 6,
     color: '#1E40AF',
+    textTransform: 'uppercase',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 4,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 1,
+    marginBottom: 3,
   },
   label: {
-    fontSize: 8, 
+    fontSize: 8.5, 
     color: '#4B5563',
     width: '50%',
   },
   value: {
-    fontSize: 8, 
+    fontSize: 8.5, 
     color: '#1F2937',
     textAlign: 'right',
     flex: 1,

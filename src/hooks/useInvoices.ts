@@ -17,13 +17,23 @@ export const useInvoices = () => {
         const invoiceData: Invoice[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+          
+          // Safe date parser to prevent crashes on missing/malformed dates
+          const safeDate = (dateVal: any) => {
+            if (!dateVal) return new Date();
+            if (typeof dateVal.toDate === 'function') return dateVal.toDate();
+            if (dateVal instanceof Date) return dateVal;
+            return new Date(dateVal);
+          };
+
           invoiceData.push({
             id: doc.id,
             ...data,
-            date: data.date.toDate(),
-            dueDate: data.dueDate.toDate(),
-            createdAt: data.createdAt.toDate(),
-            updatedAt: data.updatedAt.toDate(),
+            date: safeDate(data.date),
+            dueDate: safeDate(data.dueDate),
+            createdAt: safeDate(data.createdAt),
+            updatedAt: safeDate(data.updatedAt),
+            payments: data.payments || [], // Ensure payments array exists
           } as Invoice);
         });
         setInvoices(invoiceData);

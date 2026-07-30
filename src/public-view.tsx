@@ -1,3 +1,4 @@
+// src/public-view.tsx
 import React, { useState, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useVehicles } from './hooks/useVehicles';
@@ -39,7 +40,8 @@ const PublicRentalShowcase = () => {
     const targetEnd = endOfDay(end);
 
     return vehicles
-      .filter(v => v.status !== 'sold' && v.status !== 'unavailable' && v.registrationNumber)
+      // ✅ ADDED FILTER: Exclude vehicles where assignmentType is 'Claims'
+      .filter(v => v.status !== 'sold' && v.status !== 'unavailable' && v.registrationNumber && v.assignmentType !== 'Claims')
       .map(vehicle => {
         // STRICT SUBSTITUTION CHECK
         const isCurrentlyOnSub = rentals.some(rental => 

@@ -1,59 +1,20 @@
 // src/components/rentals/RentalEditModal.tsx
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import {
-  doc,
-  updateDoc,
-  Timestamp,
-  query,
-  collection,
-  getDocs,
-  orderBy, // ✅ Added for Agreement Number logic
-  limit    // ✅ Added for Agreement Number logic
-} from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, query, collection, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-import {
-  Rental,
-  Vehicle,
-  Customer,
-  VehicleCondition,
-  Claim,
-  RentalPayment,
-  HireSubstitutionDetails
-} from '../../types';
+import { Rental, Vehicle, Customer, VehicleCondition, Claim, RentalPayment, HireSubstitutionDetails, RentalExtraCharge } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-
-import { calculateRentalCost } from '../../utils/rentalCalculations';
+import { calculateRentalCostDetailed, RENTAL_RATES } from '../../utils/rentalCalculations';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
-
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
 import Modal from '../ui/Modal';
-
-import { 
-  X, 
-  Search, 
-  Car, 
-  User, 
-  Plus, 
-  Info, 
-  CheckCircle, 
-  AlertTriangle, 
-  Fuel, 
-  Gauge 
-} from 'lucide-react';
-import {
-  addWeeks,
-  format,
-  differenceInDays,
-  differenceInHours,
-  isAfter,
-  isValid
-} from 'date-fns';
+import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gauge, PoundSterling, FileText, CreditCard, Trash2 } from 'lucide-react';
+import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -61,244 +22,106 @@ import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 
 type BaseReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop';
 type HireVariant = 'normal' | 'h-substitute' | 'c-substitute';
+type SubForm = Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & { givenAt: string; expectedReturnAt: string; mileage: number | ''; fuelLevel: string; isClean: boolean; hasDamage: boolean; damageDescription: string; images: string[]; };
 
-// Extended type for Form State to include Condition fields
-type SubForm = Omit<HireSubstitutionDetails, 'givenAt' | 'expectedReturnAt'> & {
-  givenAt: string;
-  expectedReturnAt: string;
-  // Condition fields
-  mileage: number;
-  fuelLevel: string;
-  isClean: boolean;
-  hasDamage: boolean;
-  damageDescription: string;
-  images: string[]; // Existing image URLs
-};
-
-const newSubDetail = (): SubForm => ({
-  make: '',
-  model: '',
-  registration: '',
-  loaner: '',
-  givenAt: '',
-  expectedReturnAt: '',
-  notes: '',
-  // Default Condition
-  mileage: 0,
-  fuelLevel: '100',
-  isClean: true,
-  hasDamage: false,
-  damageDescription: '',
-  images: []
-});
+const newSubDetail = (): SubForm => ({ make: '', model: '', registration: '', loaner: '', givenAt: '', expectedReturnAt: '', notes: '', mileage: 0, fuelLevel: '100', isClean: true, hasDamage: false, damageDescription: '', images: [] });
 
 interface RentalEditModalProps {
-  rental: Rental;
-  vehicles: Vehicle[];
-  customers: Customer[];
-  onClose: () => void;
+  rental: Rental; vehicles: Vehicle[]; customers: Customer[]; onClose: () => void;
 }
 
-const RentalEditModal: React.FC<RentalEditModalProps> = ({
-  rental,
-  vehicles,
-  customers,
-  onClose
-}) => {
+const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, customers, onClose }) => {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
   const { formatCurrency } = useFormattedDisplay();
-
-  // ✅ REF for scrolling to top
   const topRef = useRef<HTMLDivElement>(null);
-
   const [loading, setLoading] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-
-  // Main Vehicle Images
+  const [activeTab, setActiveTab] = useState<'setup' | 'finance' | 'condition' | 'payment'>('setup');
   const [newImages, setNewImages] = useState<File[]>([]);
-   
-  // Substitution Vehicle Images (Mapped by index)
   const [subNewImages, setSubNewImages] = useState<Record<number, File[]>>({});
-
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showVehicleResults, setShowVehicleResults] = useState(false);
   const [showCustomerResults, setShowCustomerResults] = useState(false);
   const [hasModifiedWeeks, setHasModifiedWeeks] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const [lastEditedField, setLastEditedField] = useState<'percentage' | 'amount' | null>(null);
 
   const [insurancePerDayTouched, setInsurancePerDayTouched] = useState<boolean>(() => rental.insurancePerDay != null);
   const [insurancePerWeekTouched, setInsurancePerWeekTouched] = useState<boolean>(() => (rental as any).insurancePerWeek != null);
-
   const isFirstRender = useRef(true);
 
-  // ✅ 1. Agreement Number State
   const [rentalAgreementNumber, setRentalAgreementNumber] = useState(rental.rentalAgreementNumber || '');
-
-  const [existingImages, setExistingImages] = useState<string[]>(
-    rental.checkOutCondition?.images || []
-  );
-
-  // Claims
+  const [existingImages, setExistingImages] = useState<string[]>(rental.checkOutCondition?.images || []);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [claimSearchQuery, setClaimSearchQuery] = useState('');
   const [showClaimResults, setShowClaimResults] = useState(false);
   const [manualClaimRef, setManualClaimRef] = useState(true);
 
-  // ✅ 2. Backfill Agreement Number Logic (Fixed: Order by Number)
   useEffect(() => {
     const checkAndFillAgreementNumber = async () => {
-      // Only generate if the rental doesn't have one and we haven't generated one yet
       if (!rental.rentalAgreementNumber && !rentalAgreementNumber) {
         try {
-          // ✅ FIX: Order by 'rentalAgreementNumber' to find the highest existing number
-          // Note: If you don't have an index on this field, check your browser console for a link to create one.
-          const q = query(
-            collection(db, 'rentals'), 
-            orderBy('rentalAgreementNumber', 'desc'), 
-            limit(1)
-          );
-          
+          const q = query(collection(db, 'rentals'), orderBy('rentalAgreementNumber', 'desc'), limit(1));
           const snapshot = await getDocs(q);
           let nextNum = 1;
-
           if (!snapshot.empty) {
             const lastData = snapshot.docs[0].data();
             const lastNumStr = lastData.rentalAgreementNumber;
-            // If the highest number exists, add 1 to it
-            if (lastNumStr && !isNaN(parseInt(lastNumStr))) {
-              nextNum = parseInt(lastNumStr) + 1;
-            }
+            if (lastNumStr && !isNaN(parseInt(lastNumStr))) nextNum = parseInt(lastNumStr) + 1;
           }
           setRentalAgreementNumber(String(nextNum).padStart(4, '0'));
-        } catch (e) {
-          console.error("Failed to generate backfilled agreement number", e);
-        }
+        } catch (e) {}
       }
     };
     checkAndFillAgreementNumber();
   }, [rental.rentalAgreementNumber, rentalAgreementNumber]);
 
-  const safeFormatDate = (
-    dateInput: Date | Timestamp | string | null | undefined,
-    formatString: string
-  ): string => {
+  const safeFormatDate = (dateInput: Date | Timestamp | string | null | undefined, formatString: string): string => {
     if (!dateInput) return '';
     let dateObj: Date | null = null;
-
-    if (dateInput instanceof Date) {
-      dateObj = dateInput;
-    } else if (typeof (dateInput as any)?.toDate === 'function') {
-      dateObj = (dateInput as Timestamp).toDate();
-    } else {
-      const parsed = new Date(dateInput as any);
-      if (isValid(parsed)) dateObj = parsed;
-    }
-
-    if (dateObj && isValid(dateObj)) {
-      try {
-        return format(dateObj, formatString);
-      } catch {
-        return '';
-      }
-    }
-    return '';
+    if (dateInput instanceof Date) dateObj = dateInput;
+    else if (typeof (dateInput as any)?.toDate === 'function') dateObj = (dateInput as Timestamp).toDate();
+    else { const parsed = new Date(dateInput as any); if (isValid(parsed)) dateObj = parsed; }
+    return dateObj && isValid(dateObj) ? format(dateObj, formatString) : '';
   };
 
-  // ✅ UPDATED: Initialize sub forms with "Smart Lookup" for mileage
   const initialSubForms: SubForm[] = useMemo(() => {
     return (rental.hireSubstitutionDetails || []).map((sub: any) => {
-      // Try to find the vehicle in the fleet list to get its current mileage
-      const fleetVehicle = vehicles.find(v => 
-        (v.registrationNumber || '').toLowerCase() === (sub.registration || '').toLowerCase()
-      );
-
+      const fleetVehicle = vehicles.find(v => (v.registrationNumber || '').toLowerCase() === (sub.registration || '').toLowerCase());
       return {
-        ...sub,
-        givenAt: safeFormatDate(sub.givenAt, "yyyy-MM-dd'T'HH:mm"),
-        expectedReturnAt: safeFormatDate(sub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm"),
-        
-        // Priority: 1. Saved Rental Mileage -> 2. Current Fleet Mileage -> 3. Default 0
-        mileage: sub.mileage || fleetVehicle?.mileage || 0,
-        
-        fuelLevel: sub.fuelLevel || '100',
-        isClean: sub.isClean !== undefined ? sub.isClean : true,
-        hasDamage: sub.hasDamage || false,
-        damageDescription: sub.damageDescription || '',
-        images: sub.images || []
+        ...sub, givenAt: safeFormatDate(sub.givenAt, "yyyy-MM-dd'T'HH:mm"), expectedReturnAt: safeFormatDate(sub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm"),
+        mileage: sub.mileage !== undefined ? sub.mileage : (fleetVehicle?.mileage || 0), fuelLevel: sub.fuelLevel || '100', isClean: sub.isClean !== undefined ? sub.isClean : true,
+        hasDamage: sub.hasDamage || false, damageDescription: sub.damageDescription || '', images: sub.images || []
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rental.id, vehicles]); // Re-run if vehicles list updates
+  }, [rental.id, vehicles]);
 
-  // ✅ 1. Add this Helper Function above buildInitialFormData
   const getBaseAmount = (amount: number | undefined | null, includesVAT: boolean | undefined | null) => {
     if (!amount) return 0;
-    if (includesVAT) {
-      // If stored price has VAT, divide by 1.2 to get the Base price for the input field
-      return parseFloat((amount / 1.2).toFixed(2));
-    }
+    if (includesVAT) return parseFloat((amount / 1.2).toFixed(2));
     return amount;
   };
 
   const buildInitialFormData = () => ({
-    vehicleId: rental.vehicleId,
-    customerId: rental.customerId,
-    startDate: safeFormatDate(rental.startDate, 'yyyy-MM-dd'),
-    startTime: safeFormatDate(rental.startDate, 'HH:mm'),
-    endDate: safeFormatDate(rental.endDate, 'yyyy-MM-dd'),
-    endTime: safeFormatDate(rental.endDate, 'HH:mm'),
-    type: rental.type,
-    reason: rental.reason,
-    status: rental.status,
-    signature: rental.signature || '',
-
-    numberOfWeeks: rental.numberOfWeeks || 1,
-
-    claimRef: rental.claimRef || '',
-    // ✅ 2. UPDATE THESE LINES to use getBaseAmount
-    deliveryCharge: getBaseAmount(rental.deliveryCharge, rental.deliveryChargeIncludeVAT),
-    collectionCharge: getBaseAmount(rental.collectionCharge, rental.collectionChargeIncludeVAT),
-
-    insurancePerDay: rental.insurancePerDay ?? 0,
-    insurancePerWeek: (rental as any).insurancePerWeek ?? 0,
-
-    // ✅ 3. FIX: Do NOT use getBaseAmount for Recovery Cost because it is stored as Net.
-    recoveryCost: rental.recoveryCost || 0,
-    includeRecoveryCostVAT: rental.includeRecoveryCostVAT || false,
-
-    storageStartDate: safeFormatDate(rental.storageStartDate, 'yyyy-MM-dd'),
-    storageEndDate: safeFormatDate(rental.storageEndDate, 'yyyy-MM-dd'),
-    storageCostPerDay: rental.storageCostPerDay || 0,
-    storageDays: rental.storageDays || 0,
-    includeStorageVAT: rental.includeStorageVAT || false,
-
-    includeVAT: rental.includeVAT || false,
-    deliveryChargeIncludeVAT: rental.deliveryChargeIncludeVAT || false,
-    collectionChargeIncludeVAT: rental.collectionChargeIncludeVAT || false,
-    insurancePerDayIncludeVAT: rental.insurancePerDayIncludeVAT || false,
-    insurancePerWeekIncludeVAT: (rental as any).insurancePerWeekIncludeVAT || false,
-
-    negotiatedRate: rental.negotiatedRate?.toString() || '',
-    negotiationNotes: rental.negotiationNotes || '',
-
-    discountPercentage: rental.discountPercentage || 0,
-    discountAmount: rental.discountAmount || 0,
-    discountNotes: rental.discountNotes || '',
-
-    originalStartDate: safeFormatDate(
-      (rental.originalStartDate ?? rental.startDate) as any,
-      "yyyy-MM-dd'T'HH:mm"
-    ),
-
-    amountToAdd: 0,
-    paymentMethod: 'cash' as const,
-    paymentReference: '',
-    paymentNotes: '',
-
-    hireSubstitutionDetails: initialSubForms.length ? initialSubForms : [newSubDetail()]
+    vehicleId: rental.vehicleId, customerId: rental.customerId,
+    startDate: safeFormatDate(rental.startDate, 'yyyy-MM-dd'), startTime: safeFormatDate(rental.startDate, 'HH:mm'),
+    endDate: safeFormatDate(rental.endDate, 'yyyy-MM-dd'), endTime: safeFormatDate(rental.endDate, 'HH:mm'),
+    type: rental.type, reason: rental.reason, status: rental.status, signature: rental.signature || '', numberOfWeeks: rental.numberOfWeeks || 1, claimRef: rental.claimRef || '',
+    deliveryCharge: rental.deliveryCharge || 0, 
+    collectionCharge: rental.collectionCharge || 0,
+    insurancePerDay: rental.insurancePerDay ?? 0, insurancePerWeek: (rental as any).insurancePerWeek ?? 0,
+    recoveryCost: rental.recoveryCost || 0, includeRecoveryCostVAT: rental.includeRecoveryCostVAT || false,
+    storageStartDate: safeFormatDate(rental.storageStartDate, 'yyyy-MM-dd'), storageEndDate: safeFormatDate(rental.storageEndDate, 'yyyy-MM-dd'),
+    storageCostPerDay: rental.storageCostPerDay || 0, storageDays: rental.storageDays || 0, includeStorageVAT: rental.includeStorageVAT || false,
+    includeVAT: rental.includeVAT || false, deliveryChargeIncludeVAT: rental.deliveryChargeIncludeVAT || false, collectionChargeIncludeVAT: rental.collectionChargeIncludeVAT || false,
+    insurancePerDayIncludeVAT: rental.insurancePerDayIncludeVAT || false, insurancePerWeekIncludeVAT: (rental as any).insurancePerWeekIncludeVAT || false,
+    negotiatedRate: rental.negotiatedRate?.toString() || '', negotiationNotes: rental.negotiationNotes || '',
+    discountPercentage: rental.discountPercentage || 0, discountAmount: rental.discountAmount || 0, discountNotes: rental.discountNotes || '',
+    originalStartDate: safeFormatDate((rental.originalStartDate ?? rental.startDate) as any, "yyyy-MM-dd'T'HH:mm"),
+    amountToAdd: 0, paymentMethod: 'cash' as const, paymentReference: '', paymentNotes: '',
+    hireSubstitutionDetails: initialSubForms.length ? initialSubForms : [newSubDetail()],
+    extraCharges: rental.extraCharges || []
   });
 
   const [formData, setFormData] = useState(buildInitialFormData);
@@ -306,23 +129,10 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   useEffect(() => {
     setFormData(buildInitialFormData());
     setExistingImages(rental.checkOutCondition?.images || []);
-    setConditionData(
-      rental.checkOutCondition ?? {
-        mileage: 0,
-        fuelLevel: '100',
-        isClean: true,
-        hasDamage: false,
-        damageDescription: '',
-        images: []
-      }
-    );
+    setConditionData(rental.checkOutCondition ?? { mileage: 0, fuelLevel: '100', isClean: true, hasDamage: false, damageDescription: '', images: [] });
     setInsurancePerDayTouched(rental.insurancePerDay != null);
     setInsurancePerWeekTouched((rental as any).insurancePerWeek != null);
-    isFirstRender.current = true;
-    setHasModifiedWeeks(false);
-    setInitialized(false);
-    setSubNewImages({}); 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    isFirstRender.current = true; setHasModifiedWeeks(false); setInitialized(false); setSubNewImages({}); 
   }, [rental.id]);
 
   const deriveReasonUI = (reason: any): { base: BaseReason; variant: HireVariant } => {
@@ -340,16 +150,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const [hireVariant, setHireVariant] = useState<HireVariant>(initReasonUI.variant);
 
   useEffect(() => {
-    const desiredReason =
-      baseReason !== 'hired'
-        ? baseReason
-        : hireVariant === 'normal'
-        ? 'hired'
-        : hireVariant;
-
-    if (formData.reason !== desiredReason) {
-      setFormData((prev) => ({ ...prev, reason: desiredReason as any }));
-    }
+    const desiredReason = baseReason !== 'hired' ? baseReason : hireVariant === 'normal' ? 'hired' : hireVariant;
+    if (formData.reason !== desiredReason) setFormData((prev) => ({ ...prev, reason: desiredReason as any }));
   }, [baseReason, hireVariant]);
 
   useEffect(() => {
@@ -359,84 +161,36 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   }, [formData.reason]);
 
   const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
-  useEffect(() => {
-    if (!selectedVehicle) return;
-    if (rental.insurancePerDay == null) setInsurancePerDayTouched(false);
-    if ((rental as any).insurancePerWeek == null) setInsurancePerWeekTouched(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVehicle?.id]);
-
   const selectedCustomer = customers.find((c) => c.id === formData.customerId);
 
-  const [conditionData, setConditionData] = useState<Partial<VehicleCondition>>(
-    rental.checkOutCondition ?? {
-      mileage: 0,
-      fuelLevel: '100',
-      isClean: true,
-      hasDamage: false,
-      damageDescription: '',
-      images: []
-    }
+  const [conditionData, setConditionData] = useState<Partial<VehicleCondition> & { mileage: number | '' }>(
+    { ...(rental.checkOutCondition ?? { mileage: 0, fuelLevel: '100', isClean: true, hasDamage: false, damageDescription: '', images: [] }) }
   );
 
-  // --- AUTO-FILL INSURANCE LOGIC ---
   useEffect(() => {
-    if (isFirstRender.current) return;
-    if (!selectedVehicle) return;
-    if (formData.type === 'daily' && !insurancePerDayTouched) {
-      const vAmt = typeof (selectedVehicle as any).dailyInsuranceAmount === 'number' ? (selectedVehicle as any).dailyInsuranceAmount : 0;
-      setFormData((prev) => ({ ...prev, insurancePerDay: vAmt }));
-    }
-    if (formData.type === 'claim' && !insurancePerDayTouched) {
-      const vAmt = typeof (selectedVehicle as any).claimInsuranceAmount === 'number' ? (selectedVehicle as any).claimInsuranceAmount : 0;
-      setFormData((prev) => ({ ...prev, insurancePerDay: vAmt }));
-    }
-    if (formData.type === 'weekly' && !insurancePerWeekTouched) {
-      const vAmt = typeof (selectedVehicle as any).weeklyInsuranceAmount === 'number' ? (selectedVehicle as any).weeklyInsuranceAmount : 0;
-      setFormData((prev) => ({ ...prev, insurancePerWeek: vAmt }));
-    }
+    if (isFirstRender.current || !selectedVehicle) return;
+    if (formData.type === 'daily' && !insurancePerDayTouched) setFormData(p => ({ ...p, insurancePerDay: (selectedVehicle as any).dailyInsuranceAmount || 0 }));
+    if (formData.type === 'claim' && !insurancePerDayTouched) setFormData(p => ({ ...p, insurancePerDay: (selectedVehicle as any).claimInsuranceAmount || 0 }));
+    if (formData.type === 'weekly' && !insurancePerWeekTouched) setFormData(p => ({ ...p, insurancePerWeek: (selectedVehicle as any).weeklyInsuranceAmount || 0 }));
   }, [selectedVehicle?.id, formData.type, insurancePerDayTouched, insurancePerWeekTouched]);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    setInsurancePerDayTouched(false);
-    setInsurancePerWeekTouched(false);
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    setInsurancePerDayTouched(false); setInsurancePerWeekTouched(false);
   }, [formData.type]);
 
-  // Populate search inputs
   useEffect(() => {
-    if (selectedVehicle) {
-      setVehicleSearchQuery(`${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.registrationNumber}`);
-    }
-    if (selectedCustomer) {
-      setCustomerSearchQuery(`${selectedCustomer.name} - ${selectedCustomer.mobile}`);
-    }
-    if (rental.claimRef) {
-      setClaimSearchQuery(rental.claimRef);
-      setManualClaimRef(true);
-    } else {
-      setManualClaimRef(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (selectedVehicle) setVehicleSearchQuery(`${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.registrationNumber}`);
+    if (selectedCustomer) setCustomerSearchQuery(`${selectedCustomer.name} - ${selectedCustomer.mobile}`);
+    if (rental.claimRef) { setClaimSearchQuery(rental.claimRef); setManualClaimRef(true); } else setManualClaimRef(false);
   }, [selectedVehicle?.id, selectedCustomer?.id, rental.claimRef]);
 
-  // Fetch claims once
   useEffect(() => {
     const fetchClaims = async () => {
       try {
-        const claimsQuery = query(collection(db, 'claims'));
-        const snapshot = await getDocs(claimsQuery);
-        const claimsData = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data()
-        })) as Claim[];
-        setClaims(claimsData);
-      } catch {
-        toast.error('Failed to fetch claims');
-      }
+        const snap = await getDocs(query(collection(db, 'claims')));
+        setClaims(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Claim[]);
+      } catch { }
     };
     fetchClaims();
   }, []);
@@ -444,26 +198,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
   const filteredClaims = useMemo(() => {
     if (!claimSearchQuery) return [];
     const s = claimSearchQuery.toLowerCase();
-    return (claims || []).filter((claim) => {
-      const name = claim.clientInfo?.name?.toLowerCase() || '';
-      const refLower = claim.clientRef?.toLowerCase() || '';
-      const idLower = claim.id.toLowerCase();
-      return name.includes(s) || refLower.includes(s) || idLower.includes(s);
-    });
+    return (claims || []).filter(c => (c.clientInfo?.name?.toLowerCase() || '').includes(s) || (c.clientRef?.toLowerCase() || '').includes(s) || c.id.toLowerCase().includes(s));
   }, [claims, claimSearchQuery]);
 
   const filteredCustomers = useMemo(() => {
     const s = customerSearchQuery.toLowerCase();
-    return customers.filter((customer) => {
-      return (
-        customer.name.toLowerCase().includes(s) ||
-        customer.mobile.includes(s) ||
-        customer.email.toLowerCase().includes(s)
-      );
-    });
+    return customers.filter(c => c.name.toLowerCase().includes(s) || c.mobile.includes(s) || c.email.toLowerCase().includes(s));
   }, [customers, customerSearchQuery]);
 
-  // Available vehicles
   const { availableVehicles, loading: loadingVehicles } = useAvailableVehicles(
     vehicles,
     formData.startDate && formData.startTime ? new Date(`${formData.startDate}T${formData.startTime}`) : undefined,
@@ -473,613 +215,265 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
   const filteredVehicles = useMemo(() => {
     const s = vehicleSearchQuery.toLowerCase();
-    return availableVehicles.filter((vehicle) => {
-      if (vehicle.id === formData.vehicleId) return true;
-      return (
-        vehicle.make.toLowerCase().includes(s) ||
-        vehicle.model.toLowerCase().includes(s) ||
-        vehicle.registrationNumber.toLowerCase().includes(s)
-      );
-    });
+    return availableVehicles.filter(v => v.id === formData.vehicleId || v.make.toLowerCase().includes(s) || v.model.toLowerCase().includes(s) || v.registrationNumber.toLowerCase().includes(s));
   }, [availableVehicles, vehicleSearchQuery, formData.vehicleId]);
 
-  // Storage days
   useEffect(() => {
     if (formData.storageStartDate && formData.storageEndDate) {
-      const start = new Date(formData.storageStartDate);
-      const end = new Date(formData.storageEndDate);
-
-      if (isValid(start) && isValid(end) && !isAfter(start, end)) {
-        const days = differenceInDays(end, start) + 1;
-        setFormData((prev) => ({ ...prev, storageDays: days }));
-      } else {
-        setFormData((prev) => ({ ...prev, storageDays: 0 }));
-      }
-    } else {
-      setFormData((prev) => ({ ...prev, storageDays: 0 }));
-    }
+      const start = new Date(formData.storageStartDate); const end = new Date(formData.storageEndDate);
+      if (isValid(start) && isValid(end) && !isAfter(start, end)) setFormData(p => ({ ...p, storageDays: differenceInDays(end, start) + 1 }));
+      else setFormData(p => ({ ...p, storageDays: 0 }));
+    } else setFormData(p => ({ ...p, storageDays: 0 }));
   }, [formData.storageStartDate, formData.storageEndDate]);
 
-  // Weekly end calc
   useEffect(() => {
-    if (!initialized) {
-      setInitialized(true);
-      return;
-    }
+    if (!initialized) { setInitialized(true); return; }
     if (!hasModifiedWeeks) return;
-
     if (formData.type === 'weekly' && formData.startDate && formData.startTime && formData.numberOfWeeks > 0) {
       const startDT = new Date(`${formData.startDate}T${formData.startTime}`);
-      if (isValid(startDT)) {
-        const computedEnd = addWeeks(startDT, formData.numberOfWeeks);
-        setFormData((prev) => ({
-          ...prev,
-          endDate: format(computedEnd, 'yyyy-MM-dd'),
-          endTime: prev.startTime
-        }));
-      }
+      if (isValid(startDT)) setFormData(p => ({ ...p, endDate: format(addWeeks(startDT, formData.numberOfWeeks), 'yyyy-MM-dd'), endTime: p.startTime }));
     }
-  }, [
-    formData.type,
-    formData.numberOfWeeks,
-    formData.startDate,
-    formData.startTime,
-    hasModifiedWeeks,
-    initialized
-  ]);
+  }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime, hasModifiedWeeks, initialized]);
 
-  const calculateCurrentTotalCost = () => {
-    const vehicle = vehicles.find((v) => v.id === formData.vehicleId);
-
-    if (!vehicle || !formData.startDate || !formData.endDate || !formData.startTime || !formData.endTime) return 0;
-
-    const startDT = new Date(`${formData.startDate}T${formData.startTime}`);
-    const endDT = new Date(`${formData.endDate}T${formData.endTime}`);
-
-    if (!isValid(startDT) || !isValid(endDT) || isAfter(startDT, endDT)) return 0;
-
-    const negotiatedRate = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
-
-    let storageCostCalc = 0;
-    if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
-      storageCostCalc =
-        (formData.storageDays || 0) *
-        (formData.storageCostPerDay || 0) *
-        (formData.includeStorageVAT ? 1.2 : 1);
-    }
-
-    // Call the utility which handles proper VAT separation internally
-    return calculateRentalCost(
-      startDT,
-      endDT,
-      formData.type,
-      vehicle,
-      formData.reason,
-      negotiatedRate,
-      formData.type === 'claim' ? storageCostCalc : undefined,
-      formData.type === 'claim' ? formData.recoveryCost : undefined,
-      formData.deliveryCharge,
-      formData.collectionCharge,
-
-      // ✅ FIX: Conditional insurance passing for Live Calc
-      formData.type !== 'weekly' ? formData.insurancePerDay : 0,
-      formData.type === 'weekly' ? formData.insurancePerWeek : 0,
-
-      formData.includeVAT,
-      formData.deliveryChargeIncludeVAT,
-      formData.collectionChargeIncludeVAT,
-      formData.insurancePerDayIncludeVAT,
-      formData.insurancePerWeekIncludeVAT,
-      formData.includeRecoveryCostVAT
-    );
+  // Extra Charges
+  const handleAddExtraCharge = () => setFormData(prev => ({ ...prev, extraCharges: [...prev.extraCharges, { id: `ec_${Date.now()}`, name: '', amount: 0 }] }));
+  const handleRemoveExtraCharge = (index: number) => setFormData(prev => ({ ...prev, extraCharges: prev.extraCharges.filter((_, i) => i !== index) }));
+  const handleExtraChargeChange = (index: number, field: string, value: any) => {
+    const newCharges = [...formData.extraCharges]; newCharges[index] = { ...newCharges[index], [field]: value }; setFormData(prev => ({ ...prev, extraCharges: newCharges }));
   };
 
-  const currentTotalCost = calculateCurrentTotalCost();
-  const currentDiscountAmount = formData.discountAmount;
-  const currentFinalCostAfterDiscount = currentTotalCost - currentDiscountAmount;
+  const costs = useMemo(() => {
+    if (!selectedVehicle || !formData.startDate || !formData.endDate || !formData.startTime || !formData.endTime) return { net: 0, vat: 0, gross: 0, discountAmount: 0, baseGross: 0, baseNet: 0, baseVat: 0 };
+    const s = new Date(`${formData.startDate}T${formData.startTime}`);
+    const e = new Date(`${formData.endDate}T${formData.endTime}`);
+    if (!isValid(s) || !isValid(e) || isAfter(s, e)) return { net: 0, vat: 0, gross: 0, discountAmount: 0, baseGross: 0, baseNet: 0, baseVat: 0 };
+
+    let storCost = 0;
+    if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
+      storCost = (formData.storageDays || 0) * (formData.storageCostPerDay || 0);
+    }
+    
+    const extraTotal = formData.extraCharges.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+    return calculateRentalCostDetailed(
+      s, e, formData.type, selectedVehicle, formData.reason,
+      formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
+      storCost, formData.type === 'claim' ? formData.recoveryCost : 0, formData.deliveryCharge, formData.collectionCharge,
+      formData.type !== 'weekly' ? formData.insurancePerDay : 0, formData.type === 'weekly' ? formData.insurancePerWeek : 0,
+      formData.includeVAT, formData.deliveryChargeIncludeVAT, formData.collectionChargeIncludeVAT,
+      formData.insurancePerDayIncludeVAT, formData.insurancePerWeekIncludeVAT, formData.includeRecoveryCostVAT,
+      formData.includeStorageVAT, formData.discountPercentage, formData.discountAmount, formData.status,
+      rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate, extraTotal,
+      rental.discounts || [] // 👈 ADD THIS
+    );
+  }, [formData, selectedVehicle, rental]);
+
+  const currentFinalCostAfterDiscount = costs.gross;
   const currentRemainingAmount = currentFinalCostAfterDiscount - (rental.paidAmount || 0);
 
-  // Discount sync
-  useEffect(() => {
-    if (currentTotalCost <= 0) {
-      if (formData.discountAmount !== 0 || formData.discountPercentage !== 0) {
-        setFormData((prev) => ({ ...prev, discountAmount: 0, discountPercentage: 0 }));
-      }
-      return;
-    }
+  const handleRemoveExistingImage = (imageUrl: string) => setExistingImages(p => p.filter(img => img !== imageUrl));
 
-    if (lastEditedField === 'amount') {
-      const newPct = formData.discountAmount > 0 ? (formData.discountAmount / currentTotalCost) * 100 : 0;
-      setFormData((prev) => ({ ...prev, discountPercentage: parseFloat(newPct.toFixed(2)) }));
-    } else if (lastEditedField === 'percentage') {
-      const newAmt = (currentTotalCost * (formData.discountPercentage || 0)) / 100;
-      setFormData((prev) => ({ ...prev, discountAmount: parseFloat(newAmt.toFixed(2)) }));
-    } else {
-      if (rental.discountAmount != null) {
-        const initPct = rental.discountAmount > 0 ? (rental.discountAmount / currentTotalCost) * 100 : 0;
-        setFormData((prev) => ({
-          ...prev,
-          discountAmount: parseFloat(rental.discountAmount.toFixed(2)),
-          discountPercentage: parseFloat(initPct.toFixed(2))
-        }));
-      } else if (rental.discountPercentage != null) {
-        const initAmt = (currentTotalCost * (rental.discountPercentage || 0)) / 100;
-        setFormData((prev) => ({
-          ...prev,
-          discountPercentage: parseFloat(rental.discountPercentage.toFixed(2)),
-          discountAmount: parseFloat(initAmt.toFixed(2))
-        }));
-      }
-    }
-  }, [
-    currentTotalCost,
-    formData.discountAmount,
-    formData.discountPercentage,
-    lastEditedField,
-    rental.discountAmount,
-    rental.discountPercentage
-  ]);
-
-  const handleRemoveExistingImage = (imageUrl: string) => {
-    setExistingImages((prev) => prev.filter((img) => img !== imageUrl));
-  };
-
-  // --- H-Substitute Search Logic ---
-  const [subVehicleSearchQueries, setSubVehicleSearchQueries] = useState<string[]>(
-    () => (formData.hireSubstitutionDetails || []).map(() => '')
-  );
-  const [showSubVehicleResults, setShowSubVehicleResults] = useState<boolean[]>(
-    () => (formData.hireSubstitutionDetails || []).map(() => false)
-  );
+  const [subVehicleSearchQueries, setSubVehicleSearchQueries] = useState<string[]>(() => (formData.hireSubstitutionDetails || []).map(() => ''));
+  const [showSubVehicleResults, setShowSubVehicleResults] = useState<boolean[]>(() => (formData.hireSubstitutionDetails || []).map(() => false));
 
   useEffect(() => {
     const len = formData.hireSubstitutionDetails.length;
-    setSubVehicleSearchQueries((prev) => {
-      if (prev.length === len) return prev;
-      if (prev.length < len) return [...prev, ...Array(len - prev.length).fill('')];
-      return prev.slice(0, len);
-    });
-    setShowSubVehicleResults((prev) => {
-      if (prev.length === len) return prev;
-      if (prev.length < len) return [...prev, ...Array(len - prev.length).fill(false)];
-      return prev.slice(0, len);
-    });
+    setSubVehicleSearchQueries(p => p.length === len ? p : p.length < len ? [...p, ...Array(len - p.length).fill('')] : p.slice(0, len));
+    setShowSubVehicleResults(p => p.length === len ? p : p.length < len ? [...p, ...Array(len - p.length).fill(false)] : p.slice(0, len));
   }, [formData.hireSubstitutionDetails.length]);
 
   const filteredSubVehicles = (index: number) => {
     const q = (subVehicleSearchQueries[index] || '').toLowerCase();
-    if (!q) return vehicles.slice(0, 15);
-    return vehicles
-      .filter((v) => {
-        const label = `${v.make} ${v.model} ${v.registrationNumber}`.toLowerCase();
-        return label.includes(q);
-      })
-      .slice(0, 15);
+    if (!q) return availableVehicles.slice(0, 15);
+    return availableVehicles.filter(v => `${v.make} ${v.model} ${v.registrationNumber}`.toLowerCase().includes(q)).slice(0, 15);
   };
 
-  const handleSubChange = (
-    index: number,
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  useEffect(() => {
+    if (formData.storageStartDate && formData.storageEndDate) {
+      const start = new Date(formData.storageStartDate); const end = new Date(formData.storageEndDate);
+      // ✅ Fixed: Removed the + 1 to prevent duplication
+      if (isValid(start) && isValid(end) && !isAfter(start, end)) setFormData(p => ({ ...p, storageDays: Math.max(1, differenceInDays(end, start)) }));
+      else setFormData(p => ({ ...p, storageDays: 0 }));
+    } else setFormData(p => ({ ...p, storageDays: 0 }));
+  }, [formData.storageStartDate, formData.storageEndDate]);
+
+  const handleSubChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const newSubs = [...formData.hireSubstitutionDetails];
-    
-    // Handle Checkboxes
-    if (type === 'checkbox') {
-        (newSubs[index] as any) = { ...newSubs[index], [name]: (e.target as HTMLInputElement).checked };
-    } 
-    // Handle Numbers
-    else if (type === 'number') {
-        (newSubs[index] as any) = { ...newSubs[index], [name]: parseFloat(value) || 0 };
-    }
-    // Handle Text/Select
-    else {
-        (newSubs[index] as any) = { ...newSubs[index], [name]: value };
-    }
-
-    setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
+    if (type === 'checkbox') (newSubs[index] as any) = { ...newSubs[index], [name]: (e.target as HTMLInputElement).checked };
+    else if (type === 'number') (newSubs[index] as any) = { ...newSubs[index], [name]: value === '' ? '' : parseFloat(value) };
+    else (newSubs[index] as any) = { ...newSubs[index], [name]: value };
+    setFormData(p => ({ ...p, hireSubstitutionDetails: newSubs }));
   };
 
-  const addSubstitutionVehicle = () => {
-    setFormData((prev) => ({
-      ...prev,
-      hireSubstitutionDetails: [...prev.hireSubstitutionDetails, newSubDetail()]
-    }));
-  };
-
+  const addSubstitutionVehicle = () => setFormData(p => ({ ...p, hireSubstitutionDetails: [...p.hireSubstitutionDetails, newSubDetail()] }));
   const removeSubstitutionVehicle = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      hireSubstitutionDetails: prev.hireSubstitutionDetails.filter((_, i) => i !== index)
-    }));
-    // Cleanup images for that index
-    const newSubImages = { ...subNewImages };
-    delete newSubImages[index];
-    setSubNewImages(newSubImages);
+    setFormData(p => ({ ...p, hireSubstitutionDetails: p.hireSubstitutionDetails.filter((_, i) => i !== index) }));
+    const newSubImages = { ...subNewImages }; delete newSubImages[index]; setSubNewImages(newSubImages);
   };
 
-  // Handle Sub Images (Remove Existing)
   const handleRemoveExistingSubImage = (index: number, urlToRemove: string) => {
     const newSubs = [...formData.hireSubstitutionDetails];
-    const currentImages = newSubs[index].images || [];
-    newSubs[index].images = currentImages.filter(url => url !== urlToRemove);
-    setFormData(prev => ({ ...prev, hireSubstitutionDetails: newSubs }));
+    newSubs[index].images = (newSubs[index].images || []).filter(url => url !== urlToRemove);
+    setFormData(p => ({ ...p, hireSubstitutionDetails: newSubs }));
   };
-
-  // ✅ UPDATED: Fill mileage from fleet upon selection
-  const pickSubVehicleFromFleet = (index: number, v: Vehicle) => {
-    const newSubs = [...formData.hireSubstitutionDetails];
-    newSubs[index] = {
-      ...newSubs[index],
-      make: v.make || '',
-      model: v.model || '',
-      registration: v.registrationNumber || '',
-      mileage: v.mileage || 0 // <--- THIS LINE ensures auto-fill on pick
-    };
-
-    setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
-    setSubVehicleSearchQueries((prev) => {
-      const copy = [...prev];
-      copy[index] = `${v.make} ${v.model} - ${v.registrationNumber}`;
-      return copy;
-    });
-    setShowSubVehicleResults((prev) => {
-      const copy = [...prev];
-      copy[index] = false;
-      return copy;
-    });
-  };
-
-  const latestSubIndex = useMemo(() => {
-    if (formData.reason !== 'h-substitute') return -1;
-    const meaningful = formData.hireSubstitutionDetails
-      .map((s, i) => ({ s, i }))
-      .filter(({ s }) => !!(s.make || s.model || s.registration || s.loaner || s.givenAt || s.expectedReturnAt || s.notes));
-
-    if (!meaningful.length) return -1;
-    return meaningful[meaningful.length - 1].i;
-  }, [formData.reason, formData.hireSubstitutionDetails]);
 
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVehicle || !selectedCustomer) {
-      toast.error('Please select a valid vehicle and customer.');
-      return;
+    if (!selectedVehicle || !selectedCustomer) return toast.error('Valid vehicle and customer required.');
+    
+    const s = new Date(`${formData.startDate}T${formData.startTime}`);
+    const eDate = new Date(`${formData.endDate}T${formData.endTime}`);
+    if (!isValid(s) || !isValid(eDate)) {
+        return toast.error("Valid start and end dates are required.");
     }
-
-    // ✅ FIX: SCROLL TO TOP reliably using ref
+    
     topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Fallback
-    window.scrollTo(0, 0);
-
     setIsConfirmModalOpen(true);
   };
 
+  // Helper to remove any undefined fields that cause Firestore rejections
+  const cleanObjectForFirestore = (obj: any): any => {
+    if (obj === null || obj === undefined) return null;
+    if (obj instanceof Date) return obj;
+    
+    // ✨ FIX: Prevent stripping of Firestore Timestamps & FieldValues
+    if (typeof obj === 'object' && (typeof obj.toDate === 'function' || typeof obj.isEqual === 'function')) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) return obj.map(cleanObjectForFirestore);
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const key in obj) {
+        if (obj[key] !== undefined) {
+          cleaned[key] = cleanObjectForFirestore(obj[key]);
+        }
+      }
+      return cleaned;
+    }
+    return obj;
+  };
+
   const executeUpdateRental = async () => {
-    const submitVehicle = vehicles.find((v) => v.id === formData.vehicleId);
-    const submitCustomer = customers.find((c) => c.id === formData.customerId);
-
-    if (!user || !submitVehicle || !submitCustomer) {
-      toast.error('User, vehicle, or customer data missing.');
-      return;
-    }
-
-    // --- NEW: MANDATORY COMPLETION CHECK ---
-  if (formData.status === 'completed') {
-    // 1. Verify Main Vehicle Return Condition
-    if (!rental.returnCondition) {
-      toast.error('Main vehicle return condition is required before completing the rental.');
-      return;
-    }
-
-    // 2. Verify all Substitution Vehicle Returns
-    if (formData.hireSubstitutionDetails && formData.hireSubstitutionDetails.length > 0) {
-      const pendingSubs = formData.hireSubstitutionDetails.filter(sub => {
-        // A substitution is considered active if it has a registration 
-        // but no returnCondition object assigned to it.
-        const hasVehicleInfo = !!(sub.registration || sub.make);
-        return hasVehicleInfo && !sub.returnCondition;
-      });
-
-      if (pendingSubs.length > 0) {
-        toast.error(
-          `Cannot complete rental: ${pendingSubs.length} substitution vehicle(s) have not been returned yet.`
-        );
-        return; 
+    if (!user || !selectedVehicle || !selectedCustomer) return;
+    
+    if (formData.status === 'completed') {
+      if (!rental.returnCondition) {
+          return toast.error('Main vehicle return condition is required before completing the rental.');
+      }
+      if (formData.hireSubstitutionDetails?.some(sub => (sub.registration || sub.make) && !sub.returnCondition)) {
+        return toast.error(`Cannot complete: All substitution vehicles must be returned.`);
       }
     }
-  }
-
+    
     setLoading(true);
 
     try {
-      if (!formData.startDate || !formData.startTime) throw new Error('Start Date and Time are required.');
-      if (!formData.endDate || !formData.endTime) throw new Error('End Date and Time are required.');
-
-      const submitStartDT = new Date(`${formData.startDate}T${formData.startTime}`);
-      const submitEndDT = new Date(`${formData.endDate}T${formData.endTime}`);
-
-      if (!isValid(submitStartDT)) throw new Error('Invalid Start Date or Time.');
-      if (!isValid(submitEndDT)) throw new Error('Invalid End Date or Time.');
-      if (isAfter(submitStartDT, submitEndDT)) throw new Error('End Date cannot be before Start Date.');
-
-      // --- Storage logic ---
-      let submitStorageCost = 0,
-        submitStorageDays = 0;
-      let storageStartObj: Date | null = null,
-        storageEndObj: Date | null = null;
-
-      if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
-        storageStartObj = new Date(formData.storageStartDate);
-        storageEndObj = new Date(formData.storageEndDate);
-
-        if (isValid(storageStartObj) && isValid(storageEndObj) && !isAfter(storageStartObj, storageEndObj)) {
-          submitStorageDays = differenceInDays(storageEndObj, storageStartObj) + 1;
-          const dailyCost = formData.storageCostPerDay || 0;
-          submitStorageCost = submitStorageDays * dailyCost * (formData.includeStorageVAT ? 1.2 : 1);
-        } else {
-          storageStartObj = null;
-          storageEndObj = null;
-          submitStorageCost = 0;
-          submitStorageDays = 0;
-        }
-      }
-
-      // ✅ FIX: Conditional insurance passing for Standard Cost
-      const submitStandardCost = calculateRentalCost(
-        submitStartDT,
-        submitEndDT,
-        formData.type,
-        submitVehicle,
-        formData.reason,
-        undefined,
-        formData.type === 'claim' ? submitStorageCost : undefined,
-        formData.type === 'claim' ? formData.recoveryCost || 0 : undefined,
-        formData.type === 'claim' ? formData.deliveryCharge || 0 : undefined,
-        formData.type === 'claim' ? formData.collectionCharge || 0 : undefined,
-        
-        formData.type !== 'weekly' ? formData.insurancePerDay || 0 : 0,
-        formData.type === 'weekly' ? formData.insurancePerWeek || 0 : 0,
-        
-        false,
-        formData.deliveryChargeIncludeVAT,
-        formData.collectionChargeIncludeVAT,
-        formData.insurancePerDayIncludeVAT,
-        formData.insurancePerWeekIncludeVAT,
-        formData.includeRecoveryCostVAT
-      );
-
-      const negotiatedRateValue = formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined;
-
-      // ✅ FIX: Conditional insurance passing for Total Cost
-      const totalCostBeforeDiscount = calculateRentalCost(
-        submitStartDT,
-        submitEndDT,
-        formData.type,
-        submitVehicle,
-        formData.reason,
-        negotiatedRateValue,
-        formData.type === 'claim' ? submitStorageCost : undefined,
-        formData.type === 'claim' ? formData.recoveryCost || 0 : undefined,
-        formData.deliveryCharge || 0,
-        formData.collectionCharge || 0,
-        
-        formData.type !== 'weekly' ? formData.insurancePerDay || 0 : 0,
-        formData.type === 'weekly' ? formData.insurancePerWeek || 0 : 0,
-        
-        formData.includeVAT,
-        formData.deliveryChargeIncludeVAT,
-        formData.collectionChargeIncludeVAT,
-        formData.insurancePerDayIncludeVAT,
-        formData.insurancePerWeekIncludeVAT,
-        formData.includeRecoveryCostVAT
-      );
-
-      const submitDiscountAmount = formData.discountAmount;
-      const submitFinalCostAfterDiscount = totalCostBeforeDiscount - submitDiscountAmount;
-
-      const newPayment = parseFloat(formData.amountToAdd.toString()) || 0;
+      const s = new Date(`${formData.startDate}T${formData.startTime}`);
+      const e = new Date(`${formData.endDate}T${formData.endTime}`);
+      
+      const newPayment = parseFloat(formData.amountToAdd?.toString() || '0');
       const updatedTotalPaid = (rental.paidAmount || 0) + newPayment;
-
       const updatedPayments: RentalPayment[] = [...(rental.payments || [])];
+      
       if (newPayment > 0) {
         updatedPayments.push({
           id: `payment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          date: new Date(),
-          amount: newPayment,
-          method: formData.paymentMethod,
+          date: new Date(), amount: newPayment, method: formData.paymentMethod,
           ...(formData.paymentReference && { reference: formData.paymentReference }),
           ...(formData.paymentNotes && { notes: formData.paymentNotes }),
-          createdAt: new Date(),
-          createdBy: user.id
+          createdAt: new Date(), createdBy: user.id
         });
       }
 
-      const submitRemainingAmount = submitFinalCostAfterDiscount - updatedTotalPaid;
-      const submitPaymentStatus =
-        submitRemainingAmount <= 0.001
-          ? 'paid'
-          : updatedTotalPaid > 0
-          ? 'partially_paid'
-          : 'pending';
+      const submitRemainingAmount = costs.gross - updatedTotalPaid;
+      const submitPaymentStatus = submitRemainingAmount <= 0.001 ? 'paid' : updatedTotalPaid > 0 ? 'partially_paid' : 'pending';
 
-      const newImageUrls = await Promise.all(
-        newImages.map(async (file) => {
-          const ts = Date.now();
-          const storageRef = ref(storage, `vehicle-conditions/${rental.id}/${ts}_${file.name}`);
-          const snap = await uploadBytes(storageRef, file);
-          return getDownloadURL(snap.ref);
-        })
-      );
+      const newImageUrls = await Promise.all(newImages.map(async (file) => {
+        const snap = await uploadBytes(ref(storage, `vehicle-conditions/${rental.id}/${Date.now()}_${file.name}`), file);
+        return getDownloadURL(snap.ref);
+      }));
       const allImages = [...existingImages, ...newImageUrls];
 
       const updatedCondition: VehicleCondition = {
-        type: 'check-out',
-        date: rental.checkOutCondition?.date || submitStartDT,
-        mileage: conditionData.mileage || 0,
-        fuelLevel: (conditionData.fuelLevel as any) || '100',
-        isClean: conditionData.isClean === undefined ? true : !!conditionData.isClean,
-        hasDamage: !!conditionData.hasDamage,
-        damageDescription: conditionData.hasDamage ? conditionData.damageDescription || '' : '',
-        images: allImages,
-        createdAt: rental.checkOutCondition?.createdAt || new Date(),
-        createdBy: rental.checkOutCondition?.createdBy || user.id,
-        id: rental.checkOutCondition?.id || `cond_${Date.now()}`,
-        notes: (conditionData as any).notes || (rental.checkOutCondition as any)?.notes || ''
+        type: 'check-out', date: rental.checkOutCondition?.date || s,
+        mileage: conditionData.mileage === '' ? 0 : (conditionData.mileage || 0), fuelLevel: (conditionData.fuelLevel as any) || '100',
+        isClean: conditionData.isClean === undefined ? true : !!conditionData.isClean, hasDamage: !!conditionData.hasDamage,
+        damageDescription: conditionData.hasDamage ? conditionData.damageDescription || '' : '', images: allImages,
+        createdAt: rental.checkOutCondition?.createdAt || new Date(), createdBy: rental.checkOutCondition?.createdBy || user.id,
+        id: rental.checkOutCondition?.id || `cond_${Date.now()}`, notes: (conditionData as any).notes || (rental.checkOutCondition as any)?.notes || ''
       };
 
-      let submitOriginalStartDate: Date | undefined = undefined;
-      if (formData.originalStartDate) {
-        const osd = new Date(formData.originalStartDate);
-        if (isValid(osd)) submitOriginalStartDate = osd;
-      }
-
-      // Handle Substitution Images & Data
-      const submitHireSubstitutionDetails = await Promise.all(
-        formData.hireSubstitutionDetails.map(async (sub, index) => {
-            // Upload new images for THIS sub index
-            const filesToUpload = subNewImages[index] || [];
-            const subUploadedUrls = await Promise.all(
-                filesToUpload.map(async (file) => {
-                    const ts = Date.now();
-                    const storageRef = ref(storage, `sub-conditions/${rental.id}/${index}_${ts}_${file.name}`);
-                    const snap = await uploadBytes(storageRef, file);
-                    return getDownloadURL(snap.ref);
-                })
-            );
-
-            const combinedSubImages = [...(sub.images || []), ...subUploadedUrls];
-
-            return {
-                make: sub.make || '',
-                model: sub.model || '',
-                registration: sub.registration || '',
-                loaner: sub.loaner || '',
-                notes: sub.notes || '',
-                givenAt: new Date(sub.givenAt || Date.now()),
-                expectedReturnAt: new Date(sub.expectedReturnAt || Date.now()),
-                // New Condition Fields
-                mileage: sub.mileage || 0,
-                fuelLevel: sub.fuelLevel || '100',
-                isClean: sub.isClean,
-                hasDamage: sub.hasDamage,
-                damageDescription: sub.damageDescription || '',
-                images: combinedSubImages
-            };
-        })
-      );
+      const submitHireSubstitutionDetails = await Promise.all(formData.hireSubstitutionDetails.map(async (sub, index) => {
+          const filesToUpload = subNewImages[index] || [];
+          const subUploadedUrls = await Promise.all(filesToUpload.map(async (f) => {
+              const snap = await uploadBytes(ref(storage, `sub-conditions/${rental.id}/${index}_${Date.now()}_${f.name}`), f);
+              return getDownloadURL(snap.ref);
+          }));
+          const combinedSubImages = [...(sub.images || []), ...subUploadedUrls];
+          const originalSub = rental.hireSubstitutionDetails?.[index];
+          let returnConditionToKeep = originalSub?.returnCondition;
+          if (originalSub && returnConditionToKeep) {
+              if (safeFormatDate(originalSub.expectedReturnAt, "yyyy-MM-dd'T'HH:mm") !== sub.expectedReturnAt) {
+                  returnConditionToKeep = undefined;
+              }
+          }
+          return {
+              make: sub.make || '', model: sub.model || '', registration: sub.registration || '', loaner: sub.loaner || '',
+              givenAt: new Date(sub.givenAt || Date.now()), expectedReturnAt: new Date(sub.expectedReturnAt || Date.now()),
+              images: combinedSubImages, ...(returnConditionToKeep ? { returnCondition: returnConditionToKeep } : {}),
+              mileage: sub.mileage === '' ? 0 : (sub.mileage || 0),
+              fuelLevel: sub.fuelLevel || '100', isClean: sub.isClean ?? true, hasDamage: sub.hasDamage ?? false, damageDescription: sub.damageDescription || '',
+              notes: sub.notes || ''
+          };
+      }));
 
       const finalSubs = formData.reason === 'h-substitute' && submitHireSubstitutionDetails.length > 0
-        ? submitHireSubstitutionDetails.filter(s => s.make || s.model || s.registration)
+        ? submitHireSubstitutionDetails.filter(sub => sub.make || sub.model || sub.registration)
         : null;
 
       const rentalUpdateData: Partial<Rental> = {
-        rentalAgreementNumber, // ✅ Saves the agreement number if it was backfilled
-        vehicleId: formData.vehicleId,
-        customerId: formData.customerId,
-        startDate: submitStartDT,
-        endDate: submitEndDT,
-        type: formData.type,
-        reason: formData.reason,
-        status: formData.status,
-        cost: submitFinalCostAfterDiscount,
-        standardCost: submitStandardCost,
-        paidAmount: updatedTotalPaid,
-        remainingAmount: submitRemainingAmount,
-        paymentStatus: submitPaymentStatus,
-        payments: updatedPayments,
-        signature: formData.signature || null,
-        claimRef: formData.claimRef || null,
-
-        storageStartDate: storageStartObj,
-        storageEndDate: storageEndObj,
+        rentalAgreementNumber, vehicleId: formData.vehicleId, customerId: formData.customerId,
+        startDate: s, endDate: e, type: formData.type, reason: formData.reason, status: formData.status,
+        cost: costs.gross, paidAmount: updatedTotalPaid, remainingAmount: submitRemainingAmount, paymentStatus: submitPaymentStatus, payments: updatedPayments,
+        signature: formData.signature || null, claimRef: formData.claimRef || null,
+        
+        storageStartDate: formData.storageStartDate ? new Date(formData.storageStartDate) : null,
+        storageEndDate: formData.storageEndDate ? new Date(formData.storageEndDate) : null,
         storageCostPerDay: formData.type === 'claim' ? formData.storageCostPerDay || 0 : null,
-        storageDays: formData.type === 'claim' ? submitStorageDays : null,
+        storageDays: formData.type === 'claim' ? formData.storageDays : null,
         includeStorageVAT: formData.type === 'claim' ? formData.includeStorageVAT : null,
-        storageCost: formData.type === 'claim' ? submitStorageCost : null,
+        // ✅ FIX: Removed '* 1.2' multipliers. We only save raw net amounts to the DB.
+        storageCost: formData.type === 'claim' ? (formData.storageDays || 0) * (formData.storageCostPerDay || 0) : null,
 
-        recoveryCost:
-          formData.type === 'claim' && formData.recoveryCost > 0 ? formData.recoveryCost : null,
+        recoveryCost: formData.type === 'claim' && formData.recoveryCost > 0 ? formData.recoveryCost : null,
         includeRecoveryCostVAT: formData.type === 'claim' ? formData.includeRecoveryCostVAT : null,
-
-        deliveryCharge:
-          formData.deliveryCharge > 0
-            ? formData.deliveryCharge * (formData.deliveryChargeIncludeVAT ? 1.2 : 1)
-            : null,
-        collectionCharge:
-          formData.collectionCharge > 0
-            ? formData.collectionCharge * (formData.collectionChargeIncludeVAT ? 1.2 : 1)
-            : null,
-
-        // ✅ FIXED: Only save insurance relevant to type
+        deliveryCharge: formData.deliveryCharge > 0 ? formData.deliveryCharge : null,
+        collectionCharge: formData.collectionCharge > 0 ? formData.collectionCharge : null,
         insurancePerDay: formData.type !== 'weekly' && formData.insurancePerDay > 0 ? formData.insurancePerDay : null,
         insurancePerWeek: formData.type === 'weekly' && formData.insurancePerWeek > 0 ? formData.insurancePerWeek : null,
 
-        includeVAT: formData.includeVAT,
-        deliveryChargeIncludeVAT: formData.deliveryChargeIncludeVAT,
-        collectionChargeIncludeVAT: formData.collectionChargeIncludeVAT,
-        
-        // ✅ FIXED: Only save VAT flag relevant to type
+        includeVAT: formData.includeVAT, deliveryChargeIncludeVAT: formData.deliveryChargeIncludeVAT, collectionChargeIncludeVAT: formData.collectionChargeIncludeVAT,
         insurancePerDayIncludeVAT: formData.type !== 'weekly' ? formData.insurancePerDayIncludeVAT : false,
         insurancePerWeekIncludeVAT: formData.type === 'weekly' ? formData.insurancePerWeekIncludeVAT : false,
 
-        negotiatedRate: negotiatedRateValue ?? null,
-        negotiationNotes: formData.negotiationNotes || null,
-
-        discountPercentage: formData.discountPercentage || null,
-        discountAmount: submitDiscountAmount > 0 ? submitDiscountAmount : null,
-        discountNotes: formData.discountNotes || null,
+        negotiatedRate: formData.negotiatedRate ? parseFloat(formData.negotiatedRate.toString()) : null, negotiationNotes: formData.negotiationNotes || null,
+        extraCharges: formData.extraCharges.filter(c => c.name.trim() !== ''),
 
         numberOfWeeks: formData.type === 'weekly' ? formData.numberOfWeeks || 1 : null,
-
-        checkOutCondition: updatedCondition,
-        ...(submitOriginalStartDate !== undefined ? { originalStartDate: submitOriginalStartDate } : {}),
-
-        hireSubstitutionDetails: finalSubs,
-
-        updatedAt: new Date(),
-        updatedBy: user.id
+        checkOutCondition: updatedCondition, hireSubstitutionDetails: finalSubs, updatedAt: new Date(), updatedBy: user.id
       };
 
-      if (rental.status !== 'completed' && formData.status === 'completed') {
-        if (!rental.returnCondition) {
-          toast.error('You must fill the Return Condition before completing the rental.');
-          setLoading(false);
-          return;
-        }
-
-        const rcRaw = (rental.returnCondition as any).date;
-        let rcDate: Date | null = null;
-        if (rcRaw) {
-          rcDate = typeof rcRaw?.toDate === 'function' ? rcRaw.toDate() : new Date(rcRaw);
-        }
-
-        const fmt = (d: Date) => {
-          const dd = String(d.getDate()).padStart(2, '0');
-          const mm = String(d.getMonth() + 1).padStart(2, '0');
-          const yyyy = d.getFullYear();
-          return `${dd}/${mm}/${yyyy}`;
-        };
-
-        if (!rcDate || isNaN(rcDate.getTime())) {
-          toast.error('Return Condition date is missing or invalid. Please set it before completing.');
-          setLoading(false);
-          return;
-        }
-
-        const endYMD = `${submitEndDT.getFullYear()}-${submitEndDT.getMonth() + 1}-${submitEndDT.getDate()}`;
-        const rcYMD = `${rcDate.getFullYear()}-${rcDate.getMonth() + 1}-${rcDate.getDate()}`;
-
-        if (endYMD !== rcYMD) {
-          toast.error(`Rental end date (${fmt(submitEndDT)}) and the return condition date (${fmt(rcDate)}) are not the same.`);
-          setLoading(false);
-          return;
-        }
+      if (formData.originalStartDate) {
+        const osd = new Date(formData.originalStartDate);
+        if (isValid(osd)) rentalUpdateData.originalStartDate = osd;
       }
 
-      const rentalRef = doc(db, 'rentals', rental.id);
-      await updateDoc(rentalRef, rentalUpdateData);
+      // Important: clean out any lingering undefined fields to prevent Firestore crashes
+      const finalUpdatePayload = cleanObjectForFirestore(rentalUpdateData);
 
+      await updateDoc(doc(db, 'rentals', rental.id), finalUpdatePayload);
       setIsConfirmModalOpen(false);
       setLoading(false);
       onClose();
@@ -1087,1759 +481,671 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({
 
       setTimeout(async () => {
         try {
-          const completeUpdatedRental = {
-            ...rental,
-            ...rentalUpdateData
-          } as Rental;
-
-          const documents = await generateRentalDocuments(
-            completeUpdatedRental,
-            submitVehicle,
-            submitCustomer
-          );
-
+          const completeUpdatedRental = { ...rental, ...rentalUpdateData } as Rental;
+          const documents = await generateRentalDocuments(completeUpdatedRental, selectedVehicle, selectedCustomer);
           const existingAgreements = rental.documents?.agreements || {};
-          const agreementKeys = Object.keys(existingAgreements).sort(
-            (a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0')
-          );
+          const agreementKeys = Object.keys(existingAgreements).sort((a, b) => parseInt(a.split('_')[1] || '0') - parseInt(b.split('_')[1] || '0'));
           const latestAgreementKey = agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
 
-          const agreementsToUpload: Record<string, Blob> = {};
-          const originalStartDate = (rental.originalStartDate ?? rental.startDate) as any;
-
-          if (!originalStartDate || !isValid(originalStartDate)) {
-            toast.error('Original start date is invalid. Cannot version agreement.');
-            throw new Error('Invalid originalStartDate for agreement versioning.');
-          }
-
           let newAgreementKey: string;
-
           if (latestAgreementKey) {
-            const ninetyDaysAgo = new Date();
-            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-            const latestAgreementTimestamp = parseInt(latestAgreementKey.split('_')[1] || '0');
-            const latestAgreementDate = new Date(latestAgreementTimestamp);
-
-            if (latestAgreementDate < ninetyDaysAgo) {
-              newAgreementKey = `agreement_${new Date().getTime()}`;
-            } else {
-              newAgreementKey = latestAgreementKey;
-            }
+            const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const latestAgreementDate = new Date(parseInt(latestAgreementKey.split('_')[1] || '0'));
+            newAgreementKey = latestAgreementDate < ninetyDaysAgo ? `agreement_${new Date().getTime()}` : latestAgreementKey;
           } else {
-            const originalTimestamp = originalStartDate.getTime();
-            if (isNaN(originalTimestamp)) throw new Error('Original start date resulted in NaN timestamp.');
-            newAgreementKey = `agreement_${originalTimestamp}`;
+            const osd = (rental.originalStartDate ?? rental.startDate) as any;
+            newAgreementKey = `agreement_${new Date(osd).getTime()}`;
           }
-
-          agreementsToUpload[newAgreementKey] = documents.agreement;
 
           await uploadRentalDocuments(rental.id, {
-            agreements: agreementsToUpload,
-            invoice: documents.invoice,
-            permit: documents.permit,
-            claimDocuments: documents.claimDocuments
+            agreements: { [newAgreementKey]: documents.agreement }, invoice: documents.invoice, permit: documents.permit, claimDocuments: documents.claimDocuments
           });
-
-          toast.success('PDF documents regenerated!');
         } catch (err: any) {
-          console.error('Background PDF regen failed:', err);
-          toast.error(`Rental updated, but failed to regenerate documents: ${err.message || String(err)}`);
+          console.error("PDF Generation failed", err);
         }
-      }, 0);
-
-      const initialPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
-        submitRemainingAmount <= 0.001 ? 'paid' : (updatedTotalPaid || 0) > 0 ? 'partially_paid' : 'unpaid';
+      }, 150);
 
       if (newPayment > 0) {
         setTimeout(async () => {
           try {
-            const vehicleOwner = selectedVehicle?.owner
-              ? { name: selectedVehicle.owner.name, isDefault: selectedVehicle.owner.isDefault ?? false }
-              : undefined;
-
             await createFinanceTransaction({
-              type: 'income',
-              category: 'Rental',
-              amount: formData.amountToAdd,
-              description:
-                `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})` +
-                `${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
-              referenceId: rental.id,
-              paymentMethod: formData.paymentMethod,
-              paymentReference: formData.paymentReference,
-              status: 'completed',
-              paymentStatus: initialPaymentStatus,
-              date: new Date(),
-              vehicleId: rental.vehicleId,
-              vehicleName: `${selectedVehicle!.make} ${selectedVehicle!.model} (${selectedVehicle!.registrationNumber})`,
-              vehicleOwner,
-              customerId: rental.customerId,
-              customerName: selectedCustomer?.name,
-              // ✅ Pass the linked finance account for income (credit)
+              type: 'income', category: 'Rental', amount: formData.amountToAdd,
+              description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
+              referenceId: rental.id, paymentMethod: formData.paymentMethod, paymentReference: formData.paymentReference,
+              status: 'completed', paymentStatus: submitPaymentStatus as any, date: new Date(), vehicleId: rental.vehicleId,
               accountTo: selectedVehicle.owner?.accountId || undefined
             });
-          } catch {
-            toast.error('Rental updated, but failed to record finance transaction for new payment.');
-          }
+          } catch {}
         }, 0);
       }
     } catch (err: any) {
-      toast.error(`Failed to update rental: ${err.message || String(err)}`);
-    } finally {
+      toast.error(`Failed to update rental: ${err.message}`);
       setLoading(false);
     }
   };
 
   return (
     <>
-      <div ref={topRef} /> {/* ✅ Anchor at the very top of the modal content */}
-      
-      {/* ✅ Display Agreement Number if present */}
+      <div ref={topRef} />
       {rentalAgreementNumber && (
         <div className="bg-gray-100 p-2 rounded mb-4 text-center">
             <span className="font-bold text-gray-700">Rental Agreement #{rentalAgreementNumber}</span>
         </div>
       )}
 
-      <form onSubmit={openConfirm} className="space-y-6">
-        {/* Vehicle Search/Selection */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Vehicle</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={vehicleSearchQuery}
-              onChange={(e) => {
-                setVehicleSearchQuery(e.target.value);
-                setShowVehicleResults(true);
-              }}
-              onFocus={() => setShowVehicleResults(true)}
-              onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
-              placeholder="Search vehicles..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-              aria-autocomplete="list"
-              aria-controls="vehicle-results"
-            />
-            {vehicleSearchQuery && !showVehicleResults && (
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                onClick={() => {
-                  setVehicleSearchQuery('');
-                  setFormData((prev) => ({ ...prev, vehicleId: '' }));
-                }}
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+      {/* TABS NAVIGATION */}
+      <div className="flex border-b border-gray-200 mb-6 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg overflow-x-auto">
+        {[
+          { id: 'setup', label: 'Setup', icon: Car },
+          { id: 'finance', label: 'Financials', icon: PoundSterling },
+          { id: 'condition', label: 'Conditions', icon: CheckCircle },
+          { id: 'payment', label: 'Payments', icon: CreditCard }
+        ].map((tab) => (
+          <button
+            key={tab.id} type="button"
+            className={`flex-1 min-w-[120px] py-4 text-sm font-medium border-b-2 flex items-center justify-center gap-2 transition-colors
+              ${activeTab === tab.id ? 'border-primary text-primary bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+            onClick={() => setActiveTab(tab.id as any)}
+          >
+            <tab.icon className="w-4 h-4" /> <span className="hidden sm:inline">{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
-          {showVehicleResults && (
-  <div
-    id="vehicle-results"
-    className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm"
-  >
-    {loadingVehicles ? (
-      <div className="px-4 py-2 text-sm text-gray-500">Loading vehicles...</div>
-    ) : filteredVehicles.length > 0 ? (
-      filteredVehicles.map((vehicle) => (
-        <div
-          key={vehicle.id}
-          className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setFormData((prev) => ({ ...prev, vehicleId: vehicle.id }));
-            setVehicleSearchQuery(`${vehicle.make} ${vehicle.model} - ${vehicle.registrationNumber}`);
-            setShowVehicleResults(false);
-            setConditionData((prev) => ({ ...prev, mileage: vehicle.mileage || 0 }));
-
-            setInsurancePerDayTouched(false);
-            setInsurancePerWeekTouched(false);
-          }}
-          role="option"
-          aria-selected={formData.vehicleId === vehicle.id}
-        >
-          <div className="flex items-center">
-            <Car className="h-5 w-5 text-gray-400 mr-2" />
-            <div className="flex-1">
-              <div className="font-medium">
-                {vehicle.make} {vehicle.model}
-              </div>
-              <div className="text-sm text-gray-500">
-                {vehicle.registrationNumber}
-                {vehicle.weeklyRentalPrice && ` - ${formatCurrency(vehicle.weeklyRentalPrice)}/week`}
-              </div>
-              
-              {/* ✅ ADDED: Status Badge for Substitution or Availability Info */}
-              {vehicle.message && (
-                <div className={`mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border inline-block ${
-                  (vehicle as any).isSubstitution 
-                    ? 'bg-orange-50 text-orange-700 border-orange-200' 
-                    : vehicle.message === 'Available now' 
-                      ? 'bg-green-50 text-green-700 border-green-200' 
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                }`}>
-                  {vehicle.message}
-                </div>
-              )}
-            </div>
-            {formData.vehicleId === vehicle.id && (
-              <span className="ml-auto text-primary-600 font-medium text-xs">Selected</span>
-            )}
-          </div>
-        </div>
-      ))
-    ) : (
-      <div className="px-4 py-2 text-sm text-gray-500">No available vehicles found</div>
-    )}
-  </div>
-)}
-
-          {!showVehicleResults && selectedVehicle && (
-            <div className="mt-2 p-3 bg-white border border-gray-300 rounded-md flex items-center">
-              <Car className="h-5 w-5 text-primary-600 mr-3 flex-shrink-0" />
-              <div>
-                <div className="font-semibold">
-                  {selectedVehicle.make} {selectedVehicle.model}
-                </div>
-                <div className="text-sm text-gray-600">{selectedVehicle.registrationNumber}</div>
-              </div>
-            </div>
-          )}
-
-          {!showVehicleResults && !selectedVehicle && formData.vehicleId && (
-            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-300 rounded-md text-sm text-yellow-800">
-              Warning: Vehicle with ID "{formData.vehicleId}" not found in the provided vehicle list.
-            </div>
-          )}
-        </div>
-
-        {/* Customer Search/Selection */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Customer</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={customerSearchQuery}
-              onChange={(e) => {
-                setCustomerSearchQuery(e.target.value);
-                setShowCustomerResults(true);
-              }}
-              onFocus={() => setShowCustomerResults(true)}
-              onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
-              placeholder="Search customers..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-              aria-autocomplete="list"
-              aria-controls="customer-results"
-            />
-            {customerSearchQuery && !showCustomerResults && (
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                onClick={() => {
-                  setCustomerSearchQuery('');
-                  setFormData((prev) => ({ ...prev, customerId: '' }));
-                }}
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-
-          {showCustomerResults && (
-            <div
-              id="customer-results"
-              className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm"
-            >
-              {filteredCustomers.length > 0 ? (
-                filteredCustomers.map((customer) => (
-                  <div
-                    key={customer.id}
-                    className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setFormData((prev) => ({ ...prev, customerId: customer.id, signature: customer.signature || '' }));
-                      setCustomerSearchQuery(`${customer.name} - ${customer.mobile}`);
-                      setShowCustomerResults(false);
-                    }}
-                    role="option"
-                    aria-selected={formData.customerId === customer.id}
-                  >
-                    <div className="flex items-center">
-                      <div>
-                        <div className="font-medium">{customer.name}</div>
-                        <div className="text-sm text-gray-500">{customer.mobile}</div>
-                      </div>
-                      {formData.customerId === customer.id && (
-                        <span className="ml-auto text-primary-600">Selected</span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-2 text-sm text-gray-500">No customers found</div>
-              )}
-            </div>
-          )}
-
-          {!showCustomerResults && selectedCustomer && (
-            <div className="mt-2 p-3 bg-white border border-gray-300 rounded-md flex items-center">
-              <div>
-                <div className="font-semibold">{selectedCustomer.name}</div>
-                <div className="text-sm text-gray-600">{selectedCustomer.mobile}</div>
-              </div>
-            </div>
-          )}
-
-          {!showCustomerResults && !selectedCustomer && formData.customerId && (
-            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-300 rounded-md text-sm text-yellow-800">
-              Warning: Customer with ID "{formData.customerId}" not found in the provided customer list.
-            </div>
-          )}
-        </div>
-
-        {/* Rental Details */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Rental Type</label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData((prev) => ({ ...prev, type: e.target.value as any }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              required
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="claim">Claim</option>
-            </select>
-          </div>
-
-          {formData.type === 'claim' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-700">Claim Reference</label>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={manualClaimRef}
-                    onChange={(e) => setManualClaimRef(e.target.checked)}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-gray-700">Enter Manually</span>
-                </label>
-              </div>
-
-              {manualClaimRef ? (
-                <FormField
-                  label="Claim Reference"
-                  value={formData.claimRef}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, claimRef: e.target.value }))}
-                  placeholder="Enter claim reference"
-                />
-              ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={claimSearchQuery}
-                      onChange={(e) => {
-                        setClaimSearchQuery(e.target.value);
-                        setShowClaimResults(true);
-                      }}
-                      onFocus={() => setShowClaimResults(true)}
-                      onBlur={() => setTimeout(() => setShowClaimResults(false), 200)}
-                      placeholder="Search claims..."
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    />
-                  </div>
-                  {showClaimResults && (
-                    <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto sm:text-sm">
-                      {filteredClaims.length > 0 ? (
-                        filteredClaims.map((claim) => (
-                          <div
-                            key={claim.id}
-                            className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                            onMouseDown={() => {
-                              const refStr = claim.clientRef || claim.id.slice(-8).toUpperCase();
-                              setFormData((prev) => ({ ...prev, claimRef: refStr }));
-                              setClaimSearchQuery(refStr);
-                              setShowClaimResults(false);
-                            }}
-                          >
-                            <div className="font-medium">{claim.clientRef || `Claim #${claim.id.slice(-8).toUpperCase()}`}</div>
-                            <div className="text-sm text-gray-500">
-                              {claim.clientInfo?.name} - {claim.clientVehicle?.registration}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-4 py-2 text-sm text-gray-500">No claims found</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as any }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              required
-            >
-              <option value="scheduled">Scheduled</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-
-          {/* Reason (base) + Substitute Type (only when Hire) */}
-          <div className="col-span-2 grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Reason</label>
-              <select
-                value={baseReason}
-                onChange={(e) => {
-                  const next = e.target.value as BaseReason;
-                  setBaseReason(next);
-
-                  // if switching away from Hire, force variant back to normal
-                  if (next !== 'hired') setHireVariant('normal');
-                }}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                required
-              >
-                <option value="hired">Hire</option>
-                <option value="claim">Claim</option>
-                <option value="o/d">O/D</option>
-                <option value="staff">Staff</option>
-                <option value="workshop">Workshop</option>
-              </select>
-            </div>
-
-            {baseReason === 'hired' ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Select Substitute</label>
-                <select
-                  value={hireVariant}
-                  onChange={(e) => setHireVariant(e.target.value as HireVariant)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                >
-                  <option value="normal">Normal Hire</option>
-                  <option value="h-substitute">H Substitute</option>
-                  <option value="c-substitute">C Substitute</option>
-                </select>
-              </div>
-            ) : (
-              <div className="hidden md:block" />
-            )}
-          </div>
-
-          {/* System section with role-gated original start */}
-          <div className="border-t pt-4 col-span-2">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">System</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {isManager ? (
-                <FormField
-                  label="Original Rental Start Date"
-                  type="datetime-local"
-                  value={formData.originalStartDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, originalStartDate: e.target.value }))}
-                  required
-                />
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Original Rental Start Date</label>
-                  <input
-                    type="datetime-local"
-                    value={formData.originalStartDate}
-                    disabled
-                    className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 text-gray-700 shadow-sm sm:text-sm cursor-not-allowed"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Only managers can edit this value.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Include overall VAT */}
-          <div className="border-t pt-6 col-span-2">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="includeVAT"
-                checked={formData.includeVAT}
-                onChange={(e) => setFormData((prev) => ({ ...prev, includeVAT: e.target.checked }))}
-                className="rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <label htmlFor="includeVAT" className="text-sm font-medium text-gray-700">
-                Include Hire VAT (20%)
-              </label>
-            </div>
-          </div>
-
-          <FormField
-            type="date"
-            label="Start Date"
-            value={formData.startDate}
-            onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value || '' }))}
-            required
-          />
-          <FormField
-            type="time"
-            label="Start Time"
-            value={formData.startTime}
-            onChange={(e) => setFormData((prev) => ({ ...prev, startTime: e.target.value || '' }))}
-            required
-          />
-
-          {(formData.type === 'daily' || formData.type === 'claim') && (
-            <>
-              <FormField
-                type="date"
-                label="End Date"
-                value={formData.endDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value || '' }))}
-                required
-                min={formData.startDate}
-              />
-              <FormField
-                type="time"
-                label="End Time"
-                value={formData.endTime}
-                onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value || '' }))}
-                required
-              />
-
-              {/* --- Daily Insurance (per day) Input --- */}
-              {formData.type === 'daily' && (
-                <div className="col-span-2 border-t pt-4 mt-2">
-                  {selectedVehicle && typeof (selectedVehicle as any).dailyInsuranceAmount === 'number' ? (
-                    <p className="text-xs font-semibold text-blue-700 flex items-center gap-1 mb-2">
-                      <Info className="h-3 w-3" /> Auto-filled from Vehicle (Daily Insurance). You can update if needed.
-                    </p>
-                  ) : (
-                    <p className="text-xs font-semibold text-red-600 flex items-center gap-1 mb-2">
-                      <AlertTriangle className="h-3 w-3" /> Enter the vehicle insurance amount — it wasn’t provided in the Vehicle page.
-                    </p>
-                  )}
-
-                  <div className="flex items-end gap-2">
-                    <div className="flex-grow">
-                      <FormField
-                        type="number"
-                        label="Insurance Per Day (£)"
-                        value={formData.insurancePerDay}
-                        onChange={(e) => {
-                          setInsurancePerDayTouched(true);
-                          setFormData((prev) => ({ ...prev, insurancePerDay: parseFloat(e.target.value) || 0 }));
-                        }}
-                        min="0"
-                        step="0.001"
-                      />
-                    </div>
-                    <div className="flex items-center pb-2">
-                      <input
-                        type="checkbox"
-                        id="insurancePerDayIncludeVAT_daily"
-                        checked={formData.insurancePerDayIncludeVAT}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, insurancePerDayIncludeVAT: e.target.checked }))}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <label htmlFor="insurancePerDayIncludeVAT_daily" className="text-sm text-gray-700 ml-1">
-                        VAT
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {formData.type === 'claim' && (
-            <>
-              {/* Delivery Charge with VAT */}
-              <div className="flex items-end gap-2">
-                <div className="flex-grow">
-                  <FormField
-                    type="number"
-                    label="Delivery Charge (£)"
-                    value={formData.deliveryCharge}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="flex items-center pb-2">
-                  <input
-                    type="checkbox"
-                    id="deliveryChargeIncludeVAT"
-                    checked={formData.deliveryChargeIncludeVAT}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, deliveryChargeIncludeVAT: e.target.checked }))
-                    }
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="deliveryChargeIncludeVAT" className="text-sm text-gray-700 ml-1">
-                    VAT
-                  </label>
-                </div>
-              </div>
-
-              {/* Collection Charge with VAT */}
-              <div className="flex items-end gap-2">
-                <div className="flex-grow">
-                  <FormField
-                    type="number"
-                    label="Collection Charge (£)"
-                    value={formData.collectionCharge}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, collectionCharge: parseFloat(e.target.value) || 0 }))
-                    }
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="flex items-center pb-2">
-                  <input
-                    type="checkbox"
-                    id="collectionChargeIncludeVAT"
-                    checked={formData.collectionChargeIncludeVAT}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, collectionChargeIncludeVAT: e.target.checked }))
-                    }
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="collectionChargeIncludeVAT" className="text-sm text-gray-700 ml-1">
-                    VAT
-                  </label>
-                </div>
-              </div>
-
-              {/* Insurance Per Day with VAT (For Claim) */}
-              <div className="flex items-end gap-2">
-                <div className="flex-grow">
-                  <FormField
-                    type="number"
-                    label="Insurance Per Day (£)"
-                    value={formData.insurancePerDay}
-                    onChange={(e) => {
-                      setInsurancePerDayTouched(true);
-                      setFormData((prev) => ({ ...prev, insurancePerDay: parseFloat(e.target.value) || 0 }))
-                    }}
-                    min="0"
-                    step="0.001"
-                  />
-                </div>
-                <div className="flex items-center pb-2">
-                  <input
-                    type="checkbox"
-                    id="insurancePerDayIncludeVAT"
-                    checked={formData.insurancePerDayIncludeVAT}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, insurancePerDayIncludeVAT: e.target.checked }))
-                    }
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="insurancePerDayIncludeVAT" className="text-sm text-gray-700 ml-1">
-                    VAT
-                  </label>
-                </div>
-              </div>
-
-              {/* Storage Details */}
-              <div className="col-span-2 border-t pt-4 mt-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Storage Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    type="date"
-                    label="Storage Start Date"
-                    value={formData.storageStartDate}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, storageStartDate: e.target.value || '' }))}
-                  />
-                  <FormField
-                    type="date"
-                    label="Storage End Date"
-                    value={formData.storageEndDate}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, storageEndDate: e.target.value || '' }))}
-                    min={formData.storageStartDate}
-                  />
-
-                  <div className="flex items-end gap-2">
-                    <div className="flex-grow">
-                      <FormField
-                        type="number"
-                        label="Storage Cost per Day (£)"
-                        value={formData.storageCostPerDay}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, storageCostPerDay: parseFloat(e.target.value) || 0 }))
-                        }
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                    <div className="flex items-center pb-2">
-                      <input
-                        type="checkbox"
-                        id="includeStorageVAT"
-                        checked={formData.includeStorageVAT}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, includeStorageVAT: e.target.checked }))}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <label htmlFor="includeStorageVAT" className="text-sm text-gray-700 ml-1">
-                        VAT
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 bg-gray-50 p-4 rounded-lg space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Days of Storage:</span>
-                      <span>{formData.storageDays || 0} days</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Base Storage Cost:</span>
-                      <span>£{((formData.storageDays || 0) * (formData.storageCostPerDay || 0)).toFixed(2)}</span>
-                    </div>
-                    {formData.includeStorageVAT && (
-                      <div className="flex justify-between text-sm text-blue-600">
-                        <span>VAT (20%):</span>
-                        <span>
-                          £
-                          {((formData.storageDays || 0) * (formData.storageCostPerDay || 0) * 0.2).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                      <span>Total Storage Cost:</span>
-                      <span>
-                        £
-                        {(
-                          (formData.storageDays || 0) *
-                          (formData.storageCostPerDay || 0) *
-                          (formData.includeStorageVAT ? 1.2 : 1)
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recovery Cost with VAT */}
-              <div className="flex items-end gap-2 col-span-2">
-                <div className="flex-grow">
-                  <FormField
-                    type="number"
-                    label="Recovery Cost (£)"
-                    value={formData.recoveryCost}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, recoveryCost: parseFloat(e.target.value) || 0 }))}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="flex items-center pb-2">
-                  <input
-                    type="checkbox"
-                    id="includeRecoveryCostVAT"
-                    checked={formData.includeRecoveryCostVAT}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, includeRecoveryCostVAT: e.target.checked }))}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="includeRecoveryCostVAT" className="text-sm text-gray-700 ml-1">
-                    VAT
-                  </label>
-                </div>
-              </div>
-            </>
-          )}
-
-          {formData.type === 'weekly' && (
-            <>
-              <FormField
-                type="number"
-                label="Number of Weeks"
-                value={formData.numberOfWeeks}
-                onChange={(e) => {
-                  const newWeeks = parseInt(e.target.value) || 1;
-                  setHasModifiedWeeks(true);
-                  setFormData((prev) => ({ ...prev, numberOfWeeks: newWeeks }));
-                }}
-                min="1"
-                required
-              />
-              <div className="col-span-2 grid grid-cols-2 gap-4">
-                <FormField
-                  type="date"
-                  label="End Date (auto‐calculated)"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value || '' }))}
-                  min={formData.startDate}
-                />
-                <FormField
-                  type="time"
-                  label="End Time"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value || '' }))}
-                />
-              </div>
-
-              {/* --- Weekly Insurance (per week) Input --- */}
-              <div className="col-span-2 border-t pt-4 mt-2">
-                {selectedVehicle && typeof (selectedVehicle as any).weeklyInsuranceAmount === 'number' ? (
-                  <p className="text-xs font-semibold text-blue-700 flex items-center gap-1 mb-2">
-                    <Info className="h-3 w-3" /> Auto-filled from Vehicle (Weekly Insurance). You can update if needed.
-                  </p>
-                ) : (
-                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1 mb-2">
-                    <AlertTriangle className="h-3 w-3" /> Enter the vehicle insurance amount — it wasn’t provided in the Vehicle page.
-                  </p>
-                )}
-
-                <div className="flex items-end gap-2">
-                  <div className="flex-grow">
-                    <FormField
-                      type="number"
-                      label="Insurance Per Week (£)"
-                      value={formData.insurancePerWeek}
-                      onChange={(e) => {
-                        setInsurancePerWeekTouched(true);
-                        setFormData((prev) => ({ ...prev, insurancePerWeek: parseFloat(e.target.value) || 0 }));
-                      }}
-                      min="0"
-                      step="0.001"
-                    />
-                  </div>
-                  <div className="flex items-center pb-2">
-                    <input
-                      type="checkbox"
-                      id="insurancePerWeekIncludeVAT"
-                      checked={formData.insurancePerWeekIncludeVAT}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, insurancePerWeekIncludeVAT: e.target.checked }))}
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor="insurancePerWeekIncludeVAT" className="text-sm text-gray-700 ml-1">
-                      VAT
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* H Substitute details */}
-        {formData.reason === 'h-substitute' && (
-          <div className="border-t pt-4 mt-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Hire Substitution Details</h3>
-
-            {formData.hireSubstitutionDetails.map((sub, index) => (
-              <div key={index} className="border p-4 rounded-lg mb-6 bg-gray-50 relative">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Car className="w-4 h-4" /> Substitution Vehicle {index + 1}
-                  </h4>
-                  {formData.hireSubstitutionDetails.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeSubstitutionVehicle(index)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Fleet Picker */}
-                <div className="mb-4">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pick from Vehicles</label>
-                  <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={subVehicleSearchQueries[index] || ''}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setSubVehicleSearchQueries((prev) => { const c = [...prev]; c[index] = val; return c; });
-                            setShowSubVehicleResults((prev) => { const c = [...prev]; c[index] = true; return c; });
-                        }}
-                        onBlur={() => setTimeout(() => setShowSubVehicleResults(p => { const c=[...p]; c[index]=false; return c;}), 200)}
-                        className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                        placeholder="Search fleet..."
-                      />
-                      {showSubVehicleResults[index] && (
-                        <div className="absolute z-20 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto sm:text-sm">
-                            {filteredSubVehicles(index).length ? (
-                                filteredSubVehicles(index).map((v) => (
-                                    <div
-                                        key={v.id}
-                                        className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                                        onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            pickSubVehicleFromFleet(index, v);
-                                        }}
-                                    >
-                                        <div className="font-medium">{v.make} {v.model}</div>
-                                        <div className="text-xs text-gray-500">{v.registrationNumber}</div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="px-4 py-2 text-sm text-gray-500">No vehicles found</div>
+      <form onSubmit={openConfirm} className="space-y-6 px-2">
+        {/* SETUP TAB */}
+        {activeTab === 'setup' && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Vehicle Assignment */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Vehicle</label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                            <input
+                              type="text" value={vehicleSearchQuery}
+                              onChange={(e) => { setVehicleSearchQuery(e.target.value); setShowVehicleResults(true); }}
+                              onFocus={() => setShowVehicleResults(true)}
+                              onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
+                              className="w-full pl-10 pr-3 py-2 border rounded-md focus:ring-primary focus:border-primary shadow-sm"
+                            />
+                            {showVehicleResults && (
+                               <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-md py-1 overflow-auto border border-gray-100">
+                                   {filteredVehicles.map((v) => (
+                                     <div key={v.id} className="cursor-pointer hover:bg-blue-50 px-4 py-3 border-b border-gray-50"
+                                        onMouseDown={() => {
+                                            setFormData(p => ({ ...p, vehicleId: v.id }));
+                                            setVehicleSearchQuery(`${v.make} ${v.model} - ${v.registrationNumber}`);
+                                            setShowVehicleResults(false);
+                                            setConditionData(p => ({ ...p, mileage: v.mileage || 0 }));
+                                            setInsurancePerDayTouched(false); setInsurancePerWeekTouched(false);
+                                        }}>
+                                        <div className="font-semibold text-gray-800">{v.make} {v.model}</div>
+                                        <div className="text-sm text-primary">{v.registrationNumber}</div>
+                                     </div>
+                                   ))}
+                               </div>
                             )}
                         </div>
-                      )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                   <FormField label="Make" name="make" value={sub.make} onChange={(e) => handleSubChange(index, e)} />
-                   <FormField label="Model" name="model" value={sub.model} onChange={(e) => handleSubChange(index, e)} />
-                   <FormField label="Registration" name="registration" value={sub.registration} onChange={(e) => handleSubChange(index, e)} />
-                   <FormField label="Loaner/Provider" name="loaner" value={sub.loaner} onChange={(e) => handleSubChange(index, e)} />
-                   <FormField label="Date Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={(e) => handleSubChange(index, e)} />
-                   <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={(e) => handleSubChange(index, e)} />
-                </div>
-
-                {/* Substitution Condition Report */}
-                <div className="bg-white p-4 rounded border border-gray-200">
-                    <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-600" /> Condition Report
-                    </h5>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        {/* Mileage */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Mileage Out</label>
-                            <div className="relative mt-1">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Gauge className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <input
-                                    type="number"
-                                    name="mileage"
-                                    value={sub.mileage}
-                                    onChange={(e) => handleSubChange(index, e)}
-                                    className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Fuel */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Fuel Level</label>
-                            <div className="relative mt-1">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Fuel className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <select
-                                    name="fuelLevel"
-                                    value={sub.fuelLevel}
-                                    onChange={(e) => handleSubChange(index, e)}
-                                    className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                >
-                                    <option value="0">Empty (0%)</option>
-                                    <option value="25">Quarter (25%)</option>
-                                    <option value="50">Half (50%)</option>
-                                    <option value="75">Three Quarters (75%)</option>
-                                    <option value="100">Full (100%)</option>
-                                </select>
-                            </div>
+                    </div>
+                    {/* Customer Assignment */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Customer</label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                            <input
+                              type="text" value={customerSearchQuery}
+                              onChange={(e) => { setCustomerSearchQuery(e.target.value); setShowCustomerResults(true); }}
+                              onFocus={() => setShowCustomerResults(true)}
+                              onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
+                              className="w-full pl-10 pr-3 py-2 border rounded-md focus:ring-primary focus:border-primary shadow-sm"
+                            />
+                            {showCustomerResults && (
+                               <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-md py-1 overflow-auto border border-gray-100">
+                                   {filteredCustomers.map((c) => (
+                                     <div key={c.id} className="cursor-pointer hover:bg-purple-50 px-4 py-3 border-b border-gray-50"
+                                        onMouseDown={() => {
+                                            setFormData(p => ({ ...p, customerId: c.id, signature: c.signature || '' }));
+                                            setCustomerSearchQuery(`${c.name} - ${c.mobile}`);
+                                            setShowCustomerResults(false);
+                                        }}>
+                                        <div className="font-semibold text-gray-800">{c.name}</div>
+                                        <div className="text-sm text-purple-600">{c.mobile}</div>
+                                     </div>
+                                   ))}
+                               </div>
+                            )}
                         </div>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="flex items-center space-x-2 border p-2 rounded bg-gray-50">
-                            <input
-                                type="checkbox"
-                                id={`sub_clean_${index}`}
-                                name="isClean"
-                                checked={sub.isClean}
-                                onChange={(e) => handleSubChange(index, e)}
-                                className="rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <label htmlFor={`sub_clean_${index}`} className="text-sm text-gray-700">Vehicle is Clean</label>
-                        </div>
-                        <div className="flex items-center space-x-2 border p-2 rounded bg-gray-50">
-                            <input
-                                type="checkbox"
-                                id={`sub_damage_${index}`}
-                                name="hasDamage"
-                                checked={sub.hasDamage}
-                                onChange={(e) => handleSubChange(index, e)}
-                                className="rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <label htmlFor={`sub_damage_${index}`} className="text-sm text-gray-700">Has Damage</label>
-                        </div>
+                <div className="border-t pt-4 col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-1">Rental Type</label>
+                       <select value={formData.type} onChange={e => setFormData(p => ({...p, type: e.target.value as any}))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                          <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="claim">Claim</option>
+                       </select>
                     </div>
-
-                    {sub.hasDamage && (
-                        <div className="mb-4">
-                            <TextArea 
-                                label="Damage Description" 
-                                name="damageDescription" 
-                                value={sub.damageDescription} 
-                                onChange={(e) => handleSubChange(index, e)} 
-                            />
-                        </div>
+                    <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                       <select value={formData.status} onChange={e => setFormData(p => ({...p, status: e.target.value as any}))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                          <option value="scheduled">Scheduled</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+                       </select>
+                    </div>
+                    <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                       <select value={baseReason} onChange={e => { setBaseReason(e.target.value as any); if(e.target.value !== 'hired') setHireVariant('normal'); }} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                          <option value="hired">Hire</option><option value="claim">Claim</option><option value="o/d">O/D</option><option value="staff">Staff</option><option value="workshop">Workshop</option>
+                       </select>
+                    </div>
+                    {baseReason === 'hired' && (
+                       <div>
+                           <label className="block text-sm font-medium text-gray-700 mb-1">Variant</label>
+                           <select value={hireVariant} onChange={e => setHireVariant(e.target.value as any)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                              <option value="normal">Normal</option><option value="h-substitute">H Substitute</option><option value="c-substitute">C Substitute</option>
+                           </select>
+                       </div>
                     )}
+                </div>
 
-                    {/* Sub Images */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Condition Images</label>
-                        
-                        {/* Existing Sub Images */}
-                        {sub.images && sub.images.length > 0 && (
-                            <div className="grid grid-cols-4 gap-2 mb-2">
-                                {sub.images.map((url, imgIdx) => (
-                                    <div key={imgIdx} className="relative group">
-                                        <img src={url} alt="Sub Condition" className="w-full h-16 object-cover rounded border" />
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveExistingSubImage(index, url)}
-                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
+                <div className="border-t pt-4 col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <FormField type="date" label="Start Date" value={formData.startDate} onChange={e => setFormData(p => ({...p, startDate: e.target.value}))} required />
+                   <FormField type="time" label="Start Time" value={formData.startTime} onChange={e => setFormData(p => ({...p, startTime: e.target.value}))} required />
+                   {formData.type === 'weekly' ? (
+                     <>
+                        <FormField type="number" label="Weeks" value={formData.numberOfWeeks} onChange={e => { setHasModifiedWeeks(true); setFormData(p => ({...p, numberOfWeeks: parseInt(e.target.value)||1})); }} min="1" required />
+                        <div className="grid grid-cols-2 gap-2">
+                           <FormField type="date" label="End Date (Auto)" value={formData.endDate} disabled />
+                           <FormField type="time" label="End Time" value={formData.endTime} onChange={e => setFormData(p => ({...p, endTime: e.target.value}))} />
+                        </div>
+                     </>
+                   ) : (
+                     <>
+                        <FormField type="date" label="End Date" value={formData.endDate} onChange={e => setFormData(p => ({...p, endDate: e.target.value}))} required />
+                        <FormField type="time" label="End Time" value={formData.endTime} onChange={e => setFormData(p => ({...p, endTime: e.target.value}))} required />
+                     </>
+                   )}
+                </div>
+                
+                {isManager && (
+                   <div className="border-t pt-4 col-span-1 md:col-span-2">
+                      <FormField type="datetime-local" label="Original Start Date (System/Manager)" value={formData.originalStartDate} onChange={e => setFormData(p => ({...p, originalStartDate: e.target.value}))} />
+                   </div>
+                )}
+             </div>
+
+             {/* SUBSTITUTION LOGIC */}
+             {formData.reason === 'h-substitute' && (
+                <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
+                   <h3 className="text-lg font-bold text-gray-900 mb-4">Substitution Details</h3>
+                   
+                   {formData.hireSubstitutionDetails.map((sub, index) => (
+                      <div key={index} className="flex flex-col gap-5 border border-yellow-300 bg-white p-5 rounded-xl mb-4 relative shadow-sm">
+                         <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                            <h4 className="font-bold text-gray-800">Substitution Vehicle #{index + 1}</h4>
+                            <button 
+                              type="button" 
+                              onClick={() => removeSubstitutionVehicle(index)} 
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-md transition-colors"
+                              title="Remove Substitution"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                         </div>
+
+                         {/* Vehicle Search & Details Grid */}
+                         <div className="space-y-4">
+                            <div className="relative">
+                               <input
+                                 type="text"
+                                 value={subVehicleSearchQueries[index]}
+                                 onChange={(e) => {
+                                   const val = e.target.value;
+                                   const newQueries = [...subVehicleSearchQueries];
+                                   newQueries[index] = val;
+                                   setSubVehicleSearchQueries(newQueries);
+                                   
+                                   const newSubs = [...formData.hireSubstitutionDetails];
+                                   newSubs[index].registration = val;
+                                   setFormData({ ...formData, hireSubstitutionDetails: newSubs });
+                                   
+                                   const newShowResults = [...showSubVehicleResults];
+                                   newShowResults[index] = true;
+                                   setShowSubVehicleResults(newShowResults);
+                                 }}
+                                 onFocus={() => {
+                                   const newShowResults = [...showSubVehicleResults];
+                                   newShowResults[index] = true;
+                                   setShowSubVehicleResults(newShowResults);
+                                 }}
+                                 onBlur={() => {
+                                   setTimeout(() => {
+                                     const newShowResults = [...showSubVehicleResults];
+                                     newShowResults[index] = false;
+                                     setShowSubVehicleResults(newShowResults);
+                                   }, 200);
+                                 }}
+                                 placeholder="Search available substitution vehicles..."
+                                 className="w-full border rounded-md p-2"
+                               />
+                               
+                               {showSubVehicleResults[index] && (
+                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
+                                   {filteredSubVehicles(index).map(v => (
+                                     <div 
+                                       key={v.id}
+                                       className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors flex justify-between items-center"
+                                       onMouseDown={(e) => {
+                                         e.preventDefault();
+                                         const newSubs = [...formData.hireSubstitutionDetails];
+                                         newSubs[index].registration = v.registrationNumber || '';
+                                         newSubs[index].make = v.make || '';
+                                         newSubs[index].model = v.model || '';
+                                         newSubs[index].mileage = v.mileage || 0; 
+                                         setFormData({ ...formData, hireSubstitutionDetails: newSubs });
+                                         
+                                         const newQueries = [...subVehicleSearchQueries];
+                                         newQueries[index] = `${v.make} ${v.model} - ${v.registrationNumber}`;
+                                         setSubVehicleSearchQueries(newQueries);
+
+                                         const newShowResults = [...showSubVehicleResults];
+                                         newShowResults[index] = false;
+                                         setShowSubVehicleResults(newShowResults);
+                                       }}
+                                     >
+                                       <div>
+                                          <div className="font-bold text-gray-900">{v.registrationNumber}</div>
+                                          <div className="text-xs text-gray-500 font-medium">{v.make} {v.model}</div>
+                                       </div>
+                                       <div className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold uppercase">
+                                          Available
+                                       </div>
+                                     </div>
+                                   ))}
+                                   
+                                   {filteredSubVehicles(index).length === 0 && (
+                                     <div className="px-4 py-3 text-sm text-gray-500 italic bg-gray-50 rounded-b-xl">
+                                       No available vehicles match. (Manual entry will be saved)
+                                     </div>
+                                   )}
+                                 </div>
+                               )}
                             </div>
-                        )}
 
-                        <FileUpload
-                            label={sub.images.length > 0 ? "Add More Images" : "Upload Images"}
-                            accept="image/*"
-                            multiple
-                            onChange={(files) => setSubNewImages(prev => ({ ...prev, [index]: files }))}
-                            showPreview
-                        />
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <FormField label="Vehicle Make" name="make" value={sub.make} onChange={e => handleSubChange(index, e)} placeholder="e.g. Toyota" />
+                              <FormField label="Vehicle Model" name="model" value={sub.model} onChange={e => handleSubChange(index, e)} placeholder="e.g. Prius" />
+                            </div>
+                         </div>
+
+                         {/* Timing & Loaner Details Grid */}
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                            <FormField label="Date & Time Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={e => handleSubChange(index, e)} />
+                            <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={e => handleSubChange(index, e)} />
+                         </div>
+                         
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="col-span-1 md:col-span-2">
+                                 <FormField label="Loaner (Provider - Optional)" name="loaner" value={sub.loaner || ''} onChange={e => handleSubChange(index, e)} placeholder="e.g. Partner Co. or Internal Fleet" />
+                             </div>
+                             <div className="col-span-1 md:col-span-2">
+                                 <TextArea label="Notes (Reason for Substitution)" name="notes" value={sub.notes} onChange={e => handleSubChange(index, e)} rows={2} />
+                             </div>
+                         </div>
+
+                         {/* Check-Out Condition specifically for Substitution */}
+                         <div className="mt-4 border-t border-yellow-200 pt-4 bg-gray-50 p-4 rounded-xl">
+                             <h5 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Car className="text-gray-500"/> Sub Vehicle Check-Out Condition</h5>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField type="number" label="Mileage Out" name="mileage" value={sub.mileage} onChange={e => handleSubChange(index, e)} required />
+                                <div>
+                                   <label className="block text-sm font-medium text-gray-700 mb-1">Fuel Level</label>
+                                   <select name="fuelLevel" value={sub.fuelLevel} onChange={e => handleSubChange(index, e as any)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary" required>
+                                      <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
+                                   </select>
+                                </div>
+                                <div className="flex gap-4 col-span-1 md:col-span-2">
+                                   <label className="flex items-center gap-2 font-medium"><input type="checkbox" name="isClean" checked={!!sub.isClean} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5"/> Is Clean</label>
+                                   <label className="flex items-center gap-2 font-medium"><input type="checkbox" name="hasDamage" checked={!!sub.hasDamage} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-red-500"/> Has Damage</label>
+                                </div>
+                                {sub.hasDamage && <div className="col-span-1 md:col-span-2"><TextArea label="Damage Description" name="damageDescription" value={sub.damageDescription} onChange={e => handleSubChange(index, e as any)} /></div>}
+                                <div className="col-span-1 md:col-span-2 space-y-3">
+                                   <label className="block text-sm font-medium text-gray-700">Existing Images</label>
+                                   {sub.images && sub.images.length > 0 && (
+                                     <div className="grid grid-cols-4 gap-3">
+                                        {sub.images.map((url, imgIdx) => (
+                                          <div key={imgIdx} className="relative group rounded-lg overflow-hidden border">
+                                            <img src={url} className="w-full h-24 object-cover" />
+                                            <button type="button" onClick={() => handleRemoveExistingSubImage(index, url)} className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"><X className="w-3 h-3"/></button>
+                                          </div>
+                                        ))}
+                                     </div>
+                                   )}
+                                   <FileUpload label="Add Additional Images" multiple accept="image/*" onChange={files => setSubNewImages(prev => ({ ...prev, [index]: files }))} showPreview />
+                                </div>
+                             </div>
+                         </div>
+                      </div>
+                   ))}
+                   
+                   <button 
+                     type="button" 
+                     onClick={addSubstitutionVehicle} 
+                     className="flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 font-bold transition-all"
+                   >
+                     <Plus className="h-4 w-4 mr-2" /> Add Another Substitution
+                   </button>
                 </div>
-
-                <div className="mt-4">
-                      <TextArea label="General Notes" name="notes" value={sub.notes} onChange={(e) => handleSubChange(index, e)} rows={2} />
-                </div>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addSubstitutionVehicle}
-              className="mt-2 flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Another Substitution Vehicle
-            </button>
+             )}
           </div>
         )}
 
-        {/* Negotiation Section */}
-        <div className="border-t pt-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Rate Negotiation</h3>
-          <div className="space-y-4">
-            <FormField
-              type="number"
-              label="Negotiated Rate (Optional)"
-              value={formData.negotiatedRate}
-              onChange={(e) => setFormData((prev) => ({ ...prev, negotiatedRate: e.target.value }))}
-              min="0"
-              step="0.01"
-              placeholder={`Enter custom ${formData.type === 'weekly' ? 'weekly' : 'daily'} rate`}
-            />
-            {formData.negotiatedRate && (
-              <TextArea
-                label="Negotiation Notes"
-                value={formData.negotiationNotes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, negotiationNotes: e.target.value }))}
-                rows={2}
-                placeholder="Add notes about rate negotiation..."
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Discount Section */}
-        <div className="border-t pt-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Discount</h3>
-          <div className="space-y-4">
-            <FormField
-              type="number"
-              label="Discount Percentage"
-              value={formData.discountPercentage}
-              onChange={(e) => {
-                const pct = parseFloat(e.target.value) || 0;
-                setFormData((prev) => ({ ...prev, discountPercentage: pct }));
-                setLastEditedField('percentage');
-              }}
-              min="0"
-              max="100"
-              step="0.01"
-            />
-            <FormField
-              type="number"
-              label="Discount Amount (£)"
-              value={formData.discountAmount}
-              onChange={(e) => {
-                const amt = parseFloat(e.target.value) || 0;
-                setFormData((prev) => ({ ...prev, discountAmount: amt }));
-                setLastEditedField('amount');
-              }}
-              min="0"
-              step="0.01"
-            />
-            {(formData.discountPercentage > 0 || formData.discountAmount > 0) && (
-              <TextArea
-                label="Discount Notes"
-                value={formData.discountNotes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, discountNotes: e.target.value }))}
-                rows={2}
-                placeholder="Add notes about the discount..."
-                required={formData.discountPercentage > 0 || formData.discountAmount > 0}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Cost Summary */}
-        <div className="border-t pt-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Summary</h3>
-          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-            
-            {/* 1. Base Cost (Raw) */}
-            <div className="flex justify-between text-sm">
-              <span>Base Rental Cost:</span>
-              <span className="font-medium">
-                {formatCurrency(
-                  calculateRentalCost(
-                    new Date(`${formData.startDate}T${formData.startTime}`),
-                    new Date(`${formData.endDate}T${formData.endTime}`),
-                    formData.type,
-                    selectedVehicle!,
-                    formData.reason,
-                    formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
-                    0,0,0,0,0,0,
-                    false, false, false, false, false, false
-                  )
-                )}
-              </span>
-            </div>
-
-            {/* 2. Hire VAT (Only if checked) */}
-            {formData.includeVAT && (
-               <div className="flex justify-between text-sm text-blue-600">
-                 <span>Hire VAT (20%):</span>
-                 <span className="font-medium">
-                   {formatCurrency(
-                     calculateRentalCost(
-                       new Date(`${formData.startDate}T${formData.startTime}`),
-                       new Date(`${formData.endDate}T${formData.endTime}`),
-                       formData.type,
-                       selectedVehicle!,
-                       formData.reason,
-                       formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
-                       0,0,0,0,0,0,
-                       false, false, false, false, false, false
-                     ) * 0.2
-                   )}
-                 </span>
-               </div>
-            )}
-
-            {/* Separator for Extras */}
-            <div className="border-t border-gray-200 my-1"></div>
-
-            {/* 3. Extras Breakdown */}
-            {formData.type === 'claim' &&
-              formData.storageStartDate &&
-              formData.storageEndDate &&
-              formData.storageCostPerDay > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>
-                    Storage Cost ({formData.storageDays || 0} days)
-                    {formData.includeStorageVAT ? ' (Inc. VAT)' : ''}:
-                  </span>
-                  <span className="font-medium">
-                    {formatCurrency(
-                      (formData.storageDays || 0) *
-                        (formData.storageCostPerDay || 0) *
-                        (formData.includeStorageVAT ? 1.2 : 1)
-                    )}
-                  </span>
+        {/* FINANCE TAB */}
+        {activeTab === 'finance' && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                
+                <div className="flex items-center gap-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                   <input type="checkbox" id="includeVAT" checked={formData.includeVAT} onChange={e => setFormData(p => ({...p, includeVAT: e.target.checked}))} className="w-5 h-5 text-primary rounded" />
+                   <label htmlFor="includeVAT" className="font-bold text-gray-800">Apply 20% VAT to Base Rental Cost</label>
                 </div>
-              )}
 
-            {formData.type === 'claim' && formData.recoveryCost > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Recovery Cost{formData.includeRecoveryCostVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">
-                  {formatCurrency(formData.recoveryCost * (formData.includeRecoveryCostVAT ? 1.2 : 1))}
-                </span>
-              </div>
-            )}
-
-            {formData.deliveryCharge > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Delivery Charge{formData.deliveryChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">
-                  {formatCurrency(formData.deliveryCharge * (formData.deliveryChargeIncludeVAT ? 1.2 : 1))}
-                </span>
-              </div>
-            )}
-
-            {formData.collectionCharge > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Collection Charge{formData.collectionChargeIncludeVAT ? ' (Inc. VAT)' : ''}:</span>
-                <span className="font-medium">
-                  {formatCurrency(
-                    formData.collectionCharge * (formData.collectionChargeIncludeVAT ? 1.2 : 1)
-                  )}
-                </span>
-              </div>
-            )}
-
-            {/* Insurance Display */}
-            {((formData.type === 'weekly' ? formData.insurancePerWeek > 0 : formData.insurancePerDay > 0) &&
-              formData.startDate &&
-              formData.endDate &&
-              (() => {
-                const start = new Date(`${formData.startDate}T${formData.startTime}`);
-                const end = new Date(`${formData.endDate}T${formData.endTime}`);
-                if (isValid(start) && isValid(end) && !isAfter(start, end)) {
-                  if (formData.type === 'weekly') {
-                    const weeks = Number(formData.numberOfWeeks || 1);
-                    const insuranceCost =
-                      weeks * (formData.insurancePerWeek || 0) * (formData.insurancePerWeekIncludeVAT ? 1.2 : 1);
-                    return (
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          Insurance ({weeks} week{weeks === 1 ? '' : 's'})
-                          {formData.insurancePerWeekIncludeVAT ? ' (Inc. VAT)' : ''}:
-                        </span>
-                        <span className="font-medium">{formatCurrency(insuranceCost)}</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <FormField type="number" label="Negotiated Rate (£)" value={formData.negotiatedRate} onChange={e => setFormData(p => ({...p, negotiatedRate: e.target.value}))} placeholder="Leave blank for vehicle default" />
+                   <div className="col-span-1 md:col-span-2 bg-purple-50 p-4 rounded-xl border border-purple-100 flex items-center justify-between">
+                      <div>
+                         <p className="font-bold text-purple-900">Discount Manager</p>
+                         <p className="text-xs text-purple-700 mt-1">Discounts are now tracked historically. Please save and use the "Apply Discount" button on the main table to add or modify discounts.</p>
                       </div>
-                    );
-                  }
-
-                  // ✅ FIXED LOGIC HERE: Use differenceInHours / 24 rounded up
-                  const hours = differenceInHours(end, start);
-                  const days = hours <= 0 ? 1 : Math.ceil(hours / 24);
-                  
-                  const insuranceCost =
-                    days * (formData.insurancePerDay || 0) * (formData.insurancePerDayIncludeVAT ? 1.2 : 1);
-                  return (
-                    <div className="flex justify-between text-sm">
-                      <span>
-                        Insurance ({days} day{days === 1 ? '' : 's'})
-                        {formData.insurancePerDayIncludeVAT ? ' (Inc. VAT)' : ''}:
-                      </span>
-                      <span className="font-medium">{formatCurrency(insuranceCost)}</span>
-                    </div>
-                  );
-                }
-                return null;
-              })())}
-
-            {/* 4. Gross Subtotal */}
-            <div className="flex justify-between text-sm pt-2 border-t font-semibold text-gray-700">
-              <span>Subtotal (Gross):</span>
-              <span className="font-medium">{formatCurrency(currentTotalCost)}</span>
-            </div>
-
-            {currentDiscountAmount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Discount ({formData.discountPercentage}%):</span>
-                <span>-{formatCurrency(currentDiscountAmount)}</span>
-              </div>
-            )}
-
-            {/* 5. Total Due */}
-            <div className="flex justify-between text-lg font-semibold pt-2 border-t mt-2">
-              <span>Total Amount Due:</span>
-              <span className="font-medium">{formatCurrency(currentFinalCostAfterDiscount)}</span>
-            </div>
-
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Amount Paid (Previously):</span>
-              <span>{formatCurrency(rental.paidAmount || 0)}</span>
-            </div>
-
-            <div className="flex justify-between text-sm font-medium text-red-600">
-              <span>Remaining Amount Due:</span>
-              <span>{formatCurrency(currentRemainingAmount)}</span>
-            </div>
-
-            <div className="flex justify-between text-sm font-medium pt-2 border-t">
-              <span>Payment Status:</span>
-              <span
-                className={`capitalize font-semibold ${
-                  (rental.paidAmount || 0) + (formData.amountToAdd || 0) >= currentFinalCostAfterDiscount - 0.001
-                    ? 'text-green-600'
-                    : (rental.paidAmount || 0) + (formData.amountToAdd || 0) > 0
-                    ? 'text-orange-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {(rental.paidAmount || 0) + (formData.amountToAdd || 0) >= currentFinalCostAfterDiscount - 0.001
-                  ? 'Paid'
-                  : (rental.paidAmount || 0) + (formData.amountToAdd || 0) > 0
-                  ? 'Partially Paid'
-                  : 'Pending'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Vehicle Condition Section */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <Car className="w-5 h-5 text-gray-500" /> Main Vehicle Check-Out Condition
-          </h3>
-          <div className="space-y-6 bg-white p-4 rounded-lg border border-gray-200">
-            {/* Mileage Box */}
-            <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-              <label className="block text-sm font-bold text-gray-800 mb-1">
-                Mileage at Check-Out
-              </label>
-              <input
-                type="number"
-                value={conditionData.mileage}
-                onChange={(e) => setConditionData((prev) => ({ ...prev, mileage: Number(e.target.value) || 0 }))}
-                min={rental.checkOutCondition?.mileage ?? selectedVehicle?.mileage ?? 0}
-                className="block w-full border-2 border-blue-300 rounded-md py-2 px-3 focus:border-blue-500 focus:ring-blue-500 font-mono text-lg"
-                required
-              />
-              <p className="text-xs font-semibold text-blue-700 mt-1 flex items-center gap-1">
-                <Info className="w-3 h-3" /> Please update to the latest vehicle mileage
-              </p>
-            </div>
-
-            {/* Fuel Box */}
-            <div className="p-4 bg-orange-50 border-l-4 border-orange-500 rounded">
-              <label className="block text-sm font-bold text-gray-800 mb-1">
-                Fuel Level
-              </label>
-              <select
-                value={conditionData.fuelLevel as any}
-                onChange={(e) => setConditionData((prev) => ({ ...prev, fuelLevel: e.target.value as any }))}
-                className="block w-full border-2 border-orange-300 rounded-md py-2 px-3 focus:border-orange-500 focus:ring-orange-500"
-                required
-              >
-                <option value="0">Empty (0%)</option>
-                <option value="25">Quarter (25%)</option>
-                <option value="50">Half (50%)</option>
-                <option value="75">Three Quarters (75%)</option>
-                <option value="100">Full (100%)</option>
-              </select>
-              <p className="text-xs font-semibold text-orange-700 mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Please check the fuel level correctly
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2 border p-3 rounded bg-gray-50">
-                <input
-                  type="checkbox"
-                  id="isClean"
-                  checked={!!conditionData.isClean}
-                  onChange={(e) => setConditionData((prev) => ({ ...prev, isClean: e.target.checked }))}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label htmlFor="isClean" className="text-sm font-medium text-gray-700">
-                  Vehicle is clean
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2 border p-3 rounded bg-gray-50">
-                <input
-                  type="checkbox"
-                  id="hasDamage"
-                  checked={!!conditionData.hasDamage}
-                  onChange={(e) => setConditionData((prev) => ({ ...prev, hasDamage: e.target.checked }))}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label htmlFor="hasDamage" className="text-sm font-medium text-gray-700">
-                  Vehicle has damage
-                </label>
-              </div>
-            </div>
-
-            {conditionData.hasDamage && (
-              <TextArea
-                label="Damage Description"
-                value={conditionData.damageDescription as any}
-                onChange={(e) => setConditionData((prev) => ({ ...prev, damageDescription: e.target.value }))}
-                required={!!conditionData.hasDamage}
-              />
-            )}
-
-            {existingImages.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Existing Images ({existingImages.length})
-                </label>
-                <div className="grid grid-cols-3 gap-4">
-                  {existingImages.map((url, idx) => (
-                    <div key={idx} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Condition ${idx + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExistingImage(url)}
-                        className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remove Image"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                      <div className="text-right">
+                         <p className="text-xs font-bold text-purple-500 uppercase">Total Applied</p>
+                         <p className="text-2xl font-black text-purple-700 font-mono">-{formatCurrency(((rental as any).discounts || []).reduce((acc: number, d: any) => acc + d.amount, 0) || rental.discountAmount || 0)}</p>
+                      </div>
+                   </div>
+                   {formData.negotiatedRate && (
+                     <div className="col-span-3">
+                       <TextArea label="Pricing Notes" value={formData.negotiationNotes} onChange={e => setFormData(p => ({...p, negotiationNotes: e.target.value}))} rows={2} />
+                     </div>
+                   )}
                 </div>
-              </div>
-            )}
 
-            <FileUpload
-              label="Add New Condition Images"
-              accept="image/*"
-              multiple
-              onChange={setNewImages}
-              showPreview
-            />
+                <div className="border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {/* Insurance Options */}
+                   <div className="space-y-4">
+                      <h4 className="font-bold text-gray-800 border-b pb-2">Insurance Details</h4>
+                      {formData.type === 'weekly' ? (
+                         <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Insurance Per Week (£)" value={formData.insurancePerWeek} onChange={e => { setInsurancePerWeekTouched(true); setFormData(p => ({...p, insurancePerWeek: parseFloat(e.target.value)||0})); }} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.insurancePerWeekIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerWeekIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                         </div>
+                      ) : (
+                         <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Insurance Per Day (£)" value={formData.insurancePerDay} onChange={e => { setInsurancePerDayTouched(true); setFormData(p => ({...p, insurancePerDay: parseFloat(e.target.value)||0})); }} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.insurancePerDayIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerDayIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                         </div>
+                      )}
+                   </div>
+
+                   {/* Claim Extras */}
+                   {formData.type === 'claim' && (
+                     <div className="space-y-4">
+                        <h4 className="font-bold text-gray-800 border-b pb-2">Claim Extras</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                           <FormField type="date" label="Storage Start" value={formData.storageStartDate} onChange={e => setFormData(p => ({...p, storageStartDate: e.target.value}))} />
+                           <FormField type="date" label="Storage End" value={formData.storageEndDate} onChange={e => setFormData(p => ({...p, storageEndDate: e.target.value}))} />
+                        </div>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Storage Cost / Day (£)" value={formData.storageCostPerDay} onChange={e => setFormData(p => ({...p, storageCostPerDay: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.includeStorageVAT} onChange={e => setFormData(p => ({...p, includeStorageVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Recovery Cost (£)" value={formData.recoveryCost} onChange={e => setFormData(p => ({...p, recoveryCost: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.includeRecoveryCostVAT} onChange={e => setFormData(p => ({...p, includeRecoveryCostVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Delivery Charge (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Collection Charge (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                     </div>
+                   )}
+                   
+                   {formData.type !== 'claim' && (
+                     <div className="space-y-4">
+                        <h4 className="font-bold text-gray-800 border-b pb-2">Logistics Charges</h4>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Delivery Charge (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                        <div className="flex items-end gap-3">
+                           <div className="flex-1"><FormField type="number" label="Collection Charge (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div>
+                           <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                        </div>
+                     </div>
+                   )}
+                </div>
+
+                {/* Extra Charges Section */}
+                <div className="border-t border-gray-200 pt-6">
+                   <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-gray-800">Extra Charges</h4>
+                      <button type="button" onClick={handleAddExtraCharge} className="text-sm flex items-center text-primary font-bold hover:text-primary-700">
+                         <Plus className="w-4 h-4 mr-1" /> Add Charge
+                      </button>
+                   </div>
+                   {formData.extraCharges.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No extra charges applied.</p>
+                   ) : (
+                      <div className="space-y-3">
+                         {formData.extraCharges.map((charge, index) => (
+                            <div key={charge.id} className="flex gap-3 items-end bg-gray-50 p-3 rounded-lg border border-gray-200">
+                               <div className="flex-1">
+                                  <FormField label="Description" value={charge.name} onChange={e => handleExtraChargeChange(index, 'name', e.target.value)} placeholder="e.g. Baby Seat" required />
+                               </div>
+                               <div className="w-32">
+                                  <FormField type="number" label="Amount (£)" value={charge.amount} onChange={e => handleExtraChargeChange(index, 'amount', parseFloat(e.target.value) || 0)} required />
+                               </div>
+                               <button type="button" onClick={() => handleRemoveExtraCharge(index)} className="p-2.5 text-red-600 hover:bg-red-100 rounded-lg mb-0.5 transition-colors">
+                                  <Trash2 className="w-5 h-5" />
+                               </button>
+                            </div>
+                         ))}
+                      </div>
+                   )}
+                </div>
+             </div>
           </div>
-        </div>
+        )}
 
-        {/* Add New Payment */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Payment</h3>
-          <p className="text-sm text-gray-500 mb-3">Record a new payment made towards this rental's balance.</p>
-          <div className="space-y-4">
-            <FormField
-              type="number"
-              label="Amount to Add (£)"
-              value={formData.amountToAdd}
-              onChange={(e) => setFormData((prev) => ({ ...prev, amountToAdd: parseFloat(e.target.value) || 0 }))}
-              min="0"
-              max={Math.max(0, currentRemainingAmount)}
-              step="0.01"
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <select
-                value={formData.paymentMethod}
-                onChange={(e) => setFormData((prev) => ({ ...prev, paymentMethod: e.target.value as any }))}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                disabled={formData.amountToAdd <= 0}
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
-              </select>
-            </div>
-            <FormField
-              label="Payment Reference (Optional)"
-              value={formData.paymentReference}
-              onChange={(e) => setFormData((prev) => ({ ...prev, paymentReference: e.target.value }))}
-              placeholder="Transaction ID, check number, etc."
-              disabled={formData.amountToAdd <= 0}
-            />
-            <TextArea
-              label="Payment Notes (Optional)"
-              value={formData.paymentNotes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, paymentNotes: e.target.value }))}
-              rows={2}
-              placeholder="Notes about this specific payment"
-              disabled={formData.amountToAdd <= 0}
-            />
+        {/* CONDITION TAB */}
+        {activeTab === 'condition' && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Car className="text-gray-500"/> Main Vehicle Check-Out Condition</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField type="number" label="Mileage Out" value={conditionData.mileage} onChange={e => setConditionData(p => ({ ...p, mileage: e.target.value === '' ? '' : parseInt(e.target.value) }))} required />
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Fuel Level</label>
+                   <select value={conditionData.fuelLevel} onChange={e => setConditionData(p => ({ ...p, fuelLevel: e.target.value as any }))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary" required>
+                      <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
+                   </select>
+                </div>
+                <div className="flex gap-6 col-span-1 md:col-span-2 bg-gray-50 p-4 rounded-lg border">
+                   <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({ ...p, isClean: e.target.checked }))} className="rounded w-5 h-5 text-primary" /> Is Clean
+                   </label>
+                   <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({ ...p, hasDamage: e.target.checked }))} className="rounded w-5 h-5 text-red-500" /> Has Damage
+                   </label>
+                </div>
+                {conditionData.hasDamage && (
+                   <div className="col-span-1 md:col-span-2">
+                      <TextArea label="Damage Description" value={conditionData.damageDescription || ''} onChange={e => setConditionData(p => ({ ...p, damageDescription: e.target.value }))} rows={3} required />
+                   </div>
+                )}
+                
+                <div className="col-span-1 md:col-span-2 space-y-4">
+                   <label className="block text-sm font-bold text-gray-700 border-b pb-2">Vehicle Images</label>
+                   {existingImages.length > 0 && (
+                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-4">
+                        {existingImages.map((url, idx) => (
+                          <div key={idx} className="relative group rounded-lg overflow-hidden border shadow-sm">
+                             <img src={url} alt={`Existing ${idx}`} className="w-full h-24 object-cover" />
+                             <button type="button" onClick={() => handleRemoveExistingImage(url)} className="absolute top-1 right-1 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition shadow-md">
+                               <X className="w-3 h-3"/>
+                             </button>
+                          </div>
+                        ))}
+                     </div>
+                   )}
+                   <div className="bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300">
+                      <FileUpload label="Upload New Check-Out Images" multiple accept="image/*" onChange={files => setNewImages(files)} showPreview />
+                   </div>
+                </div>
+             </div>
           </div>
-        </div>
+        )}
 
-        {/* Customer Signature */}
-        <div className="border-t pt-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Customer Signature</label>
-          <p className="text-sm text-gray-500 mb-3">If changes require re-confirmation, ask the customer to sign again.</p>
-          <SignaturePad
-            value={formData.signature}
-            onChange={(signature) => setFormData((prev) => ({ ...prev, signature }))}
-            className="mt-1 border rounded-md"
-          />
-        </div>
+        {/* PAYMENT TAB */}
+        {activeTab === 'payment' && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                <div className="bg-green-50 p-4 rounded-xl border border-green-200 flex justify-between items-center">
+                   <div>
+                      <p className="text-sm font-bold text-green-900 uppercase">Total Expected (Gross)</p>
+                      <p className="text-2xl font-black text-green-700">{formatCurrency(costs.gross)}</p>
+                   </div>
+                   <div className="text-right border-l pl-4 border-green-200">
+                      <p className="text-sm font-bold text-blue-900 uppercase">Already Paid</p>
+                      <p className="text-xl font-black text-blue-700">{formatCurrency(rental.paidAmount || 0)}</p>
+                   </div>
+                   <div className="text-right border-l pl-4 border-green-200">
+                      <p className="text-sm font-bold text-red-900 uppercase">Remaining Amount</p>
+                      <p className="text-xl font-black text-red-600">{formatCurrency(costs.gross - (rental.paidAmount || 0))}</p>
+                   </div>
+                </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end space-x-3 border-t pt-6 mt-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading || !selectedVehicle || !selectedCustomer}
-            className={`inline-flex justify-center px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-              loading || !selectedVehicle || !selectedCustomer
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-primary hover:bg-primary-dark focus:ring-primary'
-            }`}
-          >
-            {loading ? 'Updating...' : 'Update Rental'}
-          </button>
+                <div className="border-t pt-4">
+                   <h4 className="font-bold text-gray-800 mb-4">Add Instant Payment</h4>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField type="number" label="Amount to Pay Now (£)" value={formData.amountToAdd} onChange={e => setFormData(p => ({...p, amountToAdd: parseFloat(e.target.value)||0}))} />
+                      <div>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                         <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                            <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
+                         </select>
+                      </div>
+                      <FormField label="Payment Reference" value={formData.paymentReference} onChange={e => setFormData(p => ({...p, paymentReference: e.target.value}))} placeholder="Transaction ID, Receipt Number..." />
+                      <FormField label="Payment Notes" value={formData.paymentNotes} onChange={e => setFormData(p => ({...p, paymentNotes: e.target.value}))} />
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {/* FORM ACTIONS */}
+        <div className="flex justify-end gap-3 pt-4 border-t mt-8 bg-gray-50 p-4 rounded-xl">
+           <button type="button" onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-bold transition-colors">
+              Cancel
+           </button>
+           <button type="submit" disabled={loading} className="px-6 py-2.5 bg-primary text-white hover:bg-primary-600 rounded-xl font-bold shadow-md transition-all hover:shadow-lg disabled:opacity-50">
+              Review Updates
+           </button>
         </div>
       </form>
 
-      {/* CONFIRMATION MODAL (Edit) */}
-      <Modal
-        isOpen={isConfirmModalOpen}
-        onClose={() => setIsConfirmModalOpen(false)}
-        title="Confirm Rental Update"
-        size="lg"
-      >
+      {/* CONFIRMATION & BREAKDOWN MODAL */}
+      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details & Save" size="lg">
         <div className="space-y-6">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r flex items-start gap-3">
-            <Info className="h-6 w-6 text-blue-500 flex-shrink-0" />
-            <div>
-              <h3 className="text-sm font-medium text-blue-800">Please Review</h3>
-              <p className="text-sm text-blue-700 mt-1">
-                Review the details below. You can update the Status, Reason, Dates, Mileage, Fuel, and (if applicable) the latest substitution times right here before saving.
-              </p>
-            </div>
-          </div>
+          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner">
+            <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
 
-          {/* Selected Customer & Vehicle */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
-              <div className="flex items-center gap-2 mb-2">
-                <User className="w-4 h-4 text-gray-500" />
-                <h4 className="text-sm font-bold text-gray-700 uppercase">Selected Customer</h4>
+            <div className="space-y-3 text-sm">
+              {/* Core Charges */}
+              <div className="flex justify-between items-center text-gray-700">
+                <span>Base Rental Net</span>
+                <span className="font-mono font-medium">{formatCurrency(costs.baseNet)}</span>
               </div>
-              <div className="text-sm">
-                <p className="font-semibold text-gray-900">{selectedCustomer?.name}</p>
-                <p className="text-gray-500">{selectedCustomer?.mobile}</p>
+              
+              <div className="flex justify-between items-center text-gray-700">
+                <span>Total Net (Includes Logistics, Insurance, Extras)</span>
+                <span className="font-mono font-medium">{formatCurrency(costs.net)}</span>
               </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Car className="w-4 h-4 text-gray-500" />
-                <h4 className="text-sm font-bold text-gray-700 uppercase">Selected Vehicle</h4>
+              
+              <div className="flex justify-between items-center text-gray-700">
+                <span>Calculated VAT (20%)</span>
+                <span className="font-mono font-medium">{formatCurrency(costs.vat)}</span>
               </div>
-              <div className="text-sm">
-                <p className="font-semibold text-gray-900">
-                  {selectedVehicle?.make} {selectedVehicle?.model}
-                </p>
-                <p className="text-gray-500 font-mono">{selectedVehicle?.registrationNumber}</p>
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Status */}
-            <div className="bg-white p-4 rounded border shadow-sm">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as any }))}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              >
-                <option value="scheduled">Scheduled</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            {/* Reason + Substitute */}
-            <div className="bg-white p-4 rounded border shadow-sm">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Reason</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <select
-                  value={baseReason}
-                  onChange={(e) => {
-                    const next = e.target.value as BaseReason;
-                    setBaseReason(next);
-                    if (next !== 'hired') setHireVariant('normal');
-                  }}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                >
-                  <option value="hired">Hire</option>
-                  <option value="claim">Claim</option>
-                  <option value="o/d">O/D</option>
-                  <option value="staff">Staff</option>
-                  <option value="workshop">Workshop</option>
-                </select>
-
-                {baseReason === 'hired' ? (
-                  <select
-                    value={hireVariant}
-                    onChange={(e) => setHireVariant(e.target.value as HireVariant)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  >
-                    <option value="normal">Normal Hire</option>
-                    <option value="h-substitute">H Substitute</option>
-                    <option value="c-substitute">C Substitute</option>
-                  </select>
-                ) : (
-                  <div className="hidden sm:block" />
-                )}
-              </div>
-            </div>
-
-            {/* Dates */}
-            <div className="bg-white p-4 rounded border shadow-sm">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Start Date</label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              />
-            </div>
-
-            <div className="bg-white p-4 rounded border shadow-sm">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">End Date</label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              />
-            </div>
-
-            {/* Latest substitution confirmation */}
-            {formData.reason === 'h-substitute' && latestSubIndex >= 0 && (
-              <div className="md:col-span-2 bg-white p-4 rounded border shadow-sm">
-                <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Confirm Latest Substitution Times
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Date & Time Given
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.hireSubstitutionDetails[latestSubIndex].givenAt}
-                      onChange={(e) => {
-                        const newSubs = [...formData.hireSubstitutionDetails];
-                        newSubs[latestSubIndex] = { ...newSubs[latestSubIndex], givenAt: e.target.value };
-                        setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
-                      }}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Date & Time Expected Return
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.hireSubstitutionDetails[latestSubIndex].expectedReturnAt}
-                      onChange={(e) => {
-                        const newSubs = [...formData.hireSubstitutionDetails];
-                        newSubs[latestSubIndex] = { ...newSubs[latestSubIndex], expectedReturnAt: e.target.value };
-                        setFormData((prev) => ({ ...prev, hireSubstitutionDetails: newSubs }));
-                      }}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 text-sm text-gray-700 bg-gray-50 border rounded p-3">
-                    <div className="font-semibold mb-1">
-                      {formData.hireSubstitutionDetails[latestSubIndex].make}{' '}
-                      {formData.hireSubstitutionDetails[latestSubIndex].model}{' '}
-                      <span className="font-mono text-gray-600">
-                        ({formData.hireSubstitutionDetails[latestSubIndex].registration})
-                      </span>
-                    </div>
-                    {formData.hireSubstitutionDetails[latestSubIndex].loaner && (
-                      <div className="text-gray-600">Provider: {formData.hireSubstitutionDetails[latestSubIndex].loaner}</div>
-                    )}
-                  </div>
+              {/* Discounts */}
+              {costs.discountAmount > 0 && (
+                <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded -mx-2 px-2">
+                  <span className="font-bold">Total Discounts Applied</span>
+                  <span className="font-mono font-black">- {formatCurrency(costs.discountAmount)}</span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Condition verify */}
-            <div className="md:col-span-2 border-t pt-4 mt-2">
-              <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" /> Verify Vehicle Condition
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Mileage</label>
-                  <div className="relative mt-1">
-                    <input
-                      type="number"
-                      value={Number(conditionData.mileage || 0)}
-                      onChange={(e) => setConditionData((prev) => ({ ...prev, mileage: parseInt(e.target.value) || 0 }))}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm font-mono"
-                    />
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-xs">miles</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Fuel Level</label>
-                  <select
-                    value={conditionData.fuelLevel as any}
-                    onChange={(e) => setConditionData((prev) => ({ ...prev, fuelLevel: e.target.value as any }))}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  >
-                    <option value="0">Empty (0%)</option>
-                    <option value="25">Quarter (25%)</option>
-                    <option value="50">Half (50%)</option>
-                    <option value="75">Three Quarters (75%)</option>
-                    <option value="100">Full (100%)</option>
-                  </select>
-                </div>
+              {/* Final Gross */}
+              <div className="border-t border-gray-300 pt-3 mt-3 flex justify-between items-center">
+                <span className="text-base font-black text-gray-900 uppercase">Updated Final Cost (Gross)</span>
+                <span className="text-2xl font-black text-primary font-mono">{formatCurrency(costs.gross)}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 border-t pt-4 mt-4">
-            <button
-              onClick={() => setIsConfirmModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
+          {/* Payment Details & Owing */}
+          <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+            <h3 className="text-md font-bold text-blue-900 mb-3 border-b border-blue-200 pb-2">Payment Tracking</h3>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between text-blue-800">
+                <span>Historically Paid to Date</span>
+                <span className="font-bold font-mono">{formatCurrency(rental.paidAmount || 0)}</span>
+              </div>
+
+              {Number(formData.amountToAdd) > 0 && (
+                <div className="flex justify-between text-emerald-700 bg-emerald-50 p-2 rounded -mx-2 px-2">
+                  <span className="font-bold">Instant Payment Being Added Now</span>
+                  <span className="font-bold font-mono">+ {formatCurrency(Number(formData.amountToAdd))}</span>
+                </div>
+              )}
+
+              {/* Calculate dynamic owing amount based on new input */}
+              {/* Calculate dynamic owing amount based on new input */}
+<div className="border-t border-blue-200 pt-3 flex justify-between items-center">
+  <span className="text-base font-black text-blue-950 uppercase">
+    { (costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) < 0 ? 'Credit Amount' : 'Amount Owing (Remaining)' }
+  </span>
+  <span className={`text-xl font-black font-mono ${(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+    {formatCurrency(Math.abs(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)))}
+  </span>
+</div>
+            </div>
+          </div>
+
+          {/* Warnings */}
+          {formData.status === 'completed' && (costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) > 0.01 && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-yellow-600" />
+              <p className="text-sm font-medium">You are marking this rental as <strong>Completed</strong>, but there is still an outstanding balance of <span className="font-bold font-mono">{formatCurrency(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0))}</span>.</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => setIsConfirmModalOpen(false)} className="px-5 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">
               Back to Edit
             </button>
-            <button
-              onClick={executeUpdateRental}
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-              {loading ? (
-                'Updating...'
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Confirm & Update
-                </>
-              )}
+            <button onClick={executeUpdateRental} disabled={loading} className="px-6 py-2 bg-primary text-white hover:bg-primary-600 rounded-xl font-black flex items-center gap-2 transition-colors shadow-md disabled:opacity-50">
+              {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
+              Save Rental Updates
             </button>
           </div>
         </div>
       </Modal>
+
     </>
   );
 };

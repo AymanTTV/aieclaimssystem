@@ -40,10 +40,16 @@ function AppInner() {
   );
 }
 
+// src/App.tsx
 export default function App() {
   return (
     <FormatProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <AuthProvider>
           <AppInner />
         </AuthProvider>

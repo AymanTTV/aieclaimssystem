@@ -367,7 +367,16 @@ const VATRecordForm: React.FC<VATRecordFormProps> = ({
                     </ul>
                   )}
                 </div>
-                <FormField type="number" label="NET" value={desc.net} onChange={(e) => updateDescription(desc.id, { net: parseFloat(e.target.value) || 0 })} required min="0" step="0.01" />
+                <FormField 
+  type="number" 
+  label="NET" 
+  value={desc.net === 0 ? '' : desc.net} 
+  placeholder="0.00"
+  onChange={(e) => updateDescription(desc.id, { net: parseFloat(e.target.value) || 0 })} 
+  required 
+  min="0" 
+  step="0.01" 
+/>
                 <div className="col-span-1"><FormField label="V" value={desc.vType || ''} onChange={(e) => updateDescription(desc.id, { vType: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-3 gap-4 mt-2">

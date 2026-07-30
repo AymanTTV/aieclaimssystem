@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Customer } from '../../types/customer';
-import { Eye, Edit, Trash2, FileText, File, Tag, Send } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, File, Tag, Send, Inbox } from 'lucide-react'; // [NEW] Added Inbox
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../types/customer';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -18,12 +18,13 @@ interface CustomerTableProps {
   onGenerateDocument: (customer: Customer) => void;
   onViewDocument: (url: string) => void;
   onAssignType: (customer: Customer) => void;
+  onUpdateBillCopy: (customer: Customer) => void; // [NEW]
   rowSelection: any;
   onRowSelectionChange: any;
 }
 
 const CustomerTable: React.FC<CustomerTableProps> = ({
-  customers, onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onAssignType,
+  customers, onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onAssignType, onUpdateBillCopy,
   rowSelection, onRowSelectionChange
 }) => {
   const { can } = usePermissions();
@@ -44,7 +45,6 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       } catch (error) { toast.error('Failed to generate link', { id: toastId }); }
   };
 
-  // Manually track if all visible rows are selected
   const allSelected = customers.length > 0 && Object.keys(rowSelection).length === customers.length;
 
   const columns = [
@@ -57,11 +57,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
           checked={allSelected}
           onChange={() => {
             if (allSelected) {
-              onRowSelectionChange({}); // Deselect all
+              onRowSelectionChange({});
             } else {
               const newSel: any = {};
               customers.forEach(c => newSel[c.id] = true);
-              onRowSelectionChange(newSel); // Select all visible
+              onRowSelectionChange(newSel); 
             }
           }}
         />
@@ -69,7 +69,6 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       cell: ({ row }: any) => {
         const customerId = row.original.id;
         const isSelected = !!rowSelection[customerId];
-
         return (
           <div onClick={(e) => e.stopPropagation()}>
             <input
@@ -79,11 +78,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
               onChange={() => {
                 onRowSelectionChange((prev: any) => {
                   const newSel = { ...prev };
-                  if (newSel[customerId]) {
-                    delete newSel[customerId]; // Toggle off
-                  } else {
-                    newSel[customerId] = true; // Toggle on
-                  }
+                  if (newSel[customerId]) { delete newSel[customerId]; } else { newSel[customerId] = true; }
                   return newSel;
                 });
               }}
@@ -145,6 +140,21 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       },
     },
     {
+      header: 'Signature',
+      cell: ({ row }: any) => {
+        if (row.original.type === 'company') return <span className="text-gray-400 text-sm">-</span>;
+        const signature = row.original.signature;
+        if (signature) {
+          return (
+            <div className="h-8 w-14 bg-white border border-gray-200 rounded flex items-center justify-center overflow-hidden shrink-0">
+              <img src={signature} alt="Signature" className="max-h-full max-w-full object-contain" />
+            </div>
+          );
+        }
+        return <span className="text-[10px] text-gray-500 italic bg-gray-100 px-2 py-1 rounded">Pending</span>;
+      },
+    },
+    {
       header: 'Actions',
       cell: ({ row }: any) => (
         <div className="flex items-center space-x-2.5">
@@ -154,6 +164,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
               <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-gray-500 hover:text-blue-600" title="Edit"><Edit className="h-4 w-4" /></button>
               <button onClick={(e) => { e.stopPropagation(); onAssignType(row.original); }} className="text-gray-500 hover:text-green-600" title="Assign Type"><Tag className="h-4 w-4" /></button>
               <button onClick={(e) => { e.stopPropagation(); sendSignatureRequest(row.original); }} className="text-gray-500 hover:text-green-600" title="Signature Request"><Send className="h-4 w-4" /></button>
+              {/* [NEW] Bill Copy Action Button */}
+              <button onClick={(e) => { e.stopPropagation(); onUpdateBillCopy(row.original); }} className={`hover:text-orange-600 ${row.original.billCopyStatus === 'available' ? 'text-orange-500' : 'text-gray-500'}`} title="Office Bill Copy Status"><Inbox className="h-4 w-4" /></button>
             </>
           )}
           {can('customers', 'view') && <button onClick={(e) => { e.stopPropagation(); onGenerateDocument(row.original); }} className="text-gray-500 hover:text-purple-600" title="Generate Doc"><FileText className="h-4 w-4" /></button>}

@@ -1,5 +1,5 @@
 // src/components/rentals/RentalTable.tsx
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
 import {
@@ -36,7 +36,8 @@ import {
   calculateOverdueCost,
   RENTAL_RATES,
   getOverdueUnits,
-  calculateRentalCost
+  calculateRentalCostDetailed,
+  calculateTotalSubstitutionCharges
 } from '../../utils/rentalCalculations';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
@@ -89,106 +90,84 @@ const RentalTable: React.FC<RentalTableProps> = ({
   const { user } = useAuth(); 
   const { formatCurrency } = useFormattedDisplay();
 
-  const calculateOwingAmount = (rental: Rental): number => {
-    const v = vehicles.find(v => v.id === rental.vehicleId);
-    if (!v) return 0;
-
+  // --- CENTRALIZED COST HELPER FOR TABLE ---
+  const getDetailedRentalTotals = useCallback((rental: Rental, vehicle?: Vehicle) => {
+    if (!vehicle) return { detailedCosts: { net: 0, vat: 0, gross: 0, discountAmount: 0 }, ongoingCharges: 0, returnCharges: 0, totalAmountDue: 0, paid: 0, remaining: 0, extraTotal: 0 };
+    
     const start = ensureValidDate(rental.startDate);
     const end = ensureValidDate(rental.endDate);
+    const storageNet = rental.type === 'claim' ? (rental.storageDays || 0) * (rental.storageCostPerDay || 0) : 0;
 
-    const totalWithAllVAT = calculateRentalCost(
-      start,
-      end,
-      rental.type,
-      v,
-      rental.reason,
-      rental.negotiatedRate ?? undefined,
-      rental.storageCost || 0,
-      rental.recoveryCost || 0,
-      
-      rental.deliveryCharge || 0,
-      rental.collectionCharge || 0,
-      
-      rental.insurancePerDay || 0,
-      (rental as any).insurancePerWeek || 0,
-      
-      rental.includeVAT,
-      false, 
-      false, 
-      
-      rental.insurancePerDayIncludeVAT,
-      (rental as any).insurancePerWeekIncludeVAT,
-      rental.includeRecoveryCostVAT
+    // ✅ SUM UP EXTRA CHARGES
+    const extraTotal = (rental.extraCharges || []).reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+    const detailedCosts = calculateRentalCostDetailed(
+      start, end, rental.type, vehicle, rental.reason, rental.negotiatedRate ?? undefined,
+      storageNet,
+      rental.type === 'claim' ? (rental.recoveryCost || 0) : 0,
+      rental.deliveryCharge || 0, rental.collectionCharge || 0,
+      rental.type !== 'weekly' ? (rental.insurancePerDay || 0) : 0,
+      rental.type === 'weekly' ? ((rental as any).insurancePerWeek || 0) : 0,
+      rental.includeVAT || false, rental.deliveryChargeIncludeVAT || false, rental.collectionChargeIncludeVAT || false,
+      rental.insurancePerDayIncludeVAT || false, (rental as any).insurancePerWeekIncludeVAT || false, rental.includeRecoveryCostVAT || false, rental.includeStorageVAT || false,
+      rental.discountPercentage || 0, rental.discountAmount || 0, rental.status,
+      rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate,
+      extraTotal, // ✅ ALREADY HERE
+      rental.discounts || [] // 👈 ADD THIS
     );
 
-    const discountedTotal = totalWithAllVAT - (rental.discountAmount ?? 0);
-
     const now = new Date();
-    const ongoingCharges =
-      rental.status === 'active' && isAfter(now, end) ? calculateOverdueCost(rental, now, v) : 0;
+    const ongoingCharges = rental.status === 'active' && isAfter(now, end) ? calculateOverdueCost(rental, now, vehicle) : 0;
 
-    const subCharges = (rental.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
+    const subCharges = calculateTotalSubstitutionCharges(rental);
     const returnCharges = (rental.returnCondition?.totalCharges ?? 0) + subCharges;
 
-    const totalAmountDue = discountedTotal + ongoingCharges + returnCharges;
+    const totalAmountDue = detailedCosts.gross + ongoingCharges + returnCharges;
     const paid = rental.paidAmount || 0;
     const remaining = totalAmountDue - paid;
 
-    return remaining > 0 ? remaining : 0;
-  };
+    return { detailedCosts, ongoingCharges, returnCharges, totalAmountDue, paid, remaining, extraTotal };
+  }, []);
 
-  const getUrgencyLevel = (r: Rental): UrgencyLevel => {
-    // ALLOW BOTH ACTIVE AND COMPLETED RENTALS TO TRIGGER WARNINGS IF UNPAID
+  const getUrgencyLevel = useCallback((r: Rental, remaining: number): UrgencyLevel => {
     if (r.status !== 'active' && r.status !== 'completed') return 'none';
-    
-    // 1. Check if they actually owe money
-    const owing = calculateOwingAmount(r);
-    if (owing <= 0.01) return 'none';
+    if (remaining <= 0.01) return 'none';
 
-    // 2. Find the latest payment date, fallback to rental start date
     const refDate = r.payments && r.payments.length > 0
       ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
       : ensureValidDate(r.startDate);
     
-    // 3. Calculate days elapsed since last payment/start
     const today = new Date();
     const diffMs = today.getTime() - refDate.getTime();
     const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 
-    // 4. Trigger 'red' urgency based strictly on time elapsed
-    if (r.type === 'weekly') {
-      if (diffDays >= 7) return 'red'; // Unpaid for 1 week or more
-    } 
-    else if (r.type === 'daily') {
-      if (diffDays >= 7) return 'red'; // Unpaid for 7 days or more
-    } 
-    else if (r.type === 'claim') {
-      if (diffDays >= 180) return 'red'; // Unpaid for ~6 months or more
-    }
+    if (r.type === 'weekly' && diffDays >= 7) return 'red';
+    if (r.type === 'daily' && diffDays >= 7) return 'red';
+    if (r.type === 'claim' && diffDays >= 180) return 'red';
 
-    // Optional: Return 'yellow' if they owe money but haven't hit the red time threshold yet
     return 'none'; 
-  };
+  }, []);
 
-  const sortedRentals = [...rentals].sort((a, b) => {
-    const owingA = calculateOwingAmount(a);
-    const owingB = calculateOwingAmount(b);
-    if (Math.abs(owingA - owingB) > 0.001) {
-      return owingB - owingA;
-    }
+  const sortedRentals = useMemo(() => {
+    return [...rentals].sort((a, b) => {
+      const vA = vehicles.find(v => v.id === a.vehicleId);
+      const vB = vehicles.find(v => v.id === b.vehicleId);
+      
+      const { remaining: owingA } = getDetailedRentalTotals(a, vA);
+      const { remaining: owingB } = getDetailedRentalTotals(b, vB);
+      
+      if (Math.abs(owingA - owingB) > 0.001) {
+        return owingB - owingA;
+      }
 
-    const urgencyScore = (r: Rental) => {
-        const level = getUrgencyLevel(r);
-        if (level === 'red') return 3;
-        if (level === 'yellow') return 2;
-        return 1;
-    };
-    const scoreA = urgencyScore(a);
-    const scoreB = urgencyScore(b);
-    if (scoreA !== scoreB) return scoreB - scoreA;
+      const scoreA = getUrgencyLevel(a, owingA) === 'red' ? 3 : getUrgencyLevel(a, owingA) === 'yellow' ? 2 : 1;
+      const scoreB = getUrgencyLevel(b, owingB) === 'red' ? 3 : getUrgencyLevel(b, owingB) === 'yellow' ? 2 : 1;
+      
+      if (scoreA !== scoreB) return scoreB - scoreA;
 
-    return isBefore(a.endDate, b.endDate) ? -1 : 1;
-  });
+      return isBefore(a.endDate, b.endDate) ? -1 : 1;
+    });
+  }, [rentals, vehicles, getDetailedRentalTotals, getUrgencyLevel]);
 
   const ActionBtn = ({ 
     onClick, 
@@ -216,39 +195,37 @@ const RentalTable: React.FC<RentalTableProps> = ({
       cell: ({ row }: any) => {
         const r = row.original as Rental;
         const v = vehicles.find(v => v.id === r.vehicleId);
-        
         const subs = r.hireSubstitutionDetails || [];
-        const latestSub = subs.length > 0 ? subs[subs.length - 1] : null;
+        const activeSub = subs.find(s => !s.returnCondition);
 
         return v ? (
           <div className="flex flex-col space-y-2">
             <div>
               {r.rentalAgreementNumber && (
                 <div className="mb-1">
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-700/10">
                     AGR-{r.rentalAgreementNumber}
                   </span>
                 </div>
               )}
-              
-              <div className="font-medium text-gray-900">{v.make} {v.model}</div>
+              <div className="font-bold text-gray-900">{v.make} {v.model}</div>
               <div className="inline-block px-2 py-0.5 rounded text-xs font-mono bg-gray-100 text-gray-700 border border-gray-200 mt-0.5">
                 {v.registrationNumber}
               </div>
             </div>
-            {latestSub && (latestSub.make || latestSub.model || latestSub.registration) && (
+            {activeSub && (activeSub.make || activeSub.model || activeSub.registration) && (
               <div className="pl-2 border-l-2 border-orange-300">
                 <div className="text-[10px] uppercase text-orange-700 font-bold mb-0.5">Active Substitute</div>
-                <div className="font-medium text-sm text-gray-800 leading-tight">
-                  {latestSub.make} {latestSub.model}
+                <div className="font-bold text-sm text-gray-800 leading-tight">
+                  {activeSub.make} {activeSub.model}
                 </div>
                 <div className="inline-block px-2 py-0.5 rounded text-xs font-mono bg-orange-100 text-orange-800 border border-orange-200 mt-1">
-                  {latestSub.registration}
+                  {activeSub.registration}
                 </div>
               </div>
             )}
           </div>
-        ) : 'N/A';
+        ) : <span className="text-red-500 font-medium">N/A</span>;
       },
     },
     {
@@ -257,20 +234,38 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const c = customers.find(c => c.id === row.original.customerId);
         return c ? (
           <div>
-            <div className="font-medium">{c.name}</div>
-            <div className="text-sm text-gray-500">{c.mobile}</div>
+            <div className="font-bold text-gray-900">{c.name}</div>
+            <div className="text-sm text-gray-500 mt-0.5">{c.mobile}</div>
+            {c.badgeNumber && (
+              <div className="text-xs font-medium text-gray-400 mt-0.5">Badge: {c.badgeNumber}</div>
+            )}
+            {c.address && (
+              <div className="text-xs text-gray-400 truncate max-w-[150px] mt-0.5" title={c.address}>
+                {c.address}
+              </div>
+            )}
           </div>
-        ) : 'N/A';
+        ) : <span className="text-red-500 font-medium">N/A</span>;
       },
     },
     {
       header: 'Type',
-      cell: ({ row }: any) => (
-        <div className="flex flex-col items-start space-y-1">
-          <StatusBadge status={row.original.type} />
-          <StatusBadge status={row.original.reason} />
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const r = row.original as Rental;
+        let displayReason = r.reason;
+        
+        if (displayReason === 'h-substitute') {
+            const subs = r.hireSubstitutionDetails || [];
+            if (subs.length > 0 && !subs.some(s => !s.returnCondition)) displayReason = 'hired';
+        }
+
+        return (
+          <div className="flex flex-col items-start space-y-1.5">
+            <StatusBadge status={r.type} />
+            <StatusBadge status={displayReason} />
+          </div>
+        );
+      },
     },
     {
       header: 'Period',
@@ -290,67 +285,35 @@ const RentalTable: React.FC<RentalTableProps> = ({
 
         const isOngoing = r.status === 'active' && isAfter(now, end);
         const canExtend = can('rentals', 'update');
-
-        const subs = r.hireSubstitutionDetails || [];
-        const hasSubs = subs.length > 0;
+        const hasSubs = (r.hireSubstitutionDetails || []).length > 0;
 
         if (hasSubs) {
           const getTimelineSegments = () => {
             const segments: Array<{ type: 'main' | 'sub'; label: string; start: Date; end: Date; registration?: string }> = [];
-            
-            const sortedSubs = subs.slice().sort((a, b) => {
-               const dA = ensureValidDate(a.givenAt)?.getTime() || 0;
-               const dB = ensureValidDate(b.givenAt)?.getTime() || 0;
-               return dA - dB;
-            });
+            const sortedSubs = r.hireSubstitutionDetails!.slice().sort((a, b) => (ensureValidDate(a.givenAt)?.getTime() || 0) - (ensureValidDate(b.givenAt)?.getTime() || 0));
   
             let currentCursor = start;
-  
             for (let i = 0; i < sortedSubs.length; i++) {
               const sub = sortedSubs[i];
               const subGiven = ensureValidDate(sub.givenAt);
               if (!subGiven) continue;
   
-              if (subGiven > currentCursor) {
-                segments.push({ type: 'main', label: 'Main', start: currentCursor, end: subGiven });
-              }
+              if (subGiven > currentCursor) segments.push({ type: 'main', label: 'Main', start: currentCursor, end: subGiven });
   
-              const subReturnRaw = sub.returnCondition?.date || sub.expectedReturnAt;
-              let subEnd = ensureValidDate(subReturnRaw) || addDays(subGiven, 1);
+              let subEnd = ensureValidDate(sub.returnCondition?.date || sub.expectedReturnAt) || addDays(subGiven, 1);
               if (subEnd <= subGiven) subEnd = addDays(subGiven, 1);
   
-              segments.push({ 
-                type: 'sub', 
-                label: 'Sub', 
-                start: subGiven, 
-                end: subEnd,
-                registration: sub.registration
-              });
-  
+              segments.push({ type: 'sub', label: 'Sub', start: subGiven, end: subEnd, registration: sub.registration });
               currentCursor = subEnd;
             }
-  
-            if (currentCursor < end) {
-              segments.push({ type: 'main', label: 'Main', start: currentCursor, end: end });
-            }
+            if (currentCursor < end) segments.push({ type: 'main', label: 'Main', start: currentCursor, end: end });
             return segments;
           };
   
-          const timeline = getTimelineSegments();
-  
           return (
             <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
-              {timeline.map((seg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`
-                    flex flex-col px-2 py-1.5 rounded-md border-l-4 text-xs shadow-sm
-                    ${seg.type === 'main' 
-                      ? 'bg-gray-50 border-gray-400 text-gray-700' 
-                      : 'bg-yellow-50 border-yellow-400 text-yellow-800'
-                    }
-                  `}
-                >
+              {getTimelineSegments().map((seg, idx) => (
+                <div key={idx} className={`flex flex-col px-2 py-1.5 rounded-md border-l-4 text-xs shadow-sm ${seg.type === 'main' ? 'bg-gray-50 border-gray-400 text-gray-700' : 'bg-yellow-50 border-yellow-400 text-yellow-800'}`}>
                   <div className="flex items-center gap-1 font-bold uppercase tracking-wider mb-0.5 opacity-80">
                     {seg.type === 'main' ? <Car className="w-3 h-3" /> : <ArrowRightLeft className="w-3 h-3" />}
                     <span>{seg.label}</span>
@@ -363,25 +326,13 @@ const RentalTable: React.FC<RentalTableProps> = ({
                   </div>
                 </div>
               ))}
-  
               <div className="flex items-center justify-end text-xs font-medium text-gray-500 mt-1 gap-2">
                  <span>
                     Total: {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
-                    {ongoingUnits > 0 && (
-                      <span className="text-red-600 ml-1 font-bold">
-                        (+{ongoingUnits} O/D)
-                      </span>
-                    )}
+                    {ongoingUnits > 0 && <span className="text-red-600 ml-1 font-bold">(+{ongoingUnits} O/D)</span>}
                  </span>
-                 
                  {isOngoing && canExtend && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onExtend(r); }}
-                      className="inline-flex items-center justify-center p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 border border-blue-200"
-                      title="Update End Date"
-                    >
-                      <CalendarPlus className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onExtend(r); }} className="inline-flex items-center justify-center p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 border border-blue-200" title="Update End Date"><CalendarPlus className="w-3.5 h-3.5" /></button>
                  )}
               </div>
             </div>
@@ -391,29 +342,23 @@ const RentalTable: React.FC<RentalTableProps> = ({
         return (
           <div className="flex flex-col space-y-2">
             <div>
-              <div className="text-sm">{formatDate(r.startDate, true)}</div>
-              <div className="flex items-center gap-2">
-                 <div className="text-sm text-gray-500">{formatDate(r.endDate, true)}</div>
+              <div className="text-sm font-medium text-gray-700">{formatDate(r.startDate, true)}</div>
+              <div className="flex items-center gap-2 mt-0.5">
+                 <div className="text-sm font-medium text-gray-700">{formatDate(r.endDate, true)}</div>
                  {isOngoing && canExtend && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onExtend(r); }}
-                      className="inline-flex items-center justify-center p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 border border-blue-200"
-                      title="Update End Date"
-                    >
-                      <CalendarPlus className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onExtend(r); }} className="inline-flex items-center justify-center p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 border border-blue-200" title="Update End Date"><CalendarPlus className="w-3.5 h-3.5" /></button>
                  )}
               </div>
               
               {r.expectedReturnDate && isValid(r.expectedReturnDate) && r.status !== 'completed' && (
-                <div className="mt-1 flex items-start gap-1 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                <div className="mt-1.5 flex items-start gap-1 text-xs font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
                   <Clock className="w-3 h-3 mt-0.5" />
-                  <span>Return Soon: {formatDate(r.expectedReturnDate, true)}</span>
+                  <span>Return: {formatDate(r.expectedReturnDate, true)}</span>
                 </div>
               )}
             </div>
 
-            <div className="text-xs text-gray-500 font-medium">
+            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
               {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
               {ongoingUnits > 0 && (
                 <span className="text-red-600 block mt-0.5">
@@ -428,7 +373,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
     {
       header: 'Status',
       cell: ({ row }: any) => (
-        <div className="flex flex-col items-start space-y-1">
+        <div className="flex flex-col items-start space-y-1.5">
           <StatusBadge status={row.original.status} />
           <StatusBadge status={row.original.paymentStatus} />
         </div>
@@ -441,101 +386,67 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const v = vehicles.find(v => v.id === r.vehicleId);
         if (!v) return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
 
-        const start = ensureValidDate(r.startDate);
-        const end = ensureValidDate(r.endDate);
+        const { detailedCosts, totalAmountDue, paid, remaining, extraTotal } = getDetailedRentalTotals(r, v);
+        
         const unit = r.type === 'weekly' ? 'week' : 'day';
-
-        const vehicleRate =
-          r.type === 'daily' ? (v.dailyRentalPrice ?? 0)
-          : r.type === 'weekly' ? (v.weeklyRentalPrice ?? 0)
-          : (v.claimRentalPrice ?? 0);
-        const fallback = RENTAL_RATES[r.type] ?? 0;
-        const effectiveRate = (r.negotiatedRate ?? vehicleRate ?? fallback) || 0;
+        const vehicleRate = r.type === 'daily' ? (v.dailyRentalPrice ?? 0) : r.type === 'weekly' ? (v.weeklyRentalPrice ?? 0) : (v.claimRentalPrice ?? 0);
+        const effectiveRate = (r.negotiatedRate ?? vehicleRate ?? (RENTAL_RATES[r.type] ?? 0)) || 0;
         const isNegotiated = r.negotiatedRate != null;
-
-        const baseCost = calculateRentalCost(
-          start, end, r.type, v, r.reason, r.negotiatedRate ?? undefined,
-          0, 0, 0, 0, 0, 0,
-          false, false, false, false, false, false
-        );
-
-        const hireVatAmount = r.includeVAT ? baseCost * 0.2 : 0;
-
-        const totalWithAllVAT = calculateRentalCost(
-            start, end, r.type, v, r.reason, r.negotiatedRate ?? undefined,
-            r.storageCost || 0, r.recoveryCost || 0, 
-            
-            r.deliveryCharge || 0, 
-            r.collectionCharge || 0,
-            
-            r.insurancePerDay || 0, (r as any).insurancePerWeek || 0,
-            
-            r.includeVAT, 
-            false, 
-            false,
-            
-            r.insurancePerDayIncludeVAT, (r as any).insurancePerWeekIncludeVAT, r.includeRecoveryCostVAT
-        );
-
-        const discountedRentalTotal = totalWithAllVAT - (r.discountAmount ?? 0);
-        const now = new Date();
-        const ongoingCharges =
-          r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
-        const subCharges = (r.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
-        const returnCharges = (r.returnCondition?.totalCharges ?? 0) + subCharges;
-        const totalAmountDue = discountedRentalTotal + ongoingCharges + returnCharges;
-        const paid = r.paidAmount || 0;
-        const remaining = totalAmountDue - paid;
         const isCredit = remaining < 0;
 
-        const urgencyLevel = getUrgencyLevel(r);
+        const urgencyLevel = getUrgencyLevel(r, remaining);
 
         return (
-          <div className="space-y-1 text-base">
+          <div className="space-y-1.5 text-sm">
             <div className="flex justify-between">
-              <span>Rate:</span>
-              <span className="font-medium">
-                {formatCurrency(effectiveRate)}/{unit}{isNegotiated ? ' (negotiated)' : ''}
+              <span className="text-gray-500">Rate:</span>
+              <span className="font-bold text-gray-700">
+                {formatCurrency(effectiveRate)}/{unit}{isNegotiated ? ' (neg)' : ''}
               </span>
             </div>
 
             <div className="flex justify-between">
-              <span>Period:</span>
-              <span className="font-medium">
-                {formatCurrency(baseCost)}
-              </span>
+              <span className="text-gray-500">Net Period:</span>
+              <span className="font-mono text-gray-700">{formatCurrency(detailedCosts.net)}</span>
             </div>
 
-            {r.includeVAT && (
-              <div className="flex justify-between text-blue-600">
-                <span>Hire VAT:</span>
-                <span className="font-medium">{formatCurrency(hireVatAmount)}</span>
+            {/* ✅ Added Extras Display in the summary table */}
+            {extraTotal > 0 && (
+              <div className="flex justify-between text-indigo-600">
+                <span className="font-medium">Extras:</span>
+                <span className="font-mono">{formatCurrency(extraTotal)}</span>
               </div>
             )}
 
-            <div className="border-t my-1" />
+            {detailedCosts.vat > 0 && (
+              <div className="flex justify-between text-blue-600">
+                <span>VAT:</span>
+                <span className="font-mono">{formatCurrency(detailedCosts.vat)}</span>
+              </div>
+            )}
 
-            <div className="flex justify-between font-semibold">
+            <div className="border-t border-gray-100 my-1.5" />
+
+            <div className="flex justify-between font-bold text-gray-900">
               <span>Total:</span>
-              <span className="font-medium">{formatCurrency(totalAmountDue)}</span>
+              <span className="font-mono">{formatCurrency(totalAmountDue)}</span>
             </div>
 
             <div className="flex justify-between text-green-700">
               <span>Paid:</span>
-              <span className="font-bold">{formatCurrency(paid)}</span>
+              <span className="font-bold font-mono">{formatCurrency(paid)}</span>
             </div>
 
             <div className={`flex justify-between ${isCredit ? 'text-green-700' : 'text-red-700'}`}>
-              <span>{isCredit ? 'Credit' : 'Owing'}:</span>
-              <span className="font-bold">{formatCurrency(Math.abs(remaining))}</span>
+              <span className="font-bold">{isCredit ? 'Credit' : 'Owing'}:</span>
+              <span className="font-black font-mono">{formatCurrency(Math.abs(remaining))}</span>
             </div>
             
             {urgencyLevel === 'red' && (
-              <div className="mt-1 flex items-center justify-center gap-1 bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded animate-pulse text-center">
+              <div className="mt-2 flex items-center justify-center gap-1 bg-red-50 text-red-700 text-[10px] font-bold px-2 py-1.5 rounded animate-pulse text-center border border-red-200">
                 <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                 <span>
                   {(() => {
-                    // --- 1. Cost-Based Calculation (How much they owe in time) ---
                     let costText = '';
                     if (r.type === 'weekly') {
                       const weeks = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
@@ -544,12 +455,10 @@ const RentalTable: React.FC<RentalTableProps> = ({
                       const days = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
                       costText = `${days} Day${days !== 1 ? 's' : ''}`;
                     } else {
-                      // Claim (divided by 30 days to get months)
                       const months = effectiveRate > 0 ? Math.floor(remaining / (effectiveRate * 30)) : 0;
                       costText = `${months} Month${months !== 1 ? 's' : ''}`;
                     }
 
-                    // --- 2. Real-Time Calculation (How long since last payment/start) ---
                     const refDate = r.payments && r.payments.length > 0
                       ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
                       : ensureValidDate(r.startDate);
@@ -569,7 +478,6 @@ const RentalTable: React.FC<RentalTableProps> = ({
                       timeText = `${diffDays} Day${diffDays !== 1 ? 's' : ''}`;
                     }
 
-                    // --- 3. Final String Output ---
                     return `Urgent: Unpaid ${costText} for ${timeText} up to date`;
                   })()}
                 </span>
@@ -577,9 +485,9 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
             
             {urgencyLevel === 'yellow' && (
-              <div className="mt-1 flex items-center justify-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded border border-yellow-200 text-center">
+              <div className="mt-2 flex items-center justify-center gap-1 bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1.5 rounded border border-yellow-200 text-center">
                 <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                <span>Warning: Unpaid</span>
+                <span>Warning: Unpaid Balance</span>
               </div>
             )}
           </div>
@@ -591,27 +499,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
       cell: ({ row }: any) => {
         const r = row.original as Rental;
         const v = vehicles.find(v => v.id === r.vehicleId)!;
-
-        // Recalculate remaining for logic check
-        const start = ensureValidDate(r.startDate);
-        const end = ensureValidDate(r.endDate);
-        const totalWithAllVAT = calculateRentalCost(
-            start, end, r.type, v, r.reason, r.negotiatedRate ?? undefined,
-            r.storageCost || 0, r.recoveryCost || 0, r.deliveryCharge || 0, r.collectionCharge || 0,
-            r.insurancePerDay || 0, (r as any).insurancePerWeek || 0,
-            r.includeVAT, 
-            false,
-            false,
-            r.insurancePerDayIncludeVAT, (r as any).insurancePerWeekIncludeVAT, r.includeRecoveryCostVAT
-        );
-        const now = new Date();
-        const ongoingCharges = r.status === 'active' && isAfter(now, end) ? calculateOverdueCost(r, now, v) : 0;
-        const subCharges = (r.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
-        const returnCharges = (r.returnCondition?.totalCharges ?? 0) + subCharges;
-        const discountedTotal = totalWithAllVAT - (r.discountAmount ?? 0);
-        const totalAmountDue = discountedTotal + ongoingCharges + returnCharges;
-        const remaining = totalAmountDue - (r.paidAmount || 0);
-
+        
+        const { remaining } = getDetailedRentalTotals(r, v);
         const hasAgreement = r.documents?.agreements && Object.keys(r.documents.agreements).length > 0;
         const hasInvoice = !!r.documents?.invoice;
 
@@ -620,49 +509,39 @@ const RentalTable: React.FC<RentalTableProps> = ({
             
             {/* ROW 1: Core Details & Editing */}
             <div className="flex flex-wrap justify-center gap-1">
-              {can('rentals','view') && (
-                <ActionBtn onClick={() => onView(r)} icon={Eye} colorClass="text-blue-600" title="View Details" />
-              )}
-              {can('rentals', 'note') && (
-                <ActionBtn onClick={() => onShowNotes(r)} icon={StickyNote} colorClass={(r.notes?.length || 0) > 0 ? "text-yellow-600 fill-yellow-50" : "text-gray-400"} title="Rental Notes" />
-              )}
-              {can('rentals','update') && (
-                <ActionBtn onClick={() => onEdit(r)} icon={Pencil} colorClass="text-indigo-600" title="Edit Rental" />
-              )}
-              {r.status === 'active' && can('rentals', 'update') && (
-                <ActionBtn onClick={() => onSetReturnExpectation?.(r)} icon={Clock} colorClass="text-purple-600" title="Set Expected Return Time" />
-              )}
+              {can('rentals','view') && <ActionBtn onClick={() => onView(r)} icon={Eye} colorClass="text-blue-600 bg-blue-50" title="View Details" />}
+              {can('rentals', 'note') && <ActionBtn onClick={() => onShowNotes(r)} icon={StickyNote} colorClass={(r.notes?.length || 0) > 0 ? "text-yellow-700 bg-yellow-100 border border-yellow-300" : "text-gray-500 bg-gray-50"} title="Rental Notes" />}
+              {can('rentals','update') && <ActionBtn onClick={() => onEdit(r)} icon={Pencil} colorClass="text-indigo-600 bg-indigo-50" title="Edit Rental" />}
+              {r.status === 'active' && can('rentals', 'update') && <ActionBtn onClick={() => onSetReturnExpectation?.(r)} icon={Clock} colorClass="text-purple-600 bg-purple-50" title="Set Expected Return Time" />}
             </div>
 
             {/* ROW 2: Financials & Lifecycle */}
-            {(remaining > 0 || can('rentals', 'completion')) && (
+            {/* ROW 2: Financials & Lifecycle */}
+            {(remaining > 0 || can('rentals', 'completion') || can('rentals', 'discount')) && (
               <div className="flex flex-wrap justify-center gap-1">
-                {remaining > 0 && can('rentals', 'recordPayment') && (
-                  <ActionBtn onClick={() => onRecordPayment(r)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
-                )}
-                {remaining > 0 && can('rentals', 'discount') && (
-                  <ActionBtn onClick={() => onApplyDiscount(r)} icon={Percent} colorClass="text-purple-600" title="Apply Discount" />
-                )}
-                {can('rentals', 'completion') && (
-                  <ActionBtn onClick={() => onComplete(r)} icon={CheckCircle2} colorClass="text-orange-600" title="Complete / Return" />
-                )}
+                {remaining > 0 && can('rentals', 'recordPayment') && <ActionBtn onClick={() => onRecordPayment(r)} icon={CreditCard} colorClass="text-emerald-700 bg-emerald-100 border border-emerald-200" title="Record Payment" />}
+                
+                {/* Removed the 'remaining > 0' check here so it always shows if they have permission */}
+                {can('rentals', 'discount') && <ActionBtn onClick={() => onApplyDiscount(r)} icon={Percent} colorClass="text-purple-700 bg-purple-100 border border-purple-200" title="Manage Discounts" />}
+                
+                {can('rentals', 'completion') && <ActionBtn onClick={() => onComplete(r)} icon={CheckCircle2} colorClass="text-orange-700 bg-orange-100 border border-orange-200" title="Complete / Return" />}
               </div>
             )}
 
             {/* ROW 3: Documents Generation */}
             {can('rentals', 'singleDoc') && (
-              <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
-                <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600" title="Generate 90-day Agreement" />
-                <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700" : "text-gray-400 hover:text-blue-700"} title="Generate/Regenerate Agreement" />
-                <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700" : "text-gray-400 hover:text-green-700"} title="Generate/Regenerate Invoice" />
-                <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700" title="Parking Permit" />
+              <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
+                <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
+                <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
+                <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />
+                <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700 hover:bg-purple-50" title="Parking Permit" />
               </div>
             )}
 
             {/* ROW 4: Destructive Actions */}
             {can('rentals','delete') && r.status !== 'active' && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
-                <ActionBtn onClick={() => onDelete(r)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Rental" />
+                <ActionBtn onClick={() => onDelete(r)} icon={Trash2} colorClass="text-red-600 hover:bg-red-100 hover:text-red-700" title="Delete Rental" />
               </div>
             )}
 
@@ -678,26 +557,28 @@ const RentalTable: React.FC<RentalTableProps> = ({
       columns={columns}
       onRowClick={r => can('rentals','view') && onView(r)}
       rowClassName={r => {
-        const level = getUrgencyLevel(r);
+        const v = vehicles.find(veh => veh.id === r.vehicleId);
+        const { remaining } = getDetailedRentalTotals(r, v);
+        const level = getUrgencyLevel(r, remaining);
 
         // --- 1. URGENCY HIGHLIGHTS ---
         if (level === 'red') {
-            return 'bg-red-100 hover:bg-red-200 transition-colors border-l-4 border-l-red-500'; 
+            return 'bg-red-50/50 hover:bg-red-100 transition-colors border-l-4 border-l-red-500'; 
         }
         if (level === 'yellow') {
-            return 'bg-yellow-100 hover:bg-yellow-200 transition-colors border-l-4 border-l-yellow-400';
+            return 'bg-yellow-50/50 hover:bg-yellow-100 transition-colors border-l-4 border-l-yellow-400';
         }
 
         // 2. Standard Overdue Logic (Red-ish)
         const now = new Date();
-        if (r.status === 'active' && isAfter(now, r.endDate)) return 'bg-red-50';
+        if (r.status === 'active' && isAfter(now, r.endDate)) return 'bg-red-50/30';
 
         // 3. Ending Soon Logic (Yellow-ish)
         if (
           (r.status === 'active' || r.status === 'scheduled') &&
           isWithinInterval(r.endDate, { start: now, end: addDays(now, 30) })
         )
-          return 'bg-yellow-50';
+          return 'bg-yellow-50/30';
         return '';
       }}
     />

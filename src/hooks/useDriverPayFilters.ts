@@ -31,6 +31,8 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [collectionFilter, setCollectionFilter] = useState('all');
+  // 🟢 NEW: Group filter state
+  const [groupIdFilter, setGroupIdFilter] = useState('all');
   // Existing state for filtering *payment periods* by exact date match
   const [periodDateRange, setPeriodDateRange] = useState<{ start: Date | null; end: Date | null }>({
     start: null,
@@ -45,7 +47,6 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
   // 🟢 NEW state for Usage Filter
   const [usageFilter, setUsageFilter] = useState('all'); // 'all', 'no_usage', 'low_usage', 'normal_usage', 'high_usage'
 
-
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
       // Filter by locked status
@@ -57,6 +58,10 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
       }
       // For 'all', matchesLockStatus remains true.
       if (!matchesLockStatus) return false;
+
+      // 🟢 NEW: Filter by Driver Group
+      const matchesGroup = groupIdFilter === 'all' || record.groupId === groupIdFilter;
+      if (!matchesGroup) return false;
 
       // 🟢 NEW: Filter by Usage Tier
       let matchesUsage = true;
@@ -230,8 +235,7 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
             return matchesStatus && matchesPeriodDateRange;
         })
     }));
-  }, [records, searchQuery, statusFilter, collectionFilter, periodDateRange, periodOverlapDateRange, lockFilter, usageFilter]); // <-- Added usageFilter to dependencies
-
+  }, [records, searchQuery, statusFilter, collectionFilter, groupIdFilter, periodDateRange, periodOverlapDateRange, lockFilter, usageFilter]); // <-- Added groupIdFilter to dependencies
 
   const summary = useMemo(() => {
     // Summary calculation remains based on the *filtered* payment periods within the filtered records
@@ -243,29 +247,37 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
       return sum + record.paymentPeriods.reduce((periodSum, period) => periodSum + (period.remainingAmount || 0), 0);
     }, 0);
 
-    return filteredRecords.reduce(
+    const aggregated = filteredRecords.reduce(
       (acc, record) => {
         record.paymentPeriods.forEach(period => {
           const totalAmount = Number(period.totalAmount) || 0;
-          const commissionAmount = Number(period.commissionAmount) || 0;
-          const netPay = totalAmount - commissionAmount;
+          const commA = Number(period.commissionAmountA) || 0;
+          const commB = Number(period.commissionAmountB) || 0;
+          const netPay = totalAmount - (commA + commB);
 
           acc.total += totalAmount;
-          acc.commission += commissionAmount;
+          acc.commissionA += commA;
+          acc.commissionB += commB;
           acc.netPay += netPay;
         });
         return acc;
       },
       {
         total: 0,
-        commission: 0,
+        commissionA: 0,
+        commissionB: 0,
         netPay: 0,
         totalPaid,
         totalRemaining
       }
     );
-  }, [filteredRecords]); // summary depends on filteredRecords
 
+    return {
+      ...aggregated,
+      // Provide a unified commission total for backward compatibility with your existing DriverPaySummary component
+      commission: aggregated.commissionA + aggregated.commissionB 
+    };
+  }, [filteredRecords]); // summary depends on filteredRecords
 
   return {
     searchQuery,
@@ -274,12 +286,14 @@ export const useDriverPayFilters = (records: DriverPay[], lockFilter: string) =>
     setStatusFilter,
     collectionFilter,
     setCollectionFilter,
+    groupIdFilter, // 🟢 Export group filter
+    setGroupIdFilter, // 🟢 Export setter
     periodDateRange,
     setPeriodDateRange,
     periodOverlapDateRange,
     setPeriodOverlapDateRange,
-    usageFilter, // 🟢 Export the new state
-    setUsageFilter, // 🟢 Export the new setter
+    usageFilter,
+    setUsageFilter,
     filteredRecords,
     summary,
   };

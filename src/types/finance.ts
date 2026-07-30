@@ -21,6 +21,9 @@ export interface InvoicePayment {
 export interface Transaction {
   id: string;
   type: 'income' | 'expense'; // Removed 'transfer'
+  netAmount?: number; // NEW: Amount before VAT
+  vatAmount?: number; // NEW: VAT amount
+  
   customerId?: string;
   customerName?: string;
   category: string;

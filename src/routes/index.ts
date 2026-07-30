@@ -19,6 +19,7 @@ export const ROUTES = {
   DASHBOARD: '/',
   PROFILE: '/profile',
   VEHICLES: '/vehicles',
+  UTILISATION: '/utilisation',
   MAINTENANCE: '/maintenance',
   INCOME_EXPENSE: '/income-expense',
   RENTALS: '/rentals',
@@ -49,6 +50,7 @@ export const ROUTES = {
 // Export route permissions mapping
 export const ROUTE_PERMISSIONS = {
   [ROUTES.VEHICLES]: { module: 'vehicles', action: 'view' },
+  [ROUTES.UTILISATION]: { module: 'utilisation', action: 'view' },
   [ROUTES.MAINTENANCE]: { module: 'maintenance', action: 'view' },
   [ROUTES.RENTALS]: { module: 'rentals', action: 'view' },
   [ROUTES.ACCIDENTS]: { module: 'accidents', action: 'view' },
@@ -89,6 +91,7 @@ export const ROUTE_METADATA = {
 
 
   [ROUTES.VEHICLES]: { title: 'AIE Vehicles', icon: 'Car' },
+  [ROUTES.UTILISATION]: { title: 'Fleet Utilisation', icon: 'Activity' },
   [ROUTES.MAINTENANCE]: { title: 'Maintenance', icon: 'Wrench' },
   [ROUTES.RENTALS]: { title: 'Rentals', icon: 'Calendar' },
   [ROUTES.ACCIDENTS]: { title: 'Accidents', icon: 'AlertTriangle' },

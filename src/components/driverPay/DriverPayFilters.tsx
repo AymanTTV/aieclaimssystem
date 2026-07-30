@@ -1,6 +1,7 @@
 // src/components/driverPay/DriverPayFilters.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
+import { useDriverGroups } from '../../hooks/useDriverGroups'; // 🟢 Added import for groups
 
 interface DriverPayFiltersProps {
   searchQuery: string;
@@ -9,13 +10,16 @@ interface DriverPayFiltersProps {
   onStatusFilterChange: (status: string) => void;
   collectionFilter: string;
   onCollectionFilterChange: (collection: string) => void;
+  // 🟢 NEW: Group filter props
+  groupIdFilter: string;
+  onGroupIdFilterChange: (groupId: string) => void;
   periodDateRange: { start: Date | null; end: Date | null };
   onPeriodDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   periodOverlapDateRange: { start: Date | null; end: Date | null };
   onPeriodOverlapDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   lockFilter: string;
   onLockFilterChange: (value: string) => void;
-  // 🟢 NEW: Usage filter props
+  // 🟢 Usage filter props
   usageFilter: string;
   onUsageFilterChange: (value: string) => void;
 }
@@ -27,15 +31,19 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
   onStatusFilterChange,
   collectionFilter,
   onCollectionFilterChange,
+  groupIdFilter, // 🟢 New
+  onGroupIdFilterChange, // 🟢 New
   periodDateRange,
   onPeriodDateRangeChange,
   periodOverlapDateRange,
   onPeriodOverlapDateRangeChange,
   lockFilter,
   onLockFilterChange,
-  usageFilter, // 🟢 New
-  onUsageFilterChange, // 🟢 New
+  usageFilter,
+  onUsageFilterChange,
 }) => {
+  const { groups } = useDriverGroups(); // 🟢 Fetch driver groups
+
   const overlapStart = periodOverlapDateRange.start ? periodOverlapDateRange.start.toISOString().split('T')[0] : '';
   const overlapEnd   = periodOverlapDateRange.end ? periodOverlapDateRange.end.toISOString().split('T')[0] : '';
   const exactStart   = periodDateRange.start ? periodDateRange.start.toISOString().split('T')[0] : '';
@@ -85,8 +93,23 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             <option value="ABDULAZIZ">ABDULAZIZ</option>
             <option value="OTHER">OTHER</option>
           </select>
+
+          {/* 🟢 NEW: Groups Filter */}
+          <select
+            id="groupIdFilter"
+            value={groupIdFilter}
+            onChange={(e) => onGroupIdFilterChange(e.target.value)}
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          >
+            <option value="all">All Groups</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
             
-          {/* 🟢 NEW: Usage Filter */}
+          {/* Usage Filter */}
           <select
             id="usageFilter"
             value={usageFilter}

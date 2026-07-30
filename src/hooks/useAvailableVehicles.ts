@@ -5,10 +5,11 @@ import { db } from '../lib/firebase';
 import { Vehicle, Rental } from '../types';
 import { isBefore, isAfter, format, startOfDay, endOfDay, isValid } from 'date-fns';
 
-interface VehicleAvailability extends Vehicle {
+export interface VehicleAvailability extends Vehicle {
   availableFrom?: Date;
   message?: string;
   isSubstitution?: boolean;
+  hasConflict?: boolean; // ✅ Added to prevent booking
 }
 
 const parseFirebaseDate = (date: any): Date | null => {
@@ -53,7 +54,8 @@ export const useAvailableVehicles = (
         const available = baseVehicles
           .map(vehicle => {
             const periods: Array<{ start: Date; end: Date }> = [];
-            const vehicleReg = vehicle.registrationNumber?.toLowerCase()?.trim();
+            // ✅ Strip spaces from the primary vehicle registration
+            const vehicleReg = (vehicle.registrationNumber || '').replace(/\s/g, '').toLowerCase();
             
             let subStatusMessage = '';
             let isSub = false;
@@ -66,14 +68,22 @@ export const useAvailableVehicles = (
                 if (rStart && rEnd) periods.push({ start: rStart, end: rEnd });
               }
 
-              // ✅ Check if vehicle is used as a substitution
+              // Check if vehicle is used as a substitution
               if (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0) {
                 rental.hireSubstitutionDetails.forEach(sub => {
-                  const subReg = sub.registration?.toLowerCase()?.trim();
+                  // ✅ Strip spaces from the substitute registration
+                  const subReg = (sub.registration || '').replace(/\s/g, '').toLowerCase();
+                  
                   if (vehicleReg && subReg && vehicleReg === subReg && !sub.returnCondition) {
-                    const sStart = parseFirebaseDate(sub.givenAt);
-                    const sEnd = parseFirebaseDate(sub.expectedReturnAt);
+                    let sStart = parseFirebaseDate(sub.givenAt);
+                    let sEnd = parseFirebaseDate(sub.expectedReturnAt);
+                    
                     if (sStart && sEnd) {
+                      const now = new Date();
+                      // ✅ Enforce active time window for currently active rentals
+                      if (isAfter(sStart, now)) sStart = now;
+                      if (isBefore(sEnd, now)) sEnd = now;
+
                       periods.push({ start: sStart, end: sEnd });
                       isSub = true;
                       subStatusMessage = `ON SUB: ${format(sStart, 'dd/MM HH:mm')} → ${format(sEnd, 'dd/MM HH:mm')}`;
@@ -83,21 +93,35 @@ export const useAvailableVehicles = (
               }
             });
 
-            if (startDate && endDate) {
-              const searchStart = startOfDay(startDate);
-              const searchEnd = endOfDay(endDate);
-              const hasConflict = periods.some(period => {
-                const pStart = startOfDay(period.start);
-                const pEnd = endOfDay(period.end);
-                return searchStart <= pEnd && searchEnd >= pStart;
-              });
-              if (hasConflict && !isSub) return null; // Hide if it's a primary conflict
+            // ✅ ALWAYS check for conflict using provided dates or defaulting to today
+            const searchStart = startDate ? startOfDay(startDate) : startOfDay(new Date());
+            const searchEnd = endDate ? endOfDay(endDate) : endOfDay(searchStart);
+
+            const hasConflict = periods.some(period => {
+              const pStart = startOfDay(period.start);
+              const pEnd = endOfDay(period.end);
+              return searchStart <= pEnd && searchEnd >= pStart;
+            });
+
+            if (hasConflict) {
+              if (isSub) {
+                 // ✅ Let it show up but mark as unselectable conflict
+                 return {
+                    ...vehicle,
+                    availableFrom: vehicle.availableFrom || new Date(),
+                    isSubstitution: true,
+                    hasConflict: true,
+                    message: subStatusMessage || 'Currently on substitution'
+                 };
+              }
+              return null; // Hide primary conflicts
             }
 
             return {
               ...vehicle,
               availableFrom: vehicle.availableFrom || new Date(),
               isSubstitution: isSub,
+              hasConflict: false,
               message: subStatusMessage || (vehicle.availableFrom 
                 ? `Available from ${format(vehicle.availableFrom, 'dd/MM/yyyy')}` 
                 : 'Available now')

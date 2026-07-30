@@ -35,6 +35,8 @@ export interface MileageUpdate {
   source?: 'form' | 'service' | 'import' | 'other';
 }
 
+export type VehicleTypeAssignment = 'Claims' | 'Hire';
+
 export interface Vehicle {
   id: string;
   vin: string;
@@ -42,6 +44,12 @@ export interface Vehicle {
   model: string;
   year: number;
   registrationNumber: string;
+
+  firstRegistrationDate?: Date | null;
+  warrantyStartDate?: Date | null;
+  warrantyEndDate?: Date | null;
+
+  serviceInterval?: number;
 
   // Core counters
   mileage: number;
@@ -73,6 +81,7 @@ export interface Vehicle {
   owner?: VehicleOwner;
   assignedGarageId?: string | null;   // ✅ Added for company/garage filtering
   assignedGarageName?: string | null; // ✅ Added for display in tables
+  assignmentType?: VehicleTypeAssignment | null; // ✅ ADDED NEW PROPERTY
 
   // Media & docs
   image?: string;

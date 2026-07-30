@@ -1,3 +1,5 @@
+// src/components/driverPay/DriverPayDetails.tsx
+
 import React, { useState, useEffect } from 'react';
 import { DriverPay, PaymentPeriod } from '../../types/driverPay';
 import { doc, getDoc } from 'firebase/firestore';
@@ -79,8 +81,12 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
             <span className="font-medium">£{(period.totalAmount ?? 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Commission ({period.commissionPercentage ?? 0}%):</span>
-            <span className="text-yellow-600">£{(period.commissionAmount ?? 0).toFixed(2)}</span>
+            <span>Commission A ({period.commissionPercentageA ?? 0}%):</span>
+            <span className="text-yellow-600">£{(period.commissionAmountA ?? 0).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Commission B ({period.commissionPercentageB ?? 0}%):</span>
+            <span className="text-yellow-600">£{(period.commissionAmountB ?? 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span>Net Pay:</span>

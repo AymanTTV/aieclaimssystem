@@ -1,14 +1,7 @@
 // src/components/pdf/documents/ReceiptDocument.tsx
 
 import React from 'react';
-import {
-  Document,
-  Page,
-  View,
-  Text,
-  Image,
-  StyleSheet,
-} from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import { Transaction } from '../../../types/finance';
 
 interface ReceiptDocumentProps {
@@ -22,132 +15,100 @@ interface ReceiptDocumentProps {
   };
 }
 
-const receiptStyles = StyleSheet.create({
-  page: {
-    width: 227,        // ~80 mm
-    padding: 10,
-    fontSize: 9,
-    fontFamily: 'Helvetica',
-    lineHeight: 1.2,
+const styles = StyleSheet.create({
+  page:{
+    width:227,paddingTop:12,paddingHorizontal:12,paddingBottom:20,
+    fontFamily:'Helvetica',fontSize:9,color:'#222',position:'relative'
   },
-  logo: {
-    width: 50,
-    height: 50,
-    marginBottom: 6,
-    alignSelf: 'center',
-  },
-  companyText: {
-    textAlign: 'center',
-    marginBottom: 2,
-    fontWeight: 'normal',
-  },
-  dateText: {
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  separator: {
-    borderBottomWidth: 1,
-    borderBottomStyle: 'dashed',
-    marginVertical: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  label: {
-    width: '60%',
-  },
-  value: {
-    width: '40%',
-    textAlign: 'right',
-  },
-  total: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-    fontWeight: 'bold',
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: 6,
-  },
+  logo:{width:58,height:58,alignSelf:'center',marginBottom:6},
+  watermark:{position:'absolute',width:120,height:120,opacity:0.06,top:'45%',left:'24%'},
+  companyName:{textAlign:'center',fontSize:12,fontWeight:'bold',marginBottom:3},
+  companyText:{textAlign:'center',fontSize:9,marginBottom:2},
+  divider:{borderBottomWidth:1,borderBottomColor:'#D8D8D8',marginVertical:8},
+  info:{textAlign:'center',fontSize:10,marginBottom:3},
+  table:{marginTop:2},
+  row:{flexDirection:'row',minHeight:30,borderBottomWidth:1,borderBottomColor:'#D8D8D8'},
+  left:{width:'42%',borderRightWidth:1,borderRightColor:'#D8D8D8',justifyContent:'center',paddingVertical:7,paddingHorizontal:6},
+  right:{width:'58%',justifyContent:'center',paddingVertical:7,paddingHorizontal:6},
+  label:{fontWeight:'bold',fontSize:10},
+  value:{fontSize:10,textAlign:'left',lineHeight:1.4},
+  totalLabel:{fontWeight:'bold',fontSize:11},
+  totalValue:{fontWeight:'bold',fontSize:13,textAlign:'right'},
+  footer:{textAlign:'center',marginTop:18,fontSize:11,fontStyle:'italic'}
 });
 
-const ReceiptDocument: React.FC<ReceiptDocumentProps> = ({
-  data,
-  companyDetails,
-}) => {
-  const fmtDate = (d: Date) => new Date(d).toLocaleString('en-GB');
-  const fmtMoney = (amt: number) => `£${amt.toFixed(2)}`;
+const ReceiptDocument:React.FC<ReceiptDocumentProps>=({data,companyDetails})=>{
 
-  return (
+  const fmtDate=(d:Date|string)=>new Date(d).toLocaleString('en-GB');
+  const fmtMoney=(n:number)=>`£${n.toFixed(2)}`;
+
+  const estimate=(t?:string,c=22)=>t?Math.ceil(t.length/c):0;
+  const pageHeight=280+estimate(data.customerName)*16+estimate(data.vehicleName)*16+estimate(data.description)*16;
+
+  const receiptNumber=data.id
+    ? data.id.replace(/\D/g,'').slice(-4).padStart(4,'0')
+    : Math.floor(1000+Math.random()*9000).toString();
+
+  const paidBy=data.paymentMethod
+    ? data.paymentMethod.replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase())
+    : 'N/A';
+
+  return(
     <Document>
-      <Page size={[227, 600]} style={receiptStyles.page}>
-        {/* Logo */}
-        {companyDetails.logoUrl && (
-          <Image src={companyDetails.logoUrl} style={receiptStyles.logo} />
-        )}
+      <Page size={[227, 480]} style={styles.page}>
 
-        {/* Company Info */}
-        <Text style={receiptStyles.companyText}>{companyDetails.fullName}</Text>
-        <Text style={receiptStyles.companyText}>{companyDetails.officialAddress}</Text>
-        <Text style={receiptStyles.companyText}>Tel: {companyDetails.phone}</Text>
-        <Text style={receiptStyles.companyText}>Email: {companyDetails.email}</Text>
+        {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.watermark} fixed/>}
+        {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo}/>}
 
-        {/* Date/Time above the line */}
-        <Text style={receiptStyles.dateText}>{fmtDate(data.date)}</Text>
-        <View style={receiptStyles.separator} />
+        <Text style={styles.companyName}>{companyDetails.fullName}</Text>
+        <Text style={styles.companyText}>{companyDetails.officialAddress}</Text>
+        <Text style={styles.companyText}>Tel: {companyDetails.phone}</Text>
+        <Text style={styles.companyText}>Email: {companyDetails.email}</Text>
 
-        {/* Transaction Details */}
-        <View>
-          <View style={receiptStyles.row}>
-            <Text style={receiptStyles.label}>Type:</Text>
-            <Text style={receiptStyles.value}>{data.type.toUpperCase()}</Text>
-          </View>
+        <View style={styles.divider}/>
 
-          <View style={receiptStyles.row}>
-            <Text style={receiptStyles.label}>Category:</Text>
-            <Text style={receiptStyles.value}>{data.category}</Text>
-          </View>
+        <Text style={styles.info}>Receipt No: {receiptNumber}</Text>
+        <Text style={styles.info}>Date: {fmtDate(data.date)}</Text>
 
-          {data.customerName && (
-            <View style={receiptStyles.row}>
-              <Text style={receiptStyles.label}>Customer:</Text>
-              <Text style={receiptStyles.value}>{data.customerName}</Text>
+        <View style={styles.divider}/>
+
+        <View style={styles.table}>
+
+          {!!data.customerName && (
+            <View style={styles.row}>
+              <View style={styles.left}><Text style={styles.label}>Customer:</Text></View>
+              <View style={styles.right}><Text style={styles.value}>{data.customerName}</Text></View>
             </View>
           )}
 
-          {data.vehicleName && (
-            <View style={receiptStyles.row}>
-              <Text style={receiptStyles.label}>Vehicle:</Text>
-              <Text style={receiptStyles.value}>{data.vehicleName}</Text>
+          {!!data.vehicleName && (
+            <View style={styles.row}>
+              <View style={styles.left}><Text style={styles.label}>Vehicle:</Text></View>
+              <View style={styles.right}><Text style={styles.value}>{data.vehicleName}</Text></View>
             </View>
           )}
+
+          <View style={styles.row}>
+            <View style={styles.left}><Text style={styles.label}>Description:</Text></View>
+            <View style={styles.right}>
+              <Text style={styles.value}>{data.description || data.category}</Text>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.left}><Text style={styles.totalLabel}>Total:</Text></View>
+            <View style={styles.right}><Text style={styles.totalValue}>{fmtMoney(data.amount)}</Text></View>
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.left}><Text style={styles.label}>Paid By:</Text></View>
+            <View style={styles.right}><Text style={styles.value}>{paidBy}</Text></View>
+          </View>
+
         </View>
 
-        <View style={receiptStyles.separator} />
+        <Text style={styles.footer}>Thank you for your business!</Text>
 
-        {/* Amount & Payment */}
-        <View style={receiptStyles.total}>
-          <Text>Total:</Text>
-          <Text>{fmtMoney(data.amount)}</Text>
-        </View>
-
-        <View style={receiptStyles.row}>
-          <Text style={receiptStyles.label}>Method:</Text>
-          <Text style={receiptStyles.value}>{data.paymentMethod || 'N/A'}</Text>
-        </View>
-
-        <View style={receiptStyles.row}>
-          <Text style={receiptStyles.label}>Status:</Text>
-          <Text style={receiptStyles.value}>{data.paymentStatus}</Text>
-        </View>
-
-        <View style={receiptStyles.separator} />
-
-        {/* Footer */}
-        <Text style={receiptStyles.footer}>Thank you for your business!</Text>
       </Page>
     </Document>
   );

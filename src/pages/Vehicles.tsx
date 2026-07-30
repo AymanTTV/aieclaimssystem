@@ -25,6 +25,7 @@ import {
   AlertCircle,
   CheckCircle,
   Building2,
+  Tag,
   X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -63,17 +64,31 @@ const Vehicles: React.FC = () => {
     setExpiryFilter,
     accountFilter,
     setAccountFilter,
+    garageFilter,
+    setGarageFilter,
+    typeFilter, // ✅ Destructured type filter
+    setTypeFilter, // ✅ Destructured type filter setter
+
+    
+    ageFilter,     // ✅
+    setAgeFilter,  // ✅
   } = useVehicleFilters(vehiclesState);
 
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
 
-  // ✅ Multi-select & Assign Garage State
+  // Multi-select & Assign Garage/Type State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Assign Garage State
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningSingleVehicle, setAssigningSingleVehicle] = useState<Vehicle | null>(null);
   const [companyUsers, setCompanyUsers] = useState<{id: string, name: string}[]>([]);
   const [selectedGarageId, setSelectedGarageId] = useState<string>('');
-  
+
+  // ✅ Assign Type State
+  const [showAssignTypeModal, setShowAssignTypeModal] = useState(false);
+  const [assigningTypeSingleVehicle, setAssigningTypeSingleVehicle] = useState<Vehicle | null>(null);
+  const [selectedAssignmentType, setSelectedAssignmentType] = useState<string>('');
 
   const injectMissingVehicle = async () => {
     try {
@@ -138,7 +153,6 @@ const Vehicles: React.FC = () => {
     fetchAccounts();
   }, []);
 
-  // ✅ Fetch Companies and REMOVE DUPLICATES
   useEffect(() => {
     if (can('vehicles', 'update') && !isCompany) {
       const fetchCompanies = async () => {
@@ -146,18 +160,15 @@ const Vehicles: React.FC = () => {
           const q = query(collection(db, 'users'), where('role', '==', 'company'));
           const snap = await getDocs(q);
           
-          // Use a Map to deduplicate based on the company name
           const uniqueCompaniesMap = new Map<string, {id: string, name: string}>();
           
           snap.docs.forEach(d => {
             const name = d.data().companyName || d.data().name || 'Unnamed Company';
-            // Only add if we haven't seen this exact name before
             if (!uniqueCompaniesMap.has(name)) {
               uniqueCompaniesMap.set(name, { id: d.id, name: name });
             }
           });
           
-          // Convert back to an array and sort alphabetically
           const companies = Array.from(uniqueCompaniesMap.values()).sort((a, b) => 
             a.name.localeCompare(b.name)
           );
@@ -178,7 +189,6 @@ const Vehicles: React.FC = () => {
   const [sellingVehicle, setSellingVehicle] = useState<Vehicle | null>(null);
   const [undoingSaleVehicle, setUndoingSaleVehicle] = useState<Vehicle | null>(null);
   const [serviceVehicle, setServiceVehicle] = useState<Vehicle | null>(null);
-  
 
   const overdue = filteredVehicles.filter(v => v.nextServiceMileage <= v.mileage);
   const dueSoonArr = filteredVehicles.filter(
@@ -238,14 +248,14 @@ const Vehicles: React.FC = () => {
   };
 
   useEffect(() => {
-  setVehiclesState(vehicles);
-}, [vehicles]);
+    setVehiclesState(vehicles);
+  }, [vehicles]);
 
-const handleMileageUpdated = (updatedVehicle: Vehicle) => {
-  setVehiclesState((prev) =>
-    prev.map((v) => (v.id === updatedVehicle.id ? updatedVehicle : v))
-  );
-};
+  const handleMileageUpdated = (updatedVehicle: Vehicle) => {
+    setVehiclesState((prev) =>
+      prev.map((v) => (v.id === updatedVehicle.id ? updatedVehicle : v))
+    );
+  };
 
   const handleSubmit = async (data: Partial<Vehicle>) => {
     try {
@@ -264,7 +274,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
       };
 
       if (editingVehicle?.id) {
-        // ✅ NEW: If the mileage was changed during the edit, log it so the warning clears
         if (data.mileage !== undefined && data.mileage !== editingVehicle.mileage) {
           payload.mileageUpdates = arrayUnion({
             date: new Date(),
@@ -278,7 +287,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
         await updateDoc(doc(db, 'vehicles', editingVehicle.id), payload);
         toast.success('Vehicle updated successfully');
       } else {
-        // ✅ NEW: For newly created vehicles, seed the first mileage update so it doesn't instantly warn
         if (data.mileage !== undefined) {
           payload.mileageUpdates = [{
             date: new Date(),
@@ -308,7 +316,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
     await resetAllVehicleStatuses(vehicles);
   };
 
-  // ✅ Checkbox Handlers
   const handleToggleAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(new Set(displayedVehicles.map(v => v.id)));
@@ -324,7 +331,7 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
     setSelectedIds(next);
   };
 
-  // ✅ Garage Assignment Submission
+  // Garage Assignment Submission
   const handleAssignGarageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!can('vehicles', 'update')) return;
@@ -372,6 +379,43 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
     }
   };
 
+  // ✅ Type Assignment Submission
+  const handleAssignTypeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!can('vehicles', 'update')) return;
+
+    const targetType = selectedAssignmentType === 'clear' ? null : selectedAssignmentType;
+
+    try {
+      const batch = writeBatch(db);
+      
+      if (assigningTypeSingleVehicle) {
+        batch.update(doc(db, 'vehicles', assigningTypeSingleVehicle.id), {
+          assignmentType: targetType,
+          updatedAt: new Date()
+        });
+      } else if (selectedIds.size > 0) {
+        selectedIds.forEach(id => {
+          batch.update(doc(db, 'vehicles', id), {
+            assignmentType: targetType,
+            updatedAt: new Date()
+          });
+        });
+      }
+
+      await batch.commit();
+      toast.success(targetType ? `Successfully assigned to ${targetType}` : 'Successfully cleared type assignment');
+      
+      setShowAssignTypeModal(false);
+      setAssigningTypeSingleVehicle(null);
+      setSelectedIds(new Set());
+      setSelectedAssignmentType('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to assign type');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -383,7 +427,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-
       {can('vehicles', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-green-50 border-l-4 border-green-400 p-4 flex items-center">
@@ -412,7 +455,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
           </div>
         </div>
       </div>
-
       )}
 
       {/* Header & Actions */}
@@ -423,7 +465,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
           </h1>
 
           <div className="w-full grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:w-auto">
-            
             {can('vehicles', 'export') && (
             <button
               onClick={handleGeneratePDF}
@@ -444,7 +485,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
             )}
           
             {can('vehicles', 'syncStatus') && (
-              
                 <button
                   onClick={syncVehicleStatuses}
                   className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
@@ -452,7 +492,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
                   <RefreshCw className="h-5 w-5 mr-2" />
                   Sync Statuses
                 </button>
-
             )}
               {can('vehicles', 'create') && (
                 <button
@@ -485,6 +524,13 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
         accountFilter={accountFilter}
         onAccountFilterChange={setAccountFilter}
         accounts={accounts}
+        garageFilter={garageFilter}
+        onGarageFilterChange={setGarageFilter}
+        garages={companyUsers}
+        typeFilter={typeFilter} // ✅ Added type filter
+        onTypeFilterChange={setTypeFilter} // ✅ Added type filter setter
+        ageFilter={ageFilter}           // ✅
+        onAgeFilterChange={setAgeFilter} // ✅
       />
 
       {/* ✅ Bulk Actions Header */}
@@ -494,13 +540,21 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
             <CheckCircle className="w-5 h-5 mr-2" />
             {selectedIds.size} vehicle{selectedIds.size > 1 ? 's' : ''} selected
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto flex-wrap">
             <button
               onClick={() => { setSelectedIds(new Set()); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 text-center"
             >
               Cancel Selection
             </button>
+            {/* ✅ Assign Type Bulk Action */}
+            <button
+              onClick={() => { setAssigningTypeSingleVehicle(null); setShowAssignTypeModal(true); }}
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm"
+            >
+              <Tag className="w-4 h-4" /> Assign Type
+            </button>
+            {/* Assign Garage Bulk Action */}
             <button
               onClick={() => { setAssigningSingleVehicle(null); setShowAssignModal(true); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded hover:bg-orange-700 flex items-center justify-center gap-2 shadow-sm"
@@ -523,7 +577,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
           onGenerateDocument={handleGenerateDocument}
           onViewDocument={handleViewDocument}
           onSetServiceMileage={setServiceVehicle}
-          // ✅ Multi-Select Props
           selectedIds={selectedIds}
           onToggleAll={handleToggleAll}
           onToggleOne={handleToggleOne}
@@ -532,10 +585,16 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
             setSelectedGarageId(vehicle.assignedGarageId || '');
             setShowAssignModal(true);
           }}
+          // ✅ Added Type Assignment handler prop
+          onAssignType={(vehicle) => {
+            setAssigningTypeSingleVehicle(vehicle);
+            setSelectedAssignmentType(vehicle.assignmentType || '');
+            setShowAssignTypeModal(true);
+          }}
         />
       </div>
 
-      {/* ✅ Assign to Garage Modal */}
+      {/* Assign to Garage Modal */}
       <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage">
         <form onSubmit={handleAssignGarageSubmit} className="space-y-4">
           <p className="text-sm text-gray-600 mb-2">
@@ -545,7 +604,6 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
           </p>
 
           <div className="min-h-[250px]">
-            {/* Added a min-height wrapper to ensure the SearchableSelect dropdown has room to open without causing the modal to clip it */}
             <SearchableSelect
               label="Available Garages / Companies"
               options={[
@@ -563,6 +621,42 @@ const handleMileageUpdated = (updatedVehicle: Vehicle) => {
               Cancel
             </button>
             <button type="submit" disabled={!selectedGarageId} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50 font-medium shadow-sm">
+              Confirm Assignment
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ✅ Assign Type Modal */}
+      <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type">
+        <form onSubmit={handleAssignTypeSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600 mb-2">
+            {assigningTypeSingleVehicle 
+              ? `Select a type to assign to ${assigningTypeSingleVehicle.registrationNumber}.`
+              : `Select a type to assign to the ${selectedIds.size} selected vehicles.`}
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vehicle Type
+            </label>
+            <select
+              value={selectedAssignmentType}
+              onChange={(e) => setSelectedAssignmentType(e.target.value)}
+              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+            >
+              <option value="" disabled>Select a type...</option>
+              <option value="Claims">For Claims</option>
+              <option value="Hire">For Hire</option>
+              <option value="clear">🚫 Clear Assignment</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
+              Cancel
+            </button>
+            <button type="submit" disabled={!selectedAssignmentType} className="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 font-medium shadow-sm">
               Confirm Assignment
             </button>
           </div>

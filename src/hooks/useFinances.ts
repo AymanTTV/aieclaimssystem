@@ -4,6 +4,13 @@ import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Transaction } from '../types';
 
+const safeDate = (dateVal: any) => {
+  if (!dateVal) return new Date();
+  if (typeof dateVal.toDate === 'function') return dateVal.toDate();
+  if (dateVal instanceof Date) return dateVal;
+  return new Date(dateVal);
+};
+
 export const useFinances = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,17 +22,19 @@ export const useFinances = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const transactionData: Transaction[] = [];
-        snapshot.forEach((doc) => {
+        // Pre-allocate array size for much faster memory mapping
+        const transactionData = new Array(snapshot.docs.length);
+        
+        snapshot.docs.forEach((doc, index) => {
           const data = doc.data();
-          transactionData.push({
+          transactionData[index] = {
             id: doc.id,
             ...data,
-            date: data.date.toDate(),
-            createdAt: data.createdAt.toDate(),
-          } as Transaction);
+            date: safeDate(data.date),
+            createdAt: safeDate(data.createdAt),
+          } as Transaction;
         });
-        console.log('Fetched transactions:', transactionData); // Debug log
+        
         setTransactions(transactionData);
         setLoading(false);
       },

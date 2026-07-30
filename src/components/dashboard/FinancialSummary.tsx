@@ -36,74 +36,61 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
   }, [transactions, period]);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+    // Unified container with dividers instead of separate cards
+    <div className="flex flex-col sm:flex-row sm:divide-x divide-y sm:divide-y-0 divide-gray-100">
+      
       {/* Total Income */}
-      <div className="bg-white rounded-lg shadow-sm p-4 min-w-0">
-        <div className="flex items-center">
-          <div className="rounded-full p-3 bg-green-100">
-            <TrendingUp className="w-6 h-6 text-green-600" />
-          </div>
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Total Income</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(summary.totalIncome)}
-            </p>
-          </div>
+      <div className="flex-1 p-4 flex items-center">
+        <div className="rounded-full p-3 bg-green-50 text-green-600">
+          <TrendingUp className="w-5 h-5" />
+        </div>
+        <div className="ml-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Income</p>
+          <p className="text-xl font-bold text-gray-900">
+            {formatCurrency(summary.totalIncome)}
+          </p>
         </div>
       </div>
 
       {/* Total Expenses */}
-      <div className="bg-white rounded-lg shadow-sm p-4 min-w-0">
-        <div className="flex items-center">
-          <div className="rounded-full p-3 bg-red-100">
-            <TrendingDown className="w-6 h-6 text-red-600" />
-          </div>
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Total Expenses</p>
-            <p className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(summary.totalExpenses)}
-            </p>
-          </div>
+      <div className="flex-1 p-4 flex items-center">
+        <div className="rounded-full p-3 bg-red-50 text-red-600">
+          <TrendingDown className="w-5 h-5" />
+        </div>
+        <div className="ml-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expenses</p>
+          <p className="text-xl font-bold text-gray-900">
+            {formatCurrency(summary.totalExpenses)}
+          </p>
         </div>
       </div>
 
       {/* Net Income */}
-      <div className="bg-white rounded-lg shadow-sm p-4 min-w-0">
-        <div className="flex items-center">
-          <div className="rounded-full p-3 bg-blue-100">
-            <DollarSign className="w-6 h-6 text-blue-600" />
-          </div>
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Net Income</p>
-            <p
-              className={`text-2xl font-semibold ${
-                summary.netIncome >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {formatCurrency(summary.netIncome)}
-            </p>
-          </div>
+      <div className="flex-1 p-4 flex items-center">
+        <div className="rounded-full p-3 bg-blue-50 text-blue-600">
+          <DollarSign className="w-5 h-5" />
+        </div>
+        <div className="ml-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net Income</p>
+          <p className={`text-xl font-bold ${summary.netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(summary.netIncome)}
+          </p>
         </div>
       </div>
 
       {/* Profit Margin */}
-      <div className="bg-white rounded-lg shadow-sm p-4 min-w-0">
-        <div className="flex items-center">
-          <div className="rounded-full p-3 bg-purple-100">
-            <Percent className="w-6 h-6 text-purple-600" />
-          </div>
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-500">Profit Margin</p>
-            <p
-              className={`text-2xl font-semibold ${
-                summary.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {formatPercentage(summary.profitMargin)}
-            </p>
-          </div>
+      <div className="flex-1 p-4 flex items-center">
+        <div className="rounded-full p-3 bg-purple-50 text-purple-600">
+          <Percent className="w-5 h-5" />
+        </div>
+        <div className="ml-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Profit Margin</p>
+          <p className={`text-xl font-bold ${summary.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatPercentage(summary.profitMargin)}
+          </p>
         </div>
       </div>
+
     </div>
   );
 };

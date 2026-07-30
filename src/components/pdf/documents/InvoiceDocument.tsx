@@ -8,69 +8,32 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer';
-import { Invoice, Vehicle } from '../../../types';
+import { Invoice, Vehicle, Customer } from '../../../types';
 import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
 
-// Interface extending Invoice to allow attached vehicle
-interface InvoiceWithVehicle extends Invoice {
+// Extended interface to accept the full customer object for the address
+interface InvoiceWithVehicleAndCustomer extends Invoice {
   vehicle?: Vehicle;
+  customer?: Customer; 
+  customerAddress?: string; // Fallback in case it is passed as a flat string
 }
 
 interface InvoiceDocumentProps {
-  data: InvoiceWithVehicle;
-  vehicle?: Vehicle;
+  data: InvoiceWithVehicleAndCustomer;
   companyDetails: any;
 }
 
-// Local styles to handle specific layout needs
 const localStyles = StyleSheet.create({
-  // Horizontal Info Card (Top Section)
-  infoCard: {
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-    borderRadius: 6,
-    padding: 8,
+  sideBySideContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap', 
     justifyContent: 'space-between',
     marginBottom: 15,
-    backgroundColor: '#F9FAFB',
   },
-  infoRow: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  infoCol: {
-    width: '24%',
-    flexDirection: 'column',
-  },
-  infoLabel: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  
-  // Status Colors
-  statusPaid: { color: '#059669' },
-  statusPending: { color: '#D97706' },
-  statusUnpaid: { color: '#DC2626' },
-
-  // Bottom Section (Side by Side)
   bottomContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
-    gap: 20,
   },
   cardBox: {
     width: '48%',
@@ -89,40 +52,43 @@ const localStyles = StyleSheet.create({
     paddingBottom: 5,
     textTransform: 'uppercase',
   },
-  cardText: {
-    fontSize: 10,
-    marginBottom: 2,
-    color: '#374151',
-  },
-  summaryRow: {
+  spaceBetweenRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
     fontSize: 10,
   },
-  summaryLabel: { color: '#4B5563' },
-  summaryValue: { color: '#111827', fontWeight: 'bold' },
-  
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+  label: { color: '#4B5563', fontWeight: 'bold', textTransform: 'uppercase', fontSize: 9 },
+  value: { color: '#111827', fontWeight: 'bold' },
+});
+
+const tcStyles = StyleSheet.create({
+  termTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    textDecoration: 'underline',
   },
-  totalLabel: { fontSize: 12, fontWeight: 'bold', color: '#111827' },
-  totalValue: { fontSize: 12, fontWeight: 'bold', color: '#2563EB' },
+  termSection: {
+    marginBottom: 4, 
+  },
+  termText: {
+    fontSize: 8, 
+    marginBottom: 1,
+    lineHeight: 1.4,
+    textAlign: 'justify',
+    color: '#374151'
+  },
 });
 
 const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   data,
-  vehicle,
   companyDetails,
 }) => {
-  // Helpers
+  // Safe formatters
   const formatCurrency = (amount: number) => 
-    `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `£${(amount || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const formatDateValue = (date: any): string => {
     if (!date) return 'N/A';
@@ -139,7 +105,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
     return v.startsWith('http') || v.startsWith('data:image');
   };
 
-  // Calculations
+  // Safe Calculations
   const computedLines = (data.lineItems || []).map(item => {
     const qty = Number(item.quantity) || 0;
     const price = Number(item.unitPrice) || 0;
@@ -158,14 +124,14 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   const vatTotal = computedLines.reduce((sum, i) => sum + i.vat, 0);
   const grandTotal = netTotal + vatTotal;
 
-  // Retrieve Vehicle Data (Priority: explicit prop > attached data)
-  const actualVehicle = vehicle || data.vehicle;
+  // Safe ID slicing (prevents crashes on new creation)
+  const safeId = data.id || 'NEW-RECORD';
+  const displayInvoiceNumber = data.invoiceNumber || `INV-${safeId.slice(0, 8).toUpperCase()}`;
 
-  const vehicleDisplay = actualVehicle 
-    ? `${actualVehicle.make} ${actualVehicle.model} (${actualVehicle.registrationNumber})`
-    : data.vehicleName || 'N/A';
-
-  const displayInvoiceNumber = data.invoiceNumber || `INV-${data.id.slice(0, 6).toUpperCase()}`;
+  // Smartly grab the address from the passed customer object (whether customer, claim, or company)
+  const customerDisplayAddress = data.customer?.address || data.customerAddress || data.vehicle?.owner?.address;
+  // Splits by comma or new lines to print line-by-line
+  const addressParts = customerDisplayAddress ? customerDisplayAddress.split(/,|\n/).map(s => s.trim()).filter(Boolean) : [];
 
   return (
     <Document>
@@ -191,47 +157,33 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           <Text style={globalStyles.title}>INVOICE</Text>
         </View>
 
-        {/* HORIZONTAL INFO CARD */}
-        <View style={localStyles.infoCard}>
-          {/* Row 1 */}
-          <View style={localStyles.infoRow}>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Invoice Number</Text>
-              <Text style={localStyles.infoValue}>{displayInvoiceNumber}</Text>
-            </View>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Invoice Date</Text>
-              <Text style={localStyles.infoValue}>{formatDateValue(data.date)}</Text>
-            </View>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Due Date</Text>
-              <Text style={localStyles.infoValue}>{formatDateValue(data.dueDate)}</Text>
-            </View>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Status</Text>
-              <Text style={[
-                localStyles.infoValue,
-                data.paymentStatus === 'paid' ? localStyles.statusPaid : 
-                data.paymentStatus === 'partially_paid' ? localStyles.statusPending : localStyles.statusUnpaid
-              ]}>
-                {(data.paymentStatus || 'pending').replace('_', ' ').toUpperCase()}
+        {/* SIDE-BY-SIDE CARDS: Bill To & Invoice Info */}
+        <View style={localStyles.sideBySideContainer} wrap={false}>
+          {/* Left Card: Bill To */}
+          <View style={localStyles.cardBox}>
+            <Text style={localStyles.cardTitle}>Bill To:</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 10, marginBottom: 2 }}>
+              {data.customerName || 'N/A'}
+            </Text>
+            {/* Renders the address line-by-line */}
+            {addressParts.length > 0 && addressParts.map((part, i) => (
+              <Text key={i} style={{ fontSize: 10, color: '#374151', lineHeight: 1.3, marginTop: i === 0 ? 4 : 0 }}>
+                {part}
               </Text>
-            </View>
+            ))}
           </View>
 
-          {/* Row 2 */}
-          <View style={[localStyles.infoRow, { marginBottom: 0 }]}>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Bill To</Text>
-              <Text style={localStyles.infoValue}>{data.customerName || 'N/A'}</Text>
+          {/* Right Card: Invoice Details */}
+          <View style={localStyles.cardBox}>
+            <Text style={[localStyles.cardTitle, { color: '#1E40AF', fontSize: 12 }]}>{displayInvoiceNumber}</Text>
+            
+            <View style={localStyles.spaceBetweenRow}>
+              <Text style={localStyles.label}>Inv. Date:</Text>
+              <Text style={localStyles.value}>{formatDateValue(data.date)}</Text>
             </View>
-            <View style={localStyles.infoCol}>
-              <Text style={localStyles.infoLabel}>Category</Text>
-              <Text style={localStyles.infoValue}>{data.category || 'General'}</Text>
-            </View>
-            <View style={[localStyles.infoCol, { width: '48%' }]}>
-              <Text style={localStyles.infoLabel}>Vehicle / Reg</Text>
-              <Text style={localStyles.infoValue}>{vehicleDisplay}</Text>
+            <View style={localStyles.spaceBetweenRow}>
+              <Text style={localStyles.label}>Due Date:</Text>
+              <Text style={localStyles.value}>{formatDateValue(data.dueDate)}</Text>
             </View>
           </View>
         </View>
@@ -252,7 +204,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
               <Text style={[globalStyles.tableCell, { flex: 3 }]}>{item.description || 'Item'}</Text>
               <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'center' }]}>{item.quantity}</Text>
               <Text style={[globalStyles.tableCell, { flex: 1.2, textAlign: 'right' }]}>{formatCurrency(item.unitPrice)}</Text>
-              <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}>{item.vat > 0 ? formatCurrency(item.vat) : '-'}</Text>
+              <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}>{item.includeVAT ? '20%' : '0%'}</Text>
               <Text style={[globalStyles.tableCell, { flex: 1, textAlign: 'right' }]}>{item.discount > 0 ? `${item.discount}%` : '-'}</Text>
               <Text style={[globalStyles.tableCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold' }]}>{formatCurrency(item.total)}</Text>
             </View>
@@ -262,59 +214,69 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         {/* BOTTOM SECTION */}
         <View style={localStyles.bottomContainer} wrap={false}>
           {/* Card 1: Payment Details */}
-          <View style={localStyles.cardBox}>
+          <View style={[localStyles.cardBox, { width: '48%' }]}>
             <Text style={localStyles.cardTitle}>Payment Details</Text>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>Bank:</Text>
-              <Text style={localStyles.summaryValue}>LLOYDS BANK</Text>
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Bank:</Text>
+              <Text style={localStyles.value}>{companyDetails?.bankName || 'LLOYDS BANK'}</Text>
             </View>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>Account Name:</Text>
-              <Text style={localStyles.summaryValue}>AIE SKYLINE LIMITED</Text>
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
+              <Text style={localStyles.value}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
             </View>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>Account Number:</Text>
-              <Text style={localStyles.summaryValue}>30513162</Text>
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Number:</Text>
+              <Text style={localStyles.value}>{companyDetails?.accountNumber || '30513162'}</Text>
             </View>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>Sort Code:</Text>
-              <Text style={localStyles.summaryValue}>30-99-50</Text>
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Sort Code:</Text>
+              <Text style={localStyles.value}>{companyDetails?.sortCode || '30-99-50'}</Text>
             </View>
             <View style={{ marginTop: 10 }}>
-              <Text style={[localStyles.summaryLabel, { fontSize: 8 }]}>
-                Please use Invoice #{displayInvoiceNumber} as reference.
+              <Text style={[localStyles.label, { fontSize: 8, textTransform: 'none', fontStyle: 'italic' }]}>
+                Please use Invoice {displayInvoiceNumber} as reference.
               </Text>
             </View>
           </View>
 
           {/* Card 2: Summary */}
-          <View style={localStyles.cardBox}>
+          <View style={[localStyles.cardBox, { width: '48%' }]}>
             <Text style={localStyles.cardTitle}>Summary</Text>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>Net Total:</Text>
-              <Text style={localStyles.summaryValue}>{formatCurrency(netTotal)}</Text>
+            
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Net Amount:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right' }]}>{formatCurrency(netTotal)}</Text>
             </View>
-            <View style={localStyles.summaryRow}>
-              <Text style={localStyles.summaryLabel}>VAT Total:</Text>
-              <Text style={localStyles.summaryValue}>{formatCurrency(vatTotal)}</Text>
+
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { color: '#2563EB', textTransform: 'none' }]}>VAT Total:</Text>
+              <Text style={[localStyles.value, { color: '#2563EB', textAlign: 'right' }]}>
+                {formatCurrency(vatTotal)}
+              </Text>
             </View>
+
             {totalDiscount > 0 && (
-              <View style={localStyles.summaryRow}>
-                <Text style={[localStyles.summaryLabel, { color: '#DC2626' }]}>Discount:</Text>
-                <Text style={[localStyles.summaryValue, { color: '#DC2626' }]}>–{formatCurrency(totalDiscount)}</Text>
+              <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                <Text style={[localStyles.label, { color: '#DC2626', textTransform: 'none' }]}>Discount:</Text>
+                <Text style={[localStyles.value, { color: '#DC2626', textAlign: 'right' }]}>
+                  –{formatCurrency(totalDiscount)}
+                </Text>
               </View>
             )}
-            <View style={localStyles.totalRow}>
-              <Text style={localStyles.totalLabel}>Grand Total:</Text>
-              <Text style={localStyles.totalValue}>{formatCurrency(grandTotal)}</Text>
+
+            <View style={[localStyles.spaceBetweenRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 6, marginTop: 4, marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { fontWeight: 'bold', textTransform: 'none' }]}>Grand Total:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', fontWeight: 'bold' }]}>{formatCurrency(grandTotal)}</Text>
             </View>
-            <View style={[localStyles.summaryRow, { marginTop: 6 }]}>
-              <Text style={[localStyles.summaryLabel, { color: '#059669' }]}>Paid to Date:</Text>
-              <Text style={[localStyles.summaryValue, { color: '#059669' }]}>{formatCurrency(data.paidAmount || 0)}</Text>
+
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none' }]}>Paid:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right' }]}>{formatCurrency(data.paidAmount || 0)}</Text>
             </View>
-            <View style={[localStyles.summaryRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 4 }]}>
-              <Text style={[localStyles.summaryLabel, { fontWeight: 'bold' }]}>Balance Due:</Text>
-              <Text style={[localStyles.summaryValue, { color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#059669' }]}>
+
+            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+              <Text style={[localStyles.label, { textTransform: 'none', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#16A34A' }]}>Owing:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#16A34A' }]}>
                 {formatCurrency(data.remainingAmount || 0)}
               </Text>
             </View>
@@ -322,6 +284,43 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         </View>
 
         {/* FOOTER */}
+        <View style={globalStyles.footer} fixed>
+          <Text style={globalStyles.footerText}>
+            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+          </Text>
+          <Text
+            style={globalStyles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
+      </Page>
+
+      {/* --- PAGE 2: Terms & Conditions --- */}
+      <Page size="A4" style={globalStyles.page}>
+         <View style={globalStyles.header} fixed>
+          <View style={globalStyles.headerLeft}>
+            {isValidPdfImageSrc(companyDetails?.logoUrl) && (
+              <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
+            )}
+          </View>
+          <View style={globalStyles.headerRight}>
+            <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 20 }}>
+          <Text style={tcStyles.termTitle}>Invoice Terms</Text>
+
+          <View style={tcStyles.termSection}>
+            <Text style={tcStyles.termText}>
+              {companyDetails?.generalInvoiceTerms || 'Standard terms and conditions apply. Payment is due within the period stated on this invoice.'}
+            </Text>
+          </View>
+        </View>
+
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
             AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875

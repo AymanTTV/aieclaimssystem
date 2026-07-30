@@ -1,4 +1,5 @@
-import { storage } from './config';
+// src/lib/storage.ts
+import { storage } from '../firebase'; // ✅ Updated to pull from the centralized firebase.ts
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import toast from 'react-hot-toast';
 

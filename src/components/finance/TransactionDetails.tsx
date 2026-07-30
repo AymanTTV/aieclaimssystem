@@ -91,17 +91,25 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
           <h3 className="text-sm font-medium text-gray-500">Category</h3>
           <p className="mt-1 text-sm text-gray-900">{transaction.category}</p>
         </div>
+        
         <div>
-          <h3 className="text-sm font-medium text-gray-500">Amount</h3>
-          <p className={`mt-1 text-lg font-medium ${ transaction.type === 'income' ? 'text-green-600' : 'text-red-600' }`}>
+          <h3 className="text-sm font-medium text-gray-500">Total Amount</h3>
+          <p className={`mt-1 text-lg font-bold ${ transaction.type === 'income' ? 'text-green-600' : 'text-red-600' }`}>
             {formatCurrency(transaction.amount)}
-            {((transaction.accountsFrom && transaction.accountsFrom.length > 1) || (transaction.accountsTo && transaction.accountsTo.length > 1)) &&
-             <span className="text-xs text-gray-500 ml-1">(Split)</span>}
           </p>
+          {(transaction.netAmount! > 0 || transaction.vatAmount! > 0) && (
+            <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+              <p>Net: {formatCurrency(transaction.netAmount || 0)}</p>
+              <p>VAT: {formatCurrency(transaction.vatAmount || 0)}</p>
+            </div>
+          )}
         </div>
         <div>
-          <h3 className="text-sm font-medium text-gray-500">Date</h3>
-          <p className="mt-1 text-sm text-gray-900">{formatDate(transaction.date)}</p>
+          <h3 className="text-sm font-medium text-gray-500">Important Dates</h3>
+          <div className="mt-1 space-y-1">
+            <p className="text-sm text-gray-900"><span className="font-medium text-gray-600 mr-2">Paid On:</span> {formatDate(transaction.date)}</p>
+            <p className="text-sm text-gray-900"><span className="font-medium text-gray-600 mr-2">Entered On:</span> {formatDate(transaction.createdAt)}</p>
+          </div>
         </div>
       </div>
 

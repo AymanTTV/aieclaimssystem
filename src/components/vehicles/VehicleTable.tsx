@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, AlertCircle, Trash2, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2 } from 'lucide-react';
+import { Eye, Edit, AlertCircle, Trash2, Tag, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
@@ -37,6 +37,7 @@ const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
     }
   }
 
+
   if (vehicle.createdAt) {
     const createdDate = vehicle.createdAt?.toDate ? vehicle.createdAt.toDate() : new Date(vehicle.createdAt);
     if (!isNaN(createdDate.getTime())) {
@@ -62,6 +63,8 @@ interface VehicleTableProps {
   onToggleAll: (checked: boolean) => void;
   onToggleOne: (id: string) => void;
   onAssignGarage: (vehicle: Vehicle) => void;
+  onAssignType: (vehicle: Vehicle) => void; // ✅ Add Prop
+
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -77,13 +80,32 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   selectedIds,
   onToggleAll,
   onToggleOne,
-  onAssignGarage
+  onAssignGarage,
+  onAssignType,
 }) => {
   const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
 
   const allSelected = vehicles.length > 0 && selectedIds.size === vehicles.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const checkWarrantyRed = (v: any): boolean => {
+    // Condition 1: Vehicle has reached or exceeded 150,000 miles
+    const currentMileage = v.mileage || 0;
+    if (currentMileage >= 150000) return true;
+
+    // Condition 2: Warranty End Date is within 14 days (or already expired)
+    const wEnd = v.warrantyEndDate?.toDate 
+      ? v.warrantyEndDate.toDate() 
+      : (v.warrantyEndDate ? new Date(v.warrantyEndDate) : null);
+      
+    if (!wEnd) return false;
+    
+    // 14 days in milliseconds: 14 * 24 * 60 * 60 * 1000
+    if (wEnd.getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000) return true;
+    
+    return false;
+  };
 
   // 1. MEMOIZE THE DATA
   const sortedVehicles = useMemo(() => {
@@ -193,6 +215,23 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                  </div>
               )}
             </div>
+
+            {/* ✅ ADDED ACTION BUTTON */}
+            {!isCompany && can('vehicles', 'update') && (
+               <button
+                  type="button"
+                  onClick={(e) => { 
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                    onAssignType(row.original); 
+                  }}
+                  className="p-1.5 rounded hover:bg-purple-50 text-purple-600"
+                  title="Assign Vehicle Type"
+                >
+                  <Tag className="h-4 w-4 pointer-events-none" />
+                </button>
+            )}
+
           </div>
         ),
       },
@@ -280,6 +319,8 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         cell: ({ row }: any) => {
           const vehicle = row.original;
           const motExpiryDate = vehicle.motExpiry instanceof Date ? vehicle.motExpiry : vehicle.motExpiry?.toDate();
+          // Get the Date properly for rendering
+          const warrantyDate = vehicle.warrantyEndDate instanceof Date ? vehicle.warrantyEndDate : vehicle.warrantyEndDate?.toDate?.() || (vehicle.warrantyEndDate ? new Date(vehicle.warrantyEndDate) : null);
 
           return (
             <div className="space-y-2">
@@ -298,6 +339,12 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
                 Road Tax: {formatDate(vehicle.roadTaxExpiry)}
               </div>
+              {/* ✅ Added Warranty End Date right here */}
+              {warrantyDate && (
+                <div className={checkWarrantyRed(vehicle) ? 'text-red-600 font-medium' : ''}>
+                  Warranty Exp: {formatDate(warrantyDate)}
+                </div>
+              )}
             </div>
           );
         },

@@ -1,13 +1,12 @@
 // src/hooks/useFinanceFilters.ts
 import { useState, useMemo } from 'react';
-import { Transaction, Vehicle, Account, Customer } from '../types';
+import { Transaction, Vehicle, Account } from '../types';
 import { isWithinInterval, parseISO, isValid } from 'date-fns';
 
 export const useFinanceFilters = (
   transactions: Transaction[] = [],
   vehicles: Vehicle[] = [],
-  accounts: Account[] = [],
-  customers: Customer[] = []
+  accounts: Account[] = []
 ) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -19,13 +18,11 @@ export const useFinanceFilters = (
   >('all');
 
   const [category, setCategory] = useState<string | string[]>('all');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | string[]>('');
   const [selectedOwner, setSelectedOwner] = useState<string | string[]>('all');
-
-  // ✅ DEFAULT: Empty array. Logic below ensures Empty = Show Unassigned Only.
   const [accountFilter, setAccountFilter] = useState<string | string[]>([]);
-
   const [groupFilter, setGroupFilter] = useState<string | string[]>('all');
+  const [customerFilter, setCustomerFilter] = useState<string | string[]>('all');
+  const [vehicleFilter, setVehicleFilter] = useState<string | string[]>('all');
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [recurringFilter, setRecurringFilter] = useState<string>('all');
   const [recurringFrequency, setRecurringFrequency] = useState<string>('all');
@@ -70,17 +67,15 @@ export const useFinanceFilters = (
   const filteredTransactions = useMemo(() => {
     const catFilters = normalizeFilter(category);
     const ownerFilters = normalizeFilter(selectedOwner);
-    const customerFilters = normalizeFilter(selectedCustomerId, '');
     const groupFilters = normalizeFilter(groupFilter);
+    const custFilters = normalizeFilter(customerFilter);
+    const vehFilters = normalizeFilter(vehicleFilter);
 
-    // ✅ Robust cleaning of account filter to ensure strict 'Empty' state detection
     const rawAccFilter = Array.isArray(accountFilter)
       ? accountFilter
       : accountFilter
         ? [accountFilter]
         : [];
-
-    // Keep 'all' ONLY if the user explicitly selected it.
     const cleanAccFilter = rawAccFilter.filter(
       (f) => f && f !== '' && f !== 'null' && f !== 'undefined'
     );
@@ -92,7 +87,6 @@ export const useFinanceFilters = (
       // 1. Search Query
       const searchLower = searchQuery.toLowerCase();
       const vehicle = vehicles.find((v) => v.id === transaction.vehicleId);
-      const customer = customers.find((c) => c.id === transaction.customerId);
 
       const matchesSearch =
         !searchQuery ||
@@ -103,25 +97,16 @@ export const useFinanceFilters = (
           transaction.vehicleName,
           vehicle?.registrationNumber,
           transaction.vehicleOwner?.name,
-          customer?.name,
           transaction.customerName
         ].some((field) => field && field.toLowerCase().includes(searchLower));
 
-      // 2. Simple Filters
       const matchesType = type === 'all' || transaction.type === type;
-      const matchesPaymentStatus =
-        paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
+      const matchesPaymentStatus = paymentStatus === 'all' || transaction.paymentStatus === paymentStatus;
 
-      // 3. Category
       const matchesCategory =
         catFilters.includes('all') ||
         catFilters.some((c) => (transaction.category || '').toLowerCase() === c.toLowerCase());
 
-      // 4. Customer
-      const matchesCustomer =
-        customerFilters.includes('all') || customerFilters.includes(transaction.customerId || '');
-
-      // 5. Group
       const matchesGroup =
         groupFilters.includes('all') ||
         groupFilters.some((g) => {
@@ -129,56 +114,66 @@ export const useFinanceFilters = (
           return transaction.groupId === g;
         });
 
-      // 6. ✅ Account Logic (STRICT MODE) - supports BOTH accountId and accountsFrom/accountsTo
-      let matchesAccount = false;
+      const matchesCustomer =
+        custFilters.includes('all') ||
+        custFilters.some((c) => {
+          if (c === 'no_customer_assigned') return !transaction.customerId && !transaction.customerName;
+          return transaction.customerId === c || transaction.customerName === c;
+        });
 
-      // Collect all assigned account ids from both possible schemas
+      const matchesVehicle =
+        vehFilters.includes('all') ||
+        vehFilters.some((v) => {
+          if (v === 'no_vehicle_assigned') return !transaction.vehicleId && !transaction.vehicleName;
+          return transaction.vehicleId === v || transaction.vehicleName === v;
+        });
+
+      let matchesAccount = false;
       const assignedAccountIds = new Set<string>();
 
       if ((transaction as any).accountId) assignedAccountIds.add((transaction as any).accountId);
 
       if (Array.isArray((transaction as any).accountsFrom)) {
-        (transaction as any).accountsFrom
-          .filter(Boolean)
-          .forEach((id: string) => assignedAccountIds.add(id));
+        (transaction as any).accountsFrom.filter(Boolean).forEach((id: string) => assignedAccountIds.add(id));
       }
       if (Array.isArray((transaction as any).accountsTo)) {
-        (transaction as any).accountsTo
-          .filter(Boolean)
-          .forEach((id: string) => assignedAccountIds.add(id));
+        (transaction as any).accountsTo.filter(Boolean).forEach((id: string) => assignedAccountIds.add(id));
       }
 
-      const hasAccountAssigned = assignedAccountIds.size > 0;
-
-      // Rules:
-      // 1) If filter is empty -> show ONLY unassigned (default strict mode)
-      // 2) If filter includes 'all' -> show ALL transactions (assigned + unassigned)
-      // 3) If filter has specific IDs -> show matches (plus optionally unassigned if selected)
+      // Check if it has any assigned IDs or a related account name
+      const hasAccountAssigned = assignedAccountIds.size > 0 || !!(transaction as any).relatedAccountName;
 
       if (cleanAccFilter.length === 0) {
-        // Default state: show ONLY transactions with no accounts assigned
         matchesAccount = !hasAccountAssigned;
       } else {
         const showAll = cleanAccFilter.includes('all');
         const showUnassignedExplicitly = cleanAccFilter.includes('no_account_assigned');
 
         if (showAll) {
-          // "All Accounts" means no account filtering at all.
           matchesAccount = true;
         } else {
           const selectedIds = cleanAccFilter.filter(
             (x) => x !== 'no_account_assigned' && x !== 'all'
           );
 
-          const anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
-          matchesAccount = anyMatch;
+          // 1. Check direct ID matches
+          let anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
 
-          // Also include unassigned if explicitly selected
+          // 2. Check if the destination/source account matches via relatedAccountName (for Transfer Dest/Source)
+          if (!anyMatch && (transaction as any).relatedAccountName) {
+            const relatedStr = (transaction as any).relatedAccountName;
+            anyMatch = selectedIds.some((id) => {
+              const acc = accounts.find((a) => a.id === id);
+              return acc && acc.name && relatedStr.includes(acc.name);
+            });
+          }
+
+          matchesAccount = anyMatch;
+          
           if (showUnassignedExplicitly && !hasAccountAssigned) matchesAccount = true;
         }
       }
 
-      // 7. Owner
       const matchesOwner =
         ownerFilters.includes('all') ||
         ownerFilters.some((filterOwner) => {
@@ -203,7 +198,6 @@ export const useFinanceFilters = (
           return isMatch;
         });
 
-      // 8. Date Range
       let matchesDateRange = true;
       if (startDate && endDate) {
         const endOfDay = new Date(endDate);
@@ -217,7 +211,6 @@ export const useFinanceFilters = (
         matchesDateRange = transactionDate <= endOfDay;
       }
 
-      // 9. Other Filters
       const matchesLinked =
         showLinked === 'all' ||
         (showLinked === 'linked' && !!transaction.referenceId) ||
@@ -248,9 +241,10 @@ export const useFinanceFilters = (
         matchesType &&
         matchesCategory &&
         matchesPaymentStatus &&
-        matchesCustomer &&
         matchesOwner &&
         matchesAccount &&
+        matchesCustomer &&
+        matchesVehicle &&
         matchesDateRange &&
         matchesGroup &&
         matchesLinked &&
@@ -259,43 +253,19 @@ export const useFinanceFilters = (
       );
     });
 
-    // Sort Logic (Date Descending)
     return filtered.sort((a, b) => {
       const dateA = safeParseDate(a.date)?.getTime() || 0;
       const dateB = safeParseDate(b.date)?.getTime() || 0;
       if (dateB !== dateA) return dateB - dateA;
 
-      const timeA =
-        (a.createdAt as any)?.toDate
-          ? (a.createdAt as any).toDate().getTime()
-          : a.createdAt instanceof Date
-            ? a.createdAt.getTime()
-            : 0;
-      const timeB =
-        (b.createdAt as any)?.toDate
-          ? (b.createdAt as any).toDate().getTime()
-          : b.createdAt instanceof Date
-            ? b.createdAt.getTime()
-            : 0;
+      const timeA = (a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() : a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const timeB = (b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() : b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
       return timeB - timeA;
     });
   }, [
-    transactions,
-    searchQuery,
-    type,
-    category,
-    paymentStatus,
-    selectedCustomerId,
-    selectedOwner,
-    accountFilter,
-    startDate,
-    endDate,
-    groupFilter,
-    showLinked,
-    recurringFilter,
-    recurringFrequency,
-    vehicles,
-    customers
+    transactions, searchQuery, type, category, paymentStatus, selectedOwner,
+    accountFilter, customerFilter, vehicleFilter, startDate, endDate, groupFilter, 
+    showLinked, recurringFilter, recurringFrequency, vehicles, accounts
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
@@ -313,7 +283,6 @@ export const useFinanceFilters = (
     });
 
     let totalOwing = 0;
-
     for (const ownerName in ownerBalances) {
       const balance = ownerBalances[ownerName];
       if (balance >= 0) continue;
@@ -336,23 +305,15 @@ export const useFinanceFilters = (
 
     transactions.forEach((txn) => {
       const amt = txn.amount;
-
-      // ✅ Support BOTH styles:
-      // - accountId (single)
-      // - accountsFrom/accountsTo (multi)
       const singleAccountId = (txn as any).accountId as string | undefined;
 
       if (singleAccountId) {
-        // If your system used accountId historically, we need a sensible direction.
-        // We'll infer direction based on txn.type:
-        // income -> account gains, expense -> account loses.
         if (balances.has(singleAccountId)) {
           const prev = balances.get(singleAccountId) || 0;
           balances.set(singleAccountId, prev + (txn.type === 'income' ? amt : -amt));
         }
       }
 
-      // Newer transfer-like schema
       if (txn.type === 'income' && (txn as any).accountsTo) {
         (txn as any).accountsTo.forEach((id: string) => {
           if (balances.has(id)) balances.set(id, (balances.get(id) || 0) + amt);
@@ -365,15 +326,8 @@ export const useFinanceFilters = (
     });
 
     let totalOwing = 0;
-
-    const rawAccFilter = Array.isArray(accountFilter)
-      ? accountFilter
-      : accountFilter
-        ? [accountFilter]
-        : [];
-    const cleanAccFilter = rawAccFilter.filter(
-      (f) => f && f !== '' && f !== 'null' && f !== 'undefined'
-    );
+    const rawAccFilter = Array.isArray(accountFilter) ? accountFilter : accountFilter ? [accountFilter] : [];
+    const cleanAccFilter = rawAccFilter.filter((f) => f && f !== '' && f !== 'null' && f !== 'undefined');
 
     const isFilterEmpty = cleanAccFilter.length === 0;
     const isAllSelected = cleanAccFilter.includes('all');
@@ -385,12 +339,7 @@ export const useFinanceFilters = (
       if (!acc) return;
 
       if (isFilterEmpty || isAllSelected) {
-        if (
-          acc.name === 'AIE SKYLINE ACCOUNT' ||
-          acc.name === 'AIE Skyline Limited' ||
-          acc.name === 'AIE SKYLINE ACCOUNTS'
-        )
-          return;
+        if (acc.name === 'AIE SKYLINE ACCOUNT' || acc.name === 'AIE Skyline Limited' || acc.name === 'AIE SKYLINE ACCOUNTS') return;
         totalOwing += Math.abs(balance);
       } else {
         if (cleanAccFilter.includes(id)) {
@@ -403,18 +352,9 @@ export const useFinanceFilters = (
   }, [transactions, accounts, accountFilter]);
 
   const accountSummary = useMemo(() => {
-    const rawAccFilter = Array.isArray(accountFilter)
-      ? accountFilter
-      : accountFilter
-        ? [accountFilter]
-        : [];
-    const cleanAccFilter = rawAccFilter.filter(
-      (f) => f && f !== '' && f !== 'null' && f !== 'undefined'
-    );
+    const rawAccFilter = Array.isArray(accountFilter) ? accountFilter : accountFilter ? [accountFilter] : [];
+    const cleanAccFilter = rawAccFilter.filter((f) => f && f !== '' && f !== 'null' && f !== 'undefined');
 
-    // Only show summary if we have a *specific* account filter active.
-    // - default empty (unassigned-only) => no summary
-    // - "all" (broad) => no summary
     if (cleanAccFilter.length === 0) return null;
     if (cleanAccFilter.includes('all')) return null;
 
@@ -433,30 +373,19 @@ export const useFinanceFilters = (
   };
 
   return {
-    searchQuery,
-    setSearchQuery,
-    type,
-    setType,
-    category,
-    setCategory,
-    paymentStatus,
-    setPaymentStatus,
-    dateRange,
-    setDateRange,
-    selectedCustomerId,
-    setSelectedCustomerId,
-    selectedOwner,
-    setSelectedOwner,
-    accountFilter,
-    setAccountFilter,
-    groupFilter,
-    setGroupFilter,
-    showLinked,
-    setShowLinked,
-    recurringFilter,
-    setRecurringFilter,
-    recurringFrequency,
-    setRecurringFrequency,
+    searchQuery, setSearchQuery,
+    type, setType,
+    category, setCategory,
+    paymentStatus, setPaymentStatus,
+    dateRange, setDateRange,
+    selectedOwner, setSelectedOwner,
+    accountFilter, setAccountFilter,
+    groupFilter, setGroupFilter,
+    customerFilter, setCustomerFilter,
+    vehicleFilter, setVehicleFilter,
+    showLinked, setShowLinked,
+    recurringFilter, setRecurringFilter,
+    recurringFrequency, setRecurringFrequency,
     owners,
     filteredTransactions,
     accountSummary,

@@ -19,6 +19,8 @@ interface FinanceTransactionParams {
   type: 'income' | 'expense';
   category: string;
   amount: number;
+  netAmount?: number;
+  vatAmount?: number;
   description: string;
   referenceId: string;
   vehicleId?: string;
@@ -34,6 +36,8 @@ interface FinanceTransactionParams {
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
+  accountsFrom?: string[]; // Array Support Added
+  accountsTo?: string[];   // Array Support Added
   customerId?: string;
   customerName?: string;
 }
@@ -79,7 +83,6 @@ export const createMaintenanceTransaction = async (
     return;
   }
 
-  // Prevent duplicate
   const transactionsRef = collection(db, 'transactions');
   const dupQuery = query(
     transactionsRef,
@@ -93,11 +96,12 @@ export const createMaintenanceTransaction = async (
     return;
   }
 
-  // Build base transaction
   const transaction: Record<string, any> = {
     type: 'expense',
     category: maintenanceLog.type,
     amount,
+    netAmount: maintenanceLog.netAmount,
+    vatAmount: maintenanceLog.vatAmount,
     description: maintenanceLog.description,
     referenceId: maintenanceLog.id,
     vehicleId: vehicle.id,
@@ -106,11 +110,9 @@ export const createMaintenanceTransaction = async (
     date: new Date(),
     createdAt: new Date(),
     createdBy: 'system',
-    // only include paymentMethod if defined
     ...(paymentMethod && { paymentMethod })
   };
 
-  // inject owner if present
   if (vehicle.owner) {
     transaction.vehicleOwner = {
       name: vehicle.owner.name,
@@ -136,6 +138,8 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     type,
     category,
     amount,
+    netAmount,
+    vatAmount,
     description,
     referenceId,
     vehicleId,
@@ -148,19 +152,23 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     date,
     accountFrom,
     accountTo,
+    accountsFrom,
+    accountsTo,
     customerId,
     customerName
   } = params;
 
   try {
-    // If it's a transfer, update both accounts (not strictly reachable unless you extend the interface)
+    const finalAccountsFrom = accountsFrom || (accountFrom ? [accountFrom] : []);
+    const finalAccountsTo = accountsTo || (accountTo ? [accountTo] : []);
+
     if (type === ('transfer' as any)) {
-      if (!accountFrom || !accountTo) {
+      if (finalAccountsFrom.length === 0 || finalAccountsTo.length === 0) {
         toast.error('Transfer requires both from and to accounts');
         return { success: false };
       }
-      const fromRef = doc(db, 'accounts', accountFrom);
-      const toRef = doc(db, 'accounts', accountTo);
+      const fromRef = doc(db, 'accounts', finalAccountsFrom[0]);
+      const toRef = doc(db, 'accounts', finalAccountsTo[0]);
       const [fromSnap, toSnap] = await Promise.all([getDoc(fromRef), getDoc(toRef)]);
       if (fromSnap.exists() && toSnap.exists()) {
         const fromData = fromSnap.data();
@@ -172,9 +180,9 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
         return { success: false };
       }
     } else {
-      // For income/expense, update single account if provided
-      if (accountFrom) {
-        const fromRef = doc(db, 'accounts', accountFrom);
+      // Loop over accountsFrom and accountsTo to dynamically update all balances
+      for (const fromId of finalAccountsFrom) {
+        const fromRef = doc(db, 'accounts', fromId);
         const fromSnap = await getDoc(fromRef);
         if (fromSnap.exists()) {
           const fromData = fromSnap.data();
@@ -184,8 +192,8 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
           });
         }
       }
-      if (accountTo) {
-        const toRef = doc(db, 'accounts', accountTo);
+      for (const toId of finalAccountsTo) {
+        const toRef = doc(db, 'accounts', toId);
         const toSnap = await getDoc(toRef);
         if (toSnap.exists()) {
           const toData = toSnap.data();
@@ -197,8 +205,6 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       }
     }
 
-    // Build transaction object, only including defined fields
-    // IMPORTANT: Mapping singular inputs to Array fields for Finance schema compatibility
     const transaction: Record<string, any> = {
       type,
       category,
@@ -208,21 +214,23 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       status,
       date: date || new Date(),
       createdAt: new Date(),
+      ...(netAmount !== undefined && { netAmount }),
+      ...(vatAmount !== undefined && { vatAmount }),
       ...(vehicleId        && { vehicleId }),
       ...(vehicleName      && { vehicleName }),
       ...(vehicleOwner     && { vehicleOwner }),
       ...(paymentMethod    && { paymentMethod }),
       ...(paymentReference && { paymentReference }),
       ...(paymentStatus    && { paymentStatus }),
-      ...(accountFrom      && { accountsFrom: [accountFrom] }), // Map to array
-      ...(accountTo        && { accountsTo: [accountTo] }),     // Map to array
+      accountsFrom: finalAccountsFrom, // Native Support for arrays
+      accountsTo: finalAccountsTo,     // Native Support for arrays
       ...(customerId       && { customerId }),
       ...(customerName     && { customerName })
     };
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);
     console.log('Transaction created with ID:', docRef.id);
-    toast.success(`${type === 'income' ? 'Income' : 'Expense'} transaction created successfully`);
+    // Suppress overlapping success toasts for automated records
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error creating finance transaction:', error);

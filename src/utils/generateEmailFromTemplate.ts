@@ -39,6 +39,11 @@ export const generateEmailFromTemplate = ({
     '[Vehicle Make]': vehicle?.make || 'N/A',
     '[Vehicle Model]': vehicle?.model || 'N/A',
     '[Vehicle Year]': vehicle?.year?.toString() || 'N/A',
+    
+    // ✅ Added MOT Expiry pulling directly from the vehicle object
+    '[MOT Expiry]': vehicle?.motExpiry ? format(new Date(vehicle.motExpiry), 'dd/MM/yyyy') : 'N/A',
+    '[MOT Expiry Date]': vehicle?.motExpiry ? format(new Date(vehicle.motExpiry), 'dd/MM/yyyy') : 'N/A',
+    
     '[Date & Time of Appointment]': maintenance?.date ? format(maintenance.date, 'dd/MM/yyyy HH:mm') : 'N/A',
     '[Service Type]': maintenance?.type.replace(/-/g, ' ') || 'N/A',
     '[Service Centre Name or Address]': maintenance?.location || 'N/A',

@@ -281,8 +281,8 @@ const TodoPage: React.FC = () => {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div><h1 className="text-2xl font-semibold">To-Do List</h1><p className="text-gray-500">Plan, track, and manage team tasks efficiently.</p></div>
         <div className="flex flex-wrap gap-2">
-           {can('todo', 'create') && <button className="btn" onClick={() => setManagingCategories(true)}><Settings className="w-4 h-4 mr-2" /> Manage Categories</button>}
-           {can('todo', 'create') && <button className="btn" onClick={() => setManagingGroups(true)}><Users className="w-4 h-4 mr-2" /> Manage Groups</button>}
+           {can('todo', 'categories') && <button className="btn" onClick={() => setManagingCategories(true)}><Settings className="w-4 h-4 mr-2" /> Manage Categories</button>}
+           {can('todo', 'groups') && <button className="btn" onClick={() => setManagingGroups(true)}><Users className="w-4 h-4 mr-2" /> Manage Groups</button>}
            {can('todo', 'export') && <button className="btn" onClick={exportCSV}><Download className="w-4 h-4 mr-2" /> Export to CSV</button>}
            {can('todo', 'create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-2" /> New Task</button>}
         </div>

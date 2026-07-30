@@ -8,17 +8,17 @@ export interface PaymentPeriod {
   startDate: Date;
   endDate: Date;
   totalAmount: number;
-  commissionPercentage: number;
-  commissionAmount: number;
+  commissionPercentageA: number;
+  commissionPercentageB: number;
+  commissionAmountA: number;    
+  commissionAmountB: number;    
   netPay: number;
   paidAmount: number;
   remainingAmount: number;
   status: PaymentStatus;
   payments: Payment[];
   notes?: string; 
-  
 }
-
 
 export interface DriverPay {
   id: string;
@@ -27,12 +27,14 @@ export interface DriverPay {
   name: string;
   phoneNumber: string;
   collection: CollectionPoint;
-  customCollection?: string; // For 'OTHER' collection point
+  customCollection?: string; 
   startDate: Date;
   endDate: Date;
   totalAmount: number;
-  commissionPercentage: number;
-  commissionAmount: number;
+  commissionPercentageA: number;
+  commissionPercentageB: number;
+  commissionAmountA: number;    
+  commissionAmountB: number;    
   netPay: number;
   paidAmount: number;
   remainingAmount: number;
@@ -42,7 +44,11 @@ export interface DriverPay {
   createdAt: Date;
   updatedAt: Date;
   payments: Payment[];
-  isLocked?: boolean; // <-- ADD THIS LINE
+  isLocked?: boolean; 
+  groupId?: string;    // ADDED
+  groupName?: string;  // ADDED
+  defaultCommissionA?: number; // 🟢 Added to store driver's preferred default for A
+  defaultCommissionB?: number; // 🟢 Added to store driver's preferred default for B
 }
 
 export interface Payment {

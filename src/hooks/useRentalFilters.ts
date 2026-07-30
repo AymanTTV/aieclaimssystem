@@ -1,6 +1,6 @@
 // src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
-import { Rental, Vehicle, Customer, RentalReason } from '../types';
+import { Rental, Vehicle, Customer } from '../types';
 
 export const useRentalFilters = (
   rentals: Rental[] = [],
@@ -8,64 +8,104 @@ export const useRentalFilters = (
   customers: Customer[] = []
 ) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [vehicleFilter, setVehicleFilter] = useState('');
-  const [reasonFilter, setReasonFilter] = useState<RentalReason | 'all'>('all');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
+  
+  // Use arrays for multi-select support, defaulting to ['all']
+  const [statusFilter, setStatusFilter] = useState<string[]>(['all']);
+  const [typeFilter, setTypeFilter] = useState<string[]>(['all']);
+  const [vehicleFilter, setVehicleFilter] = useState<string[]>(['all']);
+  const [reasonFilter, setReasonFilter] = useState<string[]>(['all']);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>(['all']);
+  
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
 
   const filteredRentals = useMemo(() => {
     return rentals.filter(rental => {
-      const searchLower = searchQuery.toLowerCase();
+      const searchLower = searchQuery.trim().toLowerCase();
+      const searchNoSpaces = searchLower.replace(/\s+/g, '');
 
       // Lookup related vehicle & customer
       const vehicle = vehicles.find(v => v.id === rental.vehicleId);
       const customer = customers.find(c => c.id === rental.customerId);
 
-      // Text search across fields
-      const matchesSearch =
-        vehicle?.registrationNumber?.toLowerCase().includes(searchLower) ||
-        vehicle?.make?.toLowerCase().includes(searchLower) ||
-        vehicle?.model?.toLowerCase().includes(searchLower) ||
-        customer?.name?.toLowerCase().includes(searchLower) ||
-        customer?.mobile?.toLowerCase().includes(searchLower) ||
-        customer?.email?.toLowerCase().includes(searchLower) ||
-        rental.type?.toLowerCase().includes(searchLower) ||
-        rental.status?.toLowerCase().includes(searchLower) ||
-        rental.reason?.toLowerCase().includes(searchLower) ||
-        // ✅ ADDED: Allow search by Rental Agreement Number
-        (rental.rentalAgreementNumber && rental.rentalAgreementNumber.toLowerCase().includes(searchLower));
+      // --- TEXT SEARCH LOGIC ---
+      let matchesSearch = true;
+      if (searchLower) {
+        const matchesVehicle = vehicle
+          ? (`${vehicle.make} ${vehicle.model}`).toLowerCase().includes(searchLower) || 
+            (vehicle.registrationNumber || '').toLowerCase().replace(/\s+/g, '').includes(searchNoSpaces)
+          : false;
+          
+        const matchesCustomer = customer
+          ? (`${customer.name} ${customer.mobile} ${customer.email}`).toLowerCase().includes(searchLower)
+          : false;
+          
+        const matchesBasic =
+          rental.id.toLowerCase().includes(searchLower) ||
+          rental.reason.toLowerCase().includes(searchLower) ||
+          rental.type.toLowerCase().includes(searchLower) ||
+          rental.status.toLowerCase().includes(searchLower) ||
+          (rental.rentalAgreementNumber && rental.rentalAgreementNumber.toLowerCase().includes(searchLower));
 
-      let matchesStatus = true;
-      if (statusFilter !== 'all') {
-        matchesStatus = rental.status === statusFilter;
+        // Search through all substitutions
+        const subs = rental.hireSubstitutionDetails || [];
+        const matchesSubs = subs.some(sub =>
+          (sub.registration || '').toLowerCase().replace(/\s+/g, '').includes(searchNoSpaces) ||
+          (`${sub.make || ''} ${sub.model || ''}`).toLowerCase().includes(searchLower) ||
+          (sub.loaner || '').toLowerCase().includes(searchLower)
+        );
+
+        matchesSearch = !!(matchesVehicle || matchesCustomer || matchesBasic || matchesSubs);
       }
 
-      let matchesType = true;
-      if (typeFilter !== 'all') {
-        matchesType = rental.type === typeFilter;
+      // --- MULTI-SELECT ARRAY LOGIC ---
+      const matchesStatus = statusFilter.includes('all') || statusFilter.includes(rental.status);
+      const matchesType = typeFilter.includes('all') || typeFilter.includes(rental.type);
+      
+      // ✅ NEW: Advanced Vehicle Filter matching Substitutions
+      let matchesVehicleSelect = vehicleFilter.includes('all');
+      if (!matchesVehicleSelect) {
+        matchesVehicleSelect = vehicleFilter.some(filterId => {
+          // 1. Direct match on main rental vehicle
+          if (filterId === rental.vehicleId) return true;
+          
+          const subs = rental.hireSubstitutionDetails || [];
+          
+          // 2. Match if the user selected an EXTERNAL substitution vehicle (starts with 'sub_')
+          if (filterId.startsWith('sub_')) {
+            const targetReg = filterId.replace('sub_', '');
+            return subs.some(sub => (sub.registration || '').toLowerCase().replace(/\s+/g, '') === targetReg);
+          }
+          
+          // 3. Match if the user selected a FLEET vehicle that was used as a substitution here
+          const selectedV = vehicles.find(v => v.id === filterId);
+          if (selectedV) {
+            const targetReg = (selectedV.registrationNumber || '').toLowerCase().replace(/\s+/g, '');
+            return subs.some(sub => (sub.registration || '').toLowerCase().replace(/\s+/g, '') === targetReg);
+          }
+          
+          return false;
+        });
       }
-
-      let matchesVehicle = true;
-      if (vehicleFilter) {
-        matchesVehicle = rental.vehicleId === vehicleFilter;
+      
+      // Handle reason logic identical to table display
+      let displayReason = rental.reason;
+      if (displayReason === 'h-substitute') {
+          const subs = rental.hireSubstitutionDetails || [];
+          const hasActiveSub = subs.some(s => !s.returnCondition);
+          if (subs.length > 0 && !hasActiveSub) {
+              displayReason = 'hired' as any;
+          }
       }
+      const matchesReason = reasonFilter.includes('all') || reasonFilter.includes(displayReason);
 
-      let matchesReason = true;
-      if (reasonFilter !== 'all') {
-        matchesReason = rental.reason === reasonFilter;
-      }
-
-      // --- ADDED: Payment Status Logic ---
       let matchesPaymentStatus = true;
-      if (paymentStatusFilter !== 'all') {
-        // If a rental lacks a paymentStatus field, we treat it as pending/unpaid
+      if (!paymentStatusFilter.includes('all')) {
         const currentStatus = rental.paymentStatus || 'pending';
-        matchesPaymentStatus = currentStatus === paymentStatusFilter;
+        matchesPaymentStatus = paymentStatusFilter.includes(currentStatus);
       }
 
+      // --- DATE RANGE LOGIC ---
       let matchesDateRange = true;
       if (startDateFilter || endDateFilter) {
         const rentalStartMs = rental.startDate instanceof Date
@@ -76,26 +116,13 @@ export const useRentalFilters = (
           : (rental.endDate as any)?.toDate?.().getTime() || null;
 
         const filterStartMs = startDateFilter ? new Date(startDateFilter).getTime() : null;
-        const filterEndMs   = endDateFilter   ? new Date(endDateFilter).getTime()   : null;
+        const filterEndMs   = endDateFilter   ? new Date(`${endDateFilter}T23:59:59.999`).getTime() : null;
 
-        // Effective range for "overlap" check or simple bounds?
-        // Usually: (StartA <= EndB) and (EndA >= StartB) for overlap
-        // Here implementing a simpler inclusion check:
-        // if StartFilter exists, rental must start on/after it
-        // if EndFilter exists, rental must end on/before it
-        
-        // However, user might want overlap. Let's stick to strict bounds based on UI labels "From" / "To"
-        // Adjusting logic to standard "inclusive range":
-        //   Rental is within range if:
-        //   (rentalStart >= filterStart) AND (rentalEnd <= filterEnd)
-        //   But let's keep it robust for partial inputs.
-
-        const effectiveFilterStartMs =
-          filterStartMs ?? new Date('1900-01-01T00:00:00Z').getTime();
-        const effectiveFilterEndMs   =
-          filterEndMs   ?? new Date('2100-12-31T23:59:59.999Z').getTime();
+        const effectiveFilterStartMs = filterStartMs ?? new Date('1900-01-01T00:00:00Z').getTime();
+        const effectiveFilterEndMs   = filterEndMs   ?? new Date('2100-12-31T23:59:59.999Z').getTime();
 
         if (rentalStartMs !== null && rentalEndMs !== null) {
+          // Overlap logic: Rental starts before the filter ends AND ends after the filter starts
           matchesDateRange =
             rentalStartMs <= effectiveFilterEndMs &&
             rentalEndMs >= effectiveFilterStartMs;
@@ -116,7 +143,7 @@ export const useRentalFilters = (
         matchesSearch &&
         matchesStatus &&
         matchesType &&
-        matchesVehicle &&
+        matchesVehicleSelect &&
         matchesReason &&
         matchesPaymentStatus &&
         matchesDateRange
@@ -147,8 +174,8 @@ export const useRentalFilters = (
     setVehicleFilter,
     reasonFilter,
     setReasonFilter,
-    paymentStatusFilter, // <-- ADDED
-    setPaymentStatusFilter, // <-- ADDED
+    paymentStatusFilter, 
+    setPaymentStatusFilter, 
     startDateFilter,
     setStartDateFilter,
     endDateFilter,

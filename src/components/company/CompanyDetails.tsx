@@ -1,3 +1,4 @@
+
 // src/components/company/CompanyDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -44,6 +45,8 @@ interface CompanySettings {
 
   // Vehicle document terms
   vehicleTerms: string;
+  vehicleTermsAIESkyline: string; // ✅ NEW FIELD
+  vehicleTermsOtherOwners: string; // ✅ NEW FIELD
   maintenanceTerms: string;
   accidentTerms: string;
   personalInjuryTerms: string;
@@ -52,12 +55,54 @@ interface CompanySettings {
   pettyCashTerms: string;
   vatRecordTerms: string;
   customerTerms: string;
+  generalInvoiceTerms: string; // ✅ ADDED THIS FIELD
+
+  
 
   // Additional terms
   privacyPolicy: string;
   dataProtectionPolicy: string;
   disclaimerText: string;
 }
+
+const defaultState: CompanySettings = {
+  fullName: '',
+  title: '',
+  email: '',
+  replyToEmail: '',
+  phone: '',
+  website: '',
+  officialAddress: '',
+  bankName: '',
+  sortCode: '',
+  accountNumber: '',
+  vatNumber: '',
+  registrationNumber: '',
+  termsAndConditions: '',
+  signature: '',
+  conditionOfHireText: '',
+  creditHireMitigationText: '',
+  noticeOfRightToCancelText: '',
+  creditStorageAndRecoveryText: '',
+  hireAgreementText: '',
+  rentalInvoiceTerms: '',
+  satisfactionNoticeText: '',
+  vehicleTerms: '',
+  vehicleTermsAIESkyline: '', // ✅ NEW DEFAULT
+  vehicleTermsOtherOwners: '', // ✅ NEW DEFAULT
+  maintenanceTerms: '',
+  accidentTerms: '',
+  personalInjuryTerms: '',
+  vdFinanceTerms: '',
+  driverPayTerms: '',
+  pettyCashTerms: '',
+  vatRecordTerms: '',
+  customerTerms: '',
+  generalInvoiceTerms: '', 
+  privacyPolicy: '',
+  dataProtectionPolicy: '',
+  disclaimerText: ''
+};
 
 const CompanyDetails = () => {
   const { user } = useAuth();
@@ -66,41 +111,7 @@ const CompanyDetails = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [formData, setFormData] = useState<CompanySettings>({
-    fullName: '',
-    title: '',
-    email: '',
-    replyToEmail: '',
-    phone: '',
-    website: '',
-    officialAddress: '',
-    bankName: '',
-    sortCode: '',
-    accountNumber: '',
-    vatNumber: '',
-    registrationNumber: '',
-    termsAndConditions: '',
-    signature: '',
-    conditionOfHireText: '',
-    creditHireMitigationText: '',
-    noticeOfRightToCancelText: '',
-    creditStorageAndRecoveryText: '',
-    hireAgreementText: '',
-    rentalInvoiceTerms: '',
-    satisfactionNoticeText: '',
-    vehicleTerms: '',
-    maintenanceTerms: '',
-    accidentTerms: '',
-    personalInjuryTerms: '',
-    vdFinanceTerms: '',
-    driverPayTerms: '',
-    pettyCashTerms: '',
-    vatRecordTerms: '',
-    customerTerms: '',
-    privacyPolicy: '',
-    dataProtectionPolicy: '',
-    disclaimerText: ''
-  });
+  const [formData, setFormData] = useState<CompanySettings>(defaultState);
 
   const borderColors = ['border-red-500', 'border-green-500', 'border-blue-500'];
   const [currentBorderColorIndex, setCurrentBorderColorIndex] = useState(0);
@@ -112,7 +123,12 @@ const CompanyDetails = () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setFormData(data as CompanySettings);
+          // ✅ Merge with default state to prevent uncontrolled input warnings for new fields
+          setFormData({
+            ...defaultState,
+            ...data
+          } as CompanySettings);
+          
           if (data.logoUrl) {
             setImagePreview(data.logoUrl);
           }
@@ -455,18 +471,34 @@ const CompanyDetails = () => {
           </div>
 
           {/* Vehicle Documents */}
+          {/* Vehicle Documents */}
           <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
             <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Vehicle Documents Terms</h4>
             <div className="space-y-6">
+              
+              {/* ✅ NEW: AIE Skyline Terms */}
                <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Vehicle Terms</label>
+                <label className="block text-base font-medium text-gray-700 mb-2">Vehicle Terms (AIE Skyline Limited)</label>
                 <textarea
-                  value={formData.vehicleTerms}
-                  onChange={(e) => setFormData({ ...formData, vehicleTerms: e.target.value })}
+                  value={formData.vehicleTermsAIESkyline}
+                  onChange={(e) => setFormData({ ...formData, vehicleTermsAIESkyline: e.target.value })}
                   rows={10}
                   className={getBorderClasses(true)} 
                   disabled={!editing}
-                  placeholder="Enter terms for Vehicle documents..."
+                  placeholder="Enter terms for vehicles owned by AIE Skyline Limited..."
+                />
+              </div>
+
+              {/* ✅ NEW: Other Owners Terms */}
+              <div className="pt-4 border-t border-gray-200">
+                <label className="block text-base font-medium text-gray-700 mb-2">Vehicle Terms (Other Owners)</label>
+                <textarea
+                  value={formData.vehicleTermsOtherOwners}
+                  onChange={(e) => setFormData({ ...formData, vehicleTermsOtherOwners: e.target.value })}
+                  rows={10}
+                  className={getBorderClasses(true)} 
+                  disabled={!editing}
+                  placeholder="Enter terms for vehicles owned by other owners..."
                 />
               </div>
 
@@ -563,6 +595,19 @@ const CompanyDetails = () => {
                   className={getBorderClasses(true)} 
                   disabled={!editing}
                   placeholder="Enter terms for VAT Record documents..."
+                />
+              </div>
+
+              {/* ✅ NEW FINANCE INVOICE TERMS ADDED HERE */}
+              <div className="pt-4 border-t border-gray-200">
+                <label className="block text-base font-medium text-gray-700 mb-2">Finance Invoice Terms</label>
+                <textarea
+                  value={formData.generalInvoiceTerms}
+                  onChange={(e) => setFormData({ ...formData, generalInvoiceTerms: e.target.value })}
+                  rows={10}
+                  className={getBorderClasses(true)} 
+                  disabled={!editing}
+                  placeholder="Enter general finance invoice terms..."
                 />
               </div>
             </div>

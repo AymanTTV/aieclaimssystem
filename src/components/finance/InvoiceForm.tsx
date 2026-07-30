@@ -1,7 +1,6 @@
 // src/components/finance/InvoiceForm.tsx
-
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -36,7 +35,7 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   const invoicesRef = collection(db, 'invoices');
   const q = query(invoicesRef, orderBy('createdAt', 'desc'));
   const querySnapshot = await getDocs(q);
-
+  
   let maxNum = 0;
   querySnapshot.forEach((doc) => {
     const data = doc.data() as Invoice;
@@ -60,7 +59,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
-  
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
     { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false }
   ]);
@@ -70,9 +68,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     dueDate: new Date().toISOString().split('T')[0],
     category: '',
     customCategory: '',
-    description: '', // <--- NEW STATE
+    description: '', 
     vehicleId: '',
     vehicleName: '',
+    manualVehicleEntry: false,
+    manualVehicleMake: '',
+    manualVehicleModel: '',
+    manualVehicleReg: '',
     useCustomCustomer: false,
     customerId: '',
     customerName: '',
@@ -83,7 +85,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     paymentReference: '',
     paymentNotes: '',
     isLoan: false,
-    accountId: '',
+    accountFrom: '',
+    accountTo: '',
     isRecurring: false,
     recurringFrequency: 'monthly',
     uploadedDocument: null as File | null
@@ -92,13 +95,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
 
-  // --- Product Creation State ---
   const [showProductModal, setShowProductModal] = useState(false);
   const [pendingLineIndex, setPendingLineIndex] = useState<number | null>(null);
 
-  // Fetch categories, accounts, & product list
   useEffect(() => {
-    // 1. Categories
     (async () => {
       try {
         const snap = await getDocs(collection(db, 'invoiceCategories'));
@@ -111,7 +111,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
       }
     })();
 
-    // 2. Accounts (if not provided)
     if (financeAccounts.length === 0) {
         (async () => {
         try {
@@ -125,7 +124,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         })();
     }
 
-    // 3. Products
     (async () => {
       try {
         const prods = await productService.getAll();
@@ -143,7 +141,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     })();
   }, []);
 
-  // --- Handle Product Created ---
   const handleProductCreated = (product: any) => {
     const newSuggestion = {
       id: product.id,
@@ -151,11 +148,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
       name: product.name ?? '',
       lastPrice: Number(product.retailPrice ?? 0),
     };
-    
-    // Add to local suggestions immediately
     setProductSuggestions(prev => [...prev, newSuggestion]);
 
-    // If we have a pending index, fill that line item
     if (pendingLineIndex !== null) {
       setLineItems(prev => {
          const copy = [...prev];
@@ -166,7 +160,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
          };
          return copy;
       });
-      // Close suggestions for this row
       const arr = [...showSuggestions]; 
       arr[pendingLineIndex] = false; 
       setShowSuggestions(arr);
@@ -279,6 +272,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     if (!user) return;
     setLoading(true);
 
+    if (!formData.isLoan) {
+      toast.error('The "Is it a Loan?" checkbox must be checked before saving.');
+      setLoading(false);
+      return;
+    }
+
     if (
       (!formData.useCustomCustomer && !formData.customerId) ||
       (formData.useCustomCustomer && !formData.customerName.trim())
@@ -303,10 +302,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         const newInvoiceNumber = await getNextInvoiceNumber();
 
         const remaining = parseFloat((total - paidNow).toFixed(2));
-        let status: 'paid' | 'unpaid' | 'partially_paid' = remaining <= 0.001 ? (paidNow > 0 ? 'paid' : 'unpaid') : 'partially_paid';
-        if (Math.abs(total - paidNow) < 0.01 && total > 0) status = 'paid';
-
-        const selectedAccount = financeAccounts.find(a => a.id === formData.accountId);
+        
+        let status: 'paid' | 'unpaid' | 'partially_paid' = 'unpaid';
+        if (paidNow >= total - 0.01 && total > 0) status = 'paid';
+        else if (paidNow > 0) status = 'partially_paid';
 
         const payments: Invoice['payments'] = paidNow > 0 ? [{
           id: Date.now().toString(),
@@ -320,7 +319,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           document: undefined
         }] : [];
     
-        const payload: Omit<Invoice, 'id'> = {
+        const combinedManualVehicleName = formData.manualVehicleEntry 
+          ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
+          : null;
+
+        const payload: any = {
           invoiceNumber: newInvoiceNumber,
           date: new Date(formData.date),
           dueDate: new Date(formData.dueDate),
@@ -333,12 +336,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           remainingAmount: remaining,
           paymentStatus: status,
           category: formData.category,
-          
-          description: formData.description, // <--- SAVE DESCRIPTION
-          
+          description: formData.description, 
           customCategory: formData.category === 'Other' ? formData.customCategory : null,
-          vehicleId: formData.vehicleId || null,
-          vehicleName: formData.vehicleName || null,
+          vehicleId: formData.manualVehicleEntry ? null : (formData.vehicleId || null),
+          vehicleName: formData.manualVehicleEntry ? combinedManualVehicleName : (formData.vehicleName || null),
           customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
           customerName: formData.useCustomCustomer
             ? formData.customerName
@@ -346,16 +347,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           customerPhone: formData.useCustomCustomer
             ? formData.customerPhone
             : customers.find(c => c.id === formData.customerId)?.mobile || '',
-            
           payments,
           isLoan: formData.isLoan,
           
-          accountId: selectedAccount?.id || null,
-          accountName: selectedAccount?.name || null,
+          accountFrom: formData.accountFrom || null,
+          accountTo: formData.accountTo || null,
 
           isRecurring: formData.isRecurring,
           recurringFrequency: formData.isRecurring ? (formData.recurringFrequency as any) : null,
-
           createdAt: new Date(),
           updatedAt: new Date(),
           createdBy: user.id
@@ -369,7 +368,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
              const snap = await uploadBytes(stRef, formData.uploadedDocument);
              documentUrl = await getDownloadURL(snap.ref);
         } else {
-             // For PDF generation, we need the ID inside the object
              const blob = await generateInvoicePDF(
                 { id: docRef.id, ...payload } as any,
                 vehicles.find(v => v.id === formData.vehicleId)!
@@ -381,16 +379,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: documentUrl });
 
         const vehicle = vehicles.find(v => v.id === formData.vehicleId);
-        const vehicleOwner = vehicle?.owner
+        const vehicleOwner = formData.manualVehicleEntry ? null : (vehicle?.owner
             ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false }
-            : undefined;
+            : { name: 'AIE Skyline Limited', isDefault: true });
 
         if (formData.isLoan) {
             await createFinanceTransaction({
             type: 'expense',
-            category: 'Loan Provided',
+            category: formData.category || 'Loan Provided',
             amount: total,
-            description: `Loan for Invoice ${newInvoiceNumber}`,
+            description: [formData.description, `Loan for Invoice ${newInvoiceNumber}`].filter(Boolean).join(' - '),
             referenceId: docRef.id,
             vehicleId: payload.vehicleId || undefined,
             vehicleName: payload.vehicleName || undefined,
@@ -399,8 +397,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             customerName: payload.customerName || undefined,
             paymentMethod: 'internal',
             paymentStatus: 'paid',
-            accountFrom: selectedAccount?.id || undefined
+            accountFrom: formData.accountFrom || undefined,
+            accountTo: formData.accountTo || undefined
             });
+        }
+
+        let finalAccountId = formData.accountTo;
+        if (!finalAccountId) {
+            const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
+            if (defaultAcc) finalAccountId = defaultAcc.id;
         }
 
         if (paidNow > 0) {
@@ -408,8 +413,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             type: 'income',
             category: formData.category,
             amount: paidNow,
-            description: formData.paymentNotes,
-            referenceId: docRef.id,
+            description: [formData.description, formData.paymentNotes].filter(Boolean).join(' - ') || `Payment for Invoice ${newInvoiceNumber}`,
+            referenceId: docRef.id, 
             vehicleId: payload.vehicleId || undefined,
             vehicleName: payload.vehicleName || undefined,
             vehicleOwner,
@@ -417,8 +422,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             customerName: payload.customerName || undefined,
             paymentMethod: formData.paymentMethod,
             paymentReference: formData.paymentReference,
-            paymentStatus: status,
-            accountTo: selectedAccount?.id || undefined
+            paymentStatus: status as any,
+            accountTo: finalAccountId || undefined 
             });
         }
 
@@ -442,21 +447,36 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex justify-end">
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="flex items-center space-x-2 cursor-pointer p-2 bg-amber-50 border border-amber-200 rounded-md">
             <input
               type="checkbox"
               checked={formData.isLoan}
-              onChange={e =>
-                setFormData(fd => ({ ...fd, isLoan: e.target.checked }))
-              }
-              className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+              required
+              onChange={e => setFormData(fd => ({ ...fd, isLoan: e.target.checked }))}
+              className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4"
             />
-            <span className="text-sm font-medium text-gray-700">Is it a Loan?</span>
+            <span className="text-sm font-bold text-amber-800">Is it a Loan? (Required)</span>
           </label>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Customer */}
+            <SearchableSelect
+              label="Account From (Debit)"
+              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+              value={formData.accountFrom}
+              onChange={val => setFormData(fd => ({ ...fd, accountFrom: val || '' }))}
+              placeholder="Select source account..."
+            />
+            <SearchableSelect
+              label="Account To (Credit)"
+              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+              value={formData.accountTo}
+              onChange={val => setFormData(fd => ({ ...fd, accountTo: val || '' }))}
+              placeholder="Select destination account..."
+            />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <div className="space-y-4">
               <label className="flex items-center space-x-2">
                 <input
@@ -513,16 +533,41 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
               )}
             </div>
 
-            <SearchableSelect
-              label="Finance Account (Income To)"
-              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
-              value={formData.accountId}
-              onChange={val => setFormData(fd => ({ ...fd, accountId: val }))}
-              placeholder="Select account..."
-            />
+            <div className="space-y-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" checked={formData.manualVehicleEntry} onChange={e => { setFormData({...formData, manualVehicleEntry: e.target.checked, vehicleId: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> 
+                <span className="text-sm text-gray-700">Enter Vehicle Manually</span>
+              </label>
+              
+              {formData.manualVehicleEntry ? (
+                <div className="grid grid-cols-1 gap-3 border border-gray-200 bg-gray-50 p-3 rounded-md">
+                  <FormField label="Make" value={formData.manualVehicleMake} onChange={e => setFormData({...formData, manualVehicleMake: e.target.value})} placeholder="e.g. Toyota" required={formData.manualVehicleEntry} />
+                  <FormField label="Model" value={formData.manualVehicleModel} onChange={e => setFormData({...formData, manualVehicleModel: e.target.value})} placeholder="e.g. Prius" required={formData.manualVehicleEntry} />
+                  <FormField label="Registration" value={formData.manualVehicleReg} onChange={e => setFormData({...formData, manualVehicleReg: e.target.value})} placeholder="e.g. AB12 CDE" required={formData.manualVehicleEntry} />
+                </div>
+              ) : (
+                <SearchableSelect
+                  label="Related Vehicle (optional)"
+                  options={vehicles.map(v => ({
+                    id: v.id,
+                    label: `${v.make} ${v.model} (${v.registrationNumber})`,
+                    subLabel: v.registrationNumber
+                  }))}
+                  value={formData.vehicleId}
+                  onChange={id => { 
+                    const v = vehicles.find(vh => vh.id === id);
+                    setFormData(fd => ({
+                      ...fd,
+                      vehicleId: id || '',
+                      vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+                    }));
+                  }}
+                  placeholder="Search…"
+                />
+              )}
+            </div>
         </div>
 
-        {/* Dates */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             type="date"
@@ -540,7 +585,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           />
         </div>
 
-        {/* Category & Description */}
         <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Category</label>
@@ -564,7 +608,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             />
           )}
 
-           {/* --- NEW DESCRIPTION FIELD --- */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Description (Optional)</label>
             <textarea
@@ -577,27 +620,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           </div>
         </div>
 
-        {/* Vehicle */}
-        <SearchableSelect
-          label="Related Vehicle (optional)"
-          options={vehicles.map(v => ({
-            id: v.id,
-            label: `${v.make} ${v.model}`,
-            subLabel: v.registrationNumber
-          }))}
-          value={formData.vehicleId}
-          onChange={id => { 
-            const v = vehicles.find(vh => vh.id === id);
-            setFormData(fd => ({
-              ...fd,
-              vehicleId: id || '',
-              vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
-            }));
-          }}
-          placeholder="Search…"
-        />
-
-        {/* Recurring Settings */}
         <div className="flex items-center space-x-2 pt-2">
           <input
             type="checkbox"
@@ -625,7 +647,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           </div>
         )}
 
-        {/* Line Items */}
         <div>
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-lg font-medium">Line Items</h3>
@@ -657,9 +678,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                         <li
                           key={s.id}
                           className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                          onMouseDown={() => {
-                            handleSuggestionSelect(s, idx);
-                          }}
+                          onMouseDown={() => handleSuggestionSelect(s, idx)}
                           title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
                         >
                           <span className="truncate">
@@ -679,8 +698,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                           setShowProductModal(true);
                         }}
                       >
-                        <PlusCircle className="w-4 h-4" />
-                        Create New Product
+                        <PlusCircle className="w-4 h-4" /> Create New Product
                       </li>
                     </ul>
                   )}
@@ -724,12 +742,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     />
                     <span className="text-sm text-gray-600">+ VAT</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => removeLineItem(idx)}
-                    className="text-red-600 hover:text-red-800"
-                    title="Remove Line"
-                  >
+                  <button type="button" onClick={() => removeLineItem(idx)} className="text-red-600 hover:text-red-800">
                     Remove
                   </button>
                 </div>
@@ -738,7 +751,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           </div>
         </div>
 
-        {/* Cost Summary */}
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           <div className="flex justify-between text-sm"><span>Net:</span><span>{formatCurrency(subTotal)}</span></div>
           <div className="flex justify-between text-sm"><span>VAT:</span><span>{formatCurrency(vatAmount)}</span></div>
@@ -748,18 +760,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           <div className="flex justify-between text-sm"><span>Owing:</span><span>{formatCurrency(Math.max(0, owing))}</span></div>
         </div>
 
-        {/* Mark as Paid */}
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
             checked={formData.isPaid}
-            onChange={e =>
-              setFormData(fd => ({
-                ...fd,
-                isPaid: e.target.checked,
-                amountToPay: e.target.checked ? total.toFixed(2) : '0'
-              }))
-            }
+            onChange={e => setFormData(fd => ({ ...fd, isPaid: e.target.checked, amountToPay: e.target.checked ? total.toFixed(2) : '0' }))}
             className="rounded border-gray-300 text-primary focus:ring-primary"
           />
           <span className="text-sm text-gray-700">Mark as Paid now</span>
@@ -775,7 +780,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           disabled={!formData.isPaid}
         />
 
-        {/* Payment Details */}
         {paidNow > 0 && (
           <div className="space-y-4">
             <div>
@@ -786,61 +790,31 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
                 required
               >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
+                <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
               </select>
             </div>
-            <FormField
-              label="Payment Reference"
-              value={formData.paymentReference}
-              onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))}
-            />
+            <FormField label="Payment Reference" value={formData.paymentReference} onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))} />
             <div>
               <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
-              <textarea
-                rows={2}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                placeholder="Any notes"
-                value={formData.paymentNotes}
-                onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))}
-              />
+              <textarea rows={2} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="Any notes" value={formData.paymentNotes} onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))} />
             </div>
           </div>
         )}
 
-        {/* Upload Document */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Upload Document</label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
             <div className="space-y-1 text-center">
               <p className="text-gray-500 text-sm">Drag & drop or click to upload</p>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))}
-                className="sr-only"
-              />
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))} className="sr-only" />
               <p className="text-xs text-gray-500">PDF/image up to 10MB</p>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-          >
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
+          <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600">
             {loading ? 'Creating…' : 'Create Invoice'}
           </button>
         </div>

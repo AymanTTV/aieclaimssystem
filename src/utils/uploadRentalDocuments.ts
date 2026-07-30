@@ -92,11 +92,17 @@ export const uploadRentalDocuments = async (
     };
 
     // 3. Merge new with old
+    let oldAgreements = existingDocs.agreements || {};
+    if (typeof oldAgreements === 'string') {
+      oldAgreements = { legacy_agreement: oldAgreements };
+    }
+
+    // 3. Merge new with old
     const mergedDocsMap = {
-      ...existingDocs, // Start with old
-      ...newDocsMap, // Overwrite invoice, permit, claims
-      agreements: { // Deep merge agreements
-        ...(existingDocs.agreements || {}),
+      ...existingDocs, 
+      ...newDocsMap, 
+      agreements: { 
+        ...oldAgreements,
         ...(newDocsMap.agreements || {})
       }
     };

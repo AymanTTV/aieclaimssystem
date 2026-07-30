@@ -5,7 +5,7 @@ import path from 'path';
 
 export default defineConfig({
   // ✅ FIX: Force the script to ALWAYS load its chunks from your .com system domain
-  base: 'https://system.aieskyline.com/', 
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {

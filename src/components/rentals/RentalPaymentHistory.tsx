@@ -24,8 +24,16 @@ const RentalPaymentHistory: React.FC<RentalPaymentHistoryProps> = ({
                 <div className="text-sm text-gray-500 capitalize">
                   {payment.method.replace('_', ' ')}
                 </div>
+                
+                {/* ✅ Added Allocated Vehicle Label */}
+                {payment.allocatedVehicleName && (
+                  <div className="text-xs text-indigo-600 font-medium mt-1">
+                    Allocated to: {payment.allocatedVehicleName}
+                  </div>
+                )}
+
                 {payment.reference && (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 mt-1">
                     Ref: {payment.reference}
                   </div>
                 )}

@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Vehicle, Rental } from '../../types';
 import StatusBadge from '../ui/StatusBadge';
-import { formatDate } from '../../utils/dateHelpers';
+import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import { 
   startOfDay, 
   endOfDay, 
@@ -46,9 +46,18 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
 
   // 1. Calculate Status for ALL vehicles based on the Date Range
   const processedVehicles = useMemo(() => {
-    // Safety check for invalid dates
-    const start = dateFrom ? new Date(dateFrom) : new Date();
-    const end = dateTo ? new Date(dateTo) : new Date();
+    // Safely parse local YYYY-MM-DD dates to prevent UTC timezone shifts
+    const parseLocal = (dStr: string) => {
+        if (!dStr) return new Date();
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+            return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        }
+        return new Date(dStr);
+    };
+
+    const start = parseLocal(dateFrom);
+    const end = parseLocal(dateTo);
     const now = new Date(); // Current moment for overdue checks
     
     const targetRange = {
@@ -63,19 +72,50 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
         let note = '';
         let sortOrder = 1;
 
+        // ✅ Respect live database status as the fallback baseline
+        const isGloballyHired = 
+          vehicle.status === 'rented' || 
+          vehicle.status === 'hired' || 
+          vehicle.status === 'claim' ||
+          vehicle.status === 'scheduled-rental' ||
+          vehicle.activeStatuses?.includes('rented') ||
+          vehicle.activeStatuses?.includes('hired');
+
+        if (isGloballyHired) {
+           status = 'hired';
+           note = 'Currently out on active rental';
+           sortOrder = 4;
+        }
+
+        // Strip spaces and lowercase the current vehicle's reg
+        const vehReg = (vehicle.registrationNumber || '').replace(/\s/g, '').toLowerCase();
+
         // A. CHECK HIRE SUBSTITUTIONS (Overlap Check)
         const activeSubRental = rentals.find(r => 
           r.status === 'active' && 
           r.hireSubstitutionDetails?.some(sub => {
-            if ((sub.registration || '').toLowerCase() !== (vehicle.registrationNumber || '').toLowerCase()) return false;
+            const subReg = (sub.registration || '').replace(/\s/g, '').toLowerCase();
+            
+            if (subReg !== vehReg) return false; 
+            if (sub.returnCondition) return false; // Skip if already returned
             if (!sub.givenAt || !sub.expectedReturnAt) return false;
 
-            const subStart = new Date(sub.givenAt);
-            let subEnd = new Date(sub.expectedReturnAt);
+            // Use ensureValidDate to safely extract Date objects
+            let subStart = ensureValidDate(sub.givenAt);
+            let subEnd = ensureValidDate(sub.expectedReturnAt);
             
-            // If sub is active/ongoing but end date passed, extend it to NOW
+            if (!subStart || !subEnd) return false;
+
+            if (isAfter(subStart, now)) {
+                subStart = now;
+            }
             if (isBefore(subEnd, now)) {
                 subEnd = now; 
+            }
+            
+            // Safety to prevent date-fns from crashing on inverted intervals
+            if (isAfter(subStart, subEnd)) {
+                subEnd = subStart;
             }
 
             const subRange = {
@@ -89,7 +129,7 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
 
         if (activeSubRental) {
           const subDetail = activeSubRental.hireSubstitutionDetails!.find(sub => 
-            (sub.registration || '').toLowerCase() === (vehicle.registrationNumber || '').toLowerCase()
+            (sub.registration || '').replace(/\s/g, '').toLowerCase() === vehReg && !sub.returnCondition
           );
           
           if (subDetail) {
@@ -103,43 +143,45 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
         if (status !== 'substitution') {
           const currentRental = rentals.find(r => {
              if (r.vehicleId !== vehicle.id) return false;
-             // Check both Active and Scheduled to prevent double-booking
              if (r.status !== 'active' && r.status !== 'scheduled') return false; 
 
-             const rStart = startOfDay(new Date(r.startDate));
-             // We use expectedReturnDate if available for calculation, otherwise endDate
-             let rEndRaw = r.expectedReturnDate || r.endDate;
-             let rEndObj = new Date(rEndRaw);
+             const rStartRaw = ensureValidDate(r.startDate);
+             if (!rStartRaw) return false;
+             const rStart = startOfDay(rStartRaw);
 
-             // If Rental is ACTIVE but Overdue (End Date is in past), 
-             // it must block "Today" (extend end date to Now).
+             let rEndRaw = ensureValidDate(r.expectedReturnDate || r.endDate);
+             if (!rEndRaw) return false;
+             let rEndObj = rEndRaw;
+
+             // If Rental is ACTIVE but Overdue (End Date is in past), block "Today"
              if (r.status === 'active' && isBefore(rEndObj, startOfDay(now))) {
                  rEndObj = now;
              }
 
-             const rEnd = endOfDay(rEndObj);
+             let rEnd = endOfDay(rEndObj);
+             
+             // Safety inverted intervals catch
+             if (isAfter(rStart, rEnd)) {
+                 rEnd = rStart;
+             }
 
              return areIntervalsOverlapping(targetRange, { start: rStart, end: rEnd });
           });
 
           if (currentRental) {
-            // It overlaps with our requested dates.
+            const expReturnDate = ensureValidDate(currentRental.expectedReturnDate);
             
-            // ✅ UPDATED STRICT LOGIC: 
-            // 1. Must have an explicit `expectedReturnDate` set.
-            // 2. That return date must fall ON or BEFORE the end of the requested view range.
-            if (currentRental.expectedReturnDate && !isAfter(endOfDay(new Date(currentRental.expectedReturnDate)), targetRange.end)) {
+            if (expReturnDate && !isAfter(endOfDay(expReturnDate), targetRange.end)) {
                 status = 'returning_soon';
                 sortOrder = 2;
-                note = `Exp. Return: ${formatDate(currentRental.expectedReturnDate, true)}`;
+                note = `Exp. Return: ${formatDate(expReturnDate, true)}`;
             } 
             else {
-                // If no expected date set, OR it's set for a date later than our window -> Hide it.
                 status = 'hired';
                 sortOrder = 4;
                 note = `Booked until ${formatDate(currentRental.expectedReturnDate || currentRental.endDate, true)}`;
             }
-          } else if (vehicle.status === 'maintenance') {
+          } else if (vehicle.status === 'maintenance' || vehicle.activeStatuses?.includes('maintenance')) {
              status = 'maintenance';
              sortOrder = 5;
              note = 'In Maintenance';
@@ -148,7 +190,6 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
 
         return { vehicle, status, note, sortOrder };
       })
-      // Filter out 'hired' vehicles (those strictly booked without a relevant return expectation)
       .filter(item => item.status !== 'hired') 
       .sort((a, b) => a.sortOrder - b.sortOrder);
   }, [vehicles, rentals, dateFrom, dateTo]);

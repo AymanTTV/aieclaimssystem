@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
-import { Eye, FileText, Edit, Trash2, CreditCard } from 'lucide-react';
+import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -47,8 +47,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   };
 
   const isOverdue = (invoice: Invoice): boolean => {
-    const status = invoice.paymentStatus;
-    return (status === 'pending' || status === 'partially_paid' || status === 'unpaid') && new Date() > new Date(invoice.dueDate);
+    return (invoice.remainingAmount > 0) && new Date() > new Date(invoice.dueDate);
   };
 
   const sortedInvoices = [...invoices].sort((a, b) => {
@@ -57,7 +56,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     if (aOver && !bOver) return -1;
     if (!aOver && bOver) return 1;
     
-    // Fallback to safe date parsing for sorting
     const getSafeTime = (d: any) => {
       if (!d) return 0;
       if (d instanceof Date) return d.getTime();
@@ -146,7 +144,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       cell: ({ row }: any) => {
         if (row.original.isLoan) {
           return (
-            <span className="px-2 py-1 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">
+            <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">
               Loan
             </span>
           );
@@ -164,11 +162,12 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       header: 'Status',
       cell: ({ row }: any) => {
         const inv = row.original;
-        if (inv.remainingAmount <= 0.001 && inv.paidAmount > 0) {
-          return <StatusBadge status="paid" />;
-        }
+        let displayStatus = 'unpaid';
+        if (inv.paidAmount >= inv.total - 0.01 && inv.total > 0) displayStatus = 'paid';
+        else if (inv.paidAmount > 0) displayStatus = 'partially_paid';
+
         const overdue = isOverdue(inv);
-        const currentStatus = overdue ? 'overdue' : inv.paymentStatus;
+        const currentStatus = overdue && displayStatus !== 'paid' ? 'overdue' : displayStatus;
         return <StatusBadge status={currentStatus} />;
       },
     },
@@ -268,18 +267,22 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
             {/* ROW 2: Financials */}
             {inv.remainingAmount > 0 && can('invoices', 'recordPayment') && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-1 border-t border-gray-100">
-                £<ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
+                <ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
               </div>
             )}
 
-            {/* ROW 3: Documents */}
+            {/* ROW 3: Documents (ALWAYS SHOW REGENERATE BUTTON) */}
             {can('invoices', 'singleDoc') && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
-                {inv.documentUrl ? (
-                    <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-green-700" title="View Document" />
-                ) : (
-                    <ActionBtn onClick={() => onGenerateDocument(inv)} icon={FileText} colorClass="text-gray-400 hover:text-green-700" title="Generate Document" />
+                {inv.documentUrl && (
+                    <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-blue-700" title="View Current Document" />
                 )}
+                <ActionBtn 
+                    onClick={() => onGenerateDocument(inv)} 
+                    icon={FileSignature} 
+                    colorClass={inv.documentUrl ? "text-green-600" : "text-blue-600"} 
+                    title={inv.documentUrl ? "Regenerate New Document" : "Generate Document"} 
+                />
               </div>
             )}
 

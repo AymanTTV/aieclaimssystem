@@ -93,7 +93,7 @@ export function DataTable<T extends AnyRow>({
   }, [data?.length]);
 
   // -------- Mobile/Tablet card renderer (<= lg) --------
-  const CardList = () => {
+  const renderCardList = () => {
     const headerGroups = table.getHeaderGroups();
     const headerMap = new Map<string, React.ReactNode>();
     headerGroups.forEach(hg => {
@@ -240,7 +240,7 @@ export function DataTable<T extends AnyRow>({
   };
 
   // -------- Desktop table renderer (>= lg) --------
-  const DesktopTable = () => (
+  const renderDesktopTable = () => (
     <div className="hidden lg:block space-y-4">
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200">
@@ -348,8 +348,8 @@ export function DataTable<T extends AnyRow>({
 
   return (
     <div className="space-y-4">
-      <CardList />
-      <DesktopTable />
+      {renderCardList()}
+      {renderDesktopTable()}
     </div>
   );
 }

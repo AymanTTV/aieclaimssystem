@@ -1,26 +1,60 @@
 // src/components/rentals/RentalFilters.tsx
-import React from 'react';
-import { Vehicle, RentalReason } from '../../types';
+import React, { useMemo } from 'react';
+import { Vehicle, Rental } from '../../types';
+import SearchableSelect from '../ui/SearchableSelect';
 
 interface RentalFiltersProps {
-  statusFilter: string;
-  onStatusFilterChange: (status: string) => void;
-  typeFilter: string;
-  onTypeFilterChange: (type: string) => void;
-  vehicleFilter: string;
-  onVehicleFilterChange: (vehicleId: string) => void;
-  reasonFilter: RentalReason | 'all';
-  onReasonFilterChange: (reason: RentalReason | 'all') => void;
-  paymentStatusFilter: string; // <-- ADDED
-  onPaymentStatusFilterChange: (status: string) => void; // <-- ADDED
+  statusFilter: string[];
+  onStatusFilterChange: (status: string[]) => void;
+  typeFilter: string[];
+  onTypeFilterChange: (type: string[]) => void;
+  vehicleFilter: string[];
+  onVehicleFilterChange: (vehicleIds: string[]) => void;
+  reasonFilter: string[];
+  onReasonFilterChange: (reasons: string[]) => void;
+  paymentStatusFilter: string[];
+  onPaymentStatusFilterChange: (status: string[]) => void;
   startDateFilter: string;
   onStartDateChange: (date: string) => void;
   endDateFilter: string;
   onEndDateChange: (date: string) => void;
   vehicles: Vehicle[];
-  /** Only disables non-date filters */
+  rentals?: Rental[]; // ✅ Added rentals to extract substitution vehicles
   isDisabled: boolean;
 }
+
+const statusOptions = [
+  { id: 'all', label: 'All Status' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'active', label: 'Hired' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const typeOptions = [
+  { id: 'all', label: 'All Types' },
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
+  { id: 'claim', label: 'Claim' },
+];
+
+const reasonOptions = [
+  { id: 'all', label: 'All Reasons' },
+  { id: 'hired', label: 'Hired' },
+  { id: 'claim', label: 'Claim' },
+  { id: 'o/d', label: 'O/D' },
+  { id: 'staff', label: 'Staff' },
+  { id: 'workshop', label: 'Workshop' },
+  { id: 'c-substitute', label: 'C Substitute' },
+  { id: 'h-substitute', label: 'H Substitute' },
+];
+
+const paymentOptions = [
+  { id: 'all', label: 'All Payments' },
+  { id: 'paid', label: 'Paid' },
+  { id: 'partially_paid', label: 'Partially Paid' },
+  { id: 'pending', label: 'Pending (Unpaid)' },
+];
 
 const RentalFilters: React.FC<RentalFiltersProps> = ({
   statusFilter,
@@ -31,107 +65,101 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
   onVehicleFilterChange,
   reasonFilter,
   onReasonFilterChange,
-  paymentStatusFilter, // <-- ADDED
-  onPaymentStatusFilterChange, // <-- ADDED
+  paymentStatusFilter,
+  onPaymentStatusFilterChange,
   startDateFilter,
   onStartDateChange,
   endDateFilter,
   onEndDateChange,
   vehicles,
+  rentals = [],
   isDisabled,
 }) => {
+  
+  // ✅ Dynamically build vehicle options including external substitutions
+  const vehicleOptions = useMemo(() => {
+    const options = [
+      { id: 'all', label: 'All Vehicles' },
+      ...vehicles.map((v) => ({
+        id: v.id,
+        label: `${v.make} ${v.model}`,
+        subLabel: v.registrationNumber,
+      })),
+    ];
+
+    const fleetRegs = new Set(vehicles.map(v => (v.registrationNumber || '').toLowerCase().replace(/\s+/g, '')));
+    const subsMap = new Map();
+
+    rentals.forEach(r => {
+      (r.hireSubstitutionDetails || []).forEach(sub => {
+        if (sub.registration) {
+          const rawReg = sub.registration;
+          const cleanReg = rawReg.toLowerCase().replace(/\s+/g, '');
+          // If the sub vehicle is NOT already in the main fleet list, add it
+          if (!fleetRegs.has(cleanReg) && !subsMap.has(cleanReg)) {
+            subsMap.set(cleanReg, {
+              id: `sub_${cleanReg}`, // Special ID prefix
+              label: `${sub.make || 'Unknown'} ${sub.model || ''} (Sub)`,
+              subLabel: rawReg.toUpperCase(),
+            });
+          }
+        }
+      });
+    });
+
+    return [...options, ...Array.from(subsMap.values())];
+  }, [vehicles, rentals]);
+
   return (
     <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm w-full">
-      {/* Filters grid: 1 col → 2 on small phones → 3 on md → 4 on lg+ */}
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Status */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
-            disabled={isDisabled}
-          >
-            <option value="all">All Status</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="active">Hired</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
+        
+        <SearchableSelect
+          label="Status"
+          options={statusOptions}
+          value={statusFilter}
+          onChange={(val) => onStatusFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+        />
 
-        {/* Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Type</label>
-          <select
-            value={typeFilter}
-            onChange={(e) => onTypeFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
-            disabled={isDisabled}
-          >
-            <option value="all">All Types</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="claim">Claim</option>
-          </select>
-        </div>
+        <SearchableSelect
+          label="Type"
+          options={typeOptions}
+          value={typeFilter}
+          onChange={(val) => onTypeFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+        />
 
-        {/* Reason */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Reason</label>
-          <select
-            value={reasonFilter}
-            onChange={(e) => onReasonFilterChange(e.target.value as RentalReason | 'all')}
-            className="form-select mt-1 w-full"
-            disabled={isDisabled}
-          >
-            <option value="all">All Reasons</option>
-            <option value="hired">Hired</option>
-            <option value="claim">Claim</option>
-            <option value="o/d">O/D</option>
-            <option value="staff">Staff</option>
-            <option value="workshop">Workshop</option>
-            <option value="c-substitute">C Substitute</option>
-            <option value="h-substitute">H Substitute</option>
-          </select>
-        </div>
+        <SearchableSelect
+          label="Reason"
+          options={reasonOptions}
+          value={reasonFilter}
+          onChange={(val) => onReasonFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+        />
 
-        {/* Payment Status */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Payment</label>
-          <select
-            value={paymentStatusFilter}
-            onChange={(e) => onPaymentStatusFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
-            disabled={isDisabled}
-          >
-            <option value="all">All Payments</option>
-            <option value="paid">Paid</option>
-            <option value="partially_paid">Partially Paid</option>
-            <option value="pending">Pending (Unpaid)</option>
-          </select>
-        </div>
+        <SearchableSelect
+          label="Payment"
+          options={paymentOptions}
+          value={paymentStatusFilter}
+          onChange={(val) => onPaymentStatusFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+        />
 
-        {/* Vehicle */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Vehicle</label>
-          <select
-            value={vehicleFilter}
-            onChange={(e) => onVehicleFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
-            disabled={isDisabled}
-          >
-            <option value="">All Vehicles</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.make} {v.model} — {v.registrationNumber}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Vehicle"
+          options={vehicleOptions}
+          value={vehicleFilter}
+          onChange={(val) => onVehicleFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+          placeholder="Search Vehicles..."
+        />
 
-        {/* From Date */}
         <div>
           <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">From</label>
           <input
@@ -140,10 +168,10 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
             value={startDateFilter}
             onChange={(e) => onStartDateChange(e.target.value)}
             className="form-input mt-1 w-full"
+            disabled={isDisabled}
           />
         </div>
 
-        {/* To Date */}
         <div>
           <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">To</label>
           <input
@@ -152,6 +180,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
             value={endDateFilter}
             onChange={(e) => onEndDateChange(e.target.value)}
             className="form-input mt-1 w-full"
+            disabled={isDisabled}
           />
         </div>
       </div>

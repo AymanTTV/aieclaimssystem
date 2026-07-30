@@ -1,7 +1,8 @@
 // src/components/pdf/RentalAgreement.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import { Rental, Vehicle, Customer, DEFAULT_RENTAL_PRICES } from '../../types/rental';
+import { Rental, Vehicle, Customer } from '../../types';
+import { RENTAL_RATES } from '../../utils/rentalCalculations';
 import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
 import { styles } from './styles';
@@ -118,20 +119,23 @@ const RentalAgreement: React.FC<{
     }
   };
 
-  const getRentalRate = (rentalType: Rental['type'], v: Vehicle): number => {
-    switch (rentalType) {
+  // ✅ UPDATED: Use Negotiated Rate or Locked Rates for accurate historical documents
+  const getRentalRate = (r: Rental, v: Vehicle): number => {
+    if (r.negotiatedRate != null) return r.negotiatedRate;
+    
+    switch (r.type) {
       case 'weekly':
-        return v.weeklyRentalPrice ?? DEFAULT_RENTAL_PRICES.weekly;
+        return r.lockedWeeklyRate ?? v.weeklyRentalPrice ?? RENTAL_RATES.weekly;
       case 'daily':
-        return v.dailyRentalPrice ?? DEFAULT_RENTAL_PRICES.daily;
+        return r.lockedDailyRate ?? v.dailyRentalPrice ?? RENTAL_RATES.daily;
       case 'claim':
-        return v.claimRentalPrice ?? DEFAULT_RENTAL_PRICES.claim;
+        return r.lockedClaimRate ?? v.claimRentalPrice ?? RENTAL_RATES.claim;
       default:
         return 0;
     }
   };
 
-  const rentalRate = getRentalRate(rental.type, vehicle);
+  const rentalRate = getRentalRate(rental, vehicle);
   const rentalStartDate = getDateObj(rental.startDate) || new Date();
   const defaultEndDate = addDays(rentalStartDate, 90);
   const rentalEndDate = getDateObj(rental.endDate) || defaultEndDate;
@@ -489,7 +493,7 @@ const RentalAgreement: React.FC<{
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>Rate:</Text>
-                <Text style={styles.value}>£{rentalRate} per {rental.type === 'weekly' ? 'week' : 'day'}</Text>
+                <Text style={styles.value}>£{rentalRate.toFixed(2)} per {rental.type === 'weekly' ? 'week' : 'day'}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>Service:</Text>
@@ -563,8 +567,8 @@ const RentalAgreement: React.FC<{
             </View>
           )}
 
-          {/* RETURN CONDITION */}
-          {rental.returnCondition && (
+          {/* ✅ UPDATED: RETURN CONDITION (Visible ONLY when rental is completed) */}
+          {rental.status === 'completed' && rental.returnCondition && (
             <View style={[styles.sectionBreak]} wrap={false}>
               <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
               <View style={styles.card}>
@@ -645,22 +649,23 @@ const RentalAgreement: React.FC<{
                   )}
 
                   {includeImages && (sub.images || []).filter(isValidPdfImageSrc).length > 0 && (
-                    <View style={{ marginTop: 5, marginBottom: 10 }}>
-                      <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out Images:</Text>
-                      <View style={styles.grid}>
-                        {(sub.images || [])
-                          .filter(isValidPdfImageSrc)
-                          .slice(0, 4)
-                          .map((url, i) => (
-                            <Image
-                              key={i}
-                              src={url}
-                              style={{ width: '23%', height: 50, objectFit: 'cover', margin: '1%' }}
-                            />
-                          ))}
-                      </View>
-                    </View>
-                  )}
+  <View style={{ marginTop: 5, marginBottom: 10 }}>
+    <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out Images:</Text>
+    <View style={styles.grid}>
+      {(sub.images || [])
+        .filter(isValidPdfImageSrc)
+        .slice(0, 4)
+        .map((url, i) => (
+          <Image
+            key={i}
+            src={url}
+            // Increased height to 70 and changed objectFit to 'contain'
+            style={{ width: '23%', height: 70, objectFit: 'contain', margin: '1%' }}
+          />
+        ))}
+    </View>
+  </View>
+)}
 
                   <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 5, paddingTop: 5 }}>
                     <Text style={[styles.subLabel, { marginBottom: 5, color: '#374151' }]}>

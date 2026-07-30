@@ -41,6 +41,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
+  const [manualVehicleEntry, setManualVehicleEntry] = useState(false); 
   
   const [currentType, setCurrentType] = useState<'income' | 'expense'>(initialType);
   const [isRecurring, setIsRecurring] = useState(initialIsRecurring || !!transaction?.isRecurring);
@@ -67,6 +68,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const [financeCategories, setFinanceCategories] = useState<string[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
+  
   useEffect(() => {
      let isMounted = true;
      setCatsLoading(true);
@@ -79,6 +81,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
+  
   useEffect(() => {
      let alive = true;
      setGroupsLoading(true);
@@ -119,6 +122,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     customerName: transaction?.customerName || '',
     vehicleId: transaction?.vehicleId || '',
     vehicleName: transaction?.vehicleName || '',
+    manualVehicleMake: '',
+    manualVehicleModel: '',
+    manualVehicleReg: '',
     groupId: transaction?.groupId || '',
     accountTo: getFirstAccount(transaction?.accountsTo),
     accountFrom: getFirstAccount(transaction?.accountsFrom),
@@ -130,6 +136,24 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => {
     if (transaction) {
       setManualEntry(!!transaction.customerName && !transaction.customerId);
+      const isManualVeh = !!transaction.vehicleName && !transaction.vehicleId;
+      setManualVehicleEntry(isManualVeh);
+      
+      let make = '', model = '', reg = '';
+      if (isManualVeh && transaction.vehicleName) {
+         // Attempt to parse out Make, Model, and Reg from saved string "Make Model (Reg)"
+         const match = transaction.vehicleName.match(/(.+?)\s+\((.+?)\)$/);
+         if (match) {
+             const makeModel = match[1];
+             reg = match[2];
+             const parts = makeModel.split(' ');
+             make = parts[0] || '';
+             model = parts.slice(1).join(' ') || '';
+         } else {
+             make = transaction.vehicleName; // Fallback if formatting doesn't match
+         }
+      }
+
       setFormData({
          date: toDateTimeLocal(transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date)),
          amount: Math.abs(transaction.amount).toString(),
@@ -143,6 +167,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
          customerName: transaction.customerName || '',
          vehicleId: transaction.vehicleId || '',
          vehicleName: transaction.vehicleName || '',
+         manualVehicleMake: make,
+         manualVehicleModel: model,
+         manualVehicleReg: reg,
          groupId: transaction.groupId || '',
          accountTo: getFirstAccount(transaction.accountsTo),
          accountFrom: getFirstAccount(transaction.accountsFrom),
@@ -153,8 +180,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       setIsRecurring(!!transaction.isRecurring);
       setFrequency(transaction.recurringFrequency || 'monthly');
     } else {
-        setFormData(prev => ({ ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', vehicleId: '', vehicleName: '', groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' }));
+        setFormData(prev => ({ 
+          ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', 
+          paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', 
+          vehicleId: '', vehicleName: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '', 
+          groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' 
+        }));
         setManualEntry(false);
+        setManualVehicleEntry(false);
     }
   }, [transaction]);
 
@@ -179,12 +212,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     try {
       const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
       const selectedCustomer = customers.find((c) => c.id === formData.customerId);
-      const vehicleOwner = selectedVehicle ? (selectedVehicle.owner || null) : { name: 'AIE Skyline Limited', isDefault: true };
+      const vehicleOwner = manualVehicleEntry ? null : (selectedVehicle ? (selectedVehicle.owner || null) : { name: 'AIE Skyline Limited', isDefault: true });
       const newAmount = Math.abs(parseFloat(formData.amount || '0'));
+      
       if (isNaN(newAmount) || newAmount <= 0) { toast.error('Please enter a valid positive amount.'); setLoading(false); return; }
 
-      // --- Helper: Get Names ---
       const getAccName = (id: string) => accounts.find(a => a.id === id)?.name || '';
+
+      const combinedManualVehicleName = manualVehicleEntry 
+        ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
+        : null;
 
       const basePayload: any = {
           category: formData.category,
@@ -195,8 +232,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           status: formData.status || 'completed',
           customerId: manualEntry ? null : (formData.customerId || null),
           customerName: manualEntry ? formData.customerName : selectedCustomer?.name || null,
-          vehicleId: formData.vehicleId || null,
-          vehicleName: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null,
+          vehicleId: manualVehicleEntry ? null : (formData.vehicleId || null),
+          vehicleName: manualVehicleEntry ? combinedManualVehicleName : (selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null),
           vehicleOwner: vehicleOwner,
           groupId: formData.groupId || null,
           updatedAt: new Date(),
@@ -226,7 +263,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       }
 
       if (isEditing && transaction) {
-          // EDIT MODE (Single record update)
           const finalAccountsFrom: string[] = [];
           const finalAccountsTo: string[] = [];
 
@@ -252,42 +288,30 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           toast.success('Transaction updated');
 
       } else {
-        // --- CREATE MODE: Independent Records with Cross-Reference ---
         const batch = writeBatch(db);
         let operationCount = 0;
 
-        // --- PREPARE NAMES FOR RELATED ACCOUNT FIELD ---
-        // 1. Identify Names involved
         const mainAccName = currentType === 'income' ? getAccName(formData.accountTo) : getAccName(formData.accountFrom);
         const secondaryAccName = currentType === 'income' ? getAccName(formData.accountTo2) : getAccName(formData.accountFrom2);
-        const contraAccName = getAccName(formData.accountThird); // The money source/destination
+        const contraAccName = getAccName(formData.accountThird); 
 
-        // 2. Construct "Credit Side" names (where money went)
         const creditSideNames = [];
         if (currentType === 'income') {
              if (mainAccName) creditSideNames.push(mainAccName);
              if (secondaryAccName) creditSideNames.push(secondaryAccName);
         } else {
-             // For expense: If accountThird is set, it acts as "Paid To".
              if (contraAccName) creditSideNames.push(contraAccName);
         }
         const creditSideString = creditSideNames.filter(Boolean).join(' & ');
 
-        // 3. Construct "Debit Side" names (where money came from)
         const debitSideNames = [];
         if (currentType === 'expense') {
             if (mainAccName) debitSideNames.push(mainAccName);
             if (secondaryAccName) debitSideNames.push(secondaryAccName);
         } else {
-            // For income: If accountThird is set, it acts as Source
             if (contraAccName) debitSideNames.push(contraAccName);
         }
         const debitSideString = debitSideNames.filter(Boolean).join(' & ');
-
-
-        // --- A. PRIMARY RECORD (COMBINED MAIN + SECONDARY) ---
-        // For Income: Combines Account To & To 2
-        // For Expense: Combines Account From & From 2
         
         if (currentType === 'income') {
             const incomeAccounts = [];
@@ -302,9 +326,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     type: 'income',
                     createdAt: new Date(),
                     createdBy: user.name || user.email || '',
-                    accountsTo: incomeAccounts, // COMBINED HERE
+                    accountsTo: incomeAccounts, 
                     accountsFrom: [],
-                    // Income needs to know "From where?" -> The Debit Side (Contra)
                     relatedAccountName: debitSideString || null 
                 });
                 operationCount++;
@@ -323,20 +346,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     type: 'expense',
                     createdAt: new Date(),
                     createdBy: user.name || user.email || '',
-                    accountsFrom: expenseAccounts, // COMBINED HERE
+                    accountsFrom: expenseAccounts, 
                     accountsTo: [],
-                    // Expense needs to know "To where?" -> The Credit Side (Contra)
                     relatedAccountName: creditSideString || null
                 });
                 operationCount++;
             }
         }
 
-        // --- B. THIRD RECORD (CONTRA/TRANSFER) ---
-        // This remains separate as per requirements.
         if (formData.accountThird) {
             const ref = doc(collection(db, 'transactions'));
-            // Invert type
             const contraType = currentType === 'income' ? 'expense' : 'income';
             
             const contraData: any = {
@@ -349,15 +368,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             };
 
             if (contraType === 'income') {
-                // This is Income (money entering Account 3), so it came from the Expenses (Debit Side: The Main/Secondary Accounts)
                 contraData.accountsTo = [formData.accountThird];
                 contraData.accountsFrom = [];
-                contraData.relatedAccountName = debitSideString; // "Debit Side" of the logic maps to Main+Secondary names here
+                contraData.relatedAccountName = debitSideString; 
             } else {
-                // This is Expense (money leaving Account 3), so it went to the Incomes (Credit Side: The Main/Secondary Accounts)
                 contraData.accountsFrom = [formData.accountThird];
                 contraData.accountsTo = [];
-                contraData.relatedAccountName = creditSideString; // "Credit Side" maps to Main+Secondary names here
+                contraData.relatedAccountName = creditSideString; 
             }
 
             batch.set(ref, contraData);
@@ -447,12 +464,37 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
       <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Category</label>{catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}</div>
       <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Group (Optional)</label>{groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}</div>
-      <SearchableSelect label="Related Vehicle (Optional)" options={vehicles.map(v => ({ id: v.id, label: `${v.make} ${v.model}`, subLabel: v.registrationNumber }))} value={formData.vehicleId} onChange={id => { const v = vehicles.find(vh => vh.id === id); setFormData({...formData, vehicleId: id || '', vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : '' }); }} placeholder="Search vehicles..." isClearable />
       
+      <div className="space-y-4">
+        <div>
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" checked={manualVehicleEntry} onChange={e => { setManualVehicleEntry(e.target.checked); setFormData({...formData, vehicleId: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> 
+            <span className="text-sm text-gray-700">Enter Vehicle Manually</span>
+          </label>
+        </div>
+        {manualVehicleEntry ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField label="Make" value={formData.manualVehicleMake} onChange={e => setFormData({...formData, manualVehicleMake: e.target.value})} placeholder="e.g. Toyota" required={manualVehicleEntry} />
+            <FormField label="Model" value={formData.manualVehicleModel} onChange={e => setFormData({...formData, manualVehicleModel: e.target.value})} placeholder="e.g. Prius" required={manualVehicleEntry} />
+            <FormField label="Registration" value={formData.manualVehicleReg} onChange={e => setFormData({...formData, manualVehicleReg: e.target.value})} placeholder="e.g. AB12 CDE" required={manualVehicleEntry} />
+          </div>
+        ) : (
+          <SearchableSelect 
+            label="Related Vehicle (Optional)" 
+            options={vehicles.map(v => ({ id: v.id, label: `${v.make} ${v.model} (${v.registrationNumber})`, subLabel: v.registrationNumber }))} 
+            value={formData.vehicleId} 
+            onChange={id => { const v = vehicles.find(vh => vh.id === id); setFormData({...formData, vehicleId: id || '' }); }} 
+            placeholder="Search vehicles..." 
+            isClearable 
+          />
+        )}
+      </div>
+
       <div className="space-y-4">
         <div><label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={manualEntry} onChange={e => { setManualEntry(e.target.checked); setFormData({...formData, customerId: '', customerName: e.target.checked ? formData.customerName : '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> <span className="text-sm text-gray-700">Enter Customer Manually</span></label></div>
         {manualEntry ? <FormField label="Customer Name" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} placeholder="Enter customer name" /> : <SearchableSelect label="Customer (Optional)" options={customers.map(c => ({ id: c.id, label: c.name, subLabel: `${c.mobile || ''} - ${c.email || ''}` }))} value={formData.customerId} onChange={id => { const c = customers.find(cu => cu.id === id); setFormData({...formData, customerId: id || '', customerName: c?.name || '' }); }} placeholder="Search customers..." isClearable />}
       </div>
+
       <div><label className="block text-sm font-medium text-gray-700">Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="form-textarea mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required /></div>
       <div><label className="block text-sm font-medium text-gray-700">Payment Method</label><select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as any})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option><option value="mobile_money">Mobile Money</option><option value="other">Other</option></select></div>
       <FormField label="Payment Reference (Optional)" value={formData.paymentReference} onChange={e => setFormData({...formData, paymentReference: e.target.value})} placeholder="e.g., Invoice #, Txn ID" />

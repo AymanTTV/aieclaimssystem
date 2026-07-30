@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
-import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
-import { usePermissions } from '../hooks/usePermissions'; // <-- ADDED HOOK
+import { usePermissions } from '../hooks/usePermissions';
 
 // Valid tags based on BulkEmail and Whatsapp context builders
 const AVAILABLE_TAGS: Record<string, string[]> = {
   global: ['[Recipient Name]', '[Customer Name]', '[Driver Name]', '[DD/MM/YYYY]'],
-  vehicle: ['[Vehicle Reg]', '[Make & Model]', '[Year]', '[Mileage]'],
+  vehicle: [
+    '[Vehicle Reg]', '[Make & Model]', '[Year]', '[Mileage]', 
+    '[Purchased Date]', '[Insurance Expiry]', '[MOT Expiry]', 
+    '[Tax Expiry]', '[Last Maintenance]', '[Next Maintenance]'
+  ],
   rental: ['[Start Date]', '[End Date]', '[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[Subtotal]', '[VAT]'],
   finance: ['[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[New Balance]', '[Amount Owed]', '[Due Date]', '[Reason]'],
   maintenance: ['[Maintenance Type]', '[Date & Time]', '[Location]', '[Garage Name]', '[Additional Notes]', '[Part(s) Required]'],
@@ -20,8 +24,10 @@ const AVAILABLE_TAGS: Record<string, string[]> = {
 const CATEGORIES: EmailType[] = ['custom', 'rental', 'maintenance', 'invoice', 'claim', 'finance'];
 
 export default function AutomationSettings() {
-  const { can } = usePermissions(); // <-- INITIALIZE HOOK
+  const { can } = usePermissions();
   const canUpdate = can('automation', 'update');
+  const canDelete = can('automation', 'delete');
+  const canCreate = can('automation', 'create');
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -42,12 +48,11 @@ export default function AutomationSettings() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-// 1. Evaluate the permission into a simple boolean first
+  // Evaluate the permission into a simple boolean first
   const canViewAutomation = can('automation', 'view');
 
   // Load templates from Firestore
   useEffect(() => {
-    // 2. Use the boolean to check access
     if (canViewAutomation) {
       fetchTemplates();
     } else {
@@ -75,7 +80,7 @@ export default function AutomationSettings() {
 
   const seedDatabase = async () => {
     // Safety check: Only seed if user can create
-    if (!can('automation', 'create')) {
+    if (!canCreate) {
       toast.error('Database empty, and you lack permissions to initialize default templates.');
       return;
     }
@@ -165,6 +170,7 @@ export default function AutomationSettings() {
   // ─── TEMPLATE ACTIONS ───────────────────────────────────────────
 
   const handleCreateNew = () => {
+    if (!canCreate) return;
     const newId = `${activeCategory}_custom_${Date.now()}`;
     const newTpl = {
       id: newId,
@@ -190,6 +196,28 @@ export default function AutomationSettings() {
     } catch (error) {
       console.error(error);
       toast.error('Failed to save template.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingTemplate || !canDelete) return;
+    
+    if (!window.confirm(`Are you sure you want to delete "${editingTemplate.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await deleteDoc(doc(db, 'messageTemplates', editingTemplate.id));
+      setTemplates(prev => prev.filter(t => t.id !== editingTemplate.id));
+      setSelectedTemplateId(null);
+      setEditingTemplate(null);
+      toast.success('Template deleted successfully!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete template.');
     } finally {
       setSaving(false);
     }
@@ -223,7 +251,7 @@ export default function AutomationSettings() {
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Template Manager...</div>;
 
   // ─── PERMISSION CHECK: VIEW ──────────────────────────────────────
-  if (!can('automation', 'view')) {
+  if (!canViewAutomation) {
     return (
       <div className="max-w-7xl mx-auto flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-gray-100 mt-10">
         <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
@@ -302,7 +330,7 @@ export default function AutomationSettings() {
              </div>
              
              {/* ─── PERMISSION CHECK: CREATE ─── */}
-             {can('automation', 'create') && (
+             {canCreate && (
                <div className="p-3 border-t border-gray-200 bg-gray-50">
                  <button 
                    onClick={handleCreateNew}
@@ -345,6 +373,18 @@ export default function AutomationSettings() {
                       <Redo2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* ─── PERMISSION CHECK: DELETE ─── */}
+                  {canDelete && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={saving}
+                      className="p-2 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition"
+                      title="Delete Template"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
 
                   {/* ─── PERMISSION CHECK: UPDATE (Save Button) ─── */}
                   <button

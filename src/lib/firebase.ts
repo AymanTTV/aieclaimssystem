@@ -1,8 +1,7 @@
 // src/lib/firebase.ts
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-// 1. ✅ ADDED initializeFirestore here:
-import { getFirestore, initializeFirestore } from 'firebase/firestore';
+import { getAuth, ActionCodeSettings } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -16,35 +15,47 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
+// 1. Initialize Firebase app exactly once
 const app = initializeApp(firebaseConfig);
 
-// Initialize services
+// 2. Initialize core services using standard, optimized methods
 export const auth = getAuth(app);
-
-// 2. ✅ THE MAGIC FIX: Force Long Polling to bypass cross-domain browser blocks
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-});
-
+export const db = getFirestore(app); // Removes the buggy long-polling
+export const functions = getFunctions(app, 'europe-west2');
 export const storage = getStorage(app);
 
-// IMPORTANT: must match your deployed Cloud Functions region
-export const functions = getFunctions(app, 'europe-west2');
+// 3. Apply Storage Settings
+storage.maxOperationRetryTime = 60000; // Reduced to 60 seconds
+storage.maxUploadRetryTime = 60000;    // Reduced to 60 seconds
 
-// Configure storage settings (optional)
-storage.maxOperationRetryTime = 120000; // 2 minutes
-storage.maxUploadRetryTime = 120000;    // 2 minutes
-
-// Storage metadata with CORS headers
 export const storageMetadata = {
   cacheControl: 'public,max-age=7200',
-  contentType: 'image/jpeg',
+  contentType: 'auto',
   customMetadata: {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '3600'
   }
+};
+
+// 4. Auth Settings
+export const passwordResetSettings: ActionCodeSettings = {
+  url: `${window.location.origin}/login`, 
+  handleCodeInApp: false 
+};
+
+export const authPersistence = 'LOCAL';
+
+export const AUTH_ERROR_MESSAGES = {
+  'auth/user-not-found': 'No account found with this email address',
+  'auth/wrong-password': 'Invalid password',
+  'auth/invalid-email': 'Invalid email address',
+  'auth/too-many-requests': 'Too many attempts. Please try again later',
+  'auth/email-already-in-use': 'An account already exists with this email',
+  'auth/weak-password': 'Password should be at least 6 characters',
+  'auth/unauthorized-continue-uri': 'Invalid reset link configuration',
+  'default': 'An error occurred. Please try again'
 };
 
 export default app;

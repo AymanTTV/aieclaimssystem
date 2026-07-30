@@ -292,6 +292,7 @@ const Maintenance: React.FC = () => {
       invoiceNumber: log.invoiceNumber || '',
       serviceProvider: log.serviceProvider || '',
       nextServiceDate: log.nextServiceDate ? format(log.nextServiceDate, 'yyyy-MM-dd') : '',
+      completedDate: log.completedDate ? format(log.completedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'), // ✅ Added completion date state
       description: log.description || '',
       notes: log.notes || ''
     });
@@ -314,10 +315,10 @@ const Maintenance: React.FC = () => {
             invoiceNumber: formData.invoiceNumber,
             serviceProvider: formData.serviceProvider,
             nextServiceDate: formData.nextServiceDate ? parseISO(formData.nextServiceDate) : null,
+            completedDate: formData.completedDate ? parseISO(formData.completedDate) : new Date(), // ✅ Added custom completion date payload
             description: formData.description,
             notes: formData.notes,
             status: 'completed',
-            completedDate: new Date(), 
             updatedAt: new Date()
          });
          toast.success('Maintenance marked as completed!');
@@ -355,11 +356,19 @@ const Maintenance: React.FC = () => {
             
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
              <FormField 
                label="Service Center" 
                value={formData.serviceProvider} 
                onChange={e => setFormData({...formData, serviceProvider: e.target.value})} 
+               required 
+             />
+             {/* ✅ Added Completion Date Input */}
+             <FormField 
+               type="date"
+               label="Completed Date" 
+               value={formData.completedDate} 
+               onChange={e => setFormData({...formData, completedDate: e.target.value})} 
                required 
              />
              <FormField 

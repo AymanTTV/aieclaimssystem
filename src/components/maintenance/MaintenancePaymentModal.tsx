@@ -9,6 +9,21 @@ import toast from 'react-hot-toast';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { Pencil, Trash2 } from 'lucide-react';
 
+// Date Helpers
+const formatDateForInput = (t?: any) => {
+  if (!t) return new Date().toISOString().slice(0, 10);
+  const d = t?.toDate ? t.toDate() : new Date(t);
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+};
+
+const formatDateDisplay = (t?: any) => {
+  if (!t) return 'N/A';
+  const d = t?.toDate ? t.toDate() : new Date(t);
+  return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
+};
+
 // Local interface matching the Rental structure
 interface MaintenancePayment {
   id: string;
@@ -42,6 +57,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
+    paymentDate: formatDateForInput(new Date()),
     amountToPay: '0',
     method: 'cash' as const,
     reference: '',
@@ -92,6 +108,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
   const resetForm = () => {
     setEditingPaymentId(null);
     setFormData({
+      paymentDate: formatDateForInput(new Date()),
       amountToPay: '0',
       method: 'cash',
       reference: '',
@@ -101,6 +118,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
 
   const prefillFromPayment = (p: MaintenancePayment) => {
     setFormData({
+      paymentDate: formatDateForInput(p.date),
       amountToPay: p.amount.toString(),
       method: p.method as any,
       reference: p.reference || '',
@@ -109,9 +127,11 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
   };
 
   const handleDelete = async (paymentId: string) => {
-    if (!confirm('Delete this payment? This will update the maintenance log total.')) return;
+    if (!confirm('Delete this payment? This will log a reversal in the finance records.')) return;
     setLoading(true);
     try {
+      const paymentToDelete = allPayments.find(p => p.id === paymentId);
+
       // 1. Remove payment from the virtual list
       const updatedPayments = allPayments.filter(p => p.id !== paymentId);
       
@@ -130,20 +150,49 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         updatedBy: user?.id
       });
 
-      // 4. Reverse Finance Transaction
-      // If it was a legacy payment, we might not find a transaction by paymentId, 
-      // but we try to reverse by referenceId (the log ID) if it's the only one.
-      await reverseFinanceTransaction({
-        referenceId: log.id,
-        paymentId: paymentId === 'legacy_migration' ? undefined : paymentId
-      });
+      // 4. Create explicit Reversal Finance Transaction
+      if (paymentToDelete) {
+        const vehicleOwner = vehicle?.owner
+          ? {
+              name: vehicle.owner.name,
+              isDefault: vehicle.owner.isDefault ?? false,
+            }
+          : undefined;
 
-      toast.success('Payment deleted');
+        // Proportional VAT calculation for the reversal
+        const totalLogCost = log.cost || 1;
+        const vatRatio = (log.vatAmount || 0) / totalLogCost;
+        const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
+        
+        const revVatAmount = paymentToDelete.amount * vatRatio;
+        const revNetAmount = paymentToDelete.amount * netRatio;
+
+        await createFinanceTransaction({
+          type: 'income', // Income reverses the original Maintenance Expense
+          category: log.type,
+          amount: paymentToDelete.amount,
+          netAmount: parseFloat(revNetAmount.toFixed(2)),
+          vatAmount: parseFloat(revVatAmount.toFixed(2)),
+          description: `REVERSAL: Maintenance Payment | Order: ${log.orderNumber || 'N/A'} | Inv: ${log.invoiceNumber || 'N/A'}`,
+          customerName: log.serviceProvider,
+          referenceId: log.id,
+          vehicleId: log.vehicleId,
+          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
+          vehicleOwner,
+          accountTo: vehicle?.owner?.accountId || undefined, // Send funds back to the assigned finance account
+          paymentMethod: paymentToDelete.method,
+          paymentReference: paymentToDelete.reference ? `REV-${paymentToDelete.reference}` : `REV-${paymentId}`,
+          status: 'completed',
+          date: new Date()
+        });
+      }
+
+      toast.success('Payment deleted and reversed in Finance');
       if (editingPaymentId === paymentId) resetForm();
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to delete payment');
+      toast.error('Failed to delete and reverse payment');
     } finally {
       setLoading(false);
     }
@@ -176,13 +225,15 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
 
     setLoading(true);
     try {
+      const parsedPaymentDate = new Date(formData.paymentDate);
+      
       // If editing the legacy item, we generate a NEW proper ID for it
       const isLegacyEdit = editingPaymentId === 'legacy_migration';
       const paymentId = (editingPaymentId && !isLegacyEdit) ? editingPaymentId : Date.now().toString();
       
       const newPaymentObj: MaintenancePayment = {
         id: paymentId,
-        date: editingPayment ? editingPayment.date : new Date(),
+        date: parsedPaymentDate,
         amount: paymentAmount,
         method: formData.method,
         reference: formData.reference || undefined,
@@ -236,26 +287,34 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         });
       }
 
+      // --- Calculate Proportional VAT and Net ---
+      const totalLogCost = log.cost || 1; // Prevent division by zero
+      const vatRatio = (log.vatAmount || 0) / totalLogCost;
+      const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
+  
+      const paymentVatAmount = paymentAmount * vatRatio;
+      const paymentNetAmount = paymentAmount * netRatio;
+
       // Create new transaction
       await createFinanceTransaction({
-  type: 'expense',
-  category: log.type,
-  amount: paymentAmount,
-  // UPDATED DESCRIPTION: Reference the specific log's Order and Invoice
-  description: `Payment for Maintenance | Order: ${log.orderNumber || 'N/A'} | Inv: ${log.invoiceNumber || 'N/A'}${formData.notes ? ` - ${formData.notes}` : ''}`,
-  customerName: log.serviceProvider,
-  referenceId: log.id,
-  vehicleId: log.vehicleId,
-  vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
-  vehicleOwner,
-  accountFrom: vehicle?.owner?.accountId || undefined,
-  paymentMethod: formData.method,
-  // UPDATED REFERENCE: Link the finance record to the maintenance invoice number
-  paymentReference: log.invoiceNumber || paymentId, 
-  paymentStatus: newStatus,
-  status: 'completed',
-  date: new Date()
-});
+        type: 'expense',
+        category: log.type,
+        amount: paymentAmount,
+        netAmount: parseFloat(paymentNetAmount.toFixed(2)),
+        vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
+        description: `Payment for Maintenance | Order: ${log.orderNumber || 'N/A'} | Inv: ${log.invoiceNumber || 'N/A'}${formData.notes ? ` - ${formData.notes}` : ''}`,
+        customerName: log.serviceProvider,
+        referenceId: log.id,
+        vehicleId: log.vehicleId,
+        vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
+        vehicleOwner,
+        accountFrom: vehicle?.owner?.accountId || undefined,
+        paymentMethod: formData.method,
+        paymentReference: log.invoiceNumber || paymentId, 
+        paymentStatus: newStatus,
+        status: 'completed',
+        date: parsedPaymentDate
+      });
 
       toast.success(editingPaymentId ? 'Payment updated' : 'Payment recorded');
       onClose();
@@ -330,6 +389,12 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
 
       {/* Summary */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-3 pb-3 border-b border-gray-200">
+          <div><span className="font-semibold text-gray-700">Completed:</span> {formatDateDisplay(log.completedDate)}</div>
+          <div><span className="font-semibold text-gray-700">Invoice:</span> {formatDateDisplay(log.invoiceDate)}</div>
+          <div><span className="font-semibold text-gray-700">Due:</span> {formatDateDisplay(log.invoiceDueDate)}</div>
+        </div>
+
         <div className="flex justify-between text-sm font-medium">
           <span>NET:</span>
           <span>{formatCurrency(log.netAmount || 0)}</span>
@@ -359,15 +424,24 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
       </div>
 
       {/* Payment Inputs */}
-      <FormField
-        type="number"
-        label={editingPaymentId ? "New Amount" : "Amount to Pay"}
-        value={formData.amountToPay}
-        onChange={(e) => setFormData(prev => ({ ...prev, amountToPay: e.target.value }))}
-        required
-        min="0.01"
-        step="0.01"
-      />
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          type="date"
+          label="Payment Date"
+          value={formData.paymentDate}
+          onChange={(e) => setFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
+          required
+        />
+        <FormField
+          type="number"
+          label={editingPaymentId ? "New Amount" : "Amount to Pay"}
+          value={formData.amountToPay}
+          onChange={(e) => setFormData(prev => ({ ...prev, amountToPay: e.target.value }))}
+          required
+          min="0.01"
+          step="0.01"
+        />
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700">Payment Method</label>

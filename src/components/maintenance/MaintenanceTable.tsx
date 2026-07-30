@@ -173,7 +173,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     },
     {
       id: 'date',
-      header: <div className="w-28">Date</div>,
+      header: <div className="w-32">Date & Time</div>, // ✅ Increased width to accommodate time
       cell: ({ row }: any) => {
         const d = row.original.date;
         const isScheduled = row.original.status === 'scheduled';
@@ -203,8 +203,9 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         }
 
         return (
-          <div className="flex flex-col w-28">
-            <span className="text-sm text-gray-700">{format(d, 'dd/MM/yyyy')}</span>
+          <div className="flex flex-col w-32">
+            {/* ✅ Added HH:mm format for time */}
+            <span className="text-sm text-gray-700">{format(d, 'dd/MM/yyyy HH:mm')}</span>
             <div className="h-4">{badge}</div>
           </div>
         );

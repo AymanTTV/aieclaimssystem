@@ -34,11 +34,11 @@ import { ROUTES, ROUTE_METADATA, ROUTE_PERMISSIONS } from '../routes';
 import {
   collection,
   query,
-  where,
   onSnapshot,
   orderBy,
   doc,
   Timestamp,
+  limit
 } from 'firebase/firestore';
 
 interface NavItem {
@@ -46,12 +46,14 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   permission?: { module: string; action: string };
+  badgeCount?: number; 
   submenu?: Array<{
     name: string;
     href: string;
     permission?: { module: string; action: string };
     icon?: React.ElementType;
     showBadge?: boolean;
+    badgeCount?: number; 
   }>;
 }
 
@@ -66,8 +68,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [lastReadTimestamp, setLastReadTimestamp] = useState<Timestamp | null>(null);
+  
+  const [overdueTodoCount, setOverdueTodoCount] = useState(0);
 
-  // NEW: tiny close delay to prevent flicker
   const closeTimerRef = useRef<number | null>(null);
   const scheduleClose = () => {
     if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
@@ -114,7 +117,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.AUTOMATION]: Zap,
     [ROUTES.COMPANY_MANAGERS]: Users,
     [ROUTES.WAITING]: Clock,
-    // [ROUTES.CHAT]: MessageSquare,
     '/members/dashboard': Home,
     '/members/transactions': FileText,
     '/members/invoices': FileText,
@@ -129,7 +131,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.INVOICES]: 'Invoices',
     [ROUTES.CUSTOMERS]: 'Members',
     [ROUTES.USERS]: 'Users',
-    // [ROUTES.CHAT]: 'Chat',
     [ROUTES.PROFILE]: 'Profile',
     [ROUTES.WAITING]: 'Waiting List',
     [ROUTES.TODO]: 'To-Do',
@@ -156,6 +157,38 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   ): { module: string; action: string } | undefined =>
     ROUTE_PERMISSIONS[route as keyof typeof ROUTE_PERMISSIONS];
 
+  // Safely fetch To-Do tasks
+  useEffect(() => {
+    if (!user?.id) {
+      setOverdueTodoCount(0);
+      return;
+    }
+    
+    // Safely query to avoid missing composite index crashes
+    const q = query(collection(db, 'todos'));
+    
+    const unsub = onSnapshot(q, (snap) => {
+      let count = 0;
+      const todayTime = new Date().setHours(0, 0, 0, 0);
+
+      snap.docs.forEach(doc => {
+        const data = doc.data() as any;
+        if (data.status === 'completed') return;
+        const owner = data.assignedTo ?? data.createdBy;
+        if (owner !== user.id) return; 
+
+        if (data.dueDate && typeof data.dueDate.toDate === 'function') {
+          if (data.dueDate.toDate().getTime() < todayTime) {
+            count++;
+          }
+        }
+      });
+      setOverdueTodoCount(count);
+    }, (error) => console.error("To-Do Listener Error:", error));
+    
+    return () => unsub();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return setLastReadTimestamp(null);
     const ref = doc(db, 'users', user.id);
@@ -165,17 +198,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => unsub();
   }, [user?.id]);
 
+  // Safely fetch latest 100 messages for unread count
   useEffect(() => {
-    if (!user?.id) return setUnreadChatCount(0);
-    let q = query(collection(db, 'messages'), orderBy('timestamp', 'desc'));
-    if (lastReadTimestamp) {
-      q = query(
-        collection(db, 'messages'),
-        where('timestamp', '>', lastReadTimestamp),
-        orderBy('timestamp', 'desc')
-      );
+    if (!user?.id) {
+      setUnreadChatCount(0);
+      return;
     }
-    const unsub = onSnapshot(q, snap => {
+    
+    const q = query(collection(db, 'messages'), orderBy('timestamp', 'desc'), limit(100));
+    
+    const unsub = onSnapshot(q, (snap) => {
       const count = snap.docs.filter(d => {
         const m = d.data() as any;
         const ts = m.timestamp?.toDate() || new Date();
@@ -184,7 +216,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         return !own && !older;
       }).length;
       setUnreadChatCount(count);
-    });
+    }, (error) => console.error("Chat Listener Error:", error));
+
     return () => unsub();
   }, [user?.id, lastReadTimestamp]);
 
@@ -215,10 +248,24 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return [
       { name: resolveLabel(ROUTES.DASHBOARD), href: ROUTES.DASHBOARD, icon: resolveIcon(ROUTES.DASHBOARD), permission: resolvePerm(ROUTES.DASHBOARD) },
       
-      // 1. Moved To-Do here (Next to Dashboard)
-      { name: resolveLabel(ROUTES.TODO), href: ROUTES.TODO, icon: resolveIcon(ROUTES.TODO), permission: resolvePerm(ROUTES.TODO) ?? { module: 'todo', action: 'view' } },
+      { 
+        name: resolveLabel(ROUTES.TODO), 
+        href: ROUTES.TODO, 
+        icon: resolveIcon(ROUTES.TODO), 
+        permission: resolvePerm(ROUTES.TODO) ?? { module: 'todo', action: 'view' },
+        badgeCount: overdueTodoCount
+      },
 
-      { name: resolveLabel(ROUTES.VEHICLES), href: ROUTES.VEHICLES, icon: resolveIcon(ROUTES.VEHICLES), permission: resolvePerm(ROUTES.VEHICLES) },
+      {
+        name: 'Fleet & Vehicles',
+        href: ROUTES.VEHICLES,
+        icon: resolveIcon(ROUTES.VEHICLES),
+        permission: resolvePerm(ROUTES.VEHICLES),
+        submenu: [
+          { name: 'Vehicle List', href: ROUTES.VEHICLES, icon: Car, permission: resolvePerm(ROUTES.VEHICLES) },
+          { name: 'Utilisation %', href: ROUTES.UTILISATION, icon: Zap, permission: resolvePerm(ROUTES.UTILISATION) },
+        ],
+      },
       { name: resolveLabel(ROUTES.MAINTENANCE), href: ROUTES.MAINTENANCE, icon: resolveIcon(ROUTES.MAINTENANCE), permission: resolvePerm(ROUTES.MAINTENANCE) },
       { name: resolveLabel(ROUTES.RENTALS), href: ROUTES.RENTALS, icon: resolveIcon(ROUTES.RENTALS), permission: resolvePerm(ROUTES.RENTALS) },
 
@@ -270,7 +317,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         submenu: [
           { name: 'Users', href: ROUTES.USERS, icon: resolveIcon(ROUTES.USERS), permission: resolvePerm(ROUTES.USERS) },
           { name: 'Company Managers', href: ROUTES.COMPANY_MANAGERS, icon: resolveIcon(ROUTES.COMPANY_MANAGERS), permission: resolvePerm(ROUTES.USERS) },
-          // 2. Moved Members (Customers) here
           { name: resolveLabel(ROUTES.CUSTOMERS), href: ROUTES.CUSTOMERS, icon: resolveIcon(ROUTES.CUSTOMERS), permission: resolvePerm(ROUTES.CUSTOMERS) },
         ],
       },
@@ -285,14 +331,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           { name: 'Automation Control', href: ROUTES.AUTOMATION, icon: Zap, permission: { module: 'settings', action: 'view' } },
           { name: 'Bulk Email', href: ROUTES.BULK_EMAIL, icon: resolveIcon(ROUTES.BULK_EMAIL), permission: resolvePerm(ROUTES.BULK_EMAIL) },
           { name: resolveLabel(ROUTES.WAITING), href: ROUTES.WAITING, icon: resolveIcon(ROUTES.WAITING), permission: resolvePerm(ROUTES.WAITING) ?? { module: 'waiting', action: 'view' } },
-          // Add the new line here:
           ...(user?.role === 'manager' ? [
-      { name: 'Recycle Bin', href: ROUTES.TRASH, icon: Trash2 }
-    ] : []),
-  ],
+            { name: 'Recycle Bin', href: ROUTES.TRASH, icon: Trash2 }
+          ] : []),
+        ],
       },
     ];
-  }, [isMemberArea]);
+  }, [isMemberArea, overdueTodoCount, user?.role]);
 
   const navigation = useMemo(() => {
     const filtered = rawNavigation.map(item => {
@@ -340,18 +385,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top bar */}
       <nav className="bg-white shadow-md sticky top-0 z-30">
-       
-<div className="px-1 sm:px-2 lg:px-3 2xl:px-4">
-
+        <div className="px-1 sm:px-2 lg:px-3 2xl:px-4">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <Link to={isMemberArea ? '/members/dashboard' : ROUTES.DASHBOARD} className="flex-shrink-0">
               <img src={logoUrl} alt="AIE Skyline" className="h-10 w-auto" />
             </Link>
 
-            {/* Desktop Nav */}
             <div className="hidden lg:flex items-center space-x-1">
               {navigation.map(item => {
                 const Icon = item.icon;
@@ -378,7 +418,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         />
                       </button>
 
-                      {/* Submenu Panel */}
                       <div
                         className={`absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50
                                    origin-top transform transition duration-150 ease-out
@@ -426,14 +465,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   >
                     <Icon className="w-5 h-5 mr-1.5" />
                     <span>{item.name}</span>
+                    
+                    {item.badgeCount ? (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full">
+                        {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}
             </div>
 
-            {/* Right side */}
             <div className="flex items-center">
-              {/* User Menu */}
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -502,14 +545,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         />
       )}
 
-      
-<main className="pt-2 md:pt-3 pb-20">
-  <div className="w-full mx-auto px-1 sm:px-2 lg:px-3 2xl:px-4">
-    {children}
-  </div>
-</main>
-
-
+      <main className="pt-2 md:pt-3 pb-20">
+        <div className="w-full mx-auto px-1 sm:px-2 lg:px-3 2xl:px-4">
+          {children}
+        </div>
+      </main>
 
       {bottomNavItems.length > 0 && (
         <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t lg:hidden">
@@ -521,6 +561,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <Link key={item.href} to={item.href} className="flex flex-col items-center justify-center py-2 text-xs">
                   <div className="relative">
                     <Icon className={`h-5 w-5 ${active ? 'text-primary' : 'text-gray-500'}`} />
+                    {item.badgeCount ? (
+                      <span className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[1rem] h-[1rem] px-1 text-[9px] font-bold text-white bg-red-600 border border-white rounded-full">
+                        {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                      </span>
+                    ) : null}
                   </div>
                   <span className={`${active ? 'text-primary' : 'text-gray-600'}`}>{item.name}</span>
                 </Link>
