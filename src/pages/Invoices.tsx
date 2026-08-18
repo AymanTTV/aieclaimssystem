@@ -1,5 +1,5 @@
 // src/pages/Invoices.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useCustomers } from '../hooks/useCustomers';
 import { useInvoices } from '../hooks/useInvoices';
@@ -18,12 +18,11 @@ import ManageAccountsModal from '../components/finance/ManageAccountsModal';
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service'; 
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText } from 'lucide-react';
+import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle } from 'lucide-react';
 import { doc, collection, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
 import { Invoice, Account } from '../types/finance'; 
-import { deleteInvoicePayment } from '../utils/invoiceUtils';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +50,10 @@ const Invoices: React.FC = () => {
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [showManageAccounts, setShowManageAccounts] = useState(false);
   const [showManageGroups, setShowManageGroups] = useState(false);
+
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,6 +101,10 @@ const Invoices: React.FC = () => {
     filteredInvoices,
   } = useInvoiceFilters(invoices, vehicles);
 
+  useEffect(() => {
+    setSelectedInvoiceIds(new Set());
+  }, [searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, dateRange, showCompleted]);
+
   const totalInvoicesAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
   const totalPaidAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
   const totalLookingAmount = filteredInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount || 0) > 0 ? inv.remainingAmount : 0), 0);
@@ -108,21 +115,66 @@ const Invoices: React.FC = () => {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
 
+  const handleToggleOne = useCallback((id: string) => {
+    setSelectedInvoiceIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }, []);
+
+  const handleToggleAll = useCallback((checked: boolean) => {
+    setSelectedInvoiceIds(checked ? new Set(filteredInvoices.map(i => i.id)) : new Set());
+  }, [filteredInvoices]);
+
+  const handleBulkDeleteClick = () => {
+    if (selectedInvoiceIds.size === 0) return;
+    setShowBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    setBulkDeleteLoading(true);
+    const toastId = toast.loading(`Deleting ${selectedInvoiceIds.size} invoices...`);
+    try {
+      const batch = writeBatch(db);
+      selectedInvoiceIds.forEach(id => {
+        batch.delete(doc(db, 'invoices', id));
+      });
+      await batch.commit();
+      
+      toast.success('Invoices deleted successfully', { id: toastId });
+      setSelectedInvoiceIds(new Set()); 
+      setShowBulkDeleteConfirm(false);
+    } catch (error) {
+      toast.error('Failed to delete invoices', { id: toastId });
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   const handleExport = () => {
+    const safeFormatDate = (date: any): string => { if (!date) return ''; if (date instanceof Date) return date.toISOString(); if (date.toDate) return date.toDate().toISOString(); try { return new Date(date).toISOString(); } catch { return ''; } };
+
     const exportData = filteredInvoices.map((inv) => ({
-      'Invoice Number': inv.invoiceNumber || `N/A`,
-      'Date': inv.date.toLocaleDateString(),
-      'Due Date': inv.dueDate.toLocaleDateString(),
-      'Customer': inv.customerName,
-      'Vehicle': inv.vehicleName || '',
-      'Amount': inv.total, 
-      'Amount Paid': inv.paidAmount,
-      'Remaining Amount': inv.remainingAmount,
-      'Status': inv.paymentStatus.replace('_', ' '),
-      'Category': inv.category,
-      'Group': groups.find(g => g.id === (inv as any).groupId)?.name || 'N/A',
-      'Account From': accounts.find(a => a.id === (inv as any).accountFrom)?.name || 'N/A',
-      'Account To': accounts.find(a => a.id === ((inv as any).accountTo || inv.accountId))?.name || 'N/A',
+      'Invoice ID': inv.id,
+      'Invoice Number': inv.invoiceNumber || '',
+      'Date (ISO)': safeFormatDate(inv.date),
+      'Due Date (ISO)': safeFormatDate(inv.dueDate),
+      'Customer Name': inv.customerName || '',
+      'Customer Phone': inv.customerPhone || '',
+      'Vehicle Reg': vehicles.find(v => v.id === inv.vehicleId)?.registrationNumber || '',
+      'Vehicle Details': inv.vehicleName || '',
+      'Gross Amount': inv.total || 0,
+      'Net Amount': inv.subTotal || 0,
+      'VAT Amount': inv.vatAmount || 0,
+      'Amount Paid': inv.paidAmount || 0,
+      'Remaining Amount': inv.remainingAmount || 0,
+      'Status': inv.paymentStatus || 'unpaid',
+      'Category': inv.category || '',
+      'Custom Category': inv.customCategory || '',
+      'Group Name': groups.find(g => g.id === (inv as any).groupId)?.name || '',
+      'Account From Name': accounts.find(a => a.id === (inv as any).accountFrom)?.name || '',
+      'Account To Name': accounts.find(a => a.id === ((inv as any).accountTo || inv.accountId))?.name || '',
       'Is Loan': inv.isLoan ? 'Yes' : 'No',
       'Description': inv.description || ''
     }));
@@ -160,44 +212,48 @@ const Invoices: React.FC = () => {
           const batch = writeBatch(db);
 
           chunk.forEach((row: any) => {
-            const custName = row['Customer'] || row['Customer Name'];
+            const custName = row['Customer Name'] || row['Customer'];
             const customer = custName ? customers.find(c => c.name.toLowerCase() === custName.toLowerCase()) : null;
 
-            const reg = row['Vehicle'] || row['Vehicle Reg'];
+            const reg = row['Vehicle Reg'] || row['Vehicle'];
             const vehicle = reg ? vehicles.find(v => v.registrationNumber.toLowerCase() === reg.toLowerCase()) : null;
 
-            const accFromName = row['Account From'];
+            const accFromName = row['Account From Name'] || row['Account From'];
             const accountFrom = accFromName ? accounts.find(a => a.name.toLowerCase() === accFromName.toLowerCase()) : null;
 
-            const accToName = row['Account To'] || row['Finance Account'] || row['Account Name'];
+            const accToName = row['Account To Name'] || row['Account To'] || row['Finance Account'] || row['Account Name'];
             const accountTo = accToName ? accounts.find(a => a.name.toLowerCase() === accToName.toLowerCase()) : null;
 
-            const groupName = row['Group'];
+            const groupName = row['Group Name'] || row['Group'];
             const group = groupName ? groups.find(g => g.name.toLowerCase() === groupName.toLowerCase()) : null;
 
-            const totalVal = parseFloat(row['Amount']?.toString().replace(/[^\d.-]/g, '')) || 0;
-            const paidVal = parseFloat(row['Amount Paid']?.toString().replace(/[^\d.-]/g, '')) || 0;
-            const remainingVal = parseFloat(row['Remaining Amount']?.toString().replace(/[^\d.-]/g, '')) || (totalVal - paidVal);
+            const totalVal = parseFloat((row['Gross Amount'] || row['Amount'])?.toString().replace(/[^\d.-]/g, '')) || 0;
+            const netVal = parseFloat(row['Net Amount']?.toString().replace(/[^\d.-]/g, '')) || totalVal;
+            const vatVal = parseFloat(row['VAT Amount']?.toString().replace(/[^\d.-]/g, '')) || 0;
+            const paidVal = parseFloat((row['Amount Paid'] || row['Paid'])?.toString().replace(/[^\d.-]/g, '')) || 0;
+            const remainingVal = parseFloat(row['Remaining Amount']?.toString().replace(/[^\d.-]/g, '')) || Math.max(0, totalVal - paidVal);
 
-            const invRef = doc(collection(db, 'invoices'));
+            const isUpdate = !!row['Invoice ID'];
+            const invRef = isUpdate ? doc(db, 'invoices', row['Invoice ID']) : doc(collection(db, 'invoices'));
             
             const payload: any = {
               invoiceNumber: row['Invoice Number'] || `INV-${invRef.id.slice(-6).toUpperCase()}`,
-              date: row['Date'] ? new Date(row['Date']) : new Date(),
-              dueDate: row['Due Date'] ? new Date(row['Due Date']) : new Date(),
+              date: row['Date (ISO)'] ? new Date(row['Date (ISO)']) : (row['Date'] ? new Date(row['Date']) : new Date()),
+              dueDate: row['Due Date (ISO)'] ? new Date(row['Due Date (ISO)']) : (row['Due Date'] ? new Date(row['Due Date']) : new Date()),
               customerName: customer ? customer.name : (custName || 'Manual Entry Client'),
               customerId: customer ? customer.id : null,
-              customerPhone: customer ? customer.mobile : '',
+              customerPhone: row['Customer Phone'] || (customer ? customer.mobile : ''),
               vehicleId: vehicle ? vehicle.id : null,
-              vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : (reg || 'General / Unallocated'),
+              vehicleName: row['Vehicle Details'] || (vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : (reg || 'General / Unallocated')),
               total: totalVal,
               amount: totalVal,
-              subTotal: totalVal,
-              vatAmount: 0,
+              subTotal: netVal,
+              vatAmount: vatVal,
               paidAmount: paidVal,
               remainingAmount: remainingVal < 0 ? 0 : remainingVal,
               paymentStatus: row['Status']?.toString().toLowerCase().replace(' ', '_') || (remainingVal <= 0.001 ? 'paid' : 'unpaid'),
               category: row['Category'] || 'Import Migration',
+              customCategory: row['Custom Category'] || null,
               accountFrom: accountFrom ? accountFrom.id : null,
               accountTo: accountTo ? accountTo.id : null,
               accountId: accountTo ? accountTo.id : null,
@@ -205,23 +261,26 @@ const Invoices: React.FC = () => {
               groupId: group ? group.id : null,
               isLoan: row['Is Loan'] === 'Yes',
               description: row['Description'] || '',
-              lineItems: [{ id: uuidv4(), description: row['Category'] || 'Migration Entry Line Item', quantity: 1, unitPrice: totalVal, discount: 0, includeVAT: false }],
-              payments: paidVal > 0 ? [{
-                id: uuidv4(),
-                date: row['Date'] ? new Date(row['Date']) : new Date(),
-                amount: paidVal,
-                method: 'bank_transfer',
-                createdAt: new Date(),
-                createdBy: user?.id || 'system_import'
-              }] : [],
-              createdAt: new Date(),
               updatedAt: new Date(),
-              createdBy: user?.id || 'system_import'
             };
 
-            batch.set(invRef, payload);
+            if (!isUpdate) {
+                payload.lineItems = [{ id: uuidv4(), description: row['Category'] || 'Migration Entry Line Item', quantity: 1, unitPrice: totalVal, discount: 0, includeVAT: false }];
+                payload.payments = paidVal > 0 ? [{
+                    id: uuidv4(),
+                    date: row['Date (ISO)'] ? new Date(row['Date (ISO)']) : new Date(),
+                    amount: paidVal,
+                    method: 'bank_transfer',
+                    createdAt: new Date(),
+                    createdBy: user?.id || 'system_import'
+                }] : [];
+                payload.createdAt = new Date();
+                payload.createdBy = user?.id || 'system_import';
+            }
 
-            if (paidVal > 0) {
+            batch.set(invRef, payload, { merge: true });
+
+            if (!isUpdate && paidVal > 0) {
               const txRef = doc(collection(db, 'transactions'));
               const vehicleOwner = vehicle?.owner ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false } : { name: 'AIE Skyline Limited', isDefault: true };
               
@@ -240,14 +299,15 @@ const Invoices: React.FC = () => {
                 date: payload.date,
                 createdAt: new Date(),
                 createdBy: user?.name || 'Import System',
-                accountsTo: accountTo ? [accountTo.id] : []
+                accountsTo: accountTo ? [accountTo.id] : [],
+                groupId: group ? group.id : vehicle?.assignedGroupId || null // ✅ Add Group to import
               });
             }
           });
           await batch.commit();
         }
 
-        toast.success(`Successfully migrated ${data.length} invoices`, { id: toastId });
+        toast.success(`Successfully processed ${data.length} invoices`, { id: toastId });
         if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (err) {
         console.error("Import failure: ", err);
@@ -260,61 +320,81 @@ const Invoices: React.FC = () => {
   const handleDeletePayment = async (invoice: Invoice, paymentId: string) => {
     try {
       const paymentToDelete = invoice.payments?.find(p => p.id === paymentId);
-      await deleteInvoicePayment(invoice, paymentId);
+      if (!paymentToDelete) return;
       
-      if (paymentToDelete) {
-         const totalLogCost = invoice.total || 1;
-         const vatRatio = (invoice.vatAmount || 0) / totalLogCost;
-         const netRatio = (invoice.subTotal || invoice.total || 0) / totalLogCost;
-         const revVatAmount = paymentToDelete.amount * vatRatio;
-         const revNetAmount = paymentToDelete.amount * netRatio;
+      const updatedPayments = invoice.payments.filter(p => p.id !== paymentId);
+      const newPaidAmount = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+      const newRemaining = invoice.total - newPaidAmount;
+      
+      let newStatus = 'unpaid';
+      if (newPaidAmount >= invoice.total - 0.01 && invoice.total > 0) newStatus = 'paid';
+      else if (newPaidAmount > 0) newStatus = 'partially_paid';
 
-         const reversalAccounts: string[] = [];
-         
-         const mainAcc = (invoice as any).accountTo || invoice.accountId;
-         if (mainAcc) reversalAccounts.push(mainAcc);
-         
-         const secondaryAcc = (invoice as any).accountFrom;
-         if (secondaryAcc) reversalAccounts.push(secondaryAcc);
+      await updateDoc(doc(db, 'invoices', invoice.id), {
+        payments: updatedPayments,
+        paidAmount: newPaidAmount,
+        remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+        paymentStatus: newStatus,
+        updatedAt: new Date()
+      });
 
-         if (reversalAccounts.length === 0) {
-            const defaultAcc = accounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
-            if (defaultAcc) reversalAccounts.push(defaultAcc.id);
-         }
+      const totalLogCost = invoice.total || 1;
+      const vatRatio = (invoice.vatAmount || 0) / totalLogCost;
+      const netRatio = (invoice.subTotal || invoice.total || 0) / totalLogCost;
+      const revVatAmount = paymentToDelete.amount * vatRatio;
+      const revNetAmount = paymentToDelete.amount * netRatio;
 
-         // Map the vehicle owner properly so the Reversal Finance ledger record can filter it instantly
-         const revVehicle = vehicles.find(v => v.id === invoice.vehicleId);
-         let mappedVehicleOwner = undefined;
-         if (invoice.vehicleId) {
-            if (revVehicle && revVehicle.owner) {
-                mappedVehicleOwner = { name: revVehicle.owner.name, isDefault: revVehicle.owner.isDefault ?? false };
-            } else {
-                mappedVehicleOwner = { name: 'AIE Skyline Limited', isDefault: true };
-            }
-         }
+      const reversalAccounts: string[] = [];
+      
+      const mainAcc = (invoice as any).accountTo || invoice.accountId;
+      if (mainAcc) reversalAccounts.push(mainAcc);
+      
+      const secondaryAcc = (invoice as any).accountFrom;
+      if (secondaryAcc) reversalAccounts.push(secondaryAcc);
 
-         await createFinanceTransaction({
-           type: 'expense', 
-           category: 'Invoice Payment Reversal',
-           amount: paymentToDelete.amount,
-           netAmount: parseFloat(revNetAmount.toFixed(2)),
-           vatAmount: parseFloat(revVatAmount.toFixed(2)),
-           description: `REVERSAL: Payment for ${invoice.invoiceNumber || 'Invoice'}`,
-           referenceId: invoice.id,
-           vehicleId: invoice.vehicleId,
-           vehicleName: invoice.vehicleName || undefined,
-           vehicleOwner: mappedVehicleOwner, // Added Explicit Owner
-           customerId: invoice.customerId,
-           customerName: invoice.customerName,
-           paymentMethod: paymentToDelete.method,
-           paymentReference: `REV-${paymentToDelete.reference || paymentId}`,
-           status: 'completed',
-           date: new Date(),
-           accountsFrom: reversalAccounts 
-         });
+      if (reversalAccounts.length === 0) {
+        const defaultAcc = accounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
+        if (defaultAcc) reversalAccounts.push(defaultAcc.id);
       }
+
+      const revVehicle = vehicles.find(v => v.id === invoice.vehicleId);
+      let mappedVehicleOwner = undefined;
+      if (invoice.vehicleId) {
+        if (revVehicle && revVehicle.owner) {
+            mappedVehicleOwner = { name: revVehicle.owner.name, isDefault: revVehicle.owner.isDefault ?? false };
+        } else {
+            mappedVehicleOwner = { name: 'AIE Skyline Limited', isDefault: true };
+        }
+      }
+
+      const actualCategory = invoice.category === 'Other' && invoice.customCategory 
+        ? invoice.customCategory 
+        : (invoice.category || 'Invoice Payment Reversal');
+
+      // ✅ Reversal Finance Transaction
+      await createFinanceTransaction({
+        type: 'expense', 
+        category: actualCategory,
+        amount: paymentToDelete.amount,
+        netAmount: parseFloat(revNetAmount.toFixed(2)),
+        vatAmount: parseFloat(revVatAmount.toFixed(2)),
+        description: `REVERSAL: Payment for ${invoice.invoiceNumber || 'Invoice'}`,
+        referenceId: invoice.id,
+        vehicleId: invoice.vehicleId,
+        vehicleName: invoice.vehicleName || undefined,
+        vehicleOwner: mappedVehicleOwner,
+        customerId: invoice.customerId,
+        customerName: invoice.customerName,
+        groupId: invoice.groupId || revVehicle?.assignedGroupId || undefined, // ✅ Include Vehicle's Group Fallback
+        paymentMethod: paymentToDelete.method,
+        paymentReference: `REV-${paymentToDelete.reference || paymentId}`,
+        status: 'completed',
+        date: new Date(),
+        accountsFrom: reversalAccounts 
+      });
+      
       toast.success('Payment deleted and reversed in Finance');
-      setSelectedInvoice(prev => prev ? {...prev, payments: prev.payments.filter(p => p.id !== paymentId)} : null);
+      setSelectedInvoice(prev => prev ? {...prev, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any} : null);
     } catch (err) {
       toast.error('Failed to delete payment');
     }
@@ -481,6 +561,21 @@ const Invoices: React.FC = () => {
             categories={categories} accounts={accounts} groups={groups} 
             showCompleted={showCompleted} onShowCompletedChange={setShowCompleted}
           />
+
+          {selectedInvoiceIds.size > 0 && user?.role === 'manager' && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex items-center justify-between shadow-sm">
+              <span className="font-medium text-sm text-red-800">{selectedInvoiceIds.size} invoice(s) selected</span>
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleBulkDeleteClick}
+                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
+                >
+                  Delete {selectedInvoiceIds.size} Records
+                </button>
+              </div>
+            </div>
+          )}
+
           <InvoiceTable
             invoices={filteredInvoices} vehicles={vehicles} customers={customers}
             onView={(inv) => setSelectedInvoice(inv)} onEdit={(inv) => setEditingInvoice(inv)}
@@ -488,6 +583,11 @@ const Invoices: React.FC = () => {
             onRecordPayment={(inv) => setPayingInvoice(inv)} onApplyDiscount={() => {}}
             onDeletePayment={handleDeletePayment} onGenerateDocument={handleGenerateDocument}
             onViewDocument={(inv) => window.open(inv.documentUrl || '', '_blank')} onStatusChange={handleStatusChange}
+            
+            isManager={user?.role === 'manager'}
+            selectedIds={selectedInvoiceIds}
+            onToggleOne={handleToggleOne}
+            onToggleAll={handleToggleAll}
           />
         </div>
       ) : (
@@ -498,7 +598,7 @@ const Invoices: React.FC = () => {
 
       {/* --- Modals --- */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Create Invoice" size="xl">
-        <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} onClose={() => setShowForm(false)} />
+        <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} groups={groups} onClose={() => setShowForm(false)} />
       </Modal>
 
       <Modal isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} title="Invoice Details" size="3xl">
@@ -508,13 +608,14 @@ const Invoices: React.FC = () => {
             vehicle={vehicles.find((v) => v.id === selectedInvoice.vehicleId)} 
             customer={customers.find((c) => c.id === selectedInvoice.customerId)} 
             accounts={accounts} 
+            groups={groups}
             onDownload={() => window.open(selectedInvoice.documentUrl || '', '_blank')} 
           />
         )}
       </Modal>
 
       <Modal isOpen={!!editingInvoice} onClose={() => setEditingInvoice(null)} title="Edit Invoice" size="xl">
-        {editingInvoice && <InvoiceEditModal invoice={editingInvoice} vehicles={vehicles} customers={customers} accounts={accounts} onClose={() => setEditingInvoice(null)} />}
+        {editingInvoice && <InvoiceEditModal invoice={editingInvoice} vehicles={vehicles} customers={customers} accounts={accounts} groups={groups} onClose={() => setEditingInvoice(null)} />}
       </Modal>
 
       <Modal isOpen={!!deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} title="Delete Invoice">
@@ -542,6 +643,33 @@ const Invoices: React.FC = () => {
       </Modal>
 
       <ManageGroupsModal open={showManageGroups} onClose={() => setShowManageGroups(false)} />
+
+      <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="sm">
+       <div className="p-1">
+         <div className="flex items-start">
+           <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+             <AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" />
+           </div>
+           <div className="ml-4 mt-0 text-left">
+             <h3 className="text-lg leading-6 font-medium text-gray-900">Delete Invoices</h3>
+             <div className="mt-2">
+               <p className="text-sm text-gray-500">
+                 Are you sure you want to delete these <span className="font-bold">{selectedInvoiceIds.size}</span> invoices? This action cannot be undone.
+               </p>
+             </div>
+           </div>
+         </div>
+         <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-3">
+           <button type="button" disabled={bulkDeleteLoading} onClick={confirmBulkDelete} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:w-auto disabled:opacity-50">
+             {bulkDeleteLoading ? 'Deleting...' : 'Delete'}
+           </button>
+           <button type="button" disabled={bulkDeleteLoading} onClick={() => setShowBulkDeleteConfirm(false)} className="mt-3 inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto disabled:opacity-50">
+             Cancel
+           </button>
+         </div>
+       </div>
+      </Modal>
+      
     </div>
   );
 };

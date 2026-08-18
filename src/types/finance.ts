@@ -110,6 +110,7 @@ export interface Invoice {
   customCategory?: string;
   
   description?: string; // <--- NEW FIELD
+  groupId?: string;
 
   vehicleId?: string;
   vehicleName?: string;

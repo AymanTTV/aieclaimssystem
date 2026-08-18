@@ -26,7 +26,8 @@ import {
   CheckCircle,
   Building2,
   Tag,
-  X
+  X,
+  Layers // ✅ Imported icon for groups
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -39,6 +40,9 @@ import { generateAndUploadDocument, generateBulkDocuments } from '../utils/docum
 import { VehicleDocument, VehicleBulkDocument } from '../components/pdf/documents';
 import SearchableSelect from '../components/ui/SearchableSelect'; 
 
+// ✅ Import Finance Groups Service
+import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
+
 const Vehicles: React.FC = () => {
   const { vehicles, loading } = useVehicles();
   const { can, isCompany } = usePermissions();
@@ -50,33 +54,24 @@ const Vehicles: React.FC = () => {
   const SERVICE_THRESHOLD = 2_500;
 
   const {
-    searchQuery,
-    setSearchQuery,
-    statusFilter,
-    setStatusFilter,
-    makeFilter,
-    setMakeFilter,
-    showSold,
-    setShowSold,
-    filteredVehicles,
-    uniqueMakes,
-    expiryFilter,
-    setExpiryFilter,
-    accountFilter,
-    setAccountFilter,
-    garageFilter,
-    setGarageFilter,
-    typeFilter, // ✅ Destructured type filter
-    setTypeFilter, // ✅ Destructured type filter setter
-
-    
-    ageFilter,     // ✅
-    setAgeFilter,  // ✅
+    searchQuery, setSearchQuery,
+    statusFilter, setStatusFilter,
+    makeFilter, setMakeFilter,
+    showSold, setShowSold,
+    filteredVehicles, uniqueMakes,
+    uniqueOwners, // ✅ Extracted uniqueOwners
+    expiryFilter, setExpiryFilter,
+    accountFilter, setAccountFilter,
+    garageFilter, setGarageFilter,
+    groupFilter, setGroupFilter, // ✅ Extracted groupFilter
+    ownerFilter, setOwnerFilter, // ✅ Extracted ownerFilter
+    typeFilter, setTypeFilter, 
+    ageFilter, setAgeFilter,  
   } = useVehicleFilters(vehiclesState);
 
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
 
-  // Multi-select & Assign Garage/Type State
+  // Multi-select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   // Assign Garage State
@@ -85,10 +80,29 @@ const Vehicles: React.FC = () => {
   const [companyUsers, setCompanyUsers] = useState<{id: string, name: string}[]>([]);
   const [selectedGarageId, setSelectedGarageId] = useState<string>('');
 
-  // ✅ Assign Type State
+  // Assign Type State
   const [showAssignTypeModal, setShowAssignTypeModal] = useState(false);
   const [assigningTypeSingleVehicle, setAssigningTypeSingleVehicle] = useState<Vehicle | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<string>('');
+
+  // ✅ Assign Group State
+  const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
+  const [assigningGroupSingleVehicle, setAssigningGroupSingleVehicle] = useState<Vehicle | null>(null);
+  const [financeGroups, setFinanceGroups] = useState<FinanceGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+
+  // ✅ Fetch Finance Groups
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        const all = await financeGroupService.getAll();
+        setFinanceGroups(all.sort((a,b) => a.name.localeCompare(b.name)));
+      } catch (e) {
+        console.error("Error loading groups:", e);
+      }
+    };
+    loadGroups();
+  }, []);
 
   const injectMissingVehicle = async () => {
     try {
@@ -379,7 +393,7 @@ const Vehicles: React.FC = () => {
     }
   };
 
-  // ✅ Type Assignment Submission
+  // Type Assignment Submission
   const handleAssignTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!can('vehicles', 'update')) return;
@@ -413,6 +427,54 @@ const Vehicles: React.FC = () => {
     } catch (err) {
       console.error(err);
       toast.error('Failed to assign type');
+    }
+  };
+
+  // ✅ Group Assignment Submission
+  const handleAssignGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!can('vehicles', 'update')) return;
+
+    let targetGroupName: string | null = null;
+    let targetGroupId: string | null = null;
+
+    if (selectedGroupId && selectedGroupId !== 'clear') {
+      const grp = financeGroups.find(g => g.id === selectedGroupId);
+      if (grp) {
+        targetGroupName = grp.name;
+        targetGroupId = grp.id;
+      }
+    }
+
+    try {
+      const batch = writeBatch(db);
+      
+      if (assigningGroupSingleVehicle) {
+        batch.update(doc(db, 'vehicles', assigningGroupSingleVehicle.id), {
+          assignedGroupId: targetGroupId,
+          assignedGroupName: targetGroupName,
+          updatedAt: new Date()
+        });
+      } else if (selectedIds.size > 0) {
+        selectedIds.forEach(id => {
+          batch.update(doc(db, 'vehicles', id), {
+            assignedGroupId: targetGroupId,
+            assignedGroupName: targetGroupName,
+            updatedAt: new Date()
+          });
+        });
+      }
+
+      await batch.commit();
+      toast.success(targetGroupId ? 'Successfully assigned to group' : 'Successfully cleared group assignment');
+      
+      setShowAssignGroupModal(false);
+      setAssigningGroupSingleVehicle(null);
+      setSelectedIds(new Set());
+      setSelectedGroupId('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to assign group');
     }
   };
 
@@ -506,7 +568,7 @@ const Vehicles: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* ✅ Filters with Passed Props */}
       <VehicleFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -527,13 +589,19 @@ const Vehicles: React.FC = () => {
         garageFilter={garageFilter}
         onGarageFilterChange={setGarageFilter}
         garages={companyUsers}
-        typeFilter={typeFilter} // ✅ Added type filter
-        onTypeFilterChange={setTypeFilter} // ✅ Added type filter setter
-        ageFilter={ageFilter}           // ✅
-        onAgeFilterChange={setAgeFilter} // ✅
+        typeFilter={typeFilter} 
+        onTypeFilterChange={setTypeFilter} 
+        ageFilter={ageFilter}           
+        onAgeFilterChange={setAgeFilter} 
+        groupFilter={groupFilter}           // ✅ Added
+        onGroupFilterChange={setGroupFilter} // ✅ Added
+        groups={financeGroups}              // ✅ Added
+        ownerFilter={ownerFilter}           // ✅ Added
+        onOwnerFilterChange={setOwnerFilter} // ✅ Added
+        owners={uniqueOwners}               // ✅ Added
       />
 
-      {/* ✅ Bulk Actions Header */}
+      {/* Bulk Actions Header */}
       {selectedIds.size > 0 && !isCompany && can('vehicles', 'update') && (
         <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center text-orange-800 font-medium">
@@ -545,21 +613,26 @@ const Vehicles: React.FC = () => {
               onClick={() => { setSelectedIds(new Set()); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 text-center"
             >
-              Cancel Selection
+              Cancel
             </button>
-            {/* ✅ Assign Type Bulk Action */}
             <button
               onClick={() => { setAssigningTypeSingleVehicle(null); setShowAssignTypeModal(true); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm"
             >
               <Tag className="w-4 h-4" /> Assign Type
             </button>
-            {/* Assign Garage Bulk Action */}
             <button
               onClick={() => { setAssigningSingleVehicle(null); setShowAssignModal(true); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded hover:bg-orange-700 flex items-center justify-center gap-2 shadow-sm"
             >
               <Building2 className="w-4 h-4" /> Assign Garage
+            </button>
+            {/* ✅ Bulk Assign Group */}
+            <button
+              onClick={() => { setAssigningGroupSingleVehicle(null); setShowAssignGroupModal(true); }}
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm"
+            >
+              <Layers className="w-4 h-4" /> Assign Group
             </button>
           </div>
         </div>
@@ -585,11 +658,16 @@ const Vehicles: React.FC = () => {
             setSelectedGarageId(vehicle.assignedGarageId || '');
             setShowAssignModal(true);
           }}
-          // ✅ Added Type Assignment handler prop
           onAssignType={(vehicle) => {
             setAssigningTypeSingleVehicle(vehicle);
             setSelectedAssignmentType(vehicle.assignmentType || '');
             setShowAssignTypeModal(true);
+          }}
+          // ✅ Added Assign Group prop
+          onAssignGroup={(vehicle) => {
+            setAssigningGroupSingleVehicle(vehicle);
+            setSelectedGroupId(vehicle.assignedGroupId || '');
+            setShowAssignGroupModal(true);
           }}
         />
       </div>
@@ -627,7 +705,7 @@ const Vehicles: React.FC = () => {
         </form>
       </Modal>
 
-      {/* ✅ Assign Type Modal */}
+      {/* Assign Type Modal */}
       <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type">
         <form onSubmit={handleAssignTypeSubmit} className="space-y-4">
           <p className="text-sm text-gray-600 mb-2">
@@ -657,6 +735,39 @@ const Vehicles: React.FC = () => {
               Cancel
             </button>
             <button type="submit" disabled={!selectedAssignmentType} className="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 font-medium shadow-sm">
+              Confirm Assignment
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ✅ Assign Group Modal */}
+      <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group">
+        <form onSubmit={handleAssignGroupSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600 mb-2">
+            {assigningGroupSingleVehicle 
+              ? `Select a finance group to assign to ${assigningGroupSingleVehicle.registrationNumber}.`
+              : `Select a finance group to assign to the ${selectedIds.size} selected vehicles.`}
+          </p>
+
+          <div className="min-h-[250px]">
+            <SearchableSelect
+              label="Available Groups"
+              options={[
+                { id: 'clear', label: '🚫 -- Clear Group Assignment --' },
+                ...financeGroups.map(g => ({ id: g.id, label: g.name }))
+              ]}
+              value={selectedGroupId}
+              onChange={(val) => setSelectedGroupId(val as string)}
+              placeholder="Search groups..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
+              Cancel
+            </button>
+            <button type="submit" disabled={!selectedGroupId} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 font-medium shadow-sm">
               Confirm Assignment
             </button>
           </div>

@@ -37,7 +37,9 @@ import {
   RENTAL_RATES,
   getOverdueUnits,
   calculateRentalCostDetailed,
-  calculateTotalSubstitutionCharges
+  calculateTotalSubstitutionCharges,
+  getCalendarWeeks,
+  getWeeklyHybridUnits // 👈 ADD THIS
 } from '../../utils/rentalCalculations';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
@@ -277,7 +279,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
 
         const totalHours = differenceInHours(end, start);
         const baseDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
-        const baseUnits = r.type === 'weekly' ? Math.ceil(baseDays / 7) : baseDays;
+        
+        const hybrid = getWeeklyHybridUnits(start, end);
+        const baseUnitsDisplay = r.type === 'weekly' 
+            ? `${hybrid.dailyDays > 0 ? `${hybrid.dailyDays}d ` : ''}${hybrid.weeklyWeeks > 0 ? `${hybrid.weeklyWeeks}w` : ''}`.trim() || '0d'
+            : `${baseDays} ${unit}${baseDays === 1 ? '' : 's'}`;
         
         const now = new Date();
         const showOngoingUnits = isAfter(now, end) && !INACTIVE_STATUSES.has(r.status);
@@ -328,7 +334,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
               ))}
               <div className="flex items-center justify-end text-xs font-medium text-gray-500 mt-1 gap-2">
                  <span>
-                    Total: {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
+                    Total: {baseUnitsDisplay}
                     {ongoingUnits > 0 && <span className="text-red-600 ml-1 font-bold">(+{ongoingUnits} O/D)</span>}
                  </span>
                  {isOngoing && canExtend && (
@@ -359,7 +365,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
             </div>
 
             <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-              {baseUnits} {unit}{baseUnits === 1 ? '' : 's'}
+              {baseUnitsDisplay}
               {ongoingUnits > 0 && (
                 <span className="text-red-600 block mt-0.5">
                   + {ongoingUnits} ongoing {unit}{ongoingUnits === 1 ? '' : 's'}

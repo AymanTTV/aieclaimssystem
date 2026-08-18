@@ -15,7 +15,6 @@ import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { Pencil, Trash2, Receipt, CreditCard, AlertCircle, CheckCircle, Car } from 'lucide-react';
 import { deleteRentalPayment, updateRentalPayment } from '../../utils/paymentUtils';
 
-// Helper to format Date objects for <input type="date" />
 const formatDateForInput = (t?: any) => {
   if (!t) return new Date().toISOString().slice(0, 10);
   const d = t?.toDate ? t.toDate() : new Date(t);
@@ -27,7 +26,7 @@ const formatDateForInput = (t?: any) => {
 interface RentalPaymentModalProps {
   rental: Rental;
   vehicle?: Vehicle;
-  vehicles?: Vehicle[]; // Track substitute vehicles in the fleet
+  vehicles?: Vehicle[]; 
   onClose: () => void;
 }
 
@@ -42,7 +41,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
 
-  // Editing state
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const editingPayment = useMemo(
     () => rental.payments?.find(p => p.id === editingPaymentId) || null,
@@ -61,7 +59,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   const { customers } = useCustomers();
   const paymentCustomer = customers.find(c => c.id === rental.customerId);
 
-  // Build the dropdown options for Substitute Vehicles vs Main Vehicle
   const substituteOptions = useMemo(() => {
     if (!rental.hireSubstitutionDetails || rental.hireSubstitutionDetails.length === 0) return [];
     
@@ -80,7 +77,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     });
   }, [rental.hireSubstitutionDetails, vehicles]);
 
-  // --- 1. Dynamic Cost Re-calculation utilizing the new Detailed Utility ---
   const detailedCosts = useMemo(() => {
     if (!vehicle) return { net: 0, vat: 0, gross: 0, discountAmount: 0 };
 
@@ -94,7 +90,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
 
     const storageNet = rental.type === 'claim' ? (rental.storageDays || 0) * (rental.storageCostPerDay || 0) : 0;
 
-    // Sum up all Extra Charges 
     const extraTotal = (rental.extraCharges || []).reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
 
     return calculateRentalCostDetailed(
@@ -109,11 +104,10 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       rental.discountPercentage || 0, rental.discountAmount || 0, rental.status,
       rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate,
       extraTotal,
-      rental.discounts || [] // 👈 ADD THIS
+      rental.discounts || [] 
     );
   }, [rental, vehicle]);
 
-  // --- 2. Calculate Ongoing & Return Charges ---
   const now = new Date();
   const ongoingCharges =
     rental.status === 'active' && isAfter(now, rental.endDate)
@@ -124,7 +118,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
   const subCharges = (rental.hireSubstitutionDetails || []).reduce((acc, sub) => acc + (sub.returnCondition?.totalCharges || 0), 0);
   const totalReturnCharges = mainReturnCharges + subCharges;
 
-  // --- 3. Final Totals ---
   const totalAmountDue = detailedCosts.gross + ongoingCharges + totalReturnCharges;
   const paid = rental.paidAmount || 0;
   const remainingAmount = totalAmountDue - paid;
@@ -156,7 +149,15 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     if (!confirm('Are you sure you want to delete this payment?')) return;
     try {
       setLoading(true);
-      await deleteRentalPayment(rental, paymentId, vehicle);
+      
+      const paymentToDelete = rental.payments?.find(p => p.id === paymentId);
+      
+      // ✅ Pass the appropriately allocated vehicle object to the delete utility
+      // so it correctly reverses from the allocated account/group.
+      const allocatedVId = paymentToDelete?.allocatedVehicleId || rental.vehicleId;
+      const allocatedVehicle = vehicles.find(v => v.id === allocatedVId) || vehicle;
+
+      await deleteRentalPayment(rental, paymentId, allocatedVehicle);
       toast.success('Payment deleted successfully');
       onClose();
     } catch (e: any) {
@@ -193,7 +194,7 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     try {
       const parsedPaymentDate = new Date(formData.paymentDate); 
 
-      // Determine which vehicle account should receive the money
+      // Determine which vehicle account/group should receive the money
       let targetVehicle = vehicle;
       let allocatedName = vehicle ? `Main Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : 'Main Vehicle';
 
@@ -242,7 +243,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
       const newRemainingAmount = totalAmountDue - newPaidAmount;
       const newPaymentStatus = newRemainingAmount <= 0.001 ? 'paid' : 'partially_paid';
 
-      // Update Rental Payment List
       await updateDoc(doc(db, 'rentals', rental.id), {
         paidAmount: newPaidAmount,
         remainingAmount: Math.max(newRemainingAmount, 0),
@@ -251,7 +251,6 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         updatedAt: new Date()
       });
 
-      // --- Calculate Proportional VAT and Net for Ledger ---
       const ongoingNet = rental.includeVAT ? ongoingCharges / 1.2 : ongoingCharges;
       const returnNet = rental.includeVAT ? totalReturnCharges / 1.2 : totalReturnCharges;
       const totalNetDue = detailedCosts.net + ongoingNet + returnNet;
@@ -285,7 +284,8 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         status: 'completed',
         paymentStatus: newPaymentStatus,
         date: parsedPaymentDate, 
-        accountTo: targetVehicle?.owner?.accountId || undefined
+        accountTo: targetVehicle?.owner?.accountId || undefined,
+        groupId: targetVehicle?.assignedGroupId || undefined // ✅ Attach Group ID correctly mapped to allocations
       });
 
       toast.success('Payment recorded successfully');

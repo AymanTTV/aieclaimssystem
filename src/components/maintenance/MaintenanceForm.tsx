@@ -35,16 +35,14 @@ interface PartSuggestion {
 
 const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, editLog }) => {
   const { user } = useAuth();
-  const { can, isCompany } = usePermissions(); // ✅ Get company flag to hide invoice
+  const { can, isCompany } = usePermissions(); 
   const [loading, setLoading] = useState(false);
   const [isGeneratingNumbers, setIsGeneratingNumbers] = useState(false);
 
-  // Initialize manual entry state based on whether the log has vehicleDetails but no vehicleId
   const [manualEntry, setManualEntry] = useState(
     !!(editLog?.vehicleDetails && !editLog.vehicleId)
   );
   
-  // Initialize manual fields from editLog if available
   const [manualMake, setManualMake] = useState(editLog?.vehicleDetails?.make || '');
   const [manualModel, setManualModel] = useState(editLog?.vehicleDetails?.model || '');
   const [manualRegNumber, setManualRegNumber] = useState(editLog?.vehicleDetails?.registrationNumber || '');
@@ -77,11 +75,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const [maintenanceTypes, setMaintenanceTypes] = useState<string[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
 
-  // --- NEW STATE FOR PRODUCT MODAL ---
   const [showProductModal, setShowProductModal] = useState(false);
   const [pendingPartIndex, setPendingPartIndex] = useState<number | null>(null);
 
-  // Helper safely handles Dates, Strings, AND Firestore Timestamps
   const toDateTimeInput = (date?: Date | string | any) => {
     if (!date) return format(new Date(), "yyyy-MM-dd'T'HH:mm");
     let d = date;
@@ -94,7 +90,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     return format(d, "yyyy-MM-dd'T'HH:mm");
   };
 
-  // ✅ Auto-generation logic removed to allow completely blank order/invoice fields
   const [orderNumber, setOrderNumber] = useState(editLog?.orderNumber || '');
   const [invoiceNumber, setInvoiceNumber] = useState(editLog?.invoiceNumber || '');
   
@@ -128,7 +123,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     status: editLog?.status || 'scheduled',
   });
 
-  // Auto-generate Invoice and Order Numbers based on selected type
   useEffect(() => {
     if (editLog) return;
     
@@ -324,7 +318,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       return;
     }
 
-    // ✅ Conditional Require Logic for Order & Invoice Numbers when marked as Completed
     if (formData.status === 'completed') {
       if (!orderNumber.trim()) {
         toast.error('Maintenance Order Number is required when setting status to Completed.');
@@ -392,7 +385,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       };
   
       let maintenanceData;
-      let vehicleToUseForTransaction: { id?: string; make: string; model: string; registrationNumber: string; owner?: VehicleOwner };
+      // ✅ Update internal type to hold assignedGroupId for Group assignment referencing
+      let vehicleToUseForTransaction: { id?: string; make: string; model: string; registrationNumber: string; owner?: VehicleOwner; assignedGroupId?: string | null };
   
       if (manualEntry) {
         maintenanceData = {
@@ -408,21 +402,20 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           make: manualMake.trim(),
           model: manualModel.trim(),
           registrationNumber: manualRegNumber.trim(),
+          assignedGroupId: null
         };
       } else {
-  const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
+        const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
 
-  maintenanceData = {
-    ...commonMaintenanceData,
-    vehicleId: selectedVehicleId,
-
-    // ✅ SAVE SNAPSHOT HERE
-    vehicleDetails: {
-      make: existingVehicle.make,
-      model: existingVehicle.model,
-      registrationNumber: existingVehicle.registrationNumber,
-    },
-  };
+        maintenanceData = {
+          ...commonMaintenanceData,
+          vehicleId: selectedVehicleId,
+          vehicleDetails: {
+            make: existingVehicle.make,
+            model: existingVehicle.model,
+            registrationNumber: existingVehicle.registrationNumber,
+          },
+        };
         vehicleToUseForTransaction = existingVehicle;
       }
   
@@ -456,7 +449,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               paymentReference: paymentReference || undefined,
               paymentStatus: maintenanceData.paymentStatus,
               status: 'completed',
-              date: new Date()
+              date: new Date(),
+              groupId: vehicleToUseForTransaction.assignedGroupId || undefined // ✅ Attach Group ID
           });
         }
   
@@ -496,7 +490,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             paymentReference: invoiceNumber || paymentReference || undefined, 
             paymentStatus: maintenanceData.paymentStatus,
             status: 'completed',
-            date: new Date()
+            date: new Date(),
+            groupId: vehicleToUseForTransaction.assignedGroupId || undefined // ✅ Attach Group ID
           });
         }
   
@@ -567,7 +562,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 required={formData.status === 'completed'}
               />
 
-              {/* ✅ Hide Invoice Fields for Company Users */}
               {!isCompany && (
                 <>
                   <FormField 
@@ -690,7 +684,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             required
           />
           
-          {/* Completed Date Field */}
           <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-sm font-medium text-gray-700">Completed Date</label>

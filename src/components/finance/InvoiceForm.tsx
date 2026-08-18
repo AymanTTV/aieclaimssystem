@@ -20,7 +20,8 @@ import { PlusCircle } from 'lucide-react';
 interface InvoiceFormProps {
   vehicles: Vehicle[];
   customers: Customer[];
-  accounts?: Account[]; 
+  accounts?: Account[];
+  groups?: { id: string; name: string }[];
   onClose: () => void;
 }
 
@@ -52,7 +53,7 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], onClose }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], groups = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
 
@@ -84,7 +85,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
-    isLoan: false,
+    isLoan: true, // Default to true
+    groupId: '',
     accountFrom: '',
     accountTo: '',
     isRecurring: false,
@@ -300,7 +302,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     
     try {
         const newInvoiceNumber = await getNextInvoiceNumber();
-
         const remaining = parseFloat((total - paidNow).toFixed(2));
         
         let status: 'paid' | 'unpaid' | 'partially_paid' = 'unpaid';
@@ -323,6 +324,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
           : null;
 
+        const vehicle = vehicles.find(v => v.id === formData.vehicleId); // ✅ Find vehicle
+
         const payload: any = {
           invoiceNumber: newInvoiceNumber,
           date: new Date(formData.date),
@@ -338,6 +341,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           category: formData.category,
           description: formData.description, 
           customCategory: formData.category === 'Other' ? formData.customCategory : null,
+          groupId: formData.groupId || vehicle?.assignedGroupId || null, // ✅ Assign fallback group
           vehicleId: formData.manualVehicleEntry ? null : (formData.vehicleId || null),
           vehicleName: formData.manualVehicleEntry ? combinedManualVehicleName : (formData.vehicleName || null),
           customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
@@ -349,10 +353,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             : customers.find(c => c.id === formData.customerId)?.mobile || '',
           payments,
           isLoan: formData.isLoan,
-          
           accountFrom: formData.accountFrom || null,
           accountTo: formData.accountTo || null,
-
           isRecurring: formData.isRecurring,
           recurringFrequency: formData.isRecurring ? (formData.recurringFrequency as any) : null,
           createdAt: new Date(),
@@ -378,7 +380,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         }
         await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: documentUrl });
 
-        const vehicle = vehicles.find(v => v.id === formData.vehicleId);
         const vehicleOwner = formData.manualVehicleEntry ? null : (vehicle?.owner
             ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false }
             : { name: 'AIE Skyline Limited', isDefault: true });
@@ -398,7 +399,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             paymentMethod: 'internal',
             paymentStatus: 'paid',
             accountFrom: formData.accountFrom || undefined,
-            accountTo: formData.accountTo || undefined
+            accountTo: formData.accountTo || undefined,
+            groupId: payload.groupId || undefined // ✅ Attach Group ID
             });
         }
 
@@ -423,7 +425,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             paymentMethod: formData.paymentMethod,
             paymentReference: formData.paymentReference,
             paymentStatus: status as any,
-            accountTo: finalAccountId || undefined 
+            accountTo: finalAccountId || undefined,
+            groupId: payload.groupId || undefined // ✅ Attach Group ID
             });
         }
 
@@ -585,7 +588,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Category</label>
             <select
@@ -599,6 +602,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
               <option value="Other">Other</option>
             </select>
           </div>
+
+          <SearchableSelect
+            label="Group (Optional)"
+            options={groups.map(g => ({ id: g.id, label: g.name }))}
+            value={formData.groupId}
+            onChange={val => setFormData(fd => ({ ...fd, groupId: val || '' }))}
+            placeholder="Select a group..."
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
           {formData.category === 'Other' && (
             <FormField
               label="Custom Category"

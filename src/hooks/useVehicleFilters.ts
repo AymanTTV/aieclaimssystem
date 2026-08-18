@@ -52,30 +52,36 @@ const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
   return true;
 };
 // -----------------------------------------------------------
-// ------------------------------------
 
 export function useVehicleFilters(vehicles: Vehicle[]) {
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
   const [makeFilter, setMakeFilter] = React.useState<string>('all');
   const [showSold, setShowSold] = React.useState<boolean>(false);
-    const [typeFilter, setTypeFilter] = React.useState<string>('all'); // ✅ Added state
+  const [typeFilter, setTypeFilter] = React.useState<string>('all'); 
   const [expiryFilter, setExpiryFilter] = React.useState<string>('');
-
-  // 1. Add age filter state (around line 65, near expiryFilter):
-  // const [expiryFilter, setExpiryFilter] = React.useState<string>('');
-  const [ageFilter, setAgeFilter] = React.useState<string>('all'); // ✅ Added age filter state
+  const [ageFilter, setAgeFilter] = React.useState<string>('all'); 
   
-  // NEW: Account Filter State
   const [accountFilter, setAccountFilter] = React.useState<string>('all');
-  
-  // NEW: Garage Filter State
   const [garageFilter, setGarageFilter] = React.useState<string>('all');
+  
+  // ✅ NEW: Group & Owner Filter States
+  const [groupFilter, setGroupFilter] = React.useState<string>('all');
+  const [ownerFilter, setOwnerFilter] = React.useState<string>('all');
 
   const uniqueMakes = React.useMemo(() => {
     const set = new Set<string>();
     vehicles.forEach(v => {
       if (v?.make) set.add(String(v.make));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [vehicles]);
+
+  // ✅ Extract unique owners for the dropdown
+  const uniqueOwners = React.useMemo(() => {
+    const set = new Set<string>();
+    vehicles.forEach(v => {
+      if (v.owner?.name) set.add(v.owner.name);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [vehicles]);
@@ -102,7 +108,8 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
       if (!q) return true;
       const fields: Array<string | undefined | null> = [
         v.registrationNumber, v.make, v.model, (v as any).color,
-        (v as any).vin, v.owner?.name, v.owner?.accountName, v.assignedGarageName
+        (v as any).vin, v.owner?.name, v.owner?.accountName, v.assignedGarageName,
+        v.assignedGroupName // ✅ Added Group Name to Search
       ];
       const composed = [
         [v.make, v.model].filter(Boolean).join(' '),
@@ -111,18 +118,6 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
       return [...fields, ...composed].some(val =>
         String(val ?? '').toLowerCase().includes(q)
       );
-    };
-
-    const getDaysSinceLastMileageUpdate = (v: any) => {
-      if (v.mileageUpdates?.length) {
-        const d = v.mileageUpdates[v.mileageUpdates.length - 1].date;
-        return (new Date().getTime() - (d?.toDate ? d.toDate() : new Date(d)).getTime()) / 86400000;
-      }
-      if (v.updatedAt) {
-        const d = v.updatedAt;
-        return (new Date().getTime() - (d?.toDate ? d.toDate() : new Date(d)).getTime()) / 86400000;
-      }
-      return 999;
     };
 
     const matchesStatus = (v: Vehicle) => {
@@ -162,15 +157,11 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
         case 'needs_update': {
           return checkNeedsMonthlyUpdate(v);
         }
-        // ✅ Change warrantyExpiryDate to warrantyEndDate
         case 'warranty': return matchesExpiryDate(v.warrantyEndDate);
         default: return true;
-
-
       }
     };
 
-    // Filter by Account
     const matchesAccount = (v: Vehicle) => {
         if (!accountFilter || accountFilter === 'all') return true;
         if (accountFilter === 'no_account_assigned') {
@@ -179,13 +170,26 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
         return v.owner?.accountId === accountFilter;
     };
 
-    // NEW: Filter by Garage
     const matchesGarage = (v: Vehicle) => {
         if (!garageFilter || garageFilter === 'all') return true;
         if (garageFilter === 'no_garage_assigned') {
             return !v.assignedGarageId;
         }
         return v.assignedGarageId === garageFilter;
+    };
+
+    // ✅ Match Group
+    const matchesGroup = (v: Vehicle) => {
+        if (!groupFilter || groupFilter === 'all') return true;
+        if (groupFilter === 'no_group_assigned') return !v.assignedGroupId;
+        return v.assignedGroupId === groupFilter;
+    };
+
+    // ✅ Match Owner
+    const matchesOwner = (v: Vehicle) => {
+        if (!ownerFilter || ownerFilter === 'all') return true;
+        if (ownerFilter === 'AIE Skyline (Default)') return v.owner?.name === 'AIE Skyline' || v.owner?.isDefault;
+        return v.owner?.name === ownerFilter;
     };
 
     const matchesAge = (v: Vehicle) => {
@@ -195,7 +199,6 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
         const d = new Date(v.firstRegistrationDate);
         if (isNaN(d.getTime())) return false;
         
-        // Calculate age in years
         const age = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
 
         switch (ageFilter) {
@@ -216,9 +219,8 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
 
     return vehicles.filter(v => {
       if (showSold) {
-        return normalize(v.status) === 'sold' && matchesSearch(v) && matchesAccount(v) && matchesGarage(v) && matchesType(v) && matchesAge(v);
+        return normalize(v.status) === 'sold' && matchesSearch(v) && matchesAccount(v) && matchesGarage(v) && matchesType(v) && matchesAge(v) && matchesGroup(v) && matchesOwner(v);
       }
-      // Active vehicles filter
       return (
         normalize(v.status) !== 'sold' && 
         matchesSearch(v) && 
@@ -227,11 +229,13 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
         matchesExpiryFilter(v) &&
         matchesAccount(v) &&
         matchesGarage(v) &&
-        matchesType(v) && // ✅ Added type match
-        matchesAge(v) // ✅ Added age match
+        matchesType(v) &&
+        matchesAge(v) &&
+        matchesGroup(v) && // ✅ Added
+        matchesOwner(v)    // ✅ Added
       );
     });
-  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter, accountFilter, garageFilter, typeFilter, ageFilter]);
+  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter, accountFilter, garageFilter, typeFilter, ageFilter, groupFilter, ownerFilter]);
 
   return {
     searchQuery,
@@ -244,16 +248,20 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     setShowSold,
     filteredVehicles,
     uniqueMakes,
+    uniqueOwners, // ✅ Exported
     expiryFilter,
     setExpiryFilter,
     accountFilter,
     setAccountFilter,
-    // Export garage filter
     garageFilter,
     setGarageFilter,
-    typeFilter, // ✅ Exported
-    setTypeFilter, // ✅ Exported
-    ageFilter, // ✅ Exported
-    setAgeFilter, // ✅ Exported
+    groupFilter, // ✅ Exported
+    setGroupFilter, // ✅ Exported
+    ownerFilter, // ✅ Exported
+    setOwnerFilter, // ✅ Exported
+    typeFilter, 
+    setTypeFilter, 
+    ageFilter, 
+    setAgeFilter, 
   };
 }

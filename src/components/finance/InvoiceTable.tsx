@@ -1,5 +1,5 @@
 // src/components/finance/InvoiceTable.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
 import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature } from 'lucide-react';
@@ -21,6 +21,12 @@ interface InvoiceTableProps {
   onDeletePayment: (invoice: Invoice, paymentId: string) => void;
   onGenerateDocument: (invoice: Invoice) => void;
   onViewDocument: (invoice: Invoice) => void;
+  
+  // NEW PROPS FOR BULK SELECTION
+  isManager: boolean;
+  selectedIds: Set<string>;
+  onToggleAll: (checked: boolean) => void;
+  onToggleOne: (id: string) => void;
 }
 
 const InvoiceTable: React.FC<InvoiceTableProps> = ({
@@ -36,6 +42,10 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onDeletePayment,
   onGenerateDocument,
   onViewDocument,
+  isManager,
+  selectedIds,
+  onToggleAll,
+  onToggleOne,
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -66,6 +76,9 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     return getSafeTime(b.date) - getSafeTime(a.date);
   });
 
+  const allSelected = sortedInvoices.length > 0 && selectedIds.size === sortedInvoices.length;
+  const someSelected = sortedInvoices.length > 0 && selectedIds.size > 0 && !allSelected;
+
   const ActionBtn = ({ 
     onClick, 
     icon: Icon, 
@@ -86,218 +99,246 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
     </button>
   );
 
-  const columns = [
-    {
-        header: 'Invoice #',
+  const columns = useMemo(() => {
+    const cols = [
+      {
+        id: 'select',
+        header: (
+          <input 
+            type="checkbox" 
+            className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" 
+            checked={allSelected} 
+            ref={(input) => { if (input) input.indeterminate = someSelected; }} 
+            onChange={(e) => onToggleAll(e.target.checked)} 
+          />
+        ),
+        cell: ({ row }: any) => (
+          <input 
+            type="checkbox" 
+            className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" 
+            checked={selectedIds.has(row.original.id)} 
+            onChange={() => onToggleOne(row.original.id)} 
+            onClick={(e) => e.stopPropagation()} 
+          />
+        ),
+      },
+      {
+          header: 'Invoice #',
+          cell: ({ row }: any) => {
+            return (
+              <div className="font-medium text-gray-800">
+                {row.original.invoiceNumber || 'N/A'}
+              </div>
+            );
+          },
+      },
+      {
+        header: 'Customer',
         cell: ({ row }: any) => {
+          if (row.original.customerName) {
+            return (
+              <div>
+                <div className="font-medium">{row.original.customerName}</div>
+                {row.original.customerPhone && (
+                  <div className="text-sm text-gray-500">
+                    {row.original.customerPhone}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          const cust = customers.find(c => c.id === row.original.customerId);
+          return cust ? (
+            <div>
+              <div className="font-medium">{cust.name}</div>
+              <div className="text-sm text-gray-500">{cust.mobile}</div>
+            </div>
+          ) : (
+            <span className="text-gray-500">No customer</span>
+          );
+        },
+      },
+      {
+        header: 'Vehicle',
+        cell: ({ row }: { row: { original: Invoice } }) => {
+          const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
+          const regNumber = vehicle?.registrationNumber;
+          const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
+
+          if (regNumber) {
+            return <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit" title={fullDetails}>{regNumber}</div>;
+          }
+          if (row.original.vehicleName) {
+               return <div title={row.original.vehicleName}>{row.original.vehicleName}</div>
+          }
+          return <div className="text-gray-400">N/A</div>;
+        },
+      },
+      { 
+        header: 'Type',
+        cell: ({ row }: any) => {
+          if (row.original.isLoan) {
+            return (
+              <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">
+                Loan
+              </span>
+            );
+          }
+          return <span className="text-gray-400 text-sm">-</span>;
+        },
+      },
+      {
+        header: 'Due Date',
+        cell: ({ row }: any) => (
+          <span className="text-sm text-gray-900">{formatDateValue(row.original.dueDate)}</span>
+        ),
+      },
+      {
+        header: 'Status',
+        cell: ({ row }: any) => {
+          const inv = row.original;
+          let displayStatus = 'unpaid';
+          if (inv.paidAmount >= inv.total - 0.01 && inv.total > 0) displayStatus = 'paid';
+          else if (inv.paidAmount > 0) displayStatus = 'partially_paid';
+
+          const overdue = isOverdue(inv);
+          const currentStatus = overdue && displayStatus !== 'paid' ? 'overdue' : displayStatus;
+          return <StatusBadge status={currentStatus} />;
+        },
+      },
+      {
+        header: 'Category',
+        cell: ({ row }: any) => (
+          <span className="capitalize font-medium text-sm text-gray-700">
+            {row.original.category === 'Other'
+              ? row.original.customCategory
+              : row.original.category}
+          </span>
+        ),
+      },
+      {
+        header: 'Cost Breakdown',
+        cell: ({ row }: any) => {
+          const inv = row.original;
           return (
-            <div className="font-medium text-gray-800">
-              {row.original.invoiceNumber || 'N/A'}
+            <div className="text-sm space-y-0.5">
+              <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
+                <span>Total:</span>
+                <span>{formatCurrency(inv.total)}</span>
+              </div>
+              <div className="flex justify-between text-green-600">
+                <span>Paid:</span>
+                <span>{formatCurrency(inv.paidAmount)}</span>
+              </div>
+              <div className={`flex justify-between font-medium ${inv.remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                <span>Owing:</span>
+                <span>{formatCurrency(inv.remainingAmount)}</span>
+              </div>
             </div>
           );
         },
-    },
-    {
-      header: 'Customer',
-      cell: ({ row }: any) => {
-        if (row.original.customerName) {
-          return (
-            <div>
-              <div className="font-medium">{row.original.customerName}</div>
-              {row.original.customerPhone && (
-                <div className="text-sm text-gray-500">
-                  {row.original.customerPhone}
-                </div>
-              )}
-            </div>
-          );
-        }
-        const cust = customers.find(c => c.id === row.original.customerId);
-        return cust ? (
-          <div>
-            <div className="font-medium">{cust.name}</div>
-            <div className="text-sm text-gray-500">{cust.mobile}</div>
-          </div>
-        ) : (
-          <span className="text-gray-500">No customer</span>
-        );
       },
-    },
-    {
-      header: 'Vehicle',
-      cell: ({ row }: { row: { original: Invoice } }) => {
-        const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
-        const regNumber = vehicle?.registrationNumber;
-        const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
-
-        if (regNumber) {
-          return <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit" title={fullDetails}>{regNumber}</div>;
-        }
-        if (row.original.vehicleName) {
-             return <div title={row.original.vehicleName}>{row.original.vehicleName}</div>
-        }
-        return <div className="text-gray-400">N/A</div>;
-      },
-    },
-    { 
-      header: 'Type',
-      cell: ({ row }: any) => {
-        if (row.original.isLoan) {
-          return (
-            <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">
-              Loan
-            </span>
-          );
-        }
-        return <span className="text-gray-400 text-sm">-</span>;
-      },
-    },
-    {
-      header: 'Due Date',
-      cell: ({ row }: any) => (
-        <span className="text-sm text-gray-900">{formatDateValue(row.original.dueDate)}</span>
-      ),
-    },
-    {
-      header: 'Status',
-      cell: ({ row }: any) => {
-        const inv = row.original;
-        let displayStatus = 'unpaid';
-        if (inv.paidAmount >= inv.total - 0.01 && inv.total > 0) displayStatus = 'paid';
-        else if (inv.paidAmount > 0) displayStatus = 'partially_paid';
-
-        const overdue = isOverdue(inv);
-        const currentStatus = overdue && displayStatus !== 'paid' ? 'overdue' : displayStatus;
-        return <StatusBadge status={currentStatus} />;
-      },
-    },
-    {
-      header: 'Category',
-      cell: ({ row }: any) => (
-        <span className="capitalize font-medium text-sm text-gray-700">
-          {row.original.category === 'Other'
-            ? row.original.customCategory
-            : row.original.category}
-        </span>
-      ),
-    },
-    {
-      header: 'Cost Breakdown',
-      cell: ({ row }: any) => {
-        const inv = row.original;
-        return (
-          <div className="text-sm space-y-0.5">
-            <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
-              <span>Total:</span>
-              <span>{formatCurrency(inv.total)}</span>
-            </div>
-            <div className="flex justify-between text-green-600">
-              <span>Paid:</span>
-              <span>{formatCurrency(inv.paidAmount)}</span>
-            </div>
-            <div className={`flex justify-between font-medium ${inv.remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-              <span>Owing:</span>
-              <span>{formatCurrency(inv.remainingAmount)}</span>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      header: 'Payment History',
-      cell: ({ row }: any) => {
-        const payments = row.original.payments || [];
-        return payments.length > 0 ? (
-          <div className="space-y-1">
-            {payments.map((payment: any) => (
-              <div
-                key={payment.id}
-                className="text-sm flex items-center justify-between bg-gray-50 p-1.5 rounded"
-              >
-                <div>
-                  <div className="flex items-center">
-                    <span className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</span>
-                    {can('invoices', 'delete') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeletePayment(row.original, payment.id);
-                        }}
-                        className="ml-2 text-red-600 hover:text-red-800"
-                        title="Delete Payment"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    <span className="capitalize">
-                      {payment.method.replace('_', ' ')}
-                    </span>
-                    <span className="mx-1">•</span>
-                    <span>{formatDateValue(payment.date)}</span>
+      {
+        header: 'Payment History',
+        cell: ({ row }: any) => {
+          const payments = row.original.payments || [];
+          return payments.length > 0 ? (
+            <div className="space-y-1">
+              {payments.map((payment: any) => (
+                <div
+                  key={payment.id}
+                  className="text-sm flex items-center justify-between bg-gray-50 p-1.5 rounded"
+                >
+                  <div>
+                    <div className="flex items-center">
+                      <span className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</span>
+                      {can('invoices', 'delete') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeletePayment(row.original, payment.id);
+                          }}
+                          className="ml-2 text-red-600 hover:text-red-800"
+                          title="Delete Payment"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      <span className="capitalize">
+                        {payment.method.replace('_', ' ')}
+                      </span>
+                      <span className="mx-1">•</span>
+                      <span>{formatDateValue(payment.date)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs font-medium">No payments</span>
-        );
-      },
-    },
-    {
-      header: 'Actions',
-      cell: ({ row }: any) => {
-        const inv = row.original;
-        
-        return (
-          <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[100px]">
-            
-            {/* ROW 1: Editing & Core Actions */}
-            <div className="flex flex-wrap justify-center gap-1">
-              {can('invoices', 'view') && (
-                <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />
-              )}
-              {can('invoices', 'update') && (
-                <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />
-              )}
+              ))}
             </div>
-
-            {/* ROW 2: Financials */}
-            {inv.remainingAmount > 0 && can('invoices', 'recordPayment') && (
-              <div className="flex flex-wrap justify-center gap-1 w-full pt-1 border-t border-gray-100">
-                <ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
-              </div>
-            )}
-
-            {/* ROW 3: Documents (ALWAYS SHOW REGENERATE BUTTON) */}
-            {can('invoices', 'singleDoc') && (
-              <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
-                {inv.documentUrl && (
-                    <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-blue-700" title="View Current Document" />
+          ) : (
+            <span className="text-gray-400 text-xs font-medium">No payments</span>
+          );
+        },
+      },
+      {
+        header: 'Actions',
+        cell: ({ row }: any) => {
+          const inv = row.original;
+          
+          return (
+            <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[100px]">
+              
+              {/* ROW 1: Editing & Core Actions */}
+              <div className="flex flex-wrap justify-center gap-1">
+                {can('invoices', 'view') && (
+                  <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />
                 )}
-                <ActionBtn 
-                    onClick={() => onGenerateDocument(inv)} 
-                    icon={FileSignature} 
-                    colorClass={inv.documentUrl ? "text-green-600" : "text-blue-600"} 
-                    title={inv.documentUrl ? "Regenerate New Document" : "Generate Document"} 
-                />
+                {can('invoices', 'update') && (
+                  <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />
+                )}
               </div>
-            )}
 
-            {/* ROW 4: Destructive */}
-            {can('invoices', 'delete') && (
-              <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
-                <ActionBtn onClick={() => onDelete(inv)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Invoice" />
-              </div>
-            )}
-            
-          </div>
-        );
+              {/* ROW 2: Financials */}
+              {inv.remainingAmount > 0 && can('invoices', 'recordPayment') && (
+                <div className="flex flex-wrap justify-center gap-1 w-full pt-1 border-t border-gray-100">
+                  <ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
+                </div>
+              )}
+
+              {/* ROW 3: Documents (ALWAYS SHOW REGENERATE BUTTON) */}
+              {can('invoices', 'singleDoc') && (
+                <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
+                  {inv.documentUrl && (
+                      <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-blue-700" title="View Current Document" />
+                  )}
+                  <ActionBtn 
+                      onClick={() => onGenerateDocument(inv)} 
+                      icon={FileSignature} 
+                      colorClass={inv.documentUrl ? "text-green-600" : "text-blue-600"} 
+                      title={inv.documentUrl ? "Regenerate New Document" : "Generate Document"} 
+                  />
+                </div>
+              )}
+
+              {/* ROW 4: Destructive */}
+              {can('invoices', 'delete') && (
+                <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
+                  <ActionBtn onClick={() => onDelete(inv)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Invoice" />
+                </div>
+              )}
+              
+            </div>
+          );
+        },
       },
-    },
-  ];
+    ];
+
+    if (!isManager) {
+      return cols.filter(c => c.id !== 'select');
+    }
+    return cols;
+  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, isManager, sortedInvoices, can, formatCurrency]);
 
   return (
     <DataTable

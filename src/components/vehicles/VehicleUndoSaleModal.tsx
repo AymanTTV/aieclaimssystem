@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle } from '../../types';
-import { createFinanceTransaction } from '../../utils/financeTransactions'; // Import transaction helper
+import { createFinanceTransaction } from '../../utils/financeTransactions'; 
 import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 
@@ -43,8 +43,8 @@ const VehicleUndoSaleModal: React.FC<VehicleUndoSaleModalProps> = ({ vehicle, on
           vehicleOwner,
           paymentStatus: 'paid',
           date: new Date(),
-          // ✅ NEW: If vehicle has a linked account, debit it (accountFrom) to reverse the income
           accountFrom: vehicle.owner?.accountId || undefined,
+          groupId: vehicle.assignedGroupId || undefined, // ✅ Pass the vehicle's assigned group for the reversal
         });
       }
 

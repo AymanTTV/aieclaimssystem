@@ -31,7 +31,13 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Access user to check for 'manager' role
+
+  // Helper to check if the profit has been paid
+  const isPaid = (rec: VDFinanceRecord) => rec.profit === 0 && rec.originalProfit != null;
+  
+  // Helper to apply blur/opacity to paid rows
+  const blurStyle = (rec: VDFinanceRecord) => isPaid(rec) ? "opacity-50 blur-[0.5px] select-none" : "";
 
   const profitColumn = {
     header: 'Profit',
@@ -50,33 +56,46 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   const columns = [
     {
       header: 'Name & Reference',
-      cell: ({ row }: any) => (
-        <div>
-          <div className="font-medium">{row.original.name}</div>
-          <div className="text-sm text-gray-500">Ref: {row.original.reference}</div>
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        return (
+          <div className={blurStyle(rec)}>
+            <div className="font-medium">{rec.name}</div>
+            <div className="text-sm text-gray-500">Ref: {rec.reference}</div>
+          </div>
+        );
+      },
     },
-    { header: 'Registration', accessorKey: 'registration' },
-
-    // NEW: Category / Group
+    { 
+      header: 'Registration', 
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        return (
+          <div className={blurStyle(rec)}>
+            {rec.registration}
+          </div>
+        );
+      }
+    },
     {
       header: 'Category / Group',
-      cell: ({ row }: any) => (
-        <div className="text-sm">
-          <div className="font-medium">{row.original.categoryName || '-'}</div>
-          <div className="text-gray-500">{row.original.groupName || '-'}</div>
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        return (
+          <div className={`text-sm ${blurStyle(rec)}`}>
+            <div className="font-medium">{rec.categoryName || '-'}</div>
+            <div className="text-gray-500">{rec.groupName || '-'}</div>
+          </div>
+        );
+      },
     },
-
     {
       header: 'Amount Details',
       cell: ({ row }: any) => {
         const rec = row.original;
         const discount = rec.totalDiscount ?? 0;
         return (
-          <div className="space-y-1 text-sm">
+          <div className={`space-y-1 text-sm ${blurStyle(rec)}`}>
             <div>Total: {formatCurrency(rec.totalAmount)}</div>
             <div>NET: {formatCurrency(rec.netAmount)}</div>
             <div>VAT IN: {formatCurrency(rec.vatIn)}</div>
@@ -87,23 +106,35 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
     },
     {
       header: 'Fees & Repairs',
-      cell: ({ row }: any) => (
-        <div className="space-y-1 text-sm">
-          <div>Solicitor: {formatCurrency(row.original.solicitorFee)}</div>
-          <div>Client Repair: {formatCurrency(row.original.clientRepair)}</div>
-          <div>Purchased Items: {formatCurrency(row.original.purchasedItems)}</div>
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        return (
+          <div className={`space-y-1 text-sm ${blurStyle(rec)}`}>
+            <div>Solicitor: {formatCurrency(rec.solicitorFee)}</div>
+            <div>Client Repair: {formatCurrency(rec.clientRepair)}</div>
+            <div>Purchased Items: {formatCurrency(rec.purchasedItems)}</div>
+          </div>
+        );
+      },
     },
-
-    profitColumn,
-
-    { header: 'Date', cell: ({ row }: any) => format(row.original.date, 'dd/MM/yyyy HH:mm') },
-
+    profitColumn, // Leaving profit clear so the "Profit Paid" tag remains easily readable
+    { 
+      header: 'Date', 
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        return (
+          <div className={blurStyle(rec)}>
+             {format(rec.date, 'dd/MM/yyyy HH:mm')}
+          </div>
+        );
+      }
+    },
     {
       header: 'Actions',
       cell: ({ row }: any) => {
         const rec: VDFinanceRecord = row.original;
+        const recordPaid = isPaid(rec);
+
         return (
           <div className="flex space-x-2">
             {can('vdFinance', 'view') && (
@@ -111,35 +142,41 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
                 <Eye className="h-4 w-4" />
               </button>
             )}
-            {can('vdFinance', 'update') && (
-              
+
+            {/* HIDE Edit if record is paid */}
+            {can('vdFinance', 'update') && !recordPaid && (
                 <button onClick={e => { e.stopPropagation(); onEdit(rec); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                   <Edit className="h-4 w-4" />
                 </button>
             )}
-                {can('vdFinance', 'singleDoc') && (
+
+            {can('vdFinance', 'singleDoc') && (
                 <button onClick={e => { e.stopPropagation(); onGenerateDocument(rec); }} className="text-green-600 hover:text-green-800" title="Generate Document">
                   <FileText className="h-4 w-4" />
                 </button>
-              
             )}
-            {can('vdFinance', 'delete') && (
+
+            {/* HIDE Delete if record is paid (optional but recommended safety feature) */}
+            {can('vdFinance', 'delete') && !recordPaid && (
               <button onClick={e => { e.stopPropagation(); onDelete(rec); }} className="text-red-600 hover:text-red-800" title="Delete">
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
+
             {can('vdFinance', 'recordPayment') && rec.profit > 0 && (
               <button onClick={e => { e.stopPropagation(); onClearProfit(rec); }} className="px-2 py-1 text-xs bg-green-500 text-white rounded" title="Mark Profit Paid">
                 Profit Paid
               </button>
             )}
-            {can('vdFinance', 'recordPayment') &&  rec.profit === 0 && rec.originalProfit != null && (
-              <button onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded" title="Unclear Profit">
-                Unclear
+
+            {/* ONLY Manager can see the Re-open button when paid */}
+            {user?.role === 'manager' && recordPaid && (
+              <button onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded" title="Re-open Profit">
+                Re-open
               </button>
             )}
-            {can('vdFinance', 'singleDoc') &&  rec.documentUrl && (
-            
+
+            {can('vdFinance', 'singleDoc') && rec.documentUrl && (
               <button onClick={e => { e.stopPropagation(); onViewDocument(rec.documentUrl!); }} className="text-blue-600 hover:text-blue-800" title="View Document">
                 <Eye className="h-4 w-4" />
               </button>

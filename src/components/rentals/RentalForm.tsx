@@ -18,6 +18,7 @@ import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import FileUpload from '../ui/FileUpload';
 import TextArea from '../ui/TextArea';
 import Modal from '../ui/Modal'; 
+import SignaturePad from '../ui/SignaturePad';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -96,7 +97,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     fetchClaims();
   }, []);
 
-  // ✅ ADD THIS BLOCK DIRECTLY BELOW THE USE-EFFECT ABOVE
   const filteredClaims = useMemo(() => {
     if (!claimSearchQuery) return [];
     const s = claimSearchQuery.toLowerCase();
@@ -106,9 +106,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       c.id.toLowerCase().includes(s)
     );
   }, [claims, claimSearchQuery]);
-  // ✅ END OF ADDED BLOCK
-
-  
 
   const [formData, setFormData] = useState({
     vehicleId: '', customerId: '',
@@ -134,21 +131,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const [insurancePerDayTouched, setInsurancePerDayTouched] = useState(false);
   const [insurancePerWeekTouched, setInsurancePerWeekTouched] = useState(false);
 
-  useEffect(() => {
-    const fetchClaims = async () => {
-      try {
-        const snap = await getDocs(query(collection(db, 'claims')));
-        setClaims(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Claim[]);
-      } catch {}
-    };
-    fetchClaims();
-  }, []);
-
   const [conditionData, setConditionData] = useState<Partial<VehicleCondition> & { mileage: number | '' }>({
     mileage: 0, fuelLevel: '100', isClean: true, hasDamage: false, damageDescription: '', images: []
   });
 
-  // Add this to automatically calculate storage days when dates change
   useEffect(() => {
     if (formData.storageStartDate && formData.storageEndDate) {
       const start = new Date(formData.storageStartDate); 
@@ -201,7 +187,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     if (formData.type === 'claim' && formData.storageStartDate && formData.storageEndDate) {
       const ss = new Date(formData.storageStartDate); const se = new Date(formData.storageEndDate);
       if (isValid(ss) && isValid(se) && !isAfter(ss, se)) {
-        // ✅ Fixed: Removed the + 1 to prevent duplication
         storCost = Math.max(1, differenceInDays(se, ss)) * formData.storageCostPerDay;
       }
     }
@@ -223,14 +208,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       selectedVehicle.dailyRentalPrice || RENTAL_RATES.daily,
       selectedVehicle.weeklyRentalPrice || RENTAL_RATES.weekly,
       selectedVehicle.claimRentalPrice || RENTAL_RATES.claim,
-      0 // No extra charges on creation
+      0 
     );
   };
 
   const costs = calculatedCosts();
   const finalRemainingAmountCalc = costs.gross - (formData.paidAmount || 0);
 
-  // Sync discount fields smoothly
   useEffect(() => {
     if ((costs as any).baseNet === 0 && costs.gross === 0) return;
     if (lastDiscountEdit === 'amt') {
@@ -241,7 +225,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     }
   }, [costs.discountAmount, lastDiscountEdit]);
 
-  // Sync substitution search array lengths
   useEffect(() => {
     const len = formData.hireSubstitutionDetails.length;
     setSubVehicleSearchQueries(p => p.length === len ? p : p.length < len ? [...p, ...Array(len - p.length).fill('')] : p.slice(0, len));
@@ -254,7 +237,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     return availableVehicles.filter(v => `${v.make} ${v.model} ${v.registrationNumber}`.toLowerCase().includes(q)).slice(0, 15);
   };
 
-  // Handlers for Substitutions
   const handleSubChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const newSubs = [...formData.hireSubstitutionDetails];
@@ -348,7 +330,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         insurancePerDayIncludeVAT: formData.type !== 'weekly' ? formData.insurancePerDayIncludeVAT : false,
         insurancePerWeekIncludeVAT: formData.type === 'weekly' ? formData.insurancePerWeekIncludeVAT : false,
 
-        // ✅ FIX: Added missing Claim fields to the save payload
         storageStartDate: formData.type === 'claim' && formData.storageStartDate ? new Date(formData.storageStartDate) : null,
         storageEndDate: formData.type === 'claim' && formData.storageEndDate ? new Date(formData.storageEndDate) : null,
         storageCostPerDay: formData.type === 'claim' ? formData.storageCostPerDay || 0 : null,
@@ -419,7 +400,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               referenceId: docRef.id, paymentMethod: formData.paymentMethod,
               status: 'completed', paymentStatus: finalRemainingAmountCalc <= 0 ? 'paid' : 'partially_paid',
               date: new Date(), vehicleId: formData.vehicleId, customerId: formData.customerId,
-              accountTo: selectedVehicle?.owner?.accountId
+              accountTo: selectedVehicle?.owner?.accountId,
+              groupId: selectedVehicle?.assignedGroupId || undefined // ✅ Attach Group ID
             });
          }
       }, 500);
@@ -433,10 +415,16 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     if (formData.type === 'weekly' && formData.startDate && formData.startTime) {
       const s = new Date(`${formData.startDate}T${formData.startTime}`);
       if (isValid(s)) {
+        const currentDay = s.getDay();
+        const daysUntilMonday = currentDay === 0 ? 1 : 8 - currentDay; 
+        
+        const targetDate = new Date(s);
+        targetDate.setDate(targetDate.getDate() + daysUntilMonday + ((formData.numberOfWeeks || 1) - 1) * 7);
+
         setFormData(p => ({ 
           ...p, 
-          endDate: addWeeks(s, formData.numberOfWeeks).toISOString().split('T')[0],
-          endTime: p.startTime
+          endDate: targetDate.toISOString().split('T')[0],
+          endTime: '12:00'
         }));
       }
     }
@@ -446,7 +434,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     <>
       <div ref={topRef} />
       
-      {/* STEPS NAVIGATION */}
       <div className="flex border-b border-gray-200 mb-6 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg">
         {[
           { step: 1, label: 'Vehicle & Customer', icon: User },
@@ -510,7 +497,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 )}
              </div>
 
-             {/* Customer Search Box */}
              <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <User className="text-blue-600" /> Assign Customer
@@ -525,11 +511,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                     placeholder="Search by name, email, or mobile..."
                     className="block w-full pl-10 pr-3 py-3 border-gray-300 rounded-lg focus:ring-primary focus:border-primary shadow-sm"
                   />
-                  {showCustomerResults && (
+                 {showCustomerResults && (
                     <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-md py-1 overflow-auto border border-gray-100">
                       {filteredCustomers.map(c => (
                         <div key={c.id} className="px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-blue-50"
-                           onMouseDown={() => { setFormData(p => ({...p, customerId: c.id})); setCustomerSearchQuery(c.name); setShowCustomerResults(false); }}
+                           onMouseDown={() => { 
+                             setFormData(p => ({...p, customerId: c.id, signature: c.signature || ''})); 
+                             setCustomerSearchQuery(c.name); 
+                             setShowCustomerResults(false); 
+                           }}
                         >
                           <div className="font-semibold">{c.name}</div><div className="text-sm text-gray-500">{c.email} | {c.mobile}</div>
                         </div>
@@ -537,15 +527,40 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                     </div>
                   )}
                 </div>
+                
                 {selectedCustomer && (
-                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg flex items-center gap-4">
-                    <CheckCircle className="text-green-500 w-6 h-6" />
-                    <div><p className="font-bold">{selectedCustomer.name}</p><p className="text-sm text-gray-500">{selectedCustomer.mobile}</p></div>
+                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg flex flex-col gap-4">
+                    <div className="flex items-center gap-4">
+                      <CheckCircle className="text-green-500 w-6 h-6" />
+                      <div>
+                        <p className="font-bold">{selectedCustomer.name}</p>
+                        <p className="text-sm text-gray-500">{selectedCustomer.mobile}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t border-gray-100 pt-4 mt-2">
+                      <div className="flex justify-between items-center mb-2">
+                         <label className="block text-sm font-bold text-gray-700">Customer Signature</label>
+                         {formData.signature ? (
+                           <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase tracking-wider">Attached</span>
+                         ) : (
+                           <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wider">Required</span>
+                         )}
+                      </div>
+                      <SignaturePad
+                        value={formData.signature}
+                        onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        {formData.signature 
+                          ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
+                          : 'Please have the customer sign above.'}
+                      </p>
+                    </div>
                   </div>
                 )}
              </div>
 
-             {/* SUBSTITUTION LOGIC WITH CHECKOUT */}
              {formData.reason === 'h-substitute' && (
                 <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
                    <h3 className="text-lg font-bold text-gray-900 mb-4">Substitution Details</h3>
@@ -564,7 +579,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                             </button>
                          </div>
 
-                         {/* Vehicle Search & Details Grid */}
                          <div className="space-y-4">
                             <div className="relative">
                                <input
@@ -649,7 +663,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                             </div>
                          </div>
 
-                         {/* Timing & Loaner Details Grid */}
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
                             <FormField label="Date & Time Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={e => handleSubChange(index, e)} />
                             <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={e => handleSubChange(index, e)} />
@@ -664,7 +677,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                              </div>
                          </div>
 
-                         {/* Check-Out Condition specifically for Substitution */}
                          <div className="mt-4 border-t border-yellow-200 pt-4 bg-gray-50 p-4 rounded-xl">
                              <h5 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Car className="text-gray-500"/> Sub Vehicle Check-Out Condition</h5>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -718,7 +730,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   </select>
                </div>
                
-               {/* REASON AND CLAIM BOX */}
                <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
@@ -831,7 +842,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         {activeStep === 3 && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-               <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2"><Car className="text-primary"/> Main Vehicle Condition</h3>
+               <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2"><Car className="text-primary"/> Main Vehicle Check-Out Condition</h3>
                <div className="grid grid-cols-2 gap-6">
                  <FormField type="number" label="Current Mileage" value={conditionData.mileage} onChange={e => setConditionData(p => ({ ...p, mileage: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))} required />
                  <div>
@@ -840,15 +851,34 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                        <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
                     </select>
                  </div>
-                 <div className="flex gap-4 col-span-2">
-                    <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5"/> Is Clean</label>
-                    <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-red-500"/> Has Damage</label>
+                 <div className="flex gap-4 col-span-2 bg-gray-50 p-4 rounded-lg border">
+                    <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
+                       <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5 text-primary"/> Is Clean
+                    </label>
+                    <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
+                       <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-red-500"/> Has Damage
+                    </label>
                  </div>
-                 {conditionData.hasDamage && <div className="col-span-2"><TextArea label="Damage Description" value={conditionData.damageDescription as any} onChange={e => setConditionData(p => ({...p, damageDescription: e.target.value}))} /></div>}
+                 {conditionData.hasDamage && <div className="col-span-2"><TextArea label="Damage Description" value={conditionData.damageDescription as any} onChange={e => setConditionData(p => ({...p, damageDescription: e.target.value}))} rows={3} required /></div>}
                </div>
                <div className="mt-6">
                  <FileUpload label="Condition Evidence Photos" multiple accept="image/*" onChange={setImages} showPreview />
                </div>
+             </div>
+
+             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Initial Payment</h3>
+                <div className="grid grid-cols-2 gap-4">
+                   <FormField type="number" label="Amount to Pay Now (£)" value={formData.paidAmount} onChange={e => setFormData(p => ({...p, paidAmount: parseFloat(e.target.value)||0}))} />
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                      <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                         <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
+                      </select>
+                   </div>
+                   <FormField label="Payment Reference" value={formData.paymentReference} onChange={e => setFormData(p => ({...p, paymentReference: e.target.value}))} placeholder="Transaction ID, Receipt Number..." />
+                   <FormField label="Payment Notes" value={formData.paymentNotes} onChange={e => setFormData(p => ({...p, paymentNotes: e.target.value}))} />
+                </div>
              </div>
           </div>
         )}

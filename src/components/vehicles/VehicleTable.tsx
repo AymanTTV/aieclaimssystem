@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, AlertCircle, Trash2, Tag, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2 } from 'lucide-react';
+import { Eye, Edit, AlertCircle, Trash2, Tag, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2, Layers } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
@@ -63,8 +63,8 @@ interface VehicleTableProps {
   onToggleAll: (checked: boolean) => void;
   onToggleOne: (id: string) => void;
   onAssignGarage: (vehicle: Vehicle) => void;
-  onAssignType: (vehicle: Vehicle) => void; // ✅ Add Prop
-
+  onAssignType: (vehicle: Vehicle) => void; 
+  onAssignGroup: (vehicle: Vehicle) => void; // ✅ New Prop
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
@@ -82,6 +82,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   onToggleOne,
   onAssignGarage,
   onAssignType,
+  onAssignGroup,
 }) => {
   const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
@@ -209,28 +210,37 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               </div>
               <div className="text-sm text-gray-500">{row.original.registrationNumber}</div>
               
-              {!isCompany && row.original.assignedGarageName && (
-                 <div className="text-xs font-semibold text-orange-600 mt-1 flex items-center bg-orange-50 w-max px-1.5 py-0.5 rounded border border-orange-100">
-                   <Building2 className="h-3 w-3 mr-1" /> {row.original.assignedGarageName}
-                 </div>
-              )}
+              <div className="flex flex-wrap gap-1 mt-1">
+                {!isCompany && row.original.assignedGarageName && (
+                   <div className="text-xs font-semibold text-orange-600 flex items-center bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
+                     <Building2 className="h-3 w-3 mr-1" /> {row.original.assignedGarageName}
+                   </div>
+                )}
+                {/* ✅ Added Group Display Here */}
+                {!isCompany && row.original.assignedGroupName && (
+                   <div className="text-xs font-semibold text-blue-600 flex items-center bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                     <Layers className="h-3 w-3 mr-1" /> {row.original.assignedGroupName}
+                   </div>
+                )}
+              </div>
             </div>
 
-            {/* ✅ ADDED ACTION BUTTON */}
-            {!isCompany && can('vehicles', 'update') && (
-               <button
-                  type="button"
-                  onClick={(e) => { 
-                    e.preventDefault();
-                    e.stopPropagation(); 
-                    onAssignType(row.original); 
-                  }}
-                  className="p-1.5 rounded hover:bg-purple-50 text-purple-600"
-                  title="Assign Vehicle Type"
-                >
-                  <Tag className="h-4 w-4 pointer-events-none" />
-                </button>
-            )}
+            <div className="flex flex-col gap-1 ml-2">
+                {!isCompany && can('vehicles', 'update') && (
+                   <button
+                      type="button"
+                      onClick={(e) => { 
+                        e.preventDefault();
+                        e.stopPropagation(); 
+                        onAssignType(row.original); 
+                      }}
+                      className="p-1 rounded hover:bg-purple-50 text-purple-600"
+                      title="Assign Vehicle Type"
+                    >
+                      <Tag className="h-4 w-4 pointer-events-none" />
+                    </button>
+                )}
+            </div>
 
           </div>
         ),
@@ -339,7 +349,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
                 Road Tax: {formatDate(vehicle.roadTaxExpiry)}
               </div>
-              {/* ✅ Added Warranty End Date right here */}
+              {/* Warranty End Date */}
               {warrantyDate && (
                 <div className={checkWarrantyRed(vehicle) ? 'text-red-600 font-medium' : ''}>
                   Warranty Exp: {formatDate(warrantyDate)}
@@ -461,6 +471,22 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                 </button>
             )}
 
+            {/* ✅ Added Group Assignment action button */}
+            {!isCompany && can('vehicles', 'update') && (
+               <button
+                  type="button"
+                  onClick={(e) => { 
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                    onAssignGroup(row.original); 
+                  }}
+                  className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
+                  title="Assign Finance Group"
+                >
+                  <Layers className="h-4 w-4 pointer-events-none" />
+                </button>
+            )}
+
             {can('vehicles', 'sale') && row.original.status !== 'sold' && (
               <button
                 type="button"
@@ -557,8 +583,8 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   }, [
     can, isCompany, allSelected, someSelected, selectedIds, 
     onToggleAll, onToggleOne, onView, onEdit, onAssignGarage, 
-    onMarkAsSold, onSetServiceMileage, onUndoSale, onDelete, 
-    onGenerateDocument, onViewDocument
+    onAssignType, onAssignGroup, onMarkAsSold, onSetServiceMileage, 
+    onUndoSale, onDelete, onGenerateDocument, onViewDocument
   ]);
 
   return (

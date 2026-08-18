@@ -23,6 +23,7 @@ interface InvoiceEditModalProps {
   vehicles: Vehicle[];
   customers: Customer[];
   accounts?: Account[]; 
+  groups?: { id: string; name: string }[];
   onClose: () => void;
 }
 
@@ -54,14 +55,15 @@ const getNextInvoiceNumber = async (): Promise<string> => {
     return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, customers, accounts: propAccounts = [], onClose }) => {
+const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, customers, accounts: propAccounts = [], groups = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
 
-  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(invoice.lineItems.map(li => ({ ...li })));
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>((invoice.lineItems || []).map(li => ({ ...li })));
+  
   const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean[]>([]);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -69,12 +71,13 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
 
   const [formData, setFormData] = useState({
     invoiceNumber: invoice.invoiceNumber || '',
-    date: new Date(invoice.date).toISOString().split('T')[0],
-    dueDate: new Date(invoice.dueDate).toISOString().split('T')[0],
-    category: invoice.category,
+    date: invoice.date ? new Date(invoice.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    category: invoice.category || '',
     paymentStatus: invoice.paymentStatus || 'unpaid',
     customCategory: invoice.customCategory || '',
     description: invoice.description || '', 
+    groupId: invoice.groupId || '',
     vehicleId: invoice.vehicleId || '',
     vehicleName: invoice.vehicleName || '', 
     manualVehicleEntry: false,
@@ -92,7 +95,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
-    isLoan: invoice.isLoan || false,
+    isLoan: true, // FORCED TRUE BY DEFAULT
     uploadedDocument: null as File | null
   });
 
@@ -282,6 +285,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
         : null;
 
+      const vehicle = vehicles.find(v => v.id === formData.vehicleId); // ✅ Grab vehicle here
+
       const payload: Partial<Invoice> = {
         invoiceNumber: invoiceNumberToSave,
         date: new Date(formData.date), dueDate: new Date(formData.dueDate),
@@ -290,6 +295,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         paidAmount: newTotalPaid, remainingAmount: newRemaining,
         paymentStatus: newStatus as any, category: formData.category, description: formData.description,
         customCategory: formData.category === 'Other' ? formData.customCategory : null,
+        groupId: formData.groupId || vehicle?.assignedGroupId || null, // ✅ Assign fallback group
         vehicleId: formData.manualVehicleEntry ? null : (formData.vehicleId || null), 
         vehicleName: formData.manualVehicleEntry ? combinedManualVehicleName : (formData.vehicleName || null),
         customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
@@ -304,7 +310,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
       await updateDoc(doc(db, 'invoices', invoice.id), payload);
 
       const fullInv = { id: invoice.id, ...invoice, ...payload } as any;
-      const pdfVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const pdfVehicle = vehicle;
       const pdfCustomer = customers.find(c => c.id === formData.customerId);
       
       if (formData.uploadedDocument) {
@@ -323,7 +329,6 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
       }
 
       if (formData.isAddingPayment && payNow > 0) {
-          const vehicle = vehicles.find(v => v.id === formData.vehicleId);
           const custName = formData.useCustomCustomer ? formData.customerName : customers.find(c => c.id === formData.customerId)?.name;
           const vehicleOwner = formData.manualVehicleEntry ? null : (vehicle?.owner ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false, } : undefined);
           
@@ -333,22 +338,27 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             if (defaultAcc) finalAccountId = defaultAcc.id;
         }
           
+          const actualCategory = formData.category === 'Other' && formData.customCategory 
+            ? formData.customCategory 
+            : (formData.category || 'Invoice Payment');
+
           await createFinanceTransaction({
             type: 'income',
-            category: formData.category,
+            category: actualCategory, 
             amount: payNow,
-            description: [formData.description, formData.paymentNotes].filter(Boolean).join(' - ') || `Payment for Invoice ${invoiceNumberToSave}`,
+            description: [invoiceNumberToSave, formData.description, formData.paymentNotes].filter(Boolean).join(' - ') || `Payment for Invoice ${invoiceNumberToSave}`,
             referenceId: invoice.id,
             vehicleId: formData.manualVehicleEntry ? null : (formData.vehicleId || null),
             vehicleName: formData.manualVehicleEntry ? (combinedManualVehicleName || undefined) : (formData.vehicleName || undefined),
             vehicleOwner,
             customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
             customerName: custName,
+            groupId: payload.groupId || undefined, // ✅ Attach Group ID
             paymentMethod: formData.paymentMethod,
-            paymentReference: formData.paymentReference,
+            paymentReference: formData.paymentReference || invoiceNumberToSave || 'N/A', 
             paymentStatus: newStatus as any,
-            accountFrom: formData.accountFrom || undefined,
-            accountTo: finalAccountId || undefined
+            date: new Date(),
+            accountsTo: finalAccountId ? [finalAccountId] : []
           });
       }
 
@@ -464,7 +474,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           <FormField type="date" label="Due Date" value={formData.dueDate} onChange={e => setFormData(fd => ({ ...fd, dueDate: e.target.value }))} required />
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Category</label>
             <select value={formData.category} onChange={e => setFormData(fd => ({ ...fd, category: e.target.value }))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required>
@@ -473,6 +483,14 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
               <option value="Other">Other</option>
             </select>
           </div>
+          
+          <SearchableSelect
+            label="Group (Optional)"
+            options={groups.map(g => ({ id: g.id, label: g.name }))}
+            value={formData.groupId}
+            onChange={val => setFormData(fd => ({ ...fd, groupId: val || '' }))}
+            placeholder="Select a group..."
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4">

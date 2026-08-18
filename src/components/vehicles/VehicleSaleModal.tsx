@@ -55,7 +55,6 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
         : undefined;
 
       // 3) Create finance transaction for the sale (Income)
-      // If the vehicle has a linked account, credit it (accountTo)
       await createFinanceTransaction({
         type: 'income',
         category: 'vehicle-sale',
@@ -67,9 +66,8 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
         vehicleOwner,
         paymentStatus: 'paid',
         date: saleDate,
-        // ✅ NEW: Pass the linked account if it exists
         accountTo: vehicle.owner?.accountId || undefined, 
-        // We leave accountFrom empty as this is external income
+        groupId: vehicle.assignedGroupId || undefined, // ✅ Pass the vehicle's assigned group
       });
 
       toast.success('Vehicle marked as sold successfully');

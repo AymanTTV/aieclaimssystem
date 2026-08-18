@@ -1,6 +1,6 @@
 // src/utils/rentalCalculations.ts
 import { differenceInHours, isAfter, isBefore } from 'date-fns';
-import { Vehicle, Rental, RentalDiscount } from '../types'; 
+import { Vehicle, Rental, RentalDiscount } from '../types';
 
 export const RENTAL_RATES = {
   daily: 60,
@@ -12,16 +12,110 @@ export type RentalType = keyof typeof RENTAL_RATES;
 export type RentalReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop' | 'c-substitute' | 'h-substitute';
 
 export interface DetailedRentalCost {
-  baseNet: number;          // Original Total Net (Before Discount & Extra Charges)
-  baseVat: number;          // Original VAT
-  baseGross: number;        // Original Gross (Before Discount & Extra Charges)
-  pureHireNet: number;      // NEW: The pure unadjusted base hire rate
-  pureInsuranceNet: number; // NEW: The pure unadjusted insurance cost
-  discountAmount: number;   // The Total NET Discount Amount
-  net: number;              // Final Net (After Discount + Extra Charges)
-  vat: number;              // Final VAT (Recalculated)
-  gross: number;            // Final Gross
+  baseNet: number;
+  baseVat: number;
+  baseGross: number;
+  pureHireNet: number;
+  pureInsuranceNet: number;
+  discountAmount: number;
+  net: number;
+  vat: number;
+  gross: number;
 }
+
+// ✅ UPGRADED: Hybrid Unit Calculator with Monday 12:00 PM resets AND 5-day week-rollover fix
+export const getWeeklyHybridUnits = (startDate: Date, endDate: Date) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return { dailyDays: 0, weeklyWeeks: 0 };
+  if (start.getTime() >= end.getTime()) return { dailyDays: 1, weeklyWeeks: 0 };
+
+  const getNextMondayNoon = (d: Date) => {
+    const res = new Date(d);
+    const day = res.getDay();
+    const hours = res.getHours();
+
+    // If it is already exactly Monday 12:00:00 PM, return as-is
+    if (day === 1 && hours === 12 && res.getMinutes() === 0 && res.getSeconds() === 0 && res.getMilliseconds() === 0) {
+      return res;
+    }
+
+    // Determine days until the next Monday
+    let daysToMonday = (1 + 7 - day) % 7;
+    
+    // If it's Monday but past 12:00 PM, the next boundary is next Monday (+7 days)
+    if (day === 1 && hours >= 12) {
+      daysToMonday = 7;
+    } 
+    // If it's Monday before 12:00 PM, the boundary is today (+0 days)
+    else if (day === 1 && hours < 12) {
+      daysToMonday = 0;
+    } else if (day === 0) { // If Sunday, Monday is 1 day away
+      daysToMonday = 1;
+    }
+
+    // Set the strict boundary
+    const boundary = new Date(res);
+    boundary.setDate(res.getDate() + daysToMonday);
+    boundary.setHours(12, 0, 0, 0, 0); // Strictly forces 12:00 PM
+    return boundary;
+  };
+
+  const firstMondayNoon = getNextMondayNoon(start);
+  const WEEK_THRESHOLD_HOURS = 120; // Fixed: 5 days = 120 hours
+
+  if (end.getTime() <= firstMondayNoon.getTime()) {
+    const hours = differenceInHours(end, start);
+    if (hours >= WEEK_THRESHOLD_HOURS) {
+      return { dailyDays: 0, weeklyWeeks: 1 };
+    } else {
+      const days = hours <= 0 ? 1 : Math.ceil(hours / 24);
+      return { dailyDays: days, weeklyWeeks: 0 };
+    }
+  } else {
+    const initialHours = differenceInHours(firstMondayNoon, start);
+    let dailyDays = 0;
+    let weeklyWeeks = 0;
+    
+    // Evaluate the initial mid-week start segment
+    if (initialHours >= WEEK_THRESHOLD_HOURS) {
+      weeklyWeeks += 1;
+    } else {
+      dailyDays += initialHours <= 0 ? 0 : Math.ceil(initialHours / 24);
+    }
+    
+    // Evaluate remaining hours after the first Monday noon boundary
+    // Evaluate remaining hours after the first Monday noon boundary
+    const remainingHours = differenceInHours(end, firstMondayNoon);
+    if (remainingHours > 0) {
+      const fullWeeks = Math.floor(remainingHours / 168); // 168 hours in a standard week
+      const leftoverHours = remainingHours % 168; // Remaining hours of the incomplete final week
+      
+      if (leftoverHours >= WEEK_THRESHOLD_HOURS) {
+        weeklyWeeks += fullWeeks + 1;
+      } else {
+        weeklyWeeks += fullWeeks;
+        dailyDays += Math.ceil(leftoverHours / 24);
+      }
+    }
+    
+    // ✅ NEW FIX: Normalize accumulated days into weeks
+    // If the initial days and final days add up to 7 or more, roll them into a week
+    if (dailyDays >= 7) {
+      const extraWeeks = Math.floor(dailyDays / 7);
+      weeklyWeeks += extraWeeks;
+      dailyDays = dailyDays % 7;
+    }
+    
+    return { dailyDays, weeklyWeeks };
+  }
+};
+
+export const getCalendarWeeks = (startDate: Date, endDate: Date): number => {
+  const { weeklyWeeks, dailyDays } = getWeeklyHybridUnits(startDate, endDate);
+  return Math.max(1, weeklyWeeks + (dailyDays > 0 ? 1 : 0));
+};
 
 export const calculateRentalCostDetailed = (
   startDate: Date,
@@ -50,87 +144,107 @@ export const calculateRentalCostDetailed = (
   lockedWeeklyRate?: number,
   lockedClaimRate?: number,
   extraChargesTotal: number = 0,
-  discounts: RentalDiscount[] = [] // ✅ Discounts Array Passed Here
+  discounts: RentalDiscount[] = []
 ): DetailedRentalCost => {
   if (reason === 'staff' || reason === 'o/d') {
     return { baseNet: 0, baseVat: 0, baseGross: 0, pureHireNet: 0, pureInsuranceNet: 0, discountAmount: 0, net: extraChargesTotal, vat: 0, gross: extraChargesTotal };
   }
 
-  const dailyRate = negotiatedRate ?? vehicle?.dailyRentalPrice ?? RENTAL_RATES.daily;
-  const weeklyRate = negotiatedRate ?? vehicle?.weeklyRentalPrice ?? RENTAL_RATES.weekly;
-  const claimRate = negotiatedRate ?? vehicle?.claimRentalPrice ?? RENTAL_RATES.claim;
+  // ✅ FIX: Safely check for negotiated rate to allow 0
+  const hasNegotiatedRate = negotiatedRate !== undefined && negotiatedRate !== null;
 
-  const pastDaily = lockedDailyRate ?? dailyRate;
-  const pastWeekly = lockedWeeklyRate ?? weeklyRate;
-  const pastClaim = lockedClaimRate ?? claimRate;
+  // Base rates
+  let dailyRate = vehicle?.dailyRentalPrice ?? RENTAL_RATES.daily;
+  let weeklyRate = vehicle?.weeklyRentalPrice ?? RENTAL_RATES.weekly;
+  let claimRate = vehicle?.claimRentalPrice ?? RENTAL_RATES.claim;
+
+  // Locked past rates
+  let pastDailyRate = lockedDailyRate ?? dailyRate;
+  let pastWeeklyRate = lockedWeeklyRate ?? weeklyRate;
+  let pastClaimRate = lockedClaimRate ?? claimRate;
+
+  // ✅ CRITICAL FIX: Dynamically prorate daily rate for weekly rentals
+  if (hasNegotiatedRate) {
+    if (type === 'claim' || reason === 'claim') {
+      claimRate = negotiatedRate;
+      pastClaimRate = negotiatedRate;
+    } else if (type === 'weekly') {
+      weeklyRate = negotiatedRate;
+      pastWeeklyRate = negotiatedRate;
+      // Derive partial daily rate from the negotiated weekly rate
+      dailyRate = negotiatedRate / 7;
+      pastDailyRate = (lockedWeeklyRate ?? negotiatedRate) / 7;
+    } else {
+      dailyRate = negotiatedRate;
+      pastDailyRate = negotiatedRate;
+    }
+  } else if (type === 'weekly') {
+    // Standard weekly rates derive daily rate from the base weekly rate
+    dailyRate = weeklyRate / 7;
+    pastDailyRate = pastWeeklyRate / 7;
+  }
 
   let baseNet = 0;
   const now = new Date();
-  
   const totalHours = differenceInHours(endDate, startDate);
   const totalDays = totalHours <= 0 ? 1 : Math.ceil(totalHours / 24);
+  const hybrid = getWeeklyHybridUnits(startDate, endDate);
+  const totalDailyDays = type === 'weekly' ? hybrid.dailyDays : totalDays;
+  const totalWeeklyWeeks = type === 'weekly' ? hybrid.weeklyWeeks : 0;
 
-  if (rentalStatus === 'active' && !negotiatedRate) {
-     if (isAfter(now, startDate) && isBefore(now, endDate)) {
-         const pastHours = differenceInHours(now, startDate);
-         const pastDays = Math.max(0, Math.floor(pastHours / 24));
-         const futureDays = Math.max(0, totalDays - pastDays);
+  if (rentalStatus === 'active' && !hasNegotiatedRate) {
+    if (isAfter(now, startDate) && isBefore(now, endDate)) {
+      const pastHours = differenceInHours(now, startDate);
+      const pastDaysAct = Math.max(0, Math.floor(pastHours / 24));
+      const futureDaysAct = Math.max(0, totalDays - pastDaysAct);
 
-         if (type === 'claim' || reason === 'claim') baseNet = (pastDays * pastClaim) + (futureDays * claimRate);
-         else if (type === 'weekly') {
-             const pastWeeks = Math.max(0, Math.floor(pastDays / 7));
-             const totalWeeks = Math.ceil(totalDays / 7);
-             const futureWeeks = Math.max(0, totalWeeks - pastWeeks);
-             baseNet = (pastWeeks * pastWeekly) + (futureWeeks * weeklyRate);
-         } else baseNet = (pastDays * pastDaily) + (futureDays * dailyRate);
-     } else {
-         if (isAfter(now, endDate)) {
-            if (type === 'claim' || reason === 'claim') baseNet = totalDays * pastClaim;
-            else if (type === 'weekly') baseNet = Math.ceil(totalDays / 7) * pastWeekly;
-            else baseNet = totalDays * pastDaily;
-         } else {
-            if (type === 'claim' || reason === 'claim') baseNet = totalDays * claimRate;
-            else if (type === 'weekly') baseNet = Math.ceil(totalDays / 7) * weeklyRate;
-            else baseNet = totalDays * dailyRate;
-         }
-     }
+      if (type === 'claim' || reason === 'claim') baseNet = (pastDaysAct * pastClaimRate) + (futureDaysAct * claimRate);
+      else if (type === 'weekly') {
+        const pastHybrid = getWeeklyHybridUnits(startDate, now);
+        const pDaily = Math.min(totalDailyDays, pastHybrid.dailyDays);
+        const pWeekly = Math.min(totalWeeklyWeeks, pastHybrid.weeklyWeeks);
+        const fDaily = Math.max(0, totalDailyDays - pDaily);
+        const fWeekly = Math.max(0, totalWeeklyWeeks - pWeekly);
+        baseNet = (pDaily * pastDailyRate) + (fDaily * dailyRate) + (pWeekly * pastWeeklyRate) + (fWeekly * weeklyRate);
+      } else baseNet = (pastDaysAct * pastDailyRate) + (futureDaysAct * dailyRate);
+    } else {
+      if (isAfter(now, endDate)) {
+        if (type === 'claim' || reason === 'claim') baseNet = totalDays * pastClaimRate;
+        else if (type === 'weekly') baseNet = (totalDailyDays * pastDailyRate) + (totalWeeklyWeeks * pastWeeklyRate);
+        else baseNet = totalDays * pastDailyRate;
+      } else {
+        if (type === 'claim' || reason === 'claim') baseNet = totalDays * claimRate;
+        else if (type === 'weekly') baseNet = (totalDailyDays * dailyRate) + (totalWeeklyWeeks * weeklyRate);
+        else baseNet = totalDays * dailyRate;
+      }
+    }
   } else {
-      const activeD = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastDaily : dailyRate;
-      const activeW = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastWeekly : weeklyRate;
-      const activeC = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastClaim : claimRate;
-      
-      if (type === 'claim' || reason === 'claim') baseNet = totalDays * activeC;
-      else if (type === 'weekly') baseNet = Math.ceil(totalDays / 7) * activeW;
-      else baseNet = totalDays * activeD;
+    const activeD = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastDailyRate : dailyRate;
+    const activeW = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastWeeklyRate : weeklyRate;
+    const activeC = (rentalStatus === 'completed' || rentalStatus === 'cancelled') ? pastClaimRate : claimRate;
+    if (type === 'claim' || reason === 'claim') baseNet = totalDays * activeC;
+    else if (type === 'weekly') baseNet = (totalDailyDays * activeD) + (totalWeeklyWeeks * activeW);
+    else baseNet = totalDays * activeD;
   }
 
-  const totalWeeks = Math.ceil(totalDays / 7);
-  const insuranceCostNet = type === 'weekly' ? totalWeeks * insurancePerWeek : totalDays * insurancePerDay;
+  // Insurance follows the exact same hybrid pattern
+  const insuranceCostNet = type === 'weekly'
+    ? (totalDailyDays * insurancePerDay) + (totalWeeklyWeeks * insurancePerWeek)
+    : totalDays * insurancePerDay;
   
-  // --- REVISED LOGIC START ---
-  
-  // 1. Process explicit line-item discounts or legacy input
   let baseDiscountAmt = 0;
   let insuranceDiscountAmt = 0;
 
   if (discounts && discounts.length > 0) {
     discounts.forEach(d => {
-      if (d.applyTo === 'insurance') {
-        insuranceDiscountAmt += d.amount;
-      } else {
-        baseDiscountAmt += d.amount;
-      }
+      if (d.applyTo === 'insurance') insuranceDiscountAmt += d.amount;
+      else baseDiscountAmt += d.amount;
     });
   } else {
-    // Legacy fallback behavior
-    if (discountAmountInput > 0) {
-      baseDiscountAmt = discountAmountInput; 
-    } else if (discountPercentage > 0) {
-      baseDiscountAmt = baseNet * (discountPercentage / 100);
-    }
+    if (discountAmountInput > 0) baseDiscountAmt = discountAmountInput;
+    else if (discountPercentage > 0) baseDiscountAmt = baseNet * (discountPercentage / 100);
   }
   
-  // Prevent discounts from being higher than their specific line items
   baseDiscountAmt = Math.min(baseDiscountAmt, baseNet);
   insuranceDiscountAmt = Math.min(insuranceDiscountAmt, insuranceCostNet);
 
@@ -138,8 +252,6 @@ export const calculateRentalCostDetailed = (
   const discountedInsuranceNet = insuranceCostNet - insuranceDiscountAmt;
   const totalDiscountAmtNet = baseDiscountAmt + insuranceDiscountAmt;
 
-  // 2. Calculate Final VAT
-  // Base VAT and Insurance VAT scale with their respective discounted lines.
   let finalVat = 0;
   if (includeVAT) finalVat += discountedBaseNet * 0.20;
   if (includeStorageVAT) finalVat += storageCost * 0.20;
@@ -149,7 +261,6 @@ export const calculateRentalCostDetailed = (
   if (type === 'weekly' && insurancePerWeekIncludeVAT) finalVat += discountedInsuranceNet * 0.20;
   else if (type !== 'weekly' && insurancePerDayIncludeVAT) finalVat += discountedInsuranceNet * 0.20;
 
-  // 3. Track Original Totals (so the UI correctly displays the 'Before Discount' gross breakdown)
   const originalTotalNet = baseNet + storageCost + recoveryCost + deliveryCharge + collectionCharge + insuranceCostNet;
   
   let originalVatAccumulator = 0;
@@ -161,7 +272,6 @@ export const calculateRentalCostDetailed = (
   if (type === 'weekly' && insurancePerWeekIncludeVAT) originalVatAccumulator += insuranceCostNet * 0.20;
   else if (type !== 'weekly' && insurancePerDayIncludeVAT) originalVatAccumulator += insuranceCostNet * 0.20;
 
-  // 4. Calculate Final Net & Gross
   const finalNet = discountedBaseNet + storageCost + recoveryCost + deliveryCharge + collectionCharge + discountedInsuranceNet + extraChargesTotal;
   const finalGross = finalNet + finalVat;
 
@@ -171,14 +281,13 @@ export const calculateRentalCostDetailed = (
     baseGross: originalTotalNet + originalVatAccumulator,
     pureHireNet: baseNet,
     pureInsuranceNet: insuranceCostNet,
-    discountAmount: totalDiscountAmtNet, 
+    discountAmount: totalDiscountAmtNet,
     net: finalNet,
     vat: finalVat,
     gross: finalGross
   };
 };
 
-// Legacy Wrapper for older components
 export const calculateRentalCost = (
   startDate: Date, endDate: Date, type: RentalType, vehicle?: Vehicle, reason?: RentalReason,
   negotiatedRate?: number, storageCost?: number, recoveryCost?: number, deliveryCharge?: number,
@@ -195,8 +304,7 @@ export const calculateRentalCost = (
     deliveryChargeIncludeVAT || false, collectionChargeIncludeVAT || false,
     insurancePerDayIncludeVAT || false, insurancePerWeekIncludeVAT || false,
     includeRecoveryCostVAT || false, includeStorageVAT || false,
-    0, 0, rentalStatus, lockedDailyRate, lockedWeeklyRate, lockedClaimRate, extraChargesTotal || 0,
-    []
+    0, 0, rentalStatus, lockedDailyRate, lockedWeeklyRate, lockedClaimRate, extraChargesTotal || 0, []
   );
   return detailed.gross;
 };
@@ -209,22 +317,59 @@ export const calculateTotalSubstitutionCharges = (rental: Rental): number => {
 export function getOverdueUnits(rental: Rental, now: Date): number {
   const end = new Date(rental.endDate);
   if (now <= end) return 0;
+  
+  if (rental.type === 'weekly') {
+    const scheduled = getWeeklyHybridUnits(new Date(rental.startDate), end);
+    const actual = getWeeklyHybridUnits(new Date(rental.startDate), now);
+    const overdueDays = Math.max(0, actual.dailyDays - scheduled.dailyDays);
+    const overdueWeeks = Math.max(0, actual.weeklyWeeks - scheduled.weeklyWeeks);
+    return overdueDays + (overdueWeeks * 7);
+  }
+
   const overdueHours = Math.max(0, differenceInHours(now, end));
-  const overdueDays = Math.ceil(overdueHours / 24) || 1;
-  return rental.type === 'weekly' ? Math.ceil(overdueDays / 7) : overdueDays;
+  return Math.ceil(overdueHours / 24) || 1;
 }
 
 export const calculateOverdueCost = (rental: Rental, now: Date, vehicle?: Vehicle): number => {
+  const start = new Date(rental.startDate);
   const end = new Date(rental.endDate);
   if (now <= end) return 0;
-  const dailyRate = rental.negotiatedRate ?? vehicle?.dailyRentalPrice ?? RENTAL_RATES.daily;
-  const weeklyRate = rental.negotiatedRate ?? vehicle?.weeklyRentalPrice ?? RENTAL_RATES.weekly;
-  const claimRate = rental.negotiatedRate ?? vehicle?.claimRentalPrice ?? RENTAL_RATES.claim;
-  const units = getOverdueUnits(rental, now);
-  let rate = rental.type === 'claim' || rental.reason === 'claim' ? claimRate : rental.type === 'weekly' ? weeklyRate : dailyRate;
-  let cost = units * rate;
-  if (rental.includeVAT) cost *= 1.2;
-  return Math.max(0, cost);
+  
+  const hasNegotiatedRate = rental.negotiatedRate !== undefined && rental.negotiatedRate !== null;
+
+  let dailyRate = vehicle?.dailyRentalPrice ?? RENTAL_RATES.daily;
+  let weeklyRate = vehicle?.weeklyRentalPrice ?? RENTAL_RATES.weekly;
+  let claimRate = vehicle?.claimRentalPrice ?? RENTAL_RATES.claim;
+
+  // ✅ CRITICAL FIX: Apply prorated logic to overdue costs
+  if (hasNegotiatedRate) {
+    if (rental.type === 'claim' || rental.reason === 'claim') {
+      claimRate = rental.negotiatedRate!;
+    } else if (rental.type === 'weekly') {
+      weeklyRate = rental.negotiatedRate!;
+      dailyRate = rental.negotiatedRate! / 7;
+    } else {
+      dailyRate = rental.negotiatedRate!;
+    }
+  } else if (rental.type === 'weekly') {
+    dailyRate = weeklyRate / 7;
+  }
+
+  if (rental.type === 'weekly') {
+    const scheduled = getWeeklyHybridUnits(start, end);
+    const actual = getWeeklyHybridUnits(start, now);
+    const overdueDays = Math.max(0, actual.dailyDays - scheduled.dailyDays);
+    const overdueWeeks = Math.max(0, actual.weeklyWeeks - scheduled.weeklyWeeks);
+    let cost = (overdueDays * dailyRate) + (overdueWeeks * weeklyRate);
+    if (rental.includeVAT) cost *= 1.2;
+    return Math.max(0, cost);
+  } else {
+    const units = getOverdueUnits(rental, now);
+    let rate = rental.type === 'claim' || rental.reason === 'claim' ? claimRate : dailyRate;
+    let cost = units * rate;
+    if (rental.includeVAT) cost *= 1.2;
+    return Math.max(0, cost);
+  }
 };
 
 export const calculateDiscount = (totalAmount: number, discountPercentage: number): number => {

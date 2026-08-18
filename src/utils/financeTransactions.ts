@@ -36,10 +36,11 @@ interface FinanceTransactionParams {
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
-  accountsFrom?: string[]; // Array Support Added
-  accountsTo?: string[];   // Array Support Added
+  accountsFrom?: string[]; 
+  accountsTo?: string[];   
   customerId?: string;
   customerName?: string;
+  groupId?: string; // Added Group ID Support
 }
 
 export async function reverseFinanceTransaction(params: {
@@ -110,7 +111,8 @@ export const createMaintenanceTransaction = async (
     date: new Date(),
     createdAt: new Date(),
     createdBy: 'system',
-    ...(paymentMethod && { paymentMethod })
+    ...(paymentMethod && { paymentMethod }),
+    ...(vehicle.assignedGroupId && { groupId: vehicle.assignedGroupId }) // ✅ Pulls the group ID from the vehicle
   };
 
   if (vehicle.owner) {
@@ -155,7 +157,8 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     accountsFrom,
     accountsTo,
     customerId,
-    customerName
+    customerName,
+    groupId
   } = params;
 
   try {
@@ -180,7 +183,6 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
         return { success: false };
       }
     } else {
-      // Loop over accountsFrom and accountsTo to dynamically update all balances
       for (const fromId of finalAccountsFrom) {
         const fromRef = doc(db, 'accounts', fromId);
         const fromSnap = await getDoc(fromRef);
@@ -222,15 +224,14 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       ...(paymentMethod    && { paymentMethod }),
       ...(paymentReference && { paymentReference }),
       ...(paymentStatus    && { paymentStatus }),
-      accountsFrom: finalAccountsFrom, // Native Support for arrays
-      accountsTo: finalAccountsTo,     // Native Support for arrays
+      accountsFrom: finalAccountsFrom, 
+      accountsTo: finalAccountsTo,     
       ...(customerId       && { customerId }),
-      ...(customerName     && { customerName })
+      ...(customerName     && { customerName }),
+      ...(groupId          && { groupId }) // Native mapping for Group ID
     };
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);
-    console.log('Transaction created with ID:', docRef.id);
-    // Suppress overlapping success toasts for automated records
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error creating finance transaction:', error);

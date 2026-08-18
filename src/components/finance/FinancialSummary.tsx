@@ -48,30 +48,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const [accountSearch, setAccountSearch] = useState('');
 
-  // 1. Calculate Debts based on FILTERED transactions
-  const filteredDebts = useMemo(() => {
-    let owingOwners = 0;
-    let owingAccounts = 0;
-
-    transactions.forEach(txn => {
-        const amount = Number(txn.amount) || 0;
-        
-        if (txn.paymentStatus === 'pending' || txn.paymentStatus === 'partially_paid') {
-             if (txn.vehicleOwner && !txn.vehicleOwner.isDefault) {
-                 owingOwners += amount;
-             } else {
-                 owingAccounts += amount;
-             }
-        }
-    });
-
-    return {
-        owners: owingOwners,
-        accounts: owingAccounts
-    };
-  }, [transactions]);
-
-  // 2. Calculates balances based on CURRENT filtered view
+  // Calculates balances based on CURRENT filtered view
   const accountBalances = useMemo(() => {
     if (!accounts || accounts.length === 0) return [];
 
@@ -142,8 +119,8 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   ];
 
   const owingStats = [
-    { key: 'owing_owners', label: 'Owing from Owners', value: formatCurrency(filteredDebts.owners), tone: 'text-orange-600', icon: <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" /> },
-    { key: 'owing_accounts', label: 'Owing from Accounts', value: formatCurrency(filteredDebts.accounts), tone: 'text-red-600', icon: <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" /> },
+    { key: 'owing_owners', label: 'Owing from Owners', value: formatCurrency(totalOwingFromOwners), tone: 'text-orange-600', icon: <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" /> },
+    { key: 'owing_accounts', label: 'Owing from Accounts', value: formatCurrency(totalOwingFromAccounts), tone: 'text-red-600', icon: <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" /> },
   ];
 
   const allAccountCards = accountBalances.map(acc => ({

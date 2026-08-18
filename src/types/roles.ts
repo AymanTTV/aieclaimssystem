@@ -124,7 +124,7 @@ const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: fa
 const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false };
 const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false };
 const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false };
-const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false, groups: false, singleDoc: false, recordPayment: false };
+const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false, recordPayment: false };
 const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false };
 const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false };
 const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false };
@@ -132,7 +132,7 @@ const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete:
 const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, accounts: false, categories: false, groups: false, reoccurring: false, assign: false, singleDoc: false };
 const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, singleDoc: false };
 const BASE_VAT_RECORD = { view: false, create: false, update: false, delete: false, cards: false, export: false, groups: false, categories: false, reoccurring: false, state: false, singleDoc: false };
-const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, share: false, export: false, categories: false, reoccurring: false, singleDoc: false };
+const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, share: false, export: false, import: false, categories: false, reoccurring: false, singleDoc: false };
 const BASE_MEMBERS = { view: false, create: false, update: false, delete: false, cards: false, assign: false, signatureReq: false, singleDoc: false };
 const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false };
 const BASE_PRODUCTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false };
@@ -158,7 +158,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
     accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true },
     claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true },
-    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, singleDoc: true, recordPayment: true },
+    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true, recordPayment: true },
     vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, update: true, delete: true, cards: true, singleDoc: true },
     driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
     pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
@@ -168,7 +168,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, accounts: true, categories: true, groups: true, reoccurring: true, assign: true, singleDoc: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, singleDoc: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, delete: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
-    share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, share: true, export: true, categories: true, reoccurring: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, share: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true },
     members: { ...BASE_MEMBERS, view: true, update: true, cards: true, assign: true, signatureReq: true, singleDoc: true },
     customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true },
     products: { ...BASE_PRODUCTS, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true },
@@ -196,7 +196,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
     accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true },
     claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true },
-    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, singleDoc: true, recordPayment: true },
+    vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, import: true, singleDoc: true, recordPayment: true },
     vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, cards: true, singleDoc: true },
     driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
     pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
@@ -206,7 +206,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { ...BASE_FINANCE, view: true, cards: true, export: true, singleDoc: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, cards: true, export: true, singleDoc: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, cards: true, export: true, singleDoc: true },
-    share: { ...BASE_SHARE, view: true, create: true, cards: true, share: true, export: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, cards: true, share: true, export: true, import: true, singleDoc: true },
     members: { ...BASE_MEMBERS, view: true, create: true, cards: true, singleDoc: true },
     customers: { ...BASE_CUSTOMERS, view: true, cards: true, export: true },
     products: { ...BASE_PRODUCTS, view: true, cards: true, export: true },

@@ -15,6 +15,7 @@ interface InvoiceDetailsProps {
   vehicle?: Vehicle;
   customer?: Customer;
   accounts?: Account[];
+  groups?: { id: string; name: string }[];
   onDownload: () => void;
 }
 
@@ -23,6 +24,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   vehicle,
   customer,
   accounts = [],
+  groups = [],
   onDownload,
 }) => {
   const formatDate = (date: any): string => {
@@ -33,8 +35,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
   const { formatCurrency } = useFormattedDisplay();
 
-  // Calculations
-  const totalDiscount = invoice.lineItems.reduce((sum, li) => {
+  // Calculations: Added safety fallbacks here too just in case!
+  const totalDiscount = (invoice.lineItems || []).reduce((sum, li) => {
     const gross = li.quantity * li.unitPrice;
     return sum + (li.discount / 100) * gross;
   }, 0);
@@ -50,6 +52,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const accToId = (invoice as any).accountTo || invoice.accountId;
   const accFromName = accounts.find(a => a.id === accFromId)?.name || 'N/A';
   const accToName = accounts.find(a => a.id === accToId)?.name || invoice.accountName || 'N/A';
+
+  const groupName = groups.find(g => g.id === invoice.groupId)?.name || 'N/A';
 
   return (
     <div className="space-y-6 bg-gray-50/50 p-2 rounded-lg">
@@ -130,7 +134,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <Tag className="h-4 w-4 mr-1.5 text-gray-400" /> Classification
             </h3>
             <p className="font-medium text-gray-900">{invoice.category === 'Other' ? invoice.customCategory : invoice.category}</p>
-            {(invoice as any).groupId && <p className="text-xs text-gray-500 mt-1">Group ID: {(invoice as any).groupId}</p>}
+            {invoice.groupId && <p className="text-xs text-gray-500 mt-1">Group: <span className="font-medium">{groupName}</span></p>}
           </div>
 
           <div className="pt-3 border-t border-gray-100">
@@ -199,24 +203,32 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {invoice.lineItems.map((item, idx) => {
-                const gross = item.quantity * item.unitPrice;
-                const discountAmt = (item.discount / 100) * gross;
-                const netAfterDiscount = gross - discountAmt;
-                const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
-                const totalLine = netAfterDiscount + vatAmt;
-                
-                return (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium">{item.description}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.quantity}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
-                    <td className="px-4 py-3 text-sm text-red-500 text-right">{item.discount > 0 ? `${item.discount.toFixed(1)}%` : '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.includeVAT ? '✓' : '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{formatCurrency(totalLine)}</td>
-                  </tr>
-                );
-              })}
+              {invoice.lineItems && invoice.lineItems.length > 0 ? (
+                (invoice.lineItems || []).map((item, idx) => {
+                  const gross = item.quantity * item.unitPrice;
+                  const discountAmt = (item.discount / 100) * gross;
+                  const netAfterDiscount = gross - discountAmt;
+                  const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
+                  const totalLine = netAfterDiscount + vatAmt;
+                  
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">{item.description}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.quantity}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-sm text-red-500 text-right">{item.discount > 0 ? `${item.discount.toFixed(1)}%` : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.includeVAT ? '✓' : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{formatCurrency(totalLine)}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-center text-sm text-gray-500">
+                    No line items
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

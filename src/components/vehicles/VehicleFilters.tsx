@@ -22,18 +22,26 @@ interface VehicleFiltersProps {
   expiryFilter: string;
   onExpiryFilterChange: (value: string) => void;
 
-  ageFilter: string;                           // ✅ New Prop
-  onAgeFilterChange: (value: string) => void;  // ✅ New Prop
+  ageFilter: string;                           
+  onAgeFilterChange: (value: string) => void;  
 
-  // Account Props
   accountFilter: string;
   onAccountFilterChange: (value: string) => void;
   accounts: { id: string; name: string }[];
   
-  // NEW Garage Props
   garageFilter: string;
   onGarageFilterChange: (value: string) => void;
   garages: { id: string; name: string }[];
+
+  // ✅ NEW Group Props
+  groupFilter: string;
+  onGroupFilterChange: (value: string) => void;
+  groups: { id: string; name: string }[];
+
+  // ✅ NEW Owner Props
+  ownerFilter: string;
+  onOwnerFilterChange: (value: string) => void;
+  owners: string[];
 }
 
 const EXPIRY_OPTIONS = [
@@ -44,37 +52,24 @@ const EXPIRY_OPTIONS = [
   { id: 'maintenance', label: 'Near Maintenance (Date/1k mi)' },
   { id: 'service_soon', label: 'Service Due Soon (< 5,000 mi)' }, 
   { id: 'needs_update', label: 'Monthly Update Needed (28th)' }, 
-  { id: 'warranty', label: 'Warranty Expiry' }, // ✅ Added Warranty
+  { id: 'warranty', label: 'Warranty Expiry' }, 
 ];
 
 const VehicleFilters: React.FC<VehicleFiltersProps> = ({
-  searchQuery,
-  onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
-  makeFilter,
-  onMakeFilterChange,
-  makes,
-  showSold,
-  onShowSoldChange,
-  showDueSoon,
-  onShowDueSoonChange,
-  expiryFilter,
-  onExpiryFilterChange,
-  accountFilter,
-  onAccountFilterChange,
-  accounts,
-  garageFilter,
-  onGarageFilterChange,
-  garages,
-  typeFilter,
-  onTypeFilterChange,
-  ageFilter,
-  onAgeFilterChange,
-  
-  
+  searchQuery, onSearchChange,
+  statusFilter, onStatusFilterChange,
+  makeFilter, onMakeFilterChange, makes,
+  showSold, onShowSoldChange,
+  showDueSoon, onShowDueSoonChange,
+  expiryFilter, onExpiryFilterChange,
+  accountFilter, onAccountFilterChange, accounts,
+  garageFilter, onGarageFilterChange, garages,
+  typeFilter, onTypeFilterChange,
+  ageFilter, onAgeFilterChange,
+  groupFilter, onGroupFilterChange, groups, // ✅ Extract Group Props
+  ownerFilter, onOwnerFilterChange, owners // ✅ Extract Owner Props
 }) => {
-  const { isCompany } = usePermissions(); // ✅ Get the isCompany flag
+  const { isCompany } = usePermissions(); 
 
   const accountOptions = useMemo(() => [
     { id: 'all', label: 'All Accounts' },
@@ -87,6 +82,20 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
     { id: 'no_garage_assigned', label: 'No Garage Assigned' },
     ...garages.map((g) => ({ id: g.id, label: g.name }))
   ], [garages]);
+
+  // ✅ Group Options mapping
+  const groupOptions = useMemo(() => [
+    { id: 'all', label: 'All Finance Groups' },
+    { id: 'no_group_assigned', label: 'No Group Assigned' },
+    ...groups.map((g) => ({ id: g.id, label: g.name }))
+  ], [groups]);
+
+  // ✅ Owner Options mapping
+  const ownerOptions = useMemo(() => [
+    { id: 'all', label: 'All Owners' },
+    { id: 'AIE Skyline (Default)', label: 'AIE Skyline (Default)' },
+    ...owners.filter(o => o !== 'AIE Skyline').map((o) => ({ id: o, label: o }))
+  ], [owners]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
@@ -103,13 +112,12 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search vehicles (reg, make, model, owner, account, garage)..."
+            placeholder="Search vehicles (reg, make, owner, account, garage, group)..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
             />
         </div>
       </div>
 
-      {/* Account Filter - ✅ Hidden for Company */}
       {!isCompany && (
         <div className="relative">
            <SearchableSelect
@@ -123,7 +131,6 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         </div>
       )}
 
-      {/* Garage Filter (NEW) - ✅ Hidden for Company */}
       {!isCompany && (
         <div className="relative">
            <SearchableSelect
@@ -132,6 +139,34 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               value={garageFilter}
               onChange={onGarageFilterChange}
               placeholder="Select garage..."
+              isClearable={false}
+           />
+        </div>
+      )}
+
+      {/* ✅ Finance Group Filter */}
+      {!isCompany && (
+        <div className="relative">
+           <SearchableSelect
+              label="Finance Group"
+              options={groupOptions}
+              value={groupFilter}
+              onChange={onGroupFilterChange}
+              placeholder="Select group..."
+              isClearable={false}
+           />
+        </div>
+      )}
+
+      {/* ✅ Owner Filter */}
+      {!isCompany && (
+        <div className="relative">
+           <SearchableSelect
+              label="Owner"
+              options={ownerOptions}
+              value={ownerFilter}
+              onChange={onOwnerFilterChange}
+              placeholder="Select owner..."
               isClearable={false}
            />
         </div>
@@ -218,7 +253,6 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
 
       {/* Toggles */}
       <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-3 pt-2">
-        {/* ✅ Hidden for Company */}
         {!isCompany && (
           <label className="flex items-center space-x-2">
             <input

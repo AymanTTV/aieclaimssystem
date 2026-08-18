@@ -63,6 +63,9 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
         const start = ensureValidDate(r.startDate);
         const end = ensureValidDate(r.endDate);
         const storageNet = r.type === 'claim' ? (r.storageDays || 0) * (r.storageCostPerDay || 0) : 0;
+        
+        // ✅ FIX: Aggregate extra charges to pass to the engine
+        const extraTotal = (r.extraCharges || []).reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
 
         const details = calculateRentalCostDetailed(
           start, end, r.type, veh, r.reason, r.negotiatedRate ?? undefined,
@@ -74,7 +77,9 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
           r.includeVAT || false, r.deliveryChargeIncludeVAT || false, r.collectionChargeIncludeVAT || false,
           r.insurancePerDayIncludeVAT || false, (r as any).insurancePerWeekIncludeVAT || false, r.includeRecoveryCostVAT || false, r.includeStorageVAT || false,
           r.discountPercentage || 0, r.discountAmount || 0, r.status,
-          r.lockedDailyRate, r.lockedWeeklyRate, r.lockedClaimRate
+          r.lockedDailyRate, r.lockedWeeklyRate, r.lockedClaimRate,
+          extraTotal, // 👈 PASSED HERE
+          r.discounts || [] // 👈 PASSED HERE
         );
 
         net = details.net;
@@ -212,6 +217,7 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
             <span className="font-black text-green-100 text-xl">{summary.status.completed}</span>
           </div>
         </div>
+          
       </div>
     </div>
   );

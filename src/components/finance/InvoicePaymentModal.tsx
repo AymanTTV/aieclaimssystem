@@ -31,7 +31,6 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
   
   const [accountName, setAccountName] = useState(invoice.accountName || '');
 
-  // Initialize accounts with values from the invoice
   const [accountTo, setAccountTo] = useState((invoice as any).accountTo || invoice.accountId || '');
   const [accountTo2, setAccountTo2] = useState('');
 
@@ -83,7 +82,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         date: new Date(),
         amount: paymentAmount,
         method: formData.method,
-        reference: formData.reference || 'N/A', 
+        reference: formData.reference || invoice.invoiceNumber || 'N/A', 
         document: documentUrl, 
         notes: formData.notes,
         createdAt: new Date(),
@@ -122,7 +121,6 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
       if (finalAccountId) mergedAccountsTo.push(finalAccountId);
       if (accountTo2) mergedAccountsTo.push(accountTo2);
 
-      // Map the vehicle owner properly so the Finance ledger can filter it instantly
       let mappedVehicleOwner = undefined;
       if (invoice.vehicleId) {
          if (vehicle && vehicle.owner) {
@@ -132,21 +130,27 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
          }
       }
 
+      const actualCategory = invoice.category === 'Other' && invoice.customCategory 
+        ? invoice.customCategory 
+        : (invoice.category || 'Invoice Payment');
+
+      // ✅ Finance Transaction
       await createFinanceTransaction({
         type: 'income',
-        category: invoice.category || 'Invoice Payment',
+        category: actualCategory,
         amount: paymentAmount,
         netAmount: parseFloat(paymentNetAmount.toFixed(2)),
         vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
-        description: [invoice.description, formData.notes].filter(Boolean).join(' - ') || `Payment for ${invoice.invoiceNumber || 'Invoice'}`,
+        description: [invoice.invoiceNumber, invoice.description, formData.notes].filter(Boolean).join(' - ') || `Payment for ${invoice.invoiceNumber || 'Invoice'}`,
         referenceId: invoice.id,
         vehicleId: invoice.vehicleId,
         vehicleName: invoice.vehicleName || undefined,
-        vehicleOwner: mappedVehicleOwner, // Added Explicit Owner
+        vehicleOwner: mappedVehicleOwner, 
         customerId: invoice.customerId,
         customerName: invoice.customerName,
+        groupId: invoice.groupId || vehicle?.assignedGroupId || undefined, // ✅ Pass Group ID fallback
         paymentMethod: formData.method,
-        paymentReference: formData.reference || 'N/A',
+        paymentReference: formData.reference || invoice.invoiceNumber || 'N/A',
         status: 'completed',
         paymentStatus: newStatus as any,
         date: new Date(),

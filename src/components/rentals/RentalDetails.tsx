@@ -36,7 +36,9 @@ import VehicleConditionDetails from './VehicleConditionDetails';
 import { 
   calculateRentalCostDetailed, 
   calculateOverdueCost, 
-  calculateTotalSubstitutionCharges 
+  calculateTotalSubstitutionCharges,
+  getCalendarWeeks,
+  getWeeklyHybridUnits // 👈 ADD THIS NEW IMPORT
 } from '../../utils/rentalCalculations';
 import RentalPaymentHistory from './RentalPaymentHistory';
 
@@ -120,7 +122,10 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     return 0;
   }, [start, end]);
 
-  const insuranceWeeks = Math.ceil(insuranceDays / 7);
+  // ✅ NEW: Use strict calendar weeks for insurance line item display
+  // ✅ NEW: Grabs the split hybrid units for the UI display table
+  const hybridUnits = getWeeklyHybridUnits(start, end);
+  const insuranceWeeks = getCalendarWeeks(start, end);
 
   // --- 3. TIMELINE CALCULATION ---
   const hasSubs = rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0;
@@ -664,7 +669,24 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                  
                  {/* Insurance */}
                  {rental.type !== 'weekly' && (rental.insurancePerDay || 0) > 0 && <tr><td className="px-4 py-2 text-gray-600">Daily Insurance ({insuranceDays} days) {rental.insurancePerDayIncludeVAT ? 'Inc VAT' : ''}</td><td className="px-4 py-2 font-mono text-right">{formatCurrency((rental.insurancePerDay || 0) * insuranceDays * (rental.insurancePerDayIncludeVAT ? 1.2 : 1))}</td></tr>}
-                 {rental.type === 'weekly' && ((rental as any).insurancePerWeek || 0) > 0 && <tr><td className="px-4 py-2 text-gray-600">Weekly Insurance ({insuranceWeeks} weeks) {(rental as any).insurancePerWeekIncludeVAT ? 'Inc VAT' : ''}</td><td className="px-4 py-2 font-mono text-right">{formatCurrency(((rental as any).insurancePerWeek || 0) * insuranceWeeks * ((rental as any).insurancePerWeekIncludeVAT ? 1.2 : 1))}</td></tr>}
+                 {rental.type !== 'weekly' && (rental.insurancePerDay || 0) > 0 && <tr><td className="px-4 py-2 text-gray-600">Daily Insurance ({insuranceDays} days) {rental.insurancePerDayIncludeVAT ? 'Inc VAT' : ''}</td><td className="px-4 py-2 font-mono text-right">{formatCurrency((rental.insurancePerDay || 0) * insuranceDays * (rental.insurancePerDayIncludeVAT ? 1.2 : 1))}</td></tr>}
+                 
+                 {rental.type === 'weekly' && (
+                   <>
+                     {hybridUnits.dailyDays > 0 && (rental.insurancePerDay || 0) > 0 && (
+                       <tr>
+                         <td className="px-4 py-2 text-gray-600">Partial Week Insurance ({hybridUnits.dailyDays} days) {rental.insurancePerDayIncludeVAT ? 'Inc VAT' : ''}</td>
+                         <td className="px-4 py-2 font-mono text-right">{formatCurrency((rental.insurancePerDay || 0) * hybridUnits.dailyDays * (rental.insurancePerDayIncludeVAT ? 1.2 : 1))}</td>
+                       </tr>
+                     )}
+                     {hybridUnits.weeklyWeeks > 0 && ((rental as any).insurancePerWeek || 0) > 0 && (
+                       <tr>
+                         <td className="px-4 py-2 text-gray-600">Weekly Insurance ({hybridUnits.weeklyWeeks} weeks) {(rental as any).insurancePerWeekIncludeVAT ? 'Inc VAT' : ''}</td>
+                         <td className="px-4 py-2 font-mono text-right">{formatCurrency(((rental as any).insurancePerWeek || 0) * hybridUnits.weeklyWeeks * ((rental as any).insurancePerWeekIncludeVAT ? 1.2 : 1))}</td>
+                       </tr>
+                     )}
+                   </>
+                 )}
                  
                  {/* Extra Charges */}
                  {rental.extraCharges && rental.extraCharges.length > 0 && rental.extraCharges.map(charge => (

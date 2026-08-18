@@ -79,9 +79,13 @@ export interface Vehicle {
 
   // Ownership & Assignments
   owner?: VehicleOwner;
-  assignedGarageId?: string | null;   // ✅ Added for company/garage filtering
-  assignedGarageName?: string | null; // ✅ Added for display in tables
-  assignmentType?: VehicleTypeAssignment | null; // ✅ ADDED NEW PROPERTY
+  assignedGarageId?: string | null;   
+  assignedGarageName?: string | null; 
+  assignmentType?: VehicleTypeAssignment | null; 
+  
+  // ✅ NEW: Finance Group Assignment
+  assignedGroupId?: string | null;
+  assignedGroupName?: string | null;
 
   // Media & docs
   image?: string;
@@ -89,7 +93,7 @@ export interface Vehicle {
 
   // Status & audit
   status: VehicleStatus;
-  activeStatuses?: string[]; // ✅ Added for multi-status support (e.g. rented + scheduled-maintenance)
+  activeStatuses?: string[]; 
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: string;

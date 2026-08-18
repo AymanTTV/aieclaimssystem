@@ -116,7 +116,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
     storageCostPerDay: rental.storageCostPerDay || 0, storageDays: rental.storageDays || 0, includeStorageVAT: rental.includeStorageVAT || false,
     includeVAT: rental.includeVAT || false, deliveryChargeIncludeVAT: rental.deliveryChargeIncludeVAT || false, collectionChargeIncludeVAT: rental.collectionChargeIncludeVAT || false,
     insurancePerDayIncludeVAT: rental.insurancePerDayIncludeVAT || false, insurancePerWeekIncludeVAT: (rental as any).insurancePerWeekIncludeVAT || false,
-    negotiatedRate: rental.negotiatedRate?.toString() || '', negotiationNotes: rental.negotiationNotes || '',
+    negotiatedRate: rental.negotiatedRate != null ? String(rental.negotiatedRate) : '', 
+    negotiationNotes: rental.negotiationNotes || '',
     discountPercentage: rental.discountPercentage || 0, discountAmount: rental.discountAmount || 0, discountNotes: rental.discountNotes || '',
     originalStartDate: safeFormatDate((rental.originalStartDate ?? rental.startDate) as any, "yyyy-MM-dd'T'HH:mm"),
     amountToAdd: 0, paymentMethod: 'cash' as const, paymentReference: '', paymentNotes: '',
@@ -221,7 +222,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   useEffect(() => {
     if (formData.storageStartDate && formData.storageEndDate) {
       const start = new Date(formData.storageStartDate); const end = new Date(formData.storageEndDate);
-      if (isValid(start) && isValid(end) && !isAfter(start, end)) setFormData(p => ({ ...p, storageDays: differenceInDays(end, start) + 1 }));
+      if (isValid(start) && isValid(end) && !isAfter(start, end)) setFormData(p => ({ ...p, storageDays: Math.max(1, differenceInDays(end, start)) }));
       else setFormData(p => ({ ...p, storageDays: 0 }));
     } else setFormData(p => ({ ...p, storageDays: 0 }));
   }, [formData.storageStartDate, formData.storageEndDate]);
@@ -231,11 +232,22 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
     if (!hasModifiedWeeks) return;
     if (formData.type === 'weekly' && formData.startDate && formData.startTime && formData.numberOfWeeks > 0) {
       const startDT = new Date(`${formData.startDate}T${formData.startTime}`);
-      if (isValid(startDT)) setFormData(p => ({ ...p, endDate: format(addWeeks(startDT, formData.numberOfWeeks), 'yyyy-MM-dd'), endTime: p.startTime }));
+      if (isValid(startDT)) {
+        const currentDay = startDT.getDay();
+        const daysUntilMonday = currentDay === 0 ? 1 : 8 - currentDay;
+        
+        const targetDate = new Date(startDT);
+        targetDate.setDate(targetDate.getDate() + daysUntilMonday + (formData.numberOfWeeks - 1) * 7);
+
+        setFormData(p => ({ 
+          ...p, 
+          endDate: format(targetDate, 'yyyy-MM-dd'), 
+          endTime: '12:00' 
+        }));
+      }
     }
   }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime, hasModifiedWeeks, initialized]);
 
-  // Extra Charges
   const handleAddExtraCharge = () => setFormData(prev => ({ ...prev, extraCharges: [...prev.extraCharges, { id: `ec_${Date.now()}`, name: '', amount: 0 }] }));
   const handleRemoveExtraCharge = (index: number) => setFormData(prev => ({ ...prev, extraCharges: prev.extraCharges.filter((_, i) => i !== index) }));
   const handleExtraChargeChange = (index: number, field: string, value: any) => {
@@ -257,14 +269,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
 
     return calculateRentalCostDetailed(
       s, e, formData.type, selectedVehicle, formData.reason,
-      formData.negotiatedRate ? parseFloat(formData.negotiatedRate) : undefined,
+      formData.negotiatedRate !== '' ? parseFloat(String(formData.negotiatedRate)) : undefined,
       storCost, formData.type === 'claim' ? formData.recoveryCost : 0, formData.deliveryCharge, formData.collectionCharge,
       formData.type !== 'weekly' ? formData.insurancePerDay : 0, formData.type === 'weekly' ? formData.insurancePerWeek : 0,
       formData.includeVAT, formData.deliveryChargeIncludeVAT, formData.collectionChargeIncludeVAT,
       formData.insurancePerDayIncludeVAT, formData.insurancePerWeekIncludeVAT, formData.includeRecoveryCostVAT,
       formData.includeStorageVAT, formData.discountPercentage, formData.discountAmount, formData.status,
       rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate, extraTotal,
-      rental.discounts || [] // 👈 ADD THIS
+      rental.discounts || [] 
     );
   }, [formData, selectedVehicle, rental]);
 
@@ -291,7 +303,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   useEffect(() => {
     if (formData.storageStartDate && formData.storageEndDate) {
       const start = new Date(formData.storageStartDate); const end = new Date(formData.storageEndDate);
-      // ✅ Fixed: Removed the + 1 to prevent duplication
       if (isValid(start) && isValid(end) && !isAfter(start, end)) setFormData(p => ({ ...p, storageDays: Math.max(1, differenceInDays(end, start)) }));
       else setFormData(p => ({ ...p, storageDays: 0 }));
     } else setFormData(p => ({ ...p, storageDays: 0 }));
@@ -332,16 +343,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
     setIsConfirmModalOpen(true);
   };
 
-  // Helper to remove any undefined fields that cause Firestore rejections
   const cleanObjectForFirestore = (obj: any): any => {
     if (obj === null || obj === undefined) return null;
     if (obj instanceof Date) return obj;
-    
-    // ✨ FIX: Prevent stripping of Firestore Timestamps & FieldValues
     if (typeof obj === 'object' && (typeof obj.toDate === 'function' || typeof obj.isEqual === 'function')) {
       return obj;
     }
-
     if (Array.isArray(obj)) return obj.map(cleanObjectForFirestore);
     if (typeof obj === 'object') {
       const cleaned: any = {};
@@ -444,7 +451,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         storageCostPerDay: formData.type === 'claim' ? formData.storageCostPerDay || 0 : null,
         storageDays: formData.type === 'claim' ? formData.storageDays : null,
         includeStorageVAT: formData.type === 'claim' ? formData.includeStorageVAT : null,
-        // ✅ FIX: Removed '* 1.2' multipliers. We only save raw net amounts to the DB.
         storageCost: formData.type === 'claim' ? (formData.storageDays || 0) * (formData.storageCostPerDay || 0) : null,
 
         recoveryCost: formData.type === 'claim' && formData.recoveryCost > 0 ? formData.recoveryCost : null,
@@ -458,7 +464,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         insurancePerDayIncludeVAT: formData.type !== 'weekly' ? formData.insurancePerDayIncludeVAT : false,
         insurancePerWeekIncludeVAT: formData.type === 'weekly' ? formData.insurancePerWeekIncludeVAT : false,
 
-        negotiatedRate: formData.negotiatedRate ? parseFloat(formData.negotiatedRate.toString()) : null, negotiationNotes: formData.negotiationNotes || null,
+        negotiatedRate: formData.negotiatedRate !== '' ? parseFloat(String(formData.negotiatedRate)) : null,
+        negotiationNotes: formData.negotiationNotes || null,
         extraCharges: formData.extraCharges.filter(c => c.name.trim() !== ''),
 
         numberOfWeeks: formData.type === 'weekly' ? formData.numberOfWeeks || 1 : null,
@@ -470,7 +477,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         if (isValid(osd)) rentalUpdateData.originalStartDate = osd;
       }
 
-      // Important: clean out any lingering undefined fields to prevent Firestore crashes
       const finalUpdatePayload = cleanObjectForFirestore(rentalUpdateData);
 
       await updateDoc(doc(db, 'rentals', rental.id), finalUpdatePayload);
@@ -513,7 +519,8 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
               description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
               referenceId: rental.id, paymentMethod: formData.paymentMethod, paymentReference: formData.paymentReference,
               status: 'completed', paymentStatus: submitPaymentStatus as any, date: new Date(), vehicleId: rental.vehicleId,
-              accountTo: selectedVehicle.owner?.accountId || undefined
+              accountTo: selectedVehicle.owner?.accountId || undefined,
+              groupId: selectedVehicle.assignedGroupId || undefined // ✅ Attach Group ID
             });
           } catch {}
         }, 0);
@@ -619,6 +626,40 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                         </div>
                     </div>
                 </div>
+
+                {selectedCustomer && (
+                  <div className="col-span-1 md:col-span-2 mt-4 p-4 bg-white border border-green-200 rounded-lg flex flex-col gap-4">
+                    <div className="flex items-center gap-4">
+                      <CheckCircle className="text-green-500 w-6 h-6" />
+                      <div>
+                        <p className="font-bold">{selectedCustomer.name}</p>
+                        <p className="text-sm text-gray-500">{selectedCustomer.mobile}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t border-gray-100 pt-4 mt-2">
+                      <div className="flex justify-between items-center mb-2">
+                         <label className="block text-sm font-bold text-gray-700">Customer Signature</label>
+                         {formData.signature ? (
+                           <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase tracking-wider">Attached</span>
+                         ) : (
+                           <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wider">Required</span>
+                         )}
+                      </div>
+                      
+                      <SignaturePad
+                        value={formData.signature}
+                        onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
+                      />
+                      
+                      <p className="text-xs text-gray-500 mt-2">
+                        {formData.signature 
+                          ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
+                          : 'Please have the customer sign above.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-t pt-4 col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -964,7 +1005,7 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         {/* CONDITION TAB */}
         {activeTab === 'condition' && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Car className="text-gray-500"/> Main Vehicle Check-Out Condition</h3>
+             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Car className="text-primary"/> Main Vehicle Check-Out Condition</h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField type="number" label="Mileage Out" value={conditionData.mileage} onChange={e => setConditionData(p => ({ ...p, mileage: e.target.value === '' ? '' : parseInt(e.target.value) }))} required />
                 <div>
@@ -1064,7 +1105,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
             <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
 
             <div className="space-y-3 text-sm">
-              {/* Core Charges */}
               <div className="flex justify-between items-center text-gray-700">
                 <span>Base Rental Net</span>
                 <span className="font-mono font-medium">{formatCurrency(costs.baseNet)}</span>
@@ -1080,7 +1120,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                 <span className="font-mono font-medium">{formatCurrency(costs.vat)}</span>
               </div>
 
-              {/* Discounts */}
               {costs.discountAmount > 0 && (
                 <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded -mx-2 px-2">
                   <span className="font-bold">Total Discounts Applied</span>
@@ -1088,7 +1127,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                 </div>
               )}
 
-              {/* Final Gross */}
               <div className="border-t border-gray-300 pt-3 mt-3 flex justify-between items-center">
                 <span className="text-base font-black text-gray-900 uppercase">Updated Final Cost (Gross)</span>
                 <span className="text-2xl font-black text-primary font-mono">{formatCurrency(costs.gross)}</span>
@@ -1096,7 +1134,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
             </div>
           </div>
 
-          {/* Payment Details & Owing */}
           <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
             <h3 className="text-md font-bold text-blue-900 mb-3 border-b border-blue-200 pb-2">Payment Tracking</h3>
 
@@ -1113,20 +1150,17 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                 </div>
               )}
 
-              {/* Calculate dynamic owing amount based on new input */}
-              {/* Calculate dynamic owing amount based on new input */}
-<div className="border-t border-blue-200 pt-3 flex justify-between items-center">
-  <span className="text-base font-black text-blue-950 uppercase">
-    { (costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) < 0 ? 'Credit Amount' : 'Amount Owing (Remaining)' }
-  </span>
-  <span className={`text-xl font-black font-mono ${(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-    {formatCurrency(Math.abs(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)))}
-  </span>
-</div>
+              <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
+                <span className="text-base font-black text-blue-950 uppercase">
+                  { (costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) < 0 ? 'Credit Amount' : 'Amount Owing (Remaining)' }
+                </span>
+                <span className={`text-xl font-black font-mono ${(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formatCurrency(Math.abs(costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)))}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Warnings */}
           {formData.status === 'completed' && (costs.gross - (rental.paidAmount || 0) - Number(formData.amountToAdd || 0)) > 0.01 && (
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-xl flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-yellow-600" />

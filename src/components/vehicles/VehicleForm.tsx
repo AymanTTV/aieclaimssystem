@@ -20,6 +20,9 @@ import toast from 'react-hot-toast';
 import { Timestamp, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
+// ✅ Bring in Group Service
+import financeGroupService, { FinanceGroup } from '../../services/financeGroup.service';
+
 interface VehicleFormProps {
   vehicle?: Vehicle;
   onClose: () => void;
@@ -62,8 +65,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   // Layout Tab State
   const [activeTab, setActiveTab] = useState<'vehicle' | 'service' | 'license'>('vehicle');
 
-  // Accounts State
+  // Accounts & Groups State
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [groups, setGroups] = useState<FinanceGroup[]>([]);
 
   const [imagePreview, setImagePreview] = useState<string | null>(vehicle?.image || null);
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
@@ -77,7 +81,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
   const meter = useDocumentManager(vehicle?.documents?.MeterCertificateImage || []);
   const insure = useDocumentManager(vehicle?.documents?.insuranceImage || []);
 
-  // Fetch Accounts from Firestore
+  // Fetch Accounts
   useEffect(() => {
     const q = query(collection(db, 'accounts'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -88,6 +92,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       setAccounts(accountData);
     });
     return () => unsubscribe();
+  }, []);
+
+  // ✅ Fetch Finance Groups
+  useEffect(() => {
+    financeGroupService.getAll()
+      .then(g => setGroups(g.sort((a,b)=> a.name.localeCompare(b.name))))
+      .catch(console.error);
   }, []);
 
   const formatDateForInput = (t?: Timestamp | string | Date | null) => {
@@ -136,9 +147,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     motTestDate: formatDateForInput(vehicle?.motTestDate ?? null),
     nslExpiry: formatDateForInput(vehicle?.nslExpiry ?? null),
     roadTaxExpiry: formatDateForInput(vehicle?.roadTaxExpiry ?? null),
+
+    // ✅ Group Field
+    assignedGroupId: vehicle?.assignedGroupId ?? '',
   });
 
-  // Handle Mileage & Interval Calculation dynamically
   const handleServiceMileageChange = (field: 'mileage' | 'serviceInterval', value: string) => {
     const newFormData = { ...formData, [field]: value };
     const currentMileage = parseInt(newFormData.mileage, 10) || 0;
@@ -148,7 +161,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     setFormData(newFormData);
   };
 
-  // Handle Maintenance Date Auto-Calculation (+1 year)
   const handleLastMaintenanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     let nextDateStr = formData.nextMaintenance;
@@ -212,6 +224,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         finalOwner.accountName = null;
       }
 
+      // ✅ Lookup selected group
+      const selectedGroup = groups.find(g => g.id === formData.assignedGroupId);
+
       const payload: Partial<Vehicle> & { serviceInterval?: number } = {
         vin: formData.vin,
         make: formData.make,
@@ -246,6 +261,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         warrantyStartDate: formData.warrantyStartDate ? parseISO(formData.warrantyStartDate) : undefined,
         warrantyEndDate: formData.warrantyEndDate ? parseISO(formData.warrantyEndDate) : undefined,
         updatedAt: new Date(),
+        
+        // ✅ Inject Group IDs
+        assignedGroupId: formData.assignedGroupId || null,
+        assignedGroupName: selectedGroup ? selectedGroup.name : null,
+
         documents: {
           nslImage: nslUrls,
           motImage: motUrls,
@@ -273,8 +293,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
       }
 
       await onSubmit(payload);
-      toast.success(vehicle ? 'Vehicle updated successfully' : 'Vehicle added successfully');
-      onClose();
     } catch (err) {
       console.error(err);
       toast.error('Failed to save vehicle');
@@ -334,6 +352,19 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
               <FormField label="Make" value={formData.make} onChange={e => setFormData({ ...formData, make: e.target.value })} required disabled={isCompany} />
               <FormField label="Model" value={formData.model} onChange={e => setFormData({ ...formData, model: e.target.value })} required disabled={isCompany} />
               <FormField type="number" label="Year" value={formData.year} onChange={e => setFormData({ ...formData, year: e.target.value })} required disabled={isCompany} />
+              
+              {/* ✅ Added Group Assignment selector in Form */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Finance Group</label>
+                <SearchableSelect
+                  options={groups.map(g => ({ id: g.id, label: g.name }))}
+                  value={formData.assignedGroupId}
+                  onChange={(val) => setFormData({ ...formData, assignedGroupId: val || '' })}
+                  placeholder="Select Group (Optional)"
+                  isClearable
+                />
+              </div>
+
               <FormField type="date" label="Purchased Date" value={formData.purchasedDate} onChange={e => setFormData({ ...formData, purchasedDate: e.target.value })} disabled={isCompany} />
               <FormField type="date" label="First Registration Date" value={formData.firstRegistrationDate} onChange={e => setFormData({ ...formData, firstRegistrationDate: e.target.value })} disabled={isCompany} />
               <FormField type="date" label="Warranty Start Date" value={formData.warrantyStartDate} onChange={e => setFormData({ ...formData, warrantyStartDate: e.target.value })} disabled={isCompany} />

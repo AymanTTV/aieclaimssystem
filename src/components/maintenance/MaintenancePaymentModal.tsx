@@ -1,3 +1,4 @@
+// src/components/maintenance/MaintenancePaymentModal.tsx
 import React, { useState, useMemo } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -9,7 +10,6 @@ import toast from 'react-hot-toast';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { Pencil, Trash2 } from 'lucide-react';
 
-// Date Helpers
 const formatDateForInput = (t?: any) => {
   if (!t) return new Date().toISOString().slice(0, 10);
   const d = t?.toDate ? t.toDate() : new Date(t);
@@ -24,7 +24,6 @@ const formatDateDisplay = (t?: any) => {
   return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
 };
 
-// Local interface matching the Rental structure
 interface MaintenancePayment {
   id: string;
   date: any;
@@ -53,7 +52,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
 
-  // --- Editing State ---
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -64,17 +62,14 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
     notes: ''
   });
 
-  // --- 1. Consolidate Payments (Handling Legacy Data) ---
   const allPayments = useMemo(() => {
-    // If we have the new array structure, use it
     if (log.payments && log.payments.length > 0) {
       return log.payments;
     }
     
-    // Fallback: If we have a legacy paidAmount but no list, create a "Virtual" payment
     if ((log.paidAmount || 0) > 0) {
       return [{
-        id: 'legacy_migration', // Special ID to flag migration
+        id: 'legacy_migration', 
         date: log.date,
         amount: log.paidAmount!,
         method: log.paymentMethod || 'cash',
@@ -88,13 +83,11 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
     return [] as MaintenancePayment[];
   }, [log]);
 
-  // Find the payment currently being edited from our consolidated list
   const editingPayment = useMemo(
     () => allPayments.find(p => p.id === editingPaymentId) || null,
     [allPayments, editingPaymentId]
   );
 
-  // --- Calculations ---
   const totalCost = log.cost || 0;
   
   const calculatedPaid = useMemo(() => {
@@ -102,8 +95,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
   }, [allPayments]);
 
   const remaining = Math.max(0, totalCost - calculatedPaid);
-
-  // --- Actions ---
 
   const resetForm = () => {
     setEditingPaymentId(null);
@@ -132,15 +123,12 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
     try {
       const paymentToDelete = allPayments.find(p => p.id === paymentId);
 
-      // 1. Remove payment from the virtual list
       const updatedPayments = allPayments.filter(p => p.id !== paymentId);
       
-      // 2. Recalculate totals
       const newPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
       const newRemaining = totalCost - newPaid;
       const newStatus = newRemaining <= 0.001 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid';
 
-      // 3. Update Firestore (This forces migration to the new array structure)
       await updateDoc(doc(db, 'maintenanceLogs', log.id), {
         payments: updatedPayments,
         paidAmount: newPaid,
@@ -150,7 +138,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         updatedBy: user?.id
       });
 
-      // 4. Create explicit Reversal Finance Transaction
       if (paymentToDelete) {
         const vehicleOwner = vehicle?.owner
           ? {
@@ -159,7 +146,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
             }
           : undefined;
 
-        // Proportional VAT calculation for the reversal
         const totalLogCost = log.cost || 1;
         const vatRatio = (log.vatAmount || 0) / totalLogCost;
         const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
@@ -168,7 +154,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         const revNetAmount = paymentToDelete.amount * netRatio;
 
         await createFinanceTransaction({
-          type: 'income', // Income reverses the original Maintenance Expense
+          type: 'income', 
           category: log.type,
           amount: paymentToDelete.amount,
           netAmount: parseFloat(revNetAmount.toFixed(2)),
@@ -179,11 +165,12 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           vehicleId: log.vehicleId,
           vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
           vehicleOwner,
-          accountTo: vehicle?.owner?.accountId || undefined, // Send funds back to the assigned finance account
+          accountTo: vehicle?.owner?.accountId || undefined, 
           paymentMethod: paymentToDelete.method,
           paymentReference: paymentToDelete.reference ? `REV-${paymentToDelete.reference}` : `REV-${paymentId}`,
           status: 'completed',
-          date: new Date()
+          date: new Date(),
+          groupId: vehicle?.assignedGroupId || undefined // ✅ Attach Group ID
         });
       }
 
@@ -207,9 +194,7 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
 
     const paymentAmount = parseFloat(formData.amountToPay);
     
-    // Determine the max allowed amount
     const originalAmt = editingPayment?.amount ?? 0;
-    // If editing, we add back the old amount to the remaining budget
     const effectiveMax = editingPaymentId ? remaining + originalAmt : remaining;
 
     if (isNaN(paymentAmount) || paymentAmount <= 0) {
@@ -217,7 +202,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
       return;
     }
     
-    // Check constraint (with small float margin)
     if (paymentAmount > effectiveMax + 0.05) {
       toast.error(`Amount cannot exceed ${formatCurrency(effectiveMax)}`);
       return;
@@ -227,7 +211,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
     try {
       const parsedPaymentDate = new Date(formData.paymentDate);
       
-      // If editing the legacy item, we generate a NEW proper ID for it
       const isLegacyEdit = editingPaymentId === 'legacy_migration';
       const paymentId = (editingPaymentId && !isLegacyEdit) ? editingPaymentId : Date.now().toString();
       
@@ -242,23 +225,18 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         createdBy: editingPayment ? editingPayment.createdBy : user.id
       };
 
-      // 1. Update local payments array
       let updatedPayments = [...allPayments];
       
       if (editingPaymentId) {
-        // Replace the old one (or the legacy placeholder) with the new one
         updatedPayments = updatedPayments.map(p => p.id === editingPaymentId ? newPaymentObj : p);
       } else {
-        // Add new
         updatedPayments.push(newPaymentObj);
       }
 
-      // 2. Recalculate totals
       const newPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
       const newRemaining = Math.max(0, totalCost - newPaid);
       const newStatus = newRemaining <= 0.001 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid';
 
-      // 3. Update Maintenance Log
       await updateDoc(doc(db, 'maintenanceLogs', log.id), {
         payments: updatedPayments,
         paidAmount: newPaid,
@@ -271,7 +249,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         updatedBy: user.id
       });
 
-      // 4. Handle Finance Transaction
       const vehicleOwner = vehicle?.owner
         ? {
             name: vehicle.owner.name,
@@ -279,7 +256,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           }
         : undefined;
 
-      // If Editing: Reverse old transaction first
       if (editingPaymentId) {
         await reverseFinanceTransaction({
           referenceId: log.id,
@@ -287,15 +263,13 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         });
       }
 
-      // --- Calculate Proportional VAT and Net ---
-      const totalLogCost = log.cost || 1; // Prevent division by zero
+      const totalLogCost = log.cost || 1; 
       const vatRatio = (log.vatAmount || 0) / totalLogCost;
       const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
   
       const paymentVatAmount = paymentAmount * vatRatio;
       const paymentNetAmount = paymentAmount * netRatio;
 
-      // Create new transaction
       await createFinanceTransaction({
         type: 'expense',
         category: log.type,
@@ -313,7 +287,8 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         paymentReference: log.invoiceNumber || paymentId, 
         paymentStatus: newStatus,
         status: 'completed',
-        date: parsedPaymentDate
+        date: parsedPaymentDate,
+        groupId: vehicle?.assignedGroupId || undefined // ✅ Attach Group ID
       });
 
       toast.success(editingPaymentId ? 'Payment updated' : 'Payment recorded');
@@ -335,7 +310,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           <h3 className="text-sm font-medium text-gray-700">Payment History</h3>
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
             {allPayments.map((p) => {
-                // Handle date conversion if it's a Firestore timestamp
                 const dateObj = p.date && (p.date as any).toDate ? (p.date as any).toDate() : new Date(p.date);
                 
                 return (

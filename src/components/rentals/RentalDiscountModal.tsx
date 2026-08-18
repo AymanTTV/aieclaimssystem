@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { isAfter } from 'date-fns';
 import { calculateRentalCostDetailed, calculateOverdueCost, calculateTotalSubstitutionCharges } from '../../utils/rentalCalculations';
-import { Percent, CheckCircle, Receipt, Trash2, Plus, Calendar, History, Pencil, X, ShieldAlert } from 'lucide-react';
+import { Percent, CheckCircle, Receipt, Trash2, Plus, Calendar, History, Pencil, ShieldAlert } from 'lucide-react';
 import { ensureValidDate, formatDate } from '../../utils/dateHelpers';
 
 interface RentalDiscountModalProps {
@@ -48,6 +48,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
 
   const [formData, setFormData] = useState({
     freeDays: 0,
+    freeWeeks: 0,
     discountPercentage: 0,
     discountAmount: 0,
     notes: '',
@@ -63,16 +64,30 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
     applyTo: 'base' as 'base' | 'insurance'
   });
 
-  // Determine the effective rate for Free Days calculation
-  const effectiveRate = useMemo(() => {
-    if (!vehicle) return 0;
+  // Determine the effective rates for both Days and Weeks calculation
+  const effectiveRates = useMemo(() => {
+    if (!vehicle) return { daily: 0, weekly: 0 };
     const dailyRate = rental.negotiatedRate ?? vehicle.dailyRentalPrice ?? 60;
+    const weeklyRate = rental.negotiatedRate ?? vehicle.weeklyRentalPrice ?? 360;
     const claimRate = rental.negotiatedRate ?? vehicle.claimRentalPrice ?? 340;
     
     const pastDaily = rental.lockedDailyRate ?? dailyRate;
+    const pastWeekly = rental.lockedWeeklyRate ?? weeklyRate;
     const pastClaim = rental.lockedClaimRate ?? claimRate;
     
-    return (rental.type === 'claim' || rental.reason === 'claim') ? pastClaim : pastDaily;
+    let calculatedDaily = pastDaily;
+    
+    // Fix: If it's a weekly rental, calculate daily based on weekly / 7
+    if (rental.type === 'weekly') {
+      calculatedDaily = pastWeekly / 7;
+    } else if (rental.type === 'claim' || rental.reason === 'claim') {
+      calculatedDaily = pastClaim;
+    }
+    
+    return {
+      daily: calculatedDaily,
+      weekly: pastWeekly
+    };
   }, [rental, vehicle]);
 
   // RAW base gross cost WITHOUT any prior discounts
@@ -118,7 +133,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
     };
 
     setDiscounts([...discounts, newDisc]);
-    setFormData({ ...formData, freeDays: 0, discountPercentage: 0, discountAmount: 0, notes: '' });
+    setFormData({ ...formData, freeDays: 0, freeWeeks: 0, discountPercentage: 0, discountAmount: 0, notes: '' });
   };
 
   const handleRemoveDiscount = (id: string) => {
@@ -370,7 +385,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
                <label className="block text-sm font-medium text-gray-700 mb-1">Target Application <span className="text-red-500">*</span></label>
                <select
                  value={formData.applyTo}
-                 onChange={(e) => setFormData({ ...formData, applyTo: e.target.value as any, discountPercentage: 0, discountAmount: 0, freeDays: 0 })}
+                 onChange={(e) => setFormData({ ...formData, applyTo: e.target.value as any, discountPercentage: 0, discountAmount: 0, freeDays: 0, freeWeeks: 0 })}
                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary p-2 border bg-white"
                >
                  <option value="base">Base Rental Rate ({formatCurrency(detailedCostsPreDiscount.pureHireNet)} available)</option>
@@ -378,19 +393,51 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
                </select>
             </div>
 
-            {rental.type !== 'weekly' && formData.applyTo === 'base' && (
+            {formData.applyTo === 'base' && rental.type === 'weekly' && (
               <FormField
-                type="number" label={`Free Days (@ ${formatCurrency(effectiveRate)}/day)`} value={formData.freeDays || ''}
+                type="number" label={`Free Weeks (@ ${formatCurrency(effectiveRates.weekly)}/week)`} value={formData.freeWeeks || ''}
+                onChange={(e) => {
+                   const weeks = parseInt(e.target.value) || 0;
+                   const days = formData.freeDays || 0;
+                   const amt = (weeks * effectiveRates.weekly) + (days * effectiveRates.daily);
+                   const pct = currentTargetBaseLine > 0 ? (amt / currentTargetBaseLine) * 100 : 0;
+                   
+                   const notesArr = [];
+                   if (weeks > 0) notesArr.push(`${weeks} Free Week${weeks === 1 ? '' : 's'}`);
+                   if (days > 0) notesArr.push(`${days} Free Day${days === 1 ? '' : 's'}`);
+
+                   setFormData({ 
+                     ...formData, 
+                     freeWeeks: weeks, 
+                     discountPercentage: Number(pct.toFixed(2)), 
+                     discountAmount: Number(amt.toFixed(2)), 
+                     notes: notesArr.length > 0 ? `${notesArr.join(' & ')} Applied` : formData.notes 
+                   });
+                }}
+                min="0" step="1"
+                disabled={remainingTargetNet <= 0}
+              />
+            )}
+
+            {formData.applyTo === 'base' && (
+              <FormField
+                type="number" label={`Free Days (@ ${formatCurrency(effectiveRates.daily)}/day)`} value={formData.freeDays || ''}
                 onChange={(e) => {
                    const days = parseInt(e.target.value) || 0;
-                   const amt = days * effectiveRate;
+                   const weeks = formData.freeWeeks || 0;
+                   const amt = (weeks * effectiveRates.weekly) + (days * effectiveRates.daily);
                    const pct = currentTargetBaseLine > 0 ? (amt / currentTargetBaseLine) * 100 : 0;
+                   
+                   const notesArr = [];
+                   if (weeks > 0) notesArr.push(`${weeks} Free Week${weeks === 1 ? '' : 's'}`);
+                   if (days > 0) notesArr.push(`${days} Free Day${days === 1 ? '' : 's'}`);
+
                    setFormData({ 
                      ...formData, 
                      freeDays: days, 
                      discountPercentage: Number(pct.toFixed(2)), 
                      discountAmount: Number(amt.toFixed(2)), 
-                     notes: days > 0 ? `${days} Free Day(s) Applied` : formData.notes 
+                     notes: notesArr.length > 0 ? `${notesArr.join(' & ')} Applied` : formData.notes 
                    });
                 }}
                 min="0" step="1"
@@ -403,7 +450,7 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
               onChange={(e) => {
                  const pct = parseFloat(e.target.value) || 0;
                  const amt = (currentTargetBaseLine * pct) / 100;
-                 setFormData({ ...formData, freeDays: 0, discountPercentage: pct, discountAmount: Number(amt.toFixed(2)) });
+                 setFormData({ ...formData, freeDays: 0, freeWeeks: 0, discountPercentage: pct, discountAmount: Number(amt.toFixed(2)) });
               }}
               min="0" step="0.01"
               disabled={remainingTargetNet <= 0}
@@ -414,13 +461,13 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
               onChange={(e) => {
                  const amt = parseFloat(e.target.value) || 0;
                  const pct = currentTargetBaseLine > 0 ? (amt / currentTargetBaseLine) * 100 : 0;
-                 setFormData({ ...formData, freeDays: 0, discountAmount: amt, discountPercentage: Number(pct.toFixed(2)) });
+                 setFormData({ ...formData, freeDays: 0, freeWeeks: 0, discountAmount: amt, discountPercentage: Number(pct.toFixed(2)) });
               }}
               min="0" max={remainingTargetNet} step="0.01"
               disabled={remainingTargetNet <= 0}
             />
 
-            <div className={rental.type !== 'weekly' && formData.applyTo === 'base' ? "md:col-span-1" : "md:col-span-2"}>
+            <div className={formData.applyTo === 'base' && rental.type !== 'weekly' ? "md:col-span-1" : "md:col-span-2"}>
                <TextArea
                  label="Discount Justification Notes" value={formData.notes}
                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}

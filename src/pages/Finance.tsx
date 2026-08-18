@@ -30,11 +30,10 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
-import { Edit2, Trash2, AlertTriangle, FileUp } from 'lucide-react';
+import { Edit2, Trash2, AlertTriangle, FileUp, Layers } from 'lucide-react';
 import { addDays, addWeeks, addMonths, addYears, isBefore, format } from 'date-fns'; 
 import { v4 as uuidv4 } from 'uuid';
 
-// --- NEW HELPER: Fetch the next sequential invoice number ---
 const getNextInvoiceNumber = async (): Promise<string> => {
   const invoicesRef = collection(db, 'invoices');
   const q = query(invoicesRef, orderBy('createdAt', 'desc'));
@@ -56,26 +55,28 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-// --- UPDATED Inline Component for the Transfer Modal ---
-const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, accounts, user, onClose, onSuccess }: any) => {
+const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, accounts, groups, user, onClose, onSuccess }: any) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const defaultCustomerId = useMemo(() => selectedTxns.find((t: any) => t.customerId)?.customerId || '', [selectedTxns]);
   const defaultVehicleId = useMemo(() => selectedTxns.find((t: any) => t.vehicleId)?.vehicleId || '', [selectedTxns]);
+  const defaultCategory = useMemo(() => selectedTxns.find((t: any) => t.category)?.category || '', [selectedTxns]);
+  const defaultGroupId = useMemo(() => selectedTxns.find((t: any) => t.groupId)?.groupId || '', [selectedTxns]);
+  const defaultAccountFrom = useMemo(() => selectedTxns.find((t: any) => t.accountsFrom && t.accountsFrom.length > 0)?.accountsFrom[0] || '', [selectedTxns]);
+  const defaultAccountTo = useMemo(() => selectedTxns.find((t: any) => t.accountsTo && t.accountsTo.length > 0)?.accountsTo[0] || '', [selectedTxns]);
   
   const [customerId, setCustomerId] = useState(defaultCustomerId);
   const [vehicleId, setVehicleId] = useState(defaultVehicleId);
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(defaultCategory);
+  const [groupId, setGroupId] = useState(defaultGroupId);
+  const [accountFrom, setAccountFrom] = useState(defaultAccountFrom);
+  const [accountTo, setAccountTo] = useState(defaultAccountTo);
+  const [isLoan, setIsLoan] = useState(true);
+  
   const [dueDate, setDueDate] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
   const [deleteOriginals, setDeleteOriginals] = useState(false);
-
-  // STATES: Account tracking and Loan functionality
-  const [accountFrom, setAccountFrom] = useState('');
-  const [accountTo, setAccountTo] = useState('');
-  const [isLoan, setIsLoan] = useState(false);
   const [showLoanConfirm, setShowLoanConfirm] = useState(false);
   
-  // NEW STATE: Fetch dynamic invoice categories
   const [invoiceCategories, setInvoiceCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -86,7 +87,7 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
         snap.forEach(s => cats.push((s.data() as any).name));
         cats.sort((a, b) => a.localeCompare(b));
         setInvoiceCategories(cats);
-        if (cats.length > 0) {
+        if (cats.length > 0 && !defaultCategory) {
             setCategory(cats[0]);
         }
       } catch (error) {
@@ -94,7 +95,7 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
       }
     };
     fetchCategories();
-  }, []);
+  }, [defaultCategory]);
 
   const totalAmount = useMemo(() => selectedTxns.reduce((sum: number, t: any) => sum + (t.amount || 0), 0), [selectedTxns]);
 
@@ -106,54 +107,61 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
       const cust = customers.find((c: any) => c.id === customerId);
       const veh = vehicles.find((v: any) => v.id === vehicleId);
 
-      // Fetch the highest invoice number base to auto-increment sequentially
       let currentMaxStr = await getNextInvoiceNumber(); 
       let currentMaxNum = parseInt(currentMaxStr.substring(3), 10);
 
       const batch = writeBatch(db);
 
-      // Loop through each transaction and create an INDIVIDUAL invoice
       selectedTxns.forEach((t: any) => {
         const invoiceRef = doc(collection(db, 'invoices'));
-        
-        // Construct the sequentially incremented invoice number
         const invNumber = `INV${String(currentMaxNum).padStart(4, '0')}`;
         currentMaxNum++; 
 
         const recordDesc = t.description || t.category || 'Finance Record';
+        const hasVat = (t.vatAmount && t.vatAmount > 0) ? true : false;
+        const lineItemUnitPrice = hasVat ? (t.netAmount || t.amount) : (t.amount || 0);
 
         const lineItems = [{
           id: uuidv4(),
-          description: recordDesc,
+          description: recordDesc, 
           quantity: 1,
-          unitPrice: t.amount || 0,
+          unitPrice: lineItemUnitPrice, 
           discount: 0,
-          includeVAT: false
+          includeVAT: hasVat
         }];
 
+        let finalCategory = category || t.category || 'General';
+        let customCat = null;
+        if (finalCategory !== 'Other' && !invoiceCategories.includes(finalCategory)) {
+           customCat = finalCategory;
+           finalCategory = 'Other';
+        }
+
         const invoiceData = {
-          invoiceNumber: invNumber, // Injected sequential Invoice Number
-          date: new Date(),
+          invoiceNumber: invNumber, 
+          date: t.date instanceof Timestamp ? t.date.toDate() : (t.date ? new Date(t.date) : new Date()),
           dueDate: new Date(dueDate),
-          customerId: cust?.id || null,
-          customerName: cust?.name || 'Manual Customer',
+          customerId: cust?.id || t.customerId || null,
+          customerName: cust?.name || t.customerName || 'Manual Customer',
           customerPhone: cust?.mobile || '',
-          vehicleId: veh?.id || null,
-          vehicleName: veh ? `${veh.make} ${veh.model} (${veh.registrationNumber})` : null,
-          lineItems,
-          subTotal: t.amount || 0,
-          vatAmount: 0,
+          vehicleId: veh?.id || t.vehicleId || null,
+          vehicleName: veh ? `${veh.make} ${veh.model} (${veh.registrationNumber})` : (t.vehicleName || null),
+          lineItems, 
+          subTotal: t.netAmount || t.amount || 0,
+          vatAmount: t.vatAmount || 0,
           total: t.amount || 0,
           amount: t.amount || 0,
           paidAmount: 0,
           remainingAmount: t.amount || 0,
           paymentStatus: 'unpaid',
-          category: category || 'General',
-          description: recordDesc, // Explicitly carry over the description
+          category: finalCategory,
+          customCategory: customCat,
+          description: recordDesc, 
           payments: [], 
-          isLoan, // Added Loan flag
-          accountFrom: accountFrom || null, // Added Account From
-          accountTo: accountTo || null,     // Added Account To
+          isLoan, 
+          accountFrom: accountFrom || (t.accountsFrom && t.accountsFrom.length > 0 ? t.accountsFrom[0] : null), 
+          accountTo: accountTo || (t.accountsTo && t.accountsTo.length > 0 ? t.accountsTo[0] : null),     
+          groupId: groupId || t.groupId || null,
           createdAt: new Date(),
           updatedAt: new Date(), 
           createdBy: user?.id || 'system'
@@ -181,7 +189,6 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Is Loan Checkbox */}
       <div className="flex justify-end mb-2">
         <label className="flex items-center space-x-2 cursor-pointer">
           <input
@@ -201,13 +208,11 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
       </div>
 
       <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 mb-4">
-         {/* Message confirming separate invoices */}
          <p className="text-sm text-indigo-800 font-medium">You are transferring {selectedTxns.length} record(s). Each will generate a separate Invoice.</p>
          <p className="text-xl font-bold text-indigo-900 mt-1">Total Value: £{totalAmount.toFixed(2)}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-         {/* Account From and Account To Selectors */}
          <SearchableSelect
            label="Account From (Debit)"
            options={(accounts || []).map((a: any) => ({ id: a.id, label: a.name }))}
@@ -241,6 +246,7 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
            onChange={(val) => setVehicleId(val || '')}
            placeholder="Search vehicles..."
          />
+         
          <div>
             <label className="block text-sm font-medium text-gray-700">Invoice Category</label>
             <select 
@@ -256,6 +262,15 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
               <option value="Other">Other</option>
             </select>
          </div>
+
+         <SearchableSelect
+           label="Assign Group (Optional)"
+           options={(groups || []).map((g: any) => ({ id: g.id, label: g.name }))}
+           value={groupId}
+           onChange={(val) => setGroupId(val || '')}
+           placeholder="Search groups..."
+         />
+
          <div>
            <label className="block text-sm font-medium text-gray-700">Due Date</label>
            <input 
@@ -300,7 +315,6 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
          </div>
       </div>
 
-      {/* Loan Confirmation Modal overlapping logic */}
       {showLoanConfirm && (
         <Modal
           isOpen={showLoanConfirm}
@@ -346,7 +360,6 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
     </form>
   );
 };
-// --- End Inline Component ---
 
 
 const Finance: React.FC = () => {
@@ -383,14 +396,17 @@ const Finance: React.FC = () => {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false); 
   
-  // New State for Transfer Modal
   const [showTransferModal, setShowTransferModal] = useState(false);
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
+  
   const [editCat, setEditCat] = useState<{ id: string; name: string } | null>(null);
   const [catName, setCatName] = useState<string>('');
+  
+  const [isBulkCatAdd, setIsBulkCatAdd] = useState(false);
+  const [selectedCatIds, setSelectedCatIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const q = query(collection(db, 'accounts'), orderBy('name'));
@@ -417,9 +433,83 @@ const Finance: React.FC = () => {
   }, []);
   useEffect(() => { loadCategories(); }, [loadCategories]);
 
-  const openCatForm = (cat?: { id: string; name: string }) => { if (cat) { setEditCat(cat); setCatName(cat.name); } else { setEditCat(null); setCatName(''); } setShowCatModal(true); };
-  const handleCatSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!catName.trim()) { toast.error('Name required'); return; } setLoadingCats(true); try { if (editCat) { await financeCategoryService.update(editCat.id, { name: catName.trim() }); toast.success('Updated'); } else { await financeCategoryService.create({ name: catName.trim() }); toast.success('Created'); } setShowCatModal(false); setEditCat(null); setCatName(''); loadCategories(); } catch (err) { toast.error('Failed'); } finally { setLoadingCats(false); } };
-  const handleCatDelete = async (catId: string) => { const cat = financeCategories.find(c => c.id === catId); if (cat?.name === 'Transfer' || cat?.name === 'Loan Received' || cat?.name === 'Loan Provided') { toast.error(`Cannot delete essential category: "${cat.name}"`); return; } if (!window.confirm(`Delete "${cat?.name || catId}"?`)) return; setLoadingCats(true); try { await financeCategoryService.delete(catId); setFinanceCategories(prev => prev.filter(c => c.id !== catId)); toast.success('Deleted'); } catch (err) { toast.error('Failed'); loadCategories(); } finally { setLoadingCats(false); } };
+  const resetCatForm = () => {
+      setShowCatModal(false);
+      setEditCat(null);
+      setCatName('');
+      setIsBulkCatAdd(false);
+      setSelectedCatIds(new Set());
+  }
+
+  const openCatForm = (cat?: { id: string; name: string }) => { 
+      if (cat) { setEditCat(cat); setCatName(cat.name); } 
+      else { setEditCat(null); setCatName(''); } 
+      setShowCatModal(true); 
+  };
+
+  const handleCatSubmit = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      if (!catName.trim()) { toast.error('Name required'); return; } 
+      setLoadingCats(true); 
+      try { 
+          if (editCat) { 
+              await financeCategoryService.update(editCat.id, { name: catName.trim() }); 
+              toast.success('Updated'); 
+          } else { 
+              if (isBulkCatAdd) {
+                  const names = catName.split(',').map(n => n.trim()).filter(Boolean);
+                  const uniqueNames = Array.from(new Set(names));
+                  await Promise.all(uniqueNames.map(name => financeCategoryService.create({ name })));
+                  toast.success(`Created ${uniqueNames.length} categories`);
+              } else {
+                  await financeCategoryService.create({ name: catName.trim() }); 
+                  toast.success('Created'); 
+              }
+          } 
+          resetCatForm();
+          loadCategories(); 
+      } catch (err) { toast.error('Failed'); } 
+      finally { setLoadingCats(false); } 
+  };
+  
+  const handleCatDelete = async (catId: string) => { 
+      const cat = financeCategories.find(c => c.id === catId); 
+      if (cat?.name === 'Transfer' || cat?.name === 'Loan Received' || cat?.name === 'Loan Provided') { toast.error(`Cannot delete essential category: "${cat.name}"`); return; } 
+      if (!window.confirm(`Delete "${cat?.name || catId}"?`)) return; 
+      setLoadingCats(true); 
+      try { 
+          await financeCategoryService.delete(catId); 
+          setFinanceCategories(prev => prev.filter(c => c.id !== catId));
+          setSelectedCatIds(prev => { const s = new Set(prev); s.delete(catId); return s; });
+          toast.success('Deleted'); 
+      } catch (err) { toast.error('Failed'); loadCategories(); } 
+      finally { setLoadingCats(false); } 
+  };
+
+  const handleBulkCatDelete = async () => {
+      if (selectedCatIds.size === 0) return;
+      const essential = ['Transfer', 'Loan Received', 'Loan Provided'];
+      const toDelete = financeCategories.filter(c => selectedCatIds.has(c.id));
+      const hasEssential = toDelete.some(c => essential.includes(c.name));
+      
+      if (hasEssential) {
+          toast.error("Cannot delete essential categories (Transfer, Loan Received, Loan Provided). Please unselect them.");
+          return;
+      }
+      if (!window.confirm(`Delete ${selectedCatIds.size} categories?`)) return;
+      
+      setLoadingCats(true);
+      try {
+          await Promise.all(Array.from(selectedCatIds).map(id => financeCategoryService.delete(id)));
+          toast.success(`Deleted ${selectedCatIds.size} categories`);
+          setSelectedCatIds(new Set());
+          loadCategories();
+      } catch (err) { 
+          toast.error('Failed to delete categories'); 
+      } finally { 
+          setLoadingCats(false); 
+      }
+  };
 
   const { 
       searchQuery, setSearchQuery, 
@@ -431,8 +521,8 @@ const Finance: React.FC = () => {
       selectedOwner, setSelectedOwner, 
       owners, filteredTransactions, 
       accountFilter, setAccountFilter,
-      customerFilter, setCustomerFilter, // NEW
-      vehicleFilter, setVehicleFilter, // NEW
+      customerFilter, setCustomerFilter, 
+      vehicleFilter, setVehicleFilter, 
       showLinked, setShowLinked, 
       recurringFilter, setRecurringFilter, 
       recurringFrequency, setRecurringFrequency,
@@ -682,21 +772,24 @@ const Finance: React.FC = () => {
         const getNames = (ids: string[]) => ids ? ids.map(id => accounts.find(a => a.id === id)?.name || '').filter(Boolean).join('; ') : '';
         
         return {
+          'Transaction ID': txn.id,
           'Date (ISO)': safeFormatDate(txn.date),
-          'Type': txn.type,
-          'Category': txn.category,
-          'Amount': txn.amount,
-          'Net Amount': txn.netAmount ?? '',
-          'VAT Amount': txn.vatAmount ?? '',
-          'Description': txn.description,
-          'Payment Method': txn.paymentMethod,
-          'Payment Status': txn.paymentStatus,
+          'Type': txn.type || '',
+          'Category': txn.category || '',
+          'Amount': txn.amount || 0,
+          'Net Amount': txn.netAmount || 0,
+          'VAT Amount': txn.vatAmount || 0,
+          'Description': txn.description || '',
+          'Payment Method': txn.paymentMethod || '',
+          'Payment Status': txn.paymentStatus || '',
           'Transaction Status': txn.status || 'completed',
           'Accounts To (Names)': getNames(txn.accountsTo || []),
           'Accounts From (Names)': getNames(txn.accountsFrom || []),
           'Vehicle Reg': vehicles.find((v) => v.id === txn.vehicleId)?.registrationNumber || '',
+          'Vehicle Name': txn.vehicleName || '',
           'Owner Name': txn.vehicleOwner?.name || '',
-          'Group': groups.find(g => g.id === txn.groupId)?.name || '',
+          'Customer Name': txn.customerName || '',
+          'Group Name': groups.find(g => g.id === txn.groupId)?.name || '',
           'Payment Reference': txn.paymentReference || '',
           'Recurring': txn.isRecurring ? 'Yes' : 'No',
           'Frequency': txn.recurringFrequency || '',
@@ -752,10 +845,11 @@ const Finance: React.FC = () => {
                        const reg = row['Vehicle Reg'];
                        const vehicle = reg ? vehicles.find(v => v.registrationNumber.toLowerCase() === reg.toLowerCase()) : null;
 
-                       const groupName = row['Group'];
+                       const groupName = row['Group Name'] || row['Group'];
                        const group = groupName ? groups.find(g => g.name.toLowerCase() === groupName.toLowerCase()) : null;
 
-                       const ref = doc(collection(db, 'transactions'));
+                       const isUpdate = !!row['Transaction ID'];
+                       const ref = isUpdate ? doc(db, 'transactions', row['Transaction ID']) : doc(collection(db, 'transactions'));
                        
                        const newTxn: any = {
                            id: ref.id,
@@ -763,8 +857,8 @@ const Finance: React.FC = () => {
                            type: (row['Type'] === 'income' || row['Type'] === 'expense') ? row['Type'] : 'expense',
                            category: row['Category'] || 'Uncategorized',
                            amount: parseFloat(row['Amount']) || 0,
-                           netAmount: parseFloat(row['Net Amount']) || undefined,
-                           vatAmount: parseFloat(row['VAT Amount']) || undefined,
+                           netAmount: parseFloat(row['Net Amount']) || 0,
+                           vatAmount: parseFloat(row['VAT Amount']) || 0,
                            description: row['Description'] || '',
                            paymentMethod: row['Payment Method'] || 'cash',
                            paymentStatus: row['Payment Status'] || 'paid',
@@ -774,8 +868,11 @@ const Finance: React.FC = () => {
                            accountsFrom: resolveAccountIds(row['Accounts From (Names)']),
                            
                            vehicleId: vehicle ? vehicle.id : null,
-                           vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : null,
-                           vehicleOwner: vehicle ? (vehicle.owner || { name: 'AIE Skyline Limited', isDefault: true }) : null,
+                           vehicleName: row['Vehicle Name'] || (vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : null),
+                           vehicleOwner: vehicle ? (vehicle.owner || { name: 'AIE Skyline Limited', isDefault: true }) : (row['Owner Name'] ? { name: row['Owner Name'], isDefault: false } : null),
+                           
+                           customerName: row['Customer Name'] || null,
+                           customerId: customers.find(c => c.name.toLowerCase() === (row['Customer Name'] || '').toLowerCase())?.id || null,
 
                            groupId: group ? group.id : null,
                            paymentReference: row['Payment Reference'] || null,
@@ -783,11 +880,15 @@ const Finance: React.FC = () => {
                            isRecurring: row['Recurring'] === 'Yes',
                            recurringFrequency: row['Frequency'] || null,
                            
-                           createdAt: new Date(),
-                           createdBy: user?.name || 'Import',
+                           updatedAt: new Date(),
                        };
+                       
+                       if (!isUpdate) {
+                           newTxn.createdAt = new Date();
+                           newTxn.createdBy = user?.name || 'Import System';
+                       }
 
-                       batch.set(ref, newTxn);
+                       batch.set(ref, newTxn, { merge: true });
                   });
                   
                   await batch.commit();
@@ -805,6 +906,29 @@ const Finance: React.FC = () => {
 
   if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>;
+
+  // Derive the active search query for the inline category modal
+  const currentCatSearch = (isBulkCatAdd ? catName.split(',').pop()?.trim() : catName.trim()) || '';
+
+  // Filter and prioritize sort based on exact / startsWith matches
+  const filteredFinanceCategories = financeCategories
+    .filter((cat) => cat.name.toLowerCase().includes(currentCatSearch.toLowerCase()))
+    .sort((a, b) => {
+      if (!currentCatSearch) return 0; // Maintain alphabetical order if blank
+      const query = currentCatSearch.toLowerCase();
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+
+      if (aName === query && bName !== query) return -1;
+      if (aName !== query && bName === query) return 1;
+
+      const aStarts = aName.startsWith(query);
+      const bStarts = bName.startsWith(query);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      return aName.localeCompare(bName);
+    });
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -851,8 +975,8 @@ const Finance: React.FC = () => {
           categories={financeCategories.map((c) => c.name)} 
           groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} 
           groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} 
-          customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter} customers={customers} // NEW
-          vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} vehicles={vehicles} // NEW
+          customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter} customers={customers} 
+          vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} vehicles={vehicles} 
           showLinked={showLinked} onShowLinkedChange={setShowLinked} 
           recurringFilter={recurringFilter} onRecurringFilterChange={setRecurringFilter}
           recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
@@ -899,13 +1023,13 @@ const Finance: React.FC = () => {
         customers={customers} 
       />
 
-      {/* --- NEW TRANSFER TO INVOICE MODAL --- */}
       <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)} title="Transfer to Invoice" size="xl">
          <TransferToInvoiceModalContent 
             selectedTxns={filteredTransactions.filter(t => selectedTransactionIds.has(t.id))}
             customers={customers}
             vehicles={vehicles}
             accounts={accounts} 
+            groups={groups}
             user={user}
             onClose={() => setShowTransferModal(false)}
             onSuccess={() => {
@@ -930,7 +1054,86 @@ const Finance: React.FC = () => {
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} title="Delete Transaction" size="sm">{selectedTransaction && ( <TransactionDeleteModal transactionId={selectedTransaction.id} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} onDeleted={handleConfirmDeleteSingle} /> )}</Modal>
       <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
       <Modal isOpen={showDeleteLinkedModal} onClose={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} title="Delete Linked Transaction?" size="md"><div className="p-1"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-4 mt-0 text-left"><h3 className="text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3><div className="mt-2"><p className="text-sm text-gray-500">This transaction appears linked to {linkedTransactionsToDelete ? linkedTransactionsToDelete.length - 1 : 0} other(s). Delete only this one, or all linked parts?</p></div></div></div><div className="mt-6 flex flex-col sm:flex-row-reverse gap-3"><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteLinked} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 sm:w-auto">{deleteLoading ? "Deleting..." : `Delete All ${linkedTransactionsToDelete?.length || 0} Linked`}</button><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteSingle} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:w-auto">{deleteLoading ? "..." : "Delete Only This One"}</button><button type="button" disabled={deleteLoading} onClick={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:mt-0 sm:w-auto">Cancel</button></div></div></Modal>
-      <Modal isOpen={showCatModal} onClose={() => { setShowCatModal(false); setEditCat(null); setCatName(''); }} title={editCat ? 'Edit Category' : 'Add Category'} size="md"><form onSubmit={handleCatSubmit} className="flex items-center space-x-2 mb-4"><input type="text" value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Category name" required className="flex-1 border border-gray-300 rounded-md p-2 focus:outline-none" /><button type="submit" disabled={loadingCats} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">{loadingCats ? 'Saving...' : (editCat ? 'Update' : 'Add')}</button><button type="button" onClick={() => { setShowCatModal(false); setEditCat(null); setCatName(''); }} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100">Cancel</button></form><div className="max-h-56 overflow-y-auto">{loadingCats ? <div className="text-gray-500 text-sm">Loading…</div> : (<ul className="space-y-2">{financeCategories.map((c) => (<li key={c.id} className="flex justify-between items-center border-b pb-1"><span className="text-gray-700">{c.name}</span><div className="space-x-2"><button onClick={() => openCatForm(c)} disabled={loadingCats}><Edit2 className="h-4 w-4 text-indigo-600 hover:text-indigo-800" /></button><button onClick={() => handleCatDelete(c.id)} disabled={loadingCats || c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided'} className={`${(c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided') ? 'opacity-50 cursor-not-allowed' : ''}`}><Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" /></button></div></li>))}{financeCategories.length === 0 && <li className="text-gray-500 text-sm">No categories found.</li>}</ul>)}</div></Modal>
+      
+      {/* Dynamic Finance Categories Modal */}
+      <Modal isOpen={showCatModal} onClose={resetCatForm} title={editCat ? 'Edit Category' : (isBulkCatAdd ? 'Bulk Add Categories' : 'Add Category')} size="md">
+        <form onSubmit={handleCatSubmit} className="flex flex-col space-y-3 mb-4">
+          {!editCat && (
+             <div className="flex justify-between items-center">
+                <label className="text-sm font-medium text-gray-700">Category Details</label>
+                <button type="button" onClick={() => setIsBulkCatAdd(!isBulkCatAdd)} className="text-xs text-indigo-600 font-medium hover:text-indigo-800 flex items-center">
+                    <Layers className="h-3 w-3 mr-1" />
+                    {isBulkCatAdd ? 'Switch to Single Add' : 'Switch to Bulk Add'}
+                </button>
+             </div>
+          )}
+          <div className="flex items-center space-x-2">
+            <input 
+              type="text" 
+              value={catName} 
+              onChange={(e) => setCatName(e.target.value)} 
+              placeholder={isBulkCatAdd ? "cat1, cat2, cat3..." : "Type category name..."} 
+              required 
+              className="flex-1 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+            />
+            <button type="submit" disabled={loadingCats || !catName.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
+                {loadingCats ? 'Saving...' : (editCat ? 'Update' : 'Add')}
+            </button>
+            <button type="button" onClick={resetCatForm} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 text-gray-700">Cancel</button>
+          </div>
+          {isBulkCatAdd && <p className="text-xs text-gray-500">Separate multiple categories using a comma (,)</p>}
+        </form>
+
+        <div className="pt-2 border-t border-gray-100">
+            {selectedCatIds.size > 0 && (
+                <div className="bg-red-50 p-2 mb-3 rounded-md flex justify-between items-center border border-red-100">
+                    <span className="text-sm text-red-800 font-medium">{selectedCatIds.size} selected</span>
+                    <button onClick={handleBulkCatDelete} disabled={loadingCats} className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50">
+                        Delete Selected
+                    </button>
+                </div>
+            )}
+
+            <div className="max-h-56 overflow-y-auto border rounded-md bg-white">
+              {loadingCats ? <div className="text-gray-500 text-sm p-4 text-center">Loading…</div> : (
+                <ul>
+                  {filteredFinanceCategories.map((c) => {
+                    const isEssential = c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided';
+                    return (
+                        <li key={c.id} className="flex justify-between items-center px-4 py-2 border-b last:border-0 hover:bg-gray-50">
+                          <div className="flex items-center space-x-3">
+                              <input 
+                                  type="checkbox" 
+                                  disabled={isEssential} 
+                                  checked={selectedCatIds.has(c.id)} 
+                                  onChange={(e) => {
+                                      const newSet = new Set(selectedCatIds);
+                                      if (e.target.checked) newSet.add(c.id); else newSet.delete(c.id);
+                                      setSelectedCatIds(newSet);
+                                  }} 
+                                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 disabled:opacity-50 disabled:cursor-not-allowed" 
+                              />
+                              <span className={`text-sm ${isEssential ? 'text-gray-500 italic' : (currentCatSearch && c.name.toLowerCase() === currentCatSearch.toLowerCase() ? 'font-bold text-indigo-700' : 'text-gray-800')}`}>{c.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button onClick={() => openCatForm(c)} disabled={loadingCats}><Edit2 className="h-4 w-4 text-indigo-600 hover:text-indigo-800" /></button>
+                            <button 
+                                onClick={() => handleCatDelete(c.id)} 
+                                disabled={loadingCats || isEssential} 
+                                className={isEssential ? 'opacity-30 cursor-not-allowed' : ''}
+                            >
+                                <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
+                            </button>
+                          </div>
+                        </li>
+                    )
+                  })}
+                  {filteredFinanceCategories.length === 0 && <li className="text-gray-500 text-sm p-4 text-center">{currentCatSearch ? 'No matching categories found. Ready to add!' : 'No categories found.'}</li>}
+                </ul>
+              )}
+            </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="sm">
        <div className="p-1">

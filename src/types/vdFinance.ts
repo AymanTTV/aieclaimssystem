@@ -22,15 +22,19 @@ export interface VDFinanceRecord {
   updatedAt: Date;
   createdBy: string;
   claimId?: string;
-  salvage: number; // New field
-  clientReferralFee: number; // New field
-  clientRepairAmount: number; // New field
+  salvage: number;
+  clientReferralFee: number;
+  clientRepairAmount: number;
   categoryId?: string;
-categoryName?: string;
-groupId?: string;
-groupName?: string;
+  categoryName?: string;
+  groupId?: string;
+  groupName?: string;
   claimReasons?: Array<'VD' | 'H' | 'S' | 'PI'>;
   originalProfit?: number;
+  
+  // NEW: Link to the mirrored Share record
+  linkedShareId?: string; 
+  
   vatDetails: {
     partsVAT: { partName: string; includeVAT: boolean }[];
     laborVAT: boolean;
