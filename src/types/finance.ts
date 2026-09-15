@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: finance.ts
-fullContent:
 // src/types/finance.ts
 
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'biannually' | 'yearly';
@@ -16,24 +12,29 @@ export interface InvoicePayment {
   notes?: string;
   createdAt: Date;
   createdBy: string;
+  allocatedVehicleId?: string;
+  allocatedVehicleName?: string;
 }
 
 export interface Transaction {
   id: string;
-  type: 'income' | 'expense'; // Removed 'transfer'
-  netAmount?: number; // NEW: Amount before VAT
-  vatAmount?: number; // NEW: VAT amount
+  type: 'income' | 'expense';
+  netAmount?: number;
+  vatAmount?: number;
   
   customerId?: string;
   customerName?: string;
   category: string;
-  amount: number; // Represents the TOTAL amount of the transaction
+  amount: number;
   description: string;
   date: Date;
-  referenceId?: string; // Primarily for linking to external docs like Invoices now
+  referenceId?: string;
   vehicleId?: string;
   vehicleName?: string;
   groupId?: string;
+  groupName?: string;
+  departmentId?: string; // NEW
+  departmentName?: string; // NEW
   vehicleOwner?: {
     name: string;
     isDefault: boolean;
@@ -50,15 +51,12 @@ export interface Transaction {
   updatedAt?: Date;
   updatedBy?: string;
   
-  // --- Use arrays for accounts ---
-  accountsFrom?: string[]; // Array of account IDs debited (for Expense)
-  accountsTo?: string[];   // Array of account IDs credited (for Income)
+  accountsFrom?: string[];
+  accountsTo?: string[];
   
-  // --- Recurring Fields ---
   isRecurring?: boolean;
   recurringFrequency?: RecurringFrequency;
-  nextRecurringDate?: Date | any; // Timestamp or Date
-  // ------------------------
+  nextRecurringDate?: Date | any;
 
   documentUrl?: string;
   receiptUrl?: string;
@@ -67,12 +65,11 @@ export interface Transaction {
 export interface Account {
   id: string;
   name: string;
-  balance: number; // Stored balance (not used for real-time calculation)
+  balance: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// TransferHistory might be less relevant now
 export interface TransferHistory {
   id:string;
   fromAccount: string;
@@ -91,6 +88,8 @@ export interface InvoiceLineItem {
   unitPrice: number;
   discount: number;
   includeVAT: boolean;
+  vehicleId?: string;
+  vehicleName?: string;
 }
 
 export interface Invoice {
@@ -103,14 +102,16 @@ export interface Invoice {
   subTotal: number;
   vatAmount: number;
   total: number;
-  amount: number; // Legacy alias for total
+  amount: number;
   paidAmount: number;
   remainingAmount: number;
   category: string;
   customCategory?: string;
   
-  description?: string; // <--- NEW FIELD
+  description?: string;
   groupId?: string;
+  departmentId?: string; // NEW
+  departmentName?: string; // NEW
 
   vehicleId?: string;
   vehicleName?: string;
@@ -122,14 +123,11 @@ export interface Invoice {
   payments: InvoicePayment[];
   createdAt: Date;
 
-  // Finance Account Association
   accountId?: string;
   accountName?: string;
   
   updatedAt: Date;
   
-  // Recurring
   isRecurring?: boolean;
   recurringFrequency?: RecurringFrequency;
-}
 }

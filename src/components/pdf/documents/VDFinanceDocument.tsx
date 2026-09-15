@@ -161,18 +161,24 @@ const VDFinanceDocument: React.FC<VDFinanceDocumentProps> = ({ data, companyDeta
         </View>
 
         {/* Description */}
+        {/* Description */}
         {data.description && (
-          <View style={styles.sectionBreak} wrap={false}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.text}>{data.description}</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>Description</Text>
+            <Text style={[styles.text, { fontSize: 10, lineHeight: 1.5 }]}>
+              {data.description}
+            </Text>
           </View>
         )}
 
         {/* Terms and Conditions */}
+       {/* Terms and Conditions */}
         {companyDetails.vdFinanceTerms && (
-          <View style={styles.sectionBreak} wrap={false}>
-            <Text style={styles.sectionTitle}>Terms & Conditions</Text>
-            <Text style={styles.text}>{companyDetails.vdFinanceTerms}</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>Terms & Conditions</Text>
+            <Text style={[styles.text, { fontSize: 8, lineHeight: 1.3 }]}>
+              {companyDetails.vdFinanceTerms}
+            </Text>
           </View>
         )}
 

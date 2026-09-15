@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Vehicle } from '../../types';
-import { Eye, Edit, AlertCircle, Trash2, Tag, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2, Layers } from 'lucide-react';
+import { Eye, Edit, AlertCircle, Trash2, Tag, DollarSign, RotateCw, FileText, Wrench, AlertTriangle, Key, Building2, Layers, Briefcase } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
@@ -12,7 +12,6 @@ import { addDays } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
-// --- HELPER FUNCTION FOR THE 28TH OF THE MONTH LOGIC ---
 const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
   const now = new Date();
   
@@ -64,25 +63,13 @@ interface VehicleTableProps {
   onToggleOne: (id: string) => void;
   onAssignGarage: (vehicle: Vehicle) => void;
   onAssignType: (vehicle: Vehicle) => void; 
-  onAssignGroup: (vehicle: Vehicle) => void; // ✅ New Prop
+  onAssignGroup: (vehicle: Vehicle) => void; 
+  onAssignDepartment: (vehicle: Vehicle) => void; // ✅ New Prop
 }
 
 const VehicleTable: React.FC<VehicleTableProps> = ({
-  vehicles,
-  onView,
-  onEdit,
-  onDelete,
-  onMarkAsSold,
-  onUndoSale,
-  onGenerateDocument,
-  onSetServiceMileage,
-  onViewDocument,
-  selectedIds,
-  onToggleAll,
-  onToggleOne,
-  onAssignGarage,
-  onAssignType,
-  onAssignGroup,
+  vehicles, onView, onEdit, onDelete, onMarkAsSold, onUndoSale, onGenerateDocument, onSetServiceMileage,
+  onViewDocument, selectedIds, onToggleAll, onToggleOne, onAssignGarage, onAssignType, onAssignGroup, onAssignDepartment,
 }) => {
   const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
@@ -91,24 +78,14 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   const checkWarrantyRed = (v: any): boolean => {
-    // Condition 1: Vehicle has reached or exceeded 150,000 miles
     const currentMileage = v.mileage || 0;
     if (currentMileage >= 150000) return true;
-
-    // Condition 2: Warranty End Date is within 14 days (or already expired)
-    const wEnd = v.warrantyEndDate?.toDate 
-      ? v.warrantyEndDate.toDate() 
-      : (v.warrantyEndDate ? new Date(v.warrantyEndDate) : null);
-      
+    const wEnd = v.warrantyEndDate?.toDate ? v.warrantyEndDate.toDate() : (v.warrantyEndDate ? new Date(v.warrantyEndDate) : null);
     if (!wEnd) return false;
-    
-    // 14 days in milliseconds: 14 * 24 * 60 * 60 * 1000
     if (wEnd.getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000) return true;
-    
     return false;
   };
 
-  // 1. MEMOIZE THE DATA
   const sortedVehicles = useMemo(() => {
     return [...vehicles].sort((a, b) => {
       const now = new Date();
@@ -116,24 +93,18 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
       const countExpiringDocs = (vehicle: Vehicle) => {
         let count = 0;
-
         if (vehicle.motExpiry && new Date(vehicle.motExpiry) < now) count += 10;
         if (vehicle.insuranceExpiry && new Date(vehicle.insuranceExpiry) < now) count += 10;
         if (vehicle.nslExpiry && new Date(vehicle.nslExpiry) < now) count += 10;
         if (vehicle.roadTaxExpiry && new Date(vehicle.roadTaxExpiry) < now) count += 10;
 
         const aMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
-        const aNextServiceMileage =
-          typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : aMileage + 25000;
+        const aNextServiceMileage = typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : aMileage + 25000;
 
         if (aMileage >= aNextServiceMileage) count += 15;
         if (aMileage < aNextServiceMileage && aNextServiceMileage - aMileage <= 1000) count += 7;
 
-        const checkSoon = (d: Date | null | undefined) => {
-           if (!d) return false;
-           const dt = new Date(d);
-           return dt <= thirtyDays && dt >= now;
-        };
+        const checkSoon = (d: Date | null | undefined) => d ? new Date(d) <= thirtyDays && new Date(d) >= now : false;
 
         if (checkSoon(vehicle.motExpiry)) count += 5;
         if (checkSoon(vehicle.insuranceExpiry)) count += 5;
@@ -146,20 +117,13 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       const aCount = countExpiringDocs(a);
       const bCount = countExpiringDocs(b);
 
-      if (aCount !== bCount) {
-        return bCount - aCount;
-      }
-
+      if (aCount !== bCount) return bCount - aCount;
       return (a.make || '').localeCompare(b.make || '');
     });
   }, [vehicles]);
 
-  const money3 = (n: unknown) =>
-    typeof n === 'number'
-      ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-      : '-';
+  const money3 = (n: unknown) => typeof n === 'number' ? n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 }) : '-';
 
-  // 2. MEMOIZE THE COLUMNS
   const columns = useMemo(() => {
     return [
       (!isCompany && can('vehicles', 'update')) ? {
@@ -189,15 +153,9 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         cell: ({ row }: any) => (
           <div className="flex items-center space-x-3">
             {row.original.image ? (
-              <img
-                src={row.original.image}
-                alt={`${row.original.make} ${row.original.model}`}
-                className="h-10 w-10 object-cover rounded-md"
-              />
+              <img src={row.original.image} alt={`${row.original.make} ${row.original.model}`} className="h-10 w-10 object-cover rounded-md" />
             ) : (
-              <div className="h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center">
-                <span className="text-gray-400 text-xs">No img</span>
-              </div>
+              <div className="h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center"><span className="text-gray-400 text-xs">No img</span></div>
             )}
             <div>
               {!isCompany && (
@@ -205,9 +163,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                     {row.original.owner?.accountName || 'No Account Assigned'}
                 </div>
               )}
-              <div className="font-medium">
-                {row.original.make} {row.original.model}
-              </div>
+              <div className="font-medium">{row.original.make} {row.original.model}</div>
               <div className="text-sm text-gray-500">{row.original.registrationNumber}</div>
               
               <div className="flex flex-wrap gap-1 mt-1">
@@ -216,10 +172,15 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
                      <Building2 className="h-3 w-3 mr-1" /> {row.original.assignedGarageName}
                    </div>
                 )}
-                {/* ✅ Added Group Display Here */}
                 {!isCompany && row.original.assignedGroupName && (
                    <div className="text-xs font-semibold text-blue-600 flex items-center bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                      <Layers className="h-3 w-3 mr-1" /> {row.original.assignedGroupName}
+                   </div>
+                )}
+                {/* ✅ Added Department Badge */}
+                {!isCompany && row.original.assignedDepartmentName && (
+                   <div className="text-xs font-semibold text-teal-600 flex items-center bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
+                     <Briefcase className="h-3 w-3 mr-1" /> {row.original.assignedDepartmentName}
                    </div>
                 )}
               </div>
@@ -227,18 +188,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
             <div className="flex flex-col gap-1 ml-2">
                 {!isCompany && can('vehicles', 'update') && (
-                   <button
-                      type="button"
-                      onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation(); 
-                        onAssignType(row.original); 
-                      }}
-                      className="p-1 rounded hover:bg-purple-50 text-purple-600"
-                      title="Assign Vehicle Type"
-                    >
-                      <Tag className="h-4 w-4 pointer-events-none" />
-                    </button>
+                   <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignType(row.original); }} className="p-1 rounded hover:bg-purple-50 text-purple-600" title="Assign Vehicle Type"><Tag className="h-4 w-4 pointer-events-none" /></button>
                 )}
             </div>
 
@@ -248,11 +198,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
       (!isCompany && can('vehicles', 'owner')) ? {
         header: 'Owner',
-        cell: ({ row }: any) => (
-          <div>
-            <div className="font-medium">{row.original.owner?.name || 'AIE Skyline'}</div>
-          </div>
-        ),
+        cell: ({ row }: any) => <div><div className="font-medium">{row.original.owner?.name || 'AIE Skyline'}</div></div>,
       } : null,
 
       {
@@ -269,29 +215,17 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
             }
           };
 
-          if (vehicle.status === 'sold') {
-            return (
-              <div className="flex flex-col space-y-1">
-                <StatusBadge status="sold" />
-              </div>
-            );
-          }
+          if (vehicle.status === 'sold') return <div className="flex flex-col space-y-1"><StatusBadge status="sold" /></div>;
 
           if (statuses.length > 0) {
             return (
               <div className="flex flex-col space-y-1">
-                {statuses.map((s: string, i: number) => (
-                  <StatusBadge key={i} status={getDisplayStatus(s)} />
-                ))}
+                {statuses.map((s: string, i: number) => <StatusBadge key={i} status={getDisplayStatus(s)} />)}
               </div>
             );
           }
 
-          return (
-            <div className="flex flex-col space-y-1">
-              <StatusBadge status={getDisplayStatus(vehicle.status || 'available')} />
-            </div>
-          );
+          return <div className="flex flex-col space-y-1"><StatusBadge status={getDisplayStatus(vehicle.status || 'available')} /></div>;
         },
       },
 
@@ -301,24 +235,9 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           const v = row.original;
           return (
             <div className="space-y-1 text-sm">
-              <div>
-                Weekly: £{money3(v.weeklyRentalPrice)}
-                {typeof v.weeklyInsuranceAmount === 'number' && (
-                  <> <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span></>
-                )}
-              </div>
-              <div>
-                Daily: £{money3(v.dailyRentalPrice)}
-                {typeof v.dailyInsuranceAmount === 'number' && (
-                  <> <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span></>
-                )}
-              </div>
-              <div>
-                Claim: £{money3(v.claimRentalPrice)}
-                {typeof v.claimInsuranceAmount === 'number' && (
-                  <> <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span></>
-                )}
-              </div>
+              <div>Weekly: £{money3(v.weeklyRentalPrice)}{typeof v.weeklyInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span>}</div>
+              <div>Daily: £{money3(v.dailyRentalPrice)}{typeof v.dailyInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span>}</div>
+              <div>Claim: £{money3(v.claimRentalPrice)}{typeof v.claimInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span>}</div>
             </div>
           );
         },
@@ -329,32 +248,16 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         cell: ({ row }: any) => {
           const vehicle = row.original;
           const motExpiryDate = vehicle.motExpiry instanceof Date ? vehicle.motExpiry : vehicle.motExpiry?.toDate();
-          // Get the Date properly for rendering
           const warrantyDate = vehicle.warrantyEndDate instanceof Date ? vehicle.warrantyEndDate : vehicle.warrantyEndDate?.toDate?.() || (vehicle.warrantyEndDate ? new Date(vehicle.warrantyEndDate) : null);
 
           return (
             <div className="space-y-2">
-              <div className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-red-600 font-medium' : ''}>
-                MOT Test Date: {formatDate(vehicle.motTestDate)}
-              </div>
-              <div className={isExpiringOrExpired(motExpiryDate) ? 'text-red-600 font-medium' : ''}>
-                MOT Expiry: {formatDate(motExpiryDate)}
-              </div>
-              <div className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>
-                Insurance: {formatDate(vehicle.insuranceExpiry)}
-              </div>
-              <div className={isExpiringOrExpired(vehicle.nslExpiry) ? 'text-red-600 font-medium' : ''}>
-                NSL: {formatDate(vehicle.nslExpiry)}
-              </div>
-              <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>
-                Road Tax: {formatDate(vehicle.roadTaxExpiry)}
-              </div>
-              {/* Warranty End Date */}
-              {warrantyDate && (
-                <div className={checkWarrantyRed(vehicle) ? 'text-red-600 font-medium' : ''}>
-                  Warranty Exp: {formatDate(warrantyDate)}
-                </div>
-              )}
+              <div className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-red-600 font-medium' : ''}>MOT Test Date: {formatDate(vehicle.motTestDate)}</div>
+              <div className={isExpiringOrExpired(motExpiryDate) ? 'text-red-600 font-medium' : ''}>MOT Expiry: {formatDate(motExpiryDate)}</div>
+              <div className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>Insurance: {formatDate(vehicle.insuranceExpiry)}</div>
+              <div className={isExpiringOrExpired(vehicle.nslExpiry) ? 'text-red-600 font-medium' : ''}>NSL: {formatDate(vehicle.nslExpiry)}</div>
+              <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>Road Tax: {formatDate(vehicle.roadTaxExpiry)}</div>
+              {warrantyDate && <div className={checkWarrantyRed(vehicle) ? 'text-red-600 font-medium' : ''}>Warranty Exp: {formatDate(warrantyDate)}</div>}
             </div>
           );
         },
@@ -364,41 +267,22 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         cell: ({ row }: any) => {
           const vehicle = row.original;
           const currentMileage = typeof vehicle.mileage === 'number' ? vehicle.mileage : 0;
-          const nextServiceMileageStored =
-            typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : currentMileage + 25000;
+          const nextServiceMileageStored = typeof vehicle.nextServiceMileage === 'number' ? vehicle.nextServiceMileage : currentMileage + 25000;
           const milesToNext = nextServiceMileageStored - currentMileage;
-          
           const needsUpdate = checkNeedsMonthlyUpdate(vehicle);
 
           return (
             <div className="space-y-1">
-              <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>
-                Current: {currentMileage.toLocaleString()} Mi
-              </div>
-              <div className="flex items-center font-medium">
-                Next Service: {nextServiceMileageStored.toLocaleString()} Mi
-              </div>
+              <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>Current: {currentMileage.toLocaleString()} Mi</div>
+              <div className="flex items-center font-medium">Next Service: {nextServiceMileageStored.toLocaleString()} Mi</div>
               <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
               
-              {milesToNext >= 0 && milesToNext < 5000 && (
-                <div className="text-yellow-700 font-medium text-xs mt-2 flex items-center bg-yellow-100 p-1 rounded w-max">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Vehicle next service mileage is soon
-                </div>
-              )}
-              
-              {needsUpdate && (
-                <div className="text-blue-700 font-medium text-xs mt-2 flex items-center bg-blue-100 p-1 rounded w-max">
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Check vehicle current mileage and update
-                </div>
-              )}
+              {milesToNext >= 0 && milesToNext < 5000 && <div className="text-yellow-700 font-medium text-xs mt-2 flex items-center bg-yellow-100 p-1 rounded w-max"><AlertTriangle className="h-3 w-3 mr-1" />Service soon</div>}
+              {needsUpdate && <div className="text-blue-700 font-medium text-xs mt-2 flex items-center bg-blue-100 p-1 rounded w-max"><AlertCircle className="h-3 w-3 mr-1" />Check & Update</div>}
 
               <div className="pt-2 mt-1 border-t border-gray-100 text-xs">
                  <div className="text-gray-600">Last Maint: {formatDate(vehicle.lastMaintenance)}</div>
-                 <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                   Next Maint: {formatDate(vehicle.nextMaintenance)}
-                 </div>
+                 <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>Next Maint: {formatDate(vehicle.nextMaintenance)}</div>
               </div>
             </div>
           );
@@ -406,176 +290,23 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       },
       {
         header: 'Actions',
-        // 3. BULLETPROOF BUTTONS: Added type="button", preventDefault, and pointer-events-none to SVG
         cell: ({ row }: any) => (
           <div className="flex flex-wrap gap-2 items-center justify-end min-w-[120px]">
-            
-            {can('vehicles', 'copyId') && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(row.original.id);
-                  toast.success(`Copied DB ID: ${row.original.id}`, { duration: 4000, icon: '🔑' });
-                }}
-                className="p-1.5 rounded hover:bg-purple-50 text-purple-600"
-                title="Copy Firebase Document ID"
-              >
-                <Key className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
+            {can('vehicles', 'copyId') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(row.original.id); toast.success(`Copied DB ID: ${row.original.id}`, { duration: 4000, icon: '🔑' }); }} className="p-1.5 rounded hover:bg-purple-50 text-purple-600" title="Copy Firebase Document ID"><Key className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'view') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onView(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="View Details"><Eye className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'update') && row.original.status !== 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Edit"><Edit className="h-4 w-4 pointer-events-none" /></button>}
 
-            {can('vehicles', 'view') && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onView(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
-                title="View Details"
-              >
-                <Eye className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
+            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGarage(row.original); }} className="p-1.5 rounded hover:bg-orange-50 text-orange-600" title="Assign/Update Garage"><Building2 className="h-4 w-4 pointer-events-none" /></button>}
+            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGroup(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Assign Finance Group"><Layers className="h-4 w-4 pointer-events-none" /></button>}
+            {/* ✅ Added Department Assignment Action */}
+            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignDepartment(row.original); }} className="p-1.5 rounded hover:bg-teal-50 text-teal-600" title="Assign Department"><Briefcase className="h-4 w-4 pointer-events-none" /></button>}
 
-            {can('vehicles', 'update') && row.original.status !== 'sold' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onEdit(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
-                title="Edit"
-              >
-                <Edit className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {!isCompany && can('vehicles', 'update') && (
-               <button
-                  type="button"
-                  onClick={(e) => { 
-                    e.preventDefault();
-                    e.stopPropagation(); 
-                    onAssignGarage(row.original); 
-                  }}
-                  className="p-1.5 rounded hover:bg-orange-50 text-orange-600"
-                  title="Assign/Update Garage"
-                >
-                  <Building2 className="h-4 w-4 pointer-events-none" />
-                </button>
-            )}
-
-            {/* ✅ Added Group Assignment action button */}
-            {!isCompany && can('vehicles', 'update') && (
-               <button
-                  type="button"
-                  onClick={(e) => { 
-                    e.preventDefault();
-                    e.stopPropagation(); 
-                    onAssignGroup(row.original); 
-                  }}
-                  className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
-                  title="Assign Finance Group"
-                >
-                  <Layers className="h-4 w-4 pointer-events-none" />
-                </button>
-            )}
-
-            {can('vehicles', 'sale') && row.original.status !== 'sold' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onMarkAsSold(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-green-50 text-green-600"
-                title="Mark as Sold"
-              >
-                <DollarSign className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {can('vehicles', 'mileage') && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onSetServiceMileage(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
-                title="Set Next Service"
-              >
-                <Wrench className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {can('vehicles', 'sale') && row.original.status === 'sold' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onUndoSale(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-orange-50 text-orange-600"
-                title="Undo Sale"
-              >
-                <RotateCw className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {can('vehicles', 'delete') && row.original.status === 'sold' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDelete(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-red-50 text-red-600"
-                title="Delete"
-              >
-                <Trash2 className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {can('vehicles', 'singleDoc') && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onGenerateDocument(row.original);
-                }}
-                className="p-1.5 rounded hover:bg-green-50 text-green-600"
-                title="Generate Document"
-              >
-                <FileText className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
-
-            {row.original.documentUrl && can('vehicles', 'singleDoc') && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onViewDocument(row.original.documentUrl!);
-                }}
-                className="p-1.5 rounded hover:bg-blue-50 text-blue-600"
-                title="View Document"
-              >
-                <Eye className="h-4 w-4 pointer-events-none" />
-              </button>
-            )}
+            {can('vehicles', 'sale') && row.original.status !== 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkAsSold(row.original); }} className="p-1.5 rounded hover:bg-green-50 text-green-600" title="Mark as Sold"><DollarSign className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'mileage') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSetServiceMileage(row.original); }} className="p-1.5 rounded hover:bg-gray-100 text-gray-600" title="Set Next Service"><Wrench className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'sale') && row.original.status === 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUndoSale(row.original); }} className="p-1.5 rounded hover:bg-orange-50 text-orange-600" title="Undo Sale"><RotateCw className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'delete') && row.original.status === 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(row.original); }} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Trash2 className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'singleDoc') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateDocument(row.original); }} className="p-1.5 rounded hover:bg-green-50 text-green-600" title="Generate Document"><FileText className="h-4 w-4 pointer-events-none" /></button>}
+            {row.original.documentUrl && can('vehicles', 'singleDoc') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="View Document"><Eye className="h-4 w-4 pointer-events-none" /></button>}
           </div>
         ),
       },
@@ -583,7 +314,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   }, [
     can, isCompany, allSelected, someSelected, selectedIds, 
     onToggleAll, onToggleOne, onView, onEdit, onAssignGarage, 
-    onAssignType, onAssignGroup, onMarkAsSold, onSetServiceMileage, 
+    onAssignType, onAssignGroup, onAssignDepartment, onMarkAsSold, onSetServiceMileage, 
     onUndoSale, onDelete, onGenerateDocument, onViewDocument
   ]);
 

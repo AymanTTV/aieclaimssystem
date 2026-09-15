@@ -1,6 +1,6 @@
 // src/types/claim.ts
 
-import { LegalHandler } from './legalHandler'; // Import the new LegalHandler type
+import { LegalHandler } from './legalHandler';
 
 export type SubmitterType = 'company' | 'client';
 
@@ -100,7 +100,6 @@ export interface HospitalInformation {
 }
 
 export interface Claim {
-  // Basic Claim Information
   id: string;
   claimId: string;
   createdAt: Date;
@@ -112,9 +111,14 @@ export interface Claim {
   locationOfEvent: string;
   referralType: 'Web' | 'Phone Call' | 'Existing Client' | 'Other';
   notes?: string;
-  // Add this new field near the other document fields
   progressDocumentUrl?: string;
-  // Submitter Details
+  clientRef?: string;
+  groupId?: string;
+  groupName?: string;
+
+  departmentId?: string; // NEW
+  departmentName?: string; // NEW
+  
   submitter: {
     type: SubmitterType;
     companyName?: string;
@@ -131,7 +135,6 @@ export interface Claim {
     occupation?: string;
   };
 
-  // Driver Details
   driver: {
     isClaimant: boolean;
     fullName?: string;
@@ -143,7 +146,17 @@ export interface Claim {
     occupation?: string;
   };
 
-  // Vehicle Details
+  clientVehicle?: {
+    registration?: string;
+    make?: string;
+    model?: string;
+    documents?: Record<string, string>;
+    motExpiry?: Date | null;
+    roadTaxExpiry?: Date | null;
+    nslExpiry?: Date | null;
+    insuranceExpiry?: Date | null;
+  };
+
   vehicle: {
     isClaimantVehicle: boolean;
     registration: string;
@@ -159,7 +172,6 @@ export interface Claim {
     damageDetails: string;
   };
 
-  // Fault Party Details
   faultParty: {
     fullName: string;
     address: string;
@@ -173,7 +185,6 @@ export interface Claim {
     isInsured: boolean;
   };
 
-  // Accident Details
   accidentDetails: {
     cause: string;
     atFault: 'Claimant' | 'Third Party' | 'Unknown';
@@ -184,7 +195,6 @@ export interface Claim {
     policeReportNumber?: string;
   };
 
-  // Passenger Details
   passengers: Array<{
     id: string;
     fullName: string;
@@ -192,7 +202,6 @@ export interface Claim {
     injuries: string;
   }>;
 
-  // Witness Information
   witnesses: Array<{
     id: string;
     fullName: string;
@@ -200,28 +209,19 @@ export interface Claim {
     statement: string;
   }>;
 
-  // --- NEW POLICE & PARAMEDIC STRUCTURE ---
-  // (Replaces the old 'policeInvolvement' and 'paramedicInvolvement' objects)
-
-  // Police Details
   policeOfficerName?:    string | null;
   policeBadgeNumber?:    string | null;
   policeStation?:        string | null;
   policeIncidentNumber?: string | null;
   policeContactInfo?:    string | null;
 
-  // Paramedic Details
   paramedicNames?:     string | null;
   ambulanceReference?: string | null;
   ambulanceService?:   string | null;
 
-  // --- END OF NEW STRUCTURE ---
-
-  // Medical Information
   gpInformation: GPInformation;
   hospitalInformation: HospitalInformation;
 
-  // Hire Details
   hireDetails?: {
     enabled: boolean;
     startDate: Date | null;
@@ -240,7 +240,6 @@ export interface Claim {
     } | null;
   };
 
-  // Recovery Details
   recovery?: {
     enabled: boolean;
     date: Date | null;
@@ -249,7 +248,6 @@ export interface Claim {
     cost: number;
   };
 
-  // Storage Details
   storage?: {
     enabled: boolean;
     startDate: Date | null;
@@ -258,20 +256,17 @@ export interface Claim {
     totalCost: number;
   };
 
-  // File Handlers
   fileHandlers: {
     aieHandler: string;
-    legalHandler: LegalHandler | null; // Changed to LegalHandler | null
+    legalHandler: LegalHandler | null;
   };
 
-  // Status and Progress
   claimType: 'Domestic' | 'Taxi' | 'PI' | 'PCO';
   claimReason: Array<'VD' | 'H' | 'S' | 'PI'>;
   caseProgress: 'Win' | 'Lost' | 'Awaiting' | '50/55';
   progress: ClaimProgress;
   statusDescription?: string;
 
-  // Progress History
   progressHistory: Array<{
     id: string;
     date: Date;
@@ -281,7 +276,6 @@ export interface Claim {
     amount?: number;
   }>;
 
-  // Generated Documents
   documents?: {
     conditionOfHire?: string;
     creditHireMitigation?: string;

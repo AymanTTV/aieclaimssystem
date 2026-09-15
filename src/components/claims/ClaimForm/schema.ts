@@ -48,10 +48,12 @@ export const claimFormSchema = z
 
     clientVehicle: z
       .object({
-        registration:  z.string().optional(),
-        documents:     z.record(z.union([z.string(), z.instanceof(File)])).optional(),
-        motExpiry:     z.string().optional(),
-        roadTaxExpiry: z.string().optional(),
+        registration:    z.string().optional(),
+        documents:       z.record(z.union([z.string(), z.instanceof(File)])).optional(),
+        motExpiry:       z.string().optional(),
+        roadTaxExpiry:   z.string().optional(),
+        nslExpiry:       z.string().optional(), // Added NSL Expiry[cite: 38]
+        insuranceExpiry: z.string().optional(), // Added Insurance Expiry[cite: 38]
       })
       .optional(),
 
@@ -118,8 +120,6 @@ export const claimFormSchema = z
       adminDocuments:      z.array(z.union([z.string(), z.instanceof(File)])),
     }),
 
-    // we no longer include hireDetails, storage, or recovery here
-
     gpInformation:       gpInformationSchema.optional(),
     hospitalInformation: hospitalInformationSchema.optional(),
 
@@ -153,19 +153,9 @@ export const claimFormSchema = z
 
     caseProgress: z.enum(['Win', 'Lost', 'Awaiting', '50/50']).default('Awaiting'),
 
-    /**
-     * IMPORTANT:
-     * Accept either a current status from PROGRESS_OPTIONS (new schema)
-     * or any string (legacy), so legacy records remain valid.
-     */
     progress: z.union([z.enum(PROGRESS_OPTIONS), z.string()]).default(PROGRESS_OPTIONS[0]),
     statusDescription: z.string().optional(),
 
-    /**
-     * CRITICAL FIX:
-     * Do NOT default to [] here. Leaving it optional prevents overwriting
-     * existing history with an empty array during edits.
-     */
     progressHistory: z
       .array(
         z.object({
@@ -180,7 +170,6 @@ export const claimFormSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
-    // New check for claimReason
     if (!data.claimReason || data.claimReason.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -189,7 +178,7 @@ export const claimFormSchema = z
       });
     }
 
-    // Register Keeper
+    // Register Keeper validation
     if (data.registerKeeper.enabled) {
       if (!data.registerKeeper.name)        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper name is required',      path: ['registerKeeper','name'] });
       if (!data.registerKeeper.address)     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper address is required',   path: ['registerKeeper','address'] });
@@ -199,22 +188,18 @@ export const claimFormSchema = z
       if (!data.registerKeeper.signature)   ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Keeper signature is required', path: ['registerKeeper','signature'] });
     }
 
-    // VD-specific
-    // Safely access claimReason with optional chaining in case it's undefined
+    // VD-specific validation
     if (data.claimReason?.includes('VD')) {
-      if (!data.clientVehicle?.registration) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Registration is required for VD',  path: ['clientVehicle','registration'] });
-      if (!data.clientVehicle?.motExpiry)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'MOT expiry is required for VD',   path: ['clientVehicle','motExpiry'] });
+      if (!data.clientVehicle?.registration) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Registration is required for VD', path: ['clientVehicle','registration'] });
+      if (!data.clientVehicle?.motExpiry)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'MOT expiry is required for VD',  path: ['clientVehicle','motExpiry'] });
       if (!data.clientVehicle?.roadTaxExpiry)ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Road tax expiry is required for VD', path: ['clientVehicle','roadTaxExpiry'] });
     }
 
-    // PI-specific
-    // Safely access claimReason with optional chaining
+    // PI-specific validation
     if (data.claimReason?.includes('PI')) {
       if (!data.clientInfo.occupation)    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Occupation is required for PI',      path: ['clientInfo','occupation'] });
       if (!data.clientInfo.injuryDetails) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Injury details are required for PI', path: ['clientInfo','injuryDetails'] });
 
-      // GP
-      // Safely access gpInformation
       if (data.gpInformation?.visited) {
         if (!data.gpInformation.gpName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP name is required',          path: ['gpInformation','gpName'] });
         if (!data.gpInformation.gpAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP address is required',       path: ['gpInformation','gpAddress'] });
@@ -223,8 +208,6 @@ export const claimFormSchema = z
         if (!data.gpInformation.gpContactNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GP contact number is required',path: ['gpInformation','gpContactNumber'] });
       }
 
-      // Hospital
-      // Safely access hospitalInformation
       if (data.hospitalInformation?.visited) {
         if (!data.hospitalInformation.hospitalName)          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital name is required',          path: ['hospitalInformation','hospitalName'] });
         if (!data.hospitalInformation.hospitalAddress)       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Hospital address is required',       path: ['hospitalInformation','hospitalAddress'] });

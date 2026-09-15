@@ -1,7 +1,7 @@
 // src/pages/BulkEmail.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isAfter } from 'date-fns';
 import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
@@ -15,7 +15,6 @@ import {
   doc,
   orderBy,
   updateDoc,
-  limit as fbLimit,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -39,8 +38,7 @@ import { useEmailHistory, logEmailHistory } from '../hooks/useEmailHistory';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { LegalHandler } from '../types/legalHandler';
 import { Account } from '../types';
-import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
-import { isAfter } from 'date-fns';
+import { calculateRentalCostDetailed, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
 import { Permission } from '../types/roles';
 
 // PDF Document Generation Imports
@@ -204,14 +202,6 @@ function claimMatchesCustomer(claim: any, customer: any): boolean {
   return !!nameHit;
 }
 
-const toClaimOption = (c: any): { id: string; label: string } => {
-  const ref = (c.claimId?.toUpperCase?.() || (c.id || '').slice(-8).toUpperCase());
-  const clientReg = c.clientVehicle?.registration || c.vehicle?.registration || '';
-  const clientName = c.clientInfo?.name || c.submitter?.fullName || c.driver?.fullName || '';
-  const date = safeFmt(c.dateOfEvent ?? c.incidentDetails?.date);
-  return { id: c.id, label: [ref, clientReg, clientName, date].filter(Boolean).join(' • ') };
-};
-
 const normalizePhone = (phone: string | undefined | null): string => {
   if (!phone) return '';
   return phone.replace(/\D/g, '');
@@ -296,7 +286,7 @@ export default function BulkEmail() {
   const [message, setMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
-  const isUserEdited = React.useRef<boolean>(false);
+  const isUserEdited = useRef<boolean>(false);
 
   // ─── Attachments State ──────────────────────────────────────────
   const [selectedSystemDocs, setSelectedSystemDocs] = useState<{name: string, url: string}[]>([]);
@@ -656,7 +646,11 @@ export default function BulkEmail() {
           }
           
           return relTransactions
-             .sort((a,b) => (b.date > a.date ? 1 : -1))
+             .sort((a,b) => {
+                 const dA = safeToDate(a.date) || new Date();
+                 const dB = safeToDate(b.date) || new Date();
+                 return dB.getTime() - dA.getTime();
+             })
              .slice(0, 50) 
              .map(t => {
                  const typeLabel = t.type === 'income' ? 'Income' : 'Expense';
@@ -762,9 +756,7 @@ export default function BulkEmail() {
   const normalizeClaimBody = (body: string) =>
     body.replace(/Claim Type:\s*\[Vehicle Damage\][\s\S]*?\[Other\]/i, 'Claim Type: [Claim Type]');
 
-  useEffect(() => {
-    isUserEdited.current = false;
-  }, [emailType, selectedTemplateId, selectedRecipients, selectedRecordId, selectedVehicleId, selectedMaintenanceId]);
+  const selectionCacheKey = `${selectedTemplateId}-${selectedRecipients.join(',')}-${selectedRecordId}-${selectedVehicleId}-${selectedMaintenanceId}`;
 
   useEffect(() => {
     if (!currentTemplate || !selectedTemplateId || !templateReady || selectedRecipients.length !== 1) return;
@@ -974,74 +966,121 @@ export default function BulkEmail() {
         ctx['Rental Type'] = (r as any).type || '';
         ctx['rental type (daily weekly or claim)'] = String((r as any).type || '').toUpperCase();
 
-        const vehicleRate = r.type === 'daily' ? (v?.dailyRentalPrice ?? 0) : r.type === 'weekly' ? (v?.weeklyRentalPrice ?? 0) : (v?.claimRentalPrice ?? 0);
-        const fallback = RENTAL_RATES[r.type as keyof typeof RENTAL_RATES] ?? 0;
-        const effectiveRate = (r as any).negotiatedRate ?? vehicleRate ?? fallback;
-        ctx['vehicle rate (if daily weekly or claim)'] = effectiveRate.toFixed(2);
+        const storageNet = r.type === 'claim' ? ((r as any).storageDays || 0) * ((r as any).storageCostPerDay || 0) : 0;
+        const extraTotal = ((r as any).extraCharges || []).reduce((acc: number, c: any) => acc + (Number(c.amount) || 0), 0);
 
-        const subs = r.hireSubstitutionDetails || [];
-        const activeSub = subs.find((s: any) => !s.returnCondition) || subs[subs.length - 1];
-        if (activeSub) {
-           ctx['Sub Reg'] = activeSub.registration || '';
-           ctx['Date the date from of the substitute vehicle start date'] = safeFmt(activeSub.givenAt);
-           ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
-        }
-
-        const start = safeToDate((r as any).startDate) || new Date();
-        const end = safeToDate((r as any).endDate) || new Date();
-
-        const totalNum = calculateRentalCost(
-          start, end, (r as any).type, v, (r as any).reason, (r as any).negotiatedRate ?? undefined,
-          (r as any).storageCost || 0, (r as any).recoveryCost || 0, 
+        const masterDetails = calculateRentalCostDetailed(
+          safeToDate((r as any).startDate) || new Date(), 
+          safeToDate((r as any).endDate) || new Date(), 
+          (r as any).type, v, (r as any).reason, (r as any).negotiatedRate ?? undefined,
+          storageNet, (r as any).recoveryCost || 0, 
           (r as any).deliveryCharge || 0, (r as any).collectionCharge || 0,
           (r as any).insurancePerDay || 0, (r as any).insurancePerWeek || 0,
-          (r as any).includeVAT, false, false,
-          (r as any).insurancePerDayIncludeVAT, (r as any).insurancePerWeekIncludeVAT, (r as any).includeRecoveryCostVAT
+          (r as any).includeVAT || false, (r as any).deliveryChargeIncludeVAT || false, (r as any).collectionChargeIncludeVAT || false,
+          (r as any).insurancePerDayIncludeVAT || false, (r as any).insurancePerWeekIncludeVAT || false, (r as any).includeRecoveryCostVAT || false, (r as any).includeStorageVAT || false,
+          (r as any).discountPercentage || 0, (r as any).discountAmount || 0, (r as any).status,
+          (r as any).lockedDailyRate, (r as any).lockedWeeklyRate, (r as any).lockedClaimRate,
+          extraTotal,
+          (r as any).discounts || []
         );
 
-        const discountedTotal = totalNum - ((r as any).discountAmount ?? 0);
         const now = new Date();
-        
-        const ongoingCharges = (r as any).status === 'active' && isAfter(now, end) ? calculateOverdueCost(r as any, now, v) : 0;
+        const end = safeToDate((r as any).endDate) || new Date();
+        const ongoingChargesGross = (r as any).status === 'active' && isAfter(now, end) ? calculateOverdueCost(r as any, now, v) : 0;
+        const netOngoing = (r as any).includeVAT ? ongoingChargesGross / 1.2 : ongoingChargesGross;
+        const vatOngoing = ongoingChargesGross - netOngoing;
+
+        const mainReturnCharges = (r as any).returnCondition?.totalCharges || 0;
         const subCharges = ((r as any).hireSubstitutionDetails || []).reduce((acc: number, sub: any) => acc + (sub.returnCondition?.totalCharges || 0), 0);
-        const returnCharges = ((r as any).returnCondition?.totalCharges ?? 0) + subCharges;
+        const returnTotalGross = mainReturnCharges + subCharges;
+        const netReturnTotal = (r as any).includeVAT ? returnTotalGross / 1.2 : returnTotalGross;
+        const vatReturnTotal = returnTotalGross - netReturnTotal;
 
-        const totalAmountDue = discountedTotal + ongoingCharges + returnCharges;
+        const totalNetSubtotal = masterDetails.net + netOngoing + netReturnTotal;
+        const totalVat = masterDetails.vat + vatOngoing + vatReturnTotal;
+        const grandTotal = masterDetails.gross + ongoingChargesGross + returnTotalGross;
+
         const paid = (r as any).paidAmount || 0;
-        const remaining = totalAmountDue - paid;
+        const remaining = grandTotal - paid;
 
-        let subtotalNum = totalAmountDue;
-        let vatNum = 0;
+        ctx['Net Amount'] = totalNetSubtotal.toFixed(2);
+        ctx['VAT Total'] = totalVat.toFixed(2);
+        ctx['Grand Total'] = grandTotal.toFixed(2);
+        
+        ctx['Subtotal']            = totalNetSubtotal.toFixed(2);
+        ctx['VAT']                 = totalVat.toFixed(2);
+        ctx['Total Amount']        = grandTotal.toFixed(2);
+        
+        ctx['Amount Paid']         = paid.toFixed(2);
+        ctx['Paid']                = paid.toFixed(2);
+        
+        const remStr = Math.max(0, remaining).toFixed(2);
+        ctx['Outstanding Balance'] = remStr;
+        ctx['Owing']               = remStr;
+        ctx['Outstanding Amount']  = remStr;
+        ctx['owing Balance']       = remStr;
+        ctx['owing balance']       = remStr;
+        ctx['Balance']             = remStr;
+        ctx['Balance (like the rental owing balance)'] = remStr;
 
-        if ((r as any).includeVAT || (r as any).type === 'claim') {
-          subtotalNum = totalAmountDue / 1.2;
-          vatNum = totalAmountDue - subtotalNum;
+        ctx['Return Charges'] = returnTotalGross.toFixed(2);
+        ctx['Extra Charges'] = extraTotal.toFixed(2);
+        const discountTotal = (r as any).discountAmount ?? 0;
+        ctx['Discount Amount'] = discountTotal.toFixed(2);
+        
+        ctx['Payment Details'] = `PAYMENT DETAILS\nBank: LLOYDS BANK\nAccount Name: AIE Skyline Limited\nAccount Number: 30513162\nSort Code: 30-99-50`;
+
+        let latestPayAmt = '0.00';
+        let latestPayDate = 'N/A';
+        let latestPayTime = 'N/A';
+        const rentalPayments = (r as any).payments || [];
+        if (rentalPayments.length > 0) {
+          const sortedPayments = [...rentalPayments].sort((a, b) => {
+             const tA = safeToDate(a.date)?.getTime() || 0;
+             const tB = safeToDate(b.date)?.getTime() || 0;
+             return tB - tA;
+          });
+          latestPayAmt = Number(sortedPayments[0].amount).toFixed(2);
+          latestPayDate = safeFmt(sortedPayments[0].date, 'dd/MM/yyyy');
+          latestPayTime = safeFmt(sortedPayments[0].date, 'HH:mm');
+        }
+        ctx['Latest Payment Amount'] = latestPayAmt;
+        ctx['Latest Payment Date'] = latestPayDate;
+        ctx['Latest Payment Time'] = latestPayTime;
+        
+        ctx['Payment Date'] = latestPayDate;
+        if (currentTemplate?.id === 'rental_payment_received') {
+          ctx['Amount'] = latestPayAmt;
         }
 
-        const total = totalAmountDue.toFixed(2);
-        const subtotal = subtotalNum.toFixed(2);
-        const vat = vatNum.toFixed(2);
-        const rem   = Math.max(0, remaining).toFixed(2);
+        ctx['Main Vehicle Reg'] = v?.registrationNumber || 'N/A';
+        const subsArray = (r as any).hireSubstitutionDetails || [];
+        if (subsArray.length > 0) {
+            ctx['Substitute Vehicle Regs'] = subsArray.map((s:any) => s.registration).filter(Boolean).join(', ');
+            
+            const activeSub = subsArray.find((s: any) => !s.returnCondition) || subsArray[subsArray.length - 1];
+            if (activeSub) {
+               ctx['Sub Reg'] = activeSub.registration || '';
+               ctx['Sub Start Date'] = safeFmt(activeSub.givenAt, 'dd/MM/yyyy');
+               ctx['Sub Start Time'] = safeFmt(activeSub.givenAt, 'HH:mm');
+               
+               // Aliases for legacy templates
+               ctx['Date the date from of the substitute vehicle start date'] = safeFmt(activeSub.givenAt);
+               ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
+            }
+        } else {
+            ctx['Substitute Vehicle Regs'] = 'None';
+            ctx['Sub Reg'] = 'N/A';
+            ctx['Sub Start Date'] = 'N/A';
+            ctx['Sub Start Time'] = 'N/A';
+        }
 
-        ctx['Subtotal']            = subtotal;
-        ctx['VAT']                 = vat;
-        ctx['Total Amount']        = total;
-        ctx['Amount Paid']         = paid.toFixed(2);
-        ctx['Outstanding Balance'] = rem;
-        ctx['Outstanding Amount']  = rem;
-        ctx['owing Balance']       = rem;
-        ctx['owing balance']       = rem;
-        ctx['Balance']             = rem;
-        ctx['Balance (like the rental owing balance)'] = rem;
-
-        if (currentTemplate.id === 'rental_payment_received') {
-          let latestPaymentAmount = paid.toFixed(2);
-          const payments = (r as any).payments || [];
-          if (payments.length > 0) {
-            const sortedPayments = [...payments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            latestPaymentAmount = Number(sortedPayments[0].amount).toFixed(2);
+        if (!ctx["Driver's Name"]) {
+          const rc = customers.find(c => c.id === (r as any).customerId);
+          if (rc) {
+            ctx["Driver's Name"] = rc.name;
+            ctx['Customer Name'] = rc.name;
           }
-          ctx['Amount'] = latestPaymentAmount;
         }
       }
     }
@@ -1052,10 +1091,50 @@ export default function BulkEmail() {
         const invNo = inv.invoiceNumber || `INV-${(inv.id || '').slice(-8).toUpperCase()}`;
         ctx['Invoice Number'] = invNo;
         ctx['Invoice Date']   = safeFmt((inv as any).date, 'dd/MM/yyyy');
-        ctx['Amount']         = Number((inv as any).remainingAmount ?? (inv as any).total ?? 0).toFixed(2);
+        
+        const totalAmount = Number((inv as any).remainingAmount ?? (inv as any).total ?? 0).toFixed(2);
+        ctx['Amount'] = totalAmount;
+        ctx['Total Amount'] = totalAmount;
+        ctx['Outstanding Balance'] = Number((inv as any).remainingAmount ?? 0).toFixed(2);
         ctx['Paid Balance'] = Number((inv as any).paidAmount ?? 0).toFixed(2);
+
+        // Exact formatting matching the invoice PDF display logic
+        ctx['Net Amount'] = Number(inv.subTotal || 0).toFixed(2);
+        ctx['VAT Total'] = Number(inv.vatAmount || 0).toFixed(2);
+        ctx['Grand Total'] = Number(inv.total || 0).toFixed(2);
+        ctx['Paid'] = Number(inv.paidAmount || 0).toFixed(2);
+        ctx['Owing'] = Number(inv.remainingAmount || 0).toFixed(2);
+        ctx['Payment Details'] = `PAYMENT DETAILS\nBank: LLOYDS BANK\nAccount Name: AIE Skyline Limited\nAccount Number: 30513162\nSort Code: 30-99-50`;
+        
+        let latestPayAmt = '0.00';
+        let latestPayDate = 'N/A';
+        let latestPayTime = 'N/A';
+        const invPayments = (inv as any).payments || [];
+        if (invPayments.length > 0) {
+          const sortedPayments = [...invPayments].sort((a, b) => {
+             const tA = safeToDate(a.date)?.getTime() || 0;
+             const tB = safeToDate(b.date)?.getTime() || 0;
+             return tB - tA;
+          });
+          latestPayAmt = Number(sortedPayments[0].amount).toFixed(2);
+          latestPayDate = safeFmt(sortedPayments[0].date, 'dd/MM/yyyy');
+          latestPayTime = safeFmt(sortedPayments[0].date, 'HH:mm');
+        }
+        ctx['Latest Payment Amount'] = latestPayAmt;
+        ctx['Latest Payment Date'] = latestPayDate;
+        ctx['Latest Payment Time'] = latestPayTime;
+
         ctx['Due Date']       = safeFmt((inv as any).dueDate, 'dd/MM/yyyy');
         ctx['Invoice No.']    = invNo;
+
+        if (!ctx['Customer Name']) {
+          const fromInv = getInvoiceManualName(inv);
+          if (fromInv) ctx['Customer Name'] = String(fromInv);
+        }
+        if (!ctx['Customer Name'] && inv.customerId) {
+          const rc = customers.find(c => c.id === inv.customerId);
+          if (rc?.name) ctx['Customer Name'] = rc.name;
+        }
       }
     }
 
@@ -1093,19 +1172,17 @@ export default function BulkEmail() {
           : (String(c.claimType) || 'Other');
       }
     }
+    
     // --- GLOBAL VEHICLE DATA INJECTION ---
-    // If ANY of the previous logic found a vehicle registration, automatically append all extended vehicle dates and details!
     const regToFind = ctx['Vehicle Registration Number'] || ctx['Vehicle Reg'] || ctx['Client Registration'] || ctx['Main Reg the rental main vehicle registration number'];
     
     if (regToFind) {
-      // Find the vehicle in the database by matching the registration number
       const v = vehicles.find(vx => (vx.registrationNumber || '').toLowerCase() === regToFind.toLowerCase());
       
       if (v) {
         ctx['Make & Model'] = [v.make, v.model].filter(Boolean).join(' ');
         if (v.year) ctx['Year'] = `${v.year}`;
         
-        // Extended Dates & Mandatory Fields
         ctx['Mileage'] = String(v.mileage || 'N/A');
         ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
         ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
@@ -1440,7 +1517,7 @@ export default function BulkEmail() {
                         setSelectedVehicleId('');
                       }
 
-                      // --- NEW: AUTO-SELECT DRIVEN VEHICLE FOR CUSTOM MESSAGES ---
+                      // --- AUTO-SELECT DRIVEN VEHICLE FOR CUSTOM MESSAGES ---
                       if (newSelection.length === 1 && emailType === 'custom') {
                         const activeRental = rentals.find((r: any) => r.customerId === id && r.status === 'active');
                         if (activeRental) {

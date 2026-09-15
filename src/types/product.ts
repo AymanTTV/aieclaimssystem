@@ -1,20 +1,24 @@
+// src/types/product.ts
 export interface Product {
   id: string;
 
   /** Inventory identifiers */
-  partNumber: string;         // NEW: unique or semi-unique code
+  partNumber: string;         // unique or semi-unique code
   name: string;               // Product Name
   category?: string;          // Category (keep as-is)
 
   /** Stock & location */
-  binLocation?: string;       // NEW: Bin / Location (e.g., "Aisle 3 / Bin B")
-  quantity: number;           // NEW: QTY in stock
+  binLocation?: string;       // Bin / Location (e.g., "Aisle 3 / Bin B")
+  quantity: number;           // QTY in stock
 
   /** Pricing */
-  retailPrice: number;        // NEW: Retail Price
-  discount?: number;          // NEW: Discount (percentage, e.g., 10 for 10%)
-  /** If you store it in DB, keep it; otherwise compute it on the fly */
-  totalValue?: number;        // NEW: quantity * retailPrice * (1 - discount/100)
+  retailPrice: number;        // Retail Price
+  discount?: number;          // Discount (percentage, e.g., 10 for 10%)
+  totalValue?: number;        // quantity * retailPrice * (1 - discount/100)
+
+  /** Vehicle Association */
+  vehicleId?: string;         // NEW: Associated Vehicle ID
+  vehicleName?: string;       // NEW: Associated Vehicle Name
 
   /** Media */
   imageUrl?: string;          // Keep the file picture

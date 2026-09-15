@@ -386,7 +386,17 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   
       let maintenanceData;
       // ✅ Update internal type to hold assignedGroupId for Group assignment referencing
-      let vehicleToUseForTransaction: { id?: string; make: string; model: string; registrationNumber: string; owner?: VehicleOwner; assignedGroupId?: string | null };
+      let vehicleToUseForTransaction: { 
+        id?: string; 
+        make: string; 
+        model: string; 
+        registrationNumber: string; 
+        owner?: VehicleOwner; 
+        assignedGroupId?: string | null;
+        assignedGroupName?: string | null;
+        assignedDepartmentId?: string | null;
+        assignedDepartmentName?: string | null;
+      };
   
       if (manualEntry) {
         maintenanceData = {
@@ -402,7 +412,10 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           make: manualMake.trim(),
           model: manualModel.trim(),
           registrationNumber: manualRegNumber.trim(),
-          assignedGroupId: null
+          assignedGroupId: null,
+          assignedGroupName: null,
+          assignedDepartmentId: null,
+          assignedDepartmentName: null
         };
       } else {
         const existingVehicle = vehicles.find(v => v.id === selectedVehicleId)!;
@@ -450,7 +463,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               paymentStatus: maintenanceData.paymentStatus,
               status: 'completed',
               date: new Date(),
-              groupId: vehicleToUseForTransaction.assignedGroupId || undefined // ✅ Attach Group ID
+              groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
+              // ✅ ADD THESE LINES:
+              groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
+              departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
+              departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
           });
         }
   
@@ -491,7 +508,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             paymentStatus: maintenanceData.paymentStatus,
             status: 'completed',
             date: new Date(),
-            groupId: vehicleToUseForTransaction.assignedGroupId || undefined // ✅ Attach Group ID
+            groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
+            // ✅ ADD THESE LINES:
+            groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
+            departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
+            departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
           });
         }
   

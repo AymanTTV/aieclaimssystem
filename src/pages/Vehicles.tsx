@@ -17,21 +17,11 @@ import VehicleDeleteModal from '../components/vehicles/VehicleDeleteModal';
 import Modal from '../components/ui/Modal';
 import MileageUpdateForm from '../components/vehicles/MileageUpdateForm';
 import {
-  Plus,
-  Download,
-  RefreshCw,
-  FileText,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle,
-  Building2,
-  Tag,
-  X,
-  Layers // ✅ Imported icon for groups
+  Plus, Download, RefreshCw, FileText, AlertTriangle, AlertCircle, CheckCircle, Building2, Tag, X, Layers, Briefcase 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, collection, addDoc, updateDoc, getDoc, getDocs, setDoc, writeBatch, query, where, arrayUnion } from 'firebase/firestore'; 
+import { doc, collection, addDoc, updateDoc, getDoc, getDocs, setDoc, writeBatch, query, where, arrayUnion, onSnapshot } from 'firebase/firestore'; 
 import { db, storage } from '../lib/firebase';
 import { Vehicle } from '../types';
 import { handleVehicleExport } from '../utils/vehicleHelpers';
@@ -40,8 +30,11 @@ import { generateAndUploadDocument, generateBulkDocuments } from '../utils/docum
 import { VehicleDocument, VehicleBulkDocument } from '../components/pdf/documents';
 import SearchableSelect from '../components/ui/SearchableSelect'; 
 
-// ✅ Import Finance Groups Service
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
+
+// ✅ Import the Shared Manage Modal from Finance & the Vehicle Assign Modal
+import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
+import AssignVehicleDepartmentModal from '../components/vehicles/AssignVehicleDepartmentModal';
 
 const Vehicles: React.FC = () => {
   const { vehicles, loading } = useVehicles();
@@ -59,12 +52,13 @@ const Vehicles: React.FC = () => {
     makeFilter, setMakeFilter,
     showSold, setShowSold,
     filteredVehicles, uniqueMakes,
-    uniqueOwners, // ✅ Extracted uniqueOwners
+    uniqueOwners, 
     expiryFilter, setExpiryFilter,
     accountFilter, setAccountFilter,
     garageFilter, setGarageFilter,
-    groupFilter, setGroupFilter, // ✅ Extracted groupFilter
-    ownerFilter, setOwnerFilter, // ✅ Extracted ownerFilter
+    groupFilter, setGroupFilter, 
+    departmentFilter, setDepartmentFilter, 
+    ownerFilter, setOwnerFilter, 
     typeFilter, setTypeFilter, 
     ageFilter, setAgeFilter,  
   } = useVehicleFilters(vehiclesState);
@@ -85,13 +79,18 @@ const Vehicles: React.FC = () => {
   const [assigningTypeSingleVehicle, setAssigningTypeSingleVehicle] = useState<Vehicle | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<string>('');
 
-  // ✅ Assign Group State
+  // Assign Group State
   const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
   const [assigningGroupSingleVehicle, setAssigningGroupSingleVehicle] = useState<Vehicle | null>(null);
   const [financeGroups, setFinanceGroups] = useState<FinanceGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
 
-  // ✅ Fetch Finance Groups
+  // ✅ Department State
+  const [showManageDepartments, setShowManageDepartments] = useState(false);
+  const [showAssignDepartmentModal, setShowAssignDepartmentModal] = useState(false);
+  const [assigningDepartmentSingleVehicle, setAssigningDepartmentSingleVehicle] = useState<Vehicle | null>(null);
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+
   useEffect(() => {
     const loadGroups = async () => {
       try {
@@ -102,6 +101,14 @@ const Vehicles: React.FC = () => {
       }
     };
     loadGroups();
+  }, []);
+
+  // ✅ Fetch SAME Departments real-time as Finance/Invoices
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'financeDepartments'), snap => {
+      setDepartments(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
   }, []);
 
   const injectMissingVehicle = async () => {
@@ -345,7 +352,6 @@ const Vehicles: React.FC = () => {
     setSelectedIds(next);
   };
 
-  // Garage Assignment Submission
   const handleAssignGarageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!can('vehicles', 'update')) return;
@@ -393,7 +399,6 @@ const Vehicles: React.FC = () => {
     }
   };
 
-  // Type Assignment Submission
   const handleAssignTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!can('vehicles', 'update')) return;
@@ -430,7 +435,6 @@ const Vehicles: React.FC = () => {
     }
   };
 
-  // ✅ Group Assignment Submission
   const handleAssignGroupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!can('vehicles', 'update')) return;
@@ -527,6 +531,18 @@ const Vehicles: React.FC = () => {
           </h1>
 
           <div className="w-full grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:w-auto">
+            
+            {/* ✅ Added Departments Header Button */}
+            {!isCompany && can('vehicles', 'departments') && (
+               <button
+                 onClick={() => setShowManageDepartments(true)}
+                 className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+               >
+                 <Briefcase className="h-4 w-4 mr-2 text-teal-600" />
+                 Depts
+               </button>
+            )}
+
             {can('vehicles', 'export') && (
             <button
               onClick={handleGeneratePDF}
@@ -593,12 +609,15 @@ const Vehicles: React.FC = () => {
         onTypeFilterChange={setTypeFilter} 
         ageFilter={ageFilter}           
         onAgeFilterChange={setAgeFilter} 
-        groupFilter={groupFilter}           // ✅ Added
-        onGroupFilterChange={setGroupFilter} // ✅ Added
-        groups={financeGroups}              // ✅ Added
-        ownerFilter={ownerFilter}           // ✅ Added
-        onOwnerFilterChange={setOwnerFilter} // ✅ Added
-        owners={uniqueOwners}               // ✅ Added
+        groupFilter={groupFilter}           
+        onGroupFilterChange={setGroupFilter} 
+        groups={financeGroups}              
+        departmentFilter={departmentFilter} // ✅ Added
+        onDepartmentFilterChange={setDepartmentFilter} // ✅ Added
+        departments={departments} // ✅ Added
+        ownerFilter={ownerFilter}           
+        onOwnerFilterChange={setOwnerFilter} 
+        owners={uniqueOwners}               
       />
 
       {/* Bulk Actions Header */}
@@ -627,12 +646,18 @@ const Vehicles: React.FC = () => {
             >
               <Building2 className="w-4 h-4" /> Assign Garage
             </button>
-            {/* ✅ Bulk Assign Group */}
             <button
               onClick={() => { setAssigningGroupSingleVehicle(null); setShowAssignGroupModal(true); }}
               className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm"
             >
               <Layers className="w-4 h-4" /> Assign Group
+            </button>
+            {/* ✅ Bulk Assign Department */}
+            <button
+              onClick={() => { setAssigningDepartmentSingleVehicle(null); setShowAssignDepartmentModal(true); }}
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded hover:bg-teal-700 flex items-center justify-center gap-2 shadow-sm"
+            >
+              <Briefcase className="w-4 h-4" /> Assign Dept
             </button>
           </div>
         </div>
@@ -663,14 +688,33 @@ const Vehicles: React.FC = () => {
             setSelectedAssignmentType(vehicle.assignmentType || '');
             setShowAssignTypeModal(true);
           }}
-          // ✅ Added Assign Group prop
           onAssignGroup={(vehicle) => {
             setAssigningGroupSingleVehicle(vehicle);
             setSelectedGroupId(vehicle.assignedGroupId || '');
             setShowAssignGroupModal(true);
           }}
+          onAssignDepartment={(vehicle) => {
+            setAssigningDepartmentSingleVehicle(vehicle); 
+            setShowAssignDepartmentModal(true); 
+          }} 
         />
       </div>
+
+      {/* ✅ Mount Modals */}
+      <ManageFinanceDepartmentsModal isOpen={showManageDepartments} onClose={() => setShowManageDepartments(false)} />
+      
+      <AssignVehicleDepartmentModal 
+        isOpen={showAssignDepartmentModal} 
+        onClose={() => setShowAssignDepartmentModal(false)}
+        selectedIds={selectedIds}
+        singleVehicle={assigningDepartmentSingleVehicle}
+        departments={departments}
+        onSuccess={() => {
+          setShowAssignDepartmentModal(false);
+          setAssigningDepartmentSingleVehicle(null);
+          setSelectedIds(new Set());
+        }}
+      />
 
       {/* Assign to Garage Modal */}
       <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage">
@@ -741,7 +785,7 @@ const Vehicles: React.FC = () => {
         </form>
       </Modal>
 
-      {/* ✅ Assign Group Modal */}
+      {/* Assign Group Modal */}
       <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group">
         <form onSubmit={handleAssignGroupSubmit} className="space-y-4">
           <p className="text-sm text-gray-600 mb-2">
@@ -805,6 +849,7 @@ const Vehicles: React.FC = () => {
         >
           <VehicleForm
             vehicle={editingVehicle || undefined}
+            departments={departments} // ✅ Add this line
             onClose={() => {
               setShowForm(false);
               setEditingVehicle(null);

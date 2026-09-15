@@ -67,7 +67,9 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
         paymentStatus: 'paid',
         date: saleDate,
         accountTo: vehicle.owner?.accountId || undefined, 
-        groupId: vehicle.assignedGroupId || undefined, // ✅ Pass the vehicle's assigned group
+        groupId: vehicle.assignedGroupId || undefined,
+        departmentId: vehicle.assignedDepartmentId || undefined, // ✅ Pass the vehicle's assigned department
+        departmentName: vehicle.assignedDepartmentName || undefined, // ✅ Pass the vehicle's assigned department name
       });
 
       toast.success('Vehicle marked as sold successfully');

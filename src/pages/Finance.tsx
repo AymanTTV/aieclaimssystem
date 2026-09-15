@@ -16,6 +16,10 @@ import ManageAccountsModal from '../components/finance/ManageAccountsModal';
 import Modal from '../components/ui/Modal'; 
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import AssignGroupCategoryModal from '../components/finance/AssignGroupCategoryModal';
+import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
+import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
+import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
+
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { pdf } from '@react-pdf/renderer'; 
 import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
@@ -55,13 +59,14 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, accounts, groups, user, onClose, onSuccess }: any) => {
+const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, accounts, groups, departments, user, onClose, onSuccess }: any) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const defaultCustomerId = useMemo(() => selectedTxns.find((t: any) => t.customerId)?.customerId || '', [selectedTxns]);
   const defaultVehicleId = useMemo(() => selectedTxns.find((t: any) => t.vehicleId)?.vehicleId || '', [selectedTxns]);
   const defaultCategory = useMemo(() => selectedTxns.find((t: any) => t.category)?.category || '', [selectedTxns]);
   const defaultGroupId = useMemo(() => selectedTxns.find((t: any) => t.groupId)?.groupId || '', [selectedTxns]);
+  const defaultDepartmentId = useMemo(() => selectedTxns.find((t: any) => t.departmentId)?.departmentId || '', [selectedTxns]);
   const defaultAccountFrom = useMemo(() => selectedTxns.find((t: any) => t.accountsFrom && t.accountsFrom.length > 0)?.accountsFrom[0] || '', [selectedTxns]);
   const defaultAccountTo = useMemo(() => selectedTxns.find((t: any) => t.accountsTo && t.accountsTo.length > 0)?.accountsTo[0] || '', [selectedTxns]);
   
@@ -69,6 +74,7 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
   const [vehicleId, setVehicleId] = useState(defaultVehicleId);
   const [category, setCategory] = useState(defaultCategory);
   const [groupId, setGroupId] = useState(defaultGroupId);
+  const [departmentId, setDepartmentId] = useState(defaultDepartmentId);
   const [accountFrom, setAccountFrom] = useState(defaultAccountFrom);
   const [accountTo, setAccountTo] = useState(defaultAccountTo);
   const [isLoan, setIsLoan] = useState(true);
@@ -106,6 +112,8 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
     try {
       const cust = customers.find((c: any) => c.id === customerId);
       const veh = vehicles.find((v: any) => v.id === vehicleId);
+      const dept = departments?.find((d: any) => d.id === departmentId);
+      const grp = groups?.find((g: any) => g.id === groupId); // ✅ Lookup explicit group name
 
       let currentMaxStr = await getNextInvoiceNumber(); 
       let currentMaxNum = parseInt(currentMaxStr.substring(3), 10);
@@ -162,6 +170,9 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
           accountFrom: accountFrom || (t.accountsFrom && t.accountsFrom.length > 0 ? t.accountsFrom[0] : null), 
           accountTo: accountTo || (t.accountsTo && t.accountsTo.length > 0 ? t.accountsTo[0] : null),     
           groupId: groupId || t.groupId || null,
+          groupName: grp ? grp.name : t.groupName || null, // ✅ Save explicit Group Name
+          departmentId: departmentId || t.departmentId || null,
+          departmentName: dept ? dept.name : t.departmentName || null,
           createdAt: new Date(),
           updatedAt: new Date(), 
           createdBy: user?.id || 'system'
@@ -172,7 +183,13 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
         if (deleteOriginals) {
           batch.delete(doc(db, 'transactions', t.id));
         } else {
-          batch.update(doc(db, 'transactions', t.id), { referenceId: invoiceRef.id });
+          batch.update(doc(db, 'transactions', t.id), { 
+            referenceId: invoiceRef.id,
+            departmentId: departmentId || t.departmentId || null, 
+            departmentName: dept ? dept.name : t.departmentName || null,
+            groupId: groupId || t.groupId || null,
+            groupName: grp ? grp.name : t.groupName || null // ✅ Save explicit Group Name to ledger
+          });
         }
       });
 
@@ -271,6 +288,14 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
            placeholder="Search groups..."
          />
 
+         <SearchableSelect
+           label="Assign Department (Optional)"
+           options={(departments || []).map((d: any) => ({ id: d.id, label: d.name }))}
+           value={departmentId}
+           onChange={(val) => setDepartmentId(val || '')}
+           placeholder="Search departments..."
+         />
+
          <div>
            <label className="block text-sm font-medium text-gray-700">Due Date</label>
            <input 
@@ -316,43 +341,14 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
       </div>
 
       {showLoanConfirm && (
-        <Modal
-          isOpen={showLoanConfirm}
-          onClose={() => setShowLoanConfirm(false)}
-          title="Confirm Loan Classification"
-        >
+        <Modal isOpen={showLoanConfirm} onClose={() => setShowLoanConfirm(false)} title="Confirm Loan Classification">
           <div className="space-y-4">
             <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-md">
-              <div className="flex">
-                <div className="ml-3">
-                  <p className="text-sm text-amber-700 font-medium">
-                    Are you sure you want to mark these as loans?
-                  </p>
-                  <p className="text-sm text-amber-600 mt-1">
-                    This will automatically mark all selected transferred records as loans.
-                  </p>
-                </div>
-              </div>
+              <div className="flex"><div className="ml-3"><p className="text-sm text-amber-700 font-medium">Are you sure you want to mark these as loans?</p><p className="text-sm text-amber-600 mt-1">This will automatically mark all selected transferred records as loans.</p></div></div>
             </div>
-            
             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
-              <button 
-                type="button" 
-                onClick={() => setShowLoanConfirm(false)} 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                onClick={() => {
-                  setIsLoan(true);
-                  setShowLoanConfirm(false);
-                }} 
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 transition-colors"
-              >
-                Yes, mark as Loan
-              </button>
+              <button type="button" onClick={() => setShowLoanConfirm(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">Cancel</button>
+              <button type="button" onClick={() => { setIsLoan(true); setShowLoanConfirm(false); }} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 transition-colors">Yes, mark as Loan</button>
             </div>
           </div>
         </Modal>
@@ -378,6 +374,17 @@ const Finance: React.FC = () => {
   const loadGroups = useCallback(async () => { try { const all = await financeGroupService.getAll(); setGroups(all.sort((a,b) => a.name.localeCompare(b.name))); } catch (err) { toast.error("Could not load groups."); } }, []);
   useEffect(() => { loadGroups(); }, [loadGroups]);
   const [manageOpen, setManageOpen] = useState(false);
+
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'financeDepartments'), snap => {
+      setDepartments(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
+  }, []);
+  const [showManageDepartments, setShowManageDepartments] = useState(false);
+  const [showAssignDepartmentModal, setShowAssignDepartmentModal] = useState(false);
+  const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
@@ -407,6 +414,8 @@ const Finance: React.FC = () => {
   
   const [isBulkCatAdd, setIsBulkCatAdd] = useState(false);
   const [selectedCatIds, setSelectedCatIds] = useState<Set<string>>(new Set());
+
+  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, 'accounts'), orderBy('name'));
@@ -531,7 +540,18 @@ const Finance: React.FC = () => {
       totalOwingFromAccounts 
   } = useFinanceFilters(transactions, vehicles, accounts);
 
-  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedOwner, accountFilter, groupFilter, showLinked, recurringFilter]);
+  // Apply Department Filter
+  const finalFilteredTransactions = useMemo(() => {
+    return filteredTransactions.filter((txn) => {
+      if (departmentFilter.length > 0) {
+        const dId = txn.departmentId || 'none';
+        if (!departmentFilter.includes(dId)) return false;
+      }
+      return true;
+    });
+  }, [filteredTransactions, departmentFilter]);
+
+  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedOwner, accountFilter, groupFilter, departmentFilter, showLinked, recurringFilter]);
 
   const handleViewTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowDetailsModal(true); }, []);
   const handleEditTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowEditModal(true); }, []);
@@ -545,8 +565,8 @@ const Finance: React.FC = () => {
   }, []);
 
   const handleToggleAll = useCallback((checked: boolean) => {
-    setSelectedTransactionIds(checked ? new Set(filteredTransactions.map(t => t.id)) : new Set());
-  }, [filteredTransactions]);
+    setSelectedTransactionIds(checked ? new Set(finalFilteredTransactions.map(t => t.id)) : new Set());
+  }, [finalFilteredTransactions]);
 
   const handleBulkDeleteClick = () => {
     if (selectedTransactionIds.size === 0) return;
@@ -616,13 +636,13 @@ const Finance: React.FC = () => {
 
   const handleAssignTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowAssignModal(true); }, []);
 
-  const totalIncomeGross = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalIncomeNet = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
-  const totalIncomeVat = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
+  const totalIncomeGross = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalIncomeNet = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
+  const totalIncomeVat = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
 
-  const totalExpenseGross = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenseNet = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
-  const totalExpenseVat = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
+  const totalExpenseGross = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenseNet = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
+  const totalExpenseVat = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
 
   const netProfitGross = totalIncomeGross - totalExpenseGross;
   const netProfitNet = totalIncomeNet - totalExpenseNet;
@@ -711,7 +731,7 @@ const Finance: React.FC = () => {
 
       const blob = await pdf(
         <FinanceDocument
-            data={filteredTransactions}
+            data={finalFilteredTransactions}
             vehicles={vehicles}
             accounts={accounts}
             companyDetails={companyDetails}
@@ -725,7 +745,7 @@ const Finance: React.FC = () => {
         toast.dismiss(); 
         toast.error('Failed to generate PDF'); 
     }
-  }, [filteredTransactions, vehicles, accounts]);
+  }, [finalFilteredTransactions, vehicles, accounts]);
 
   const handleGenerateDocument = useCallback(async (transaction: Transaction) => {
     if (!user) { toast.error('You must be logged in to generate documents.'); return; }
@@ -767,7 +787,7 @@ const Finance: React.FC = () => {
   
   const handleExport = useCallback(() => {
     try {
-      const data = filteredTransactions.map((txn) => {
+      const data = finalFilteredTransactions.map((txn) => {
         const safeFormatDate = (date: any): string => { if (!date) return ''; if (date instanceof Date) return date.toISOString(); if (date.toDate) return date.toDate().toISOString(); try { return new Date(date).toISOString(); } catch { return ''; } };
         const getNames = (ids: string[]) => ids ? ids.map(id => accounts.find(a => a.id === id)?.name || '').filter(Boolean).join('; ') : '';
         
@@ -790,6 +810,7 @@ const Finance: React.FC = () => {
           'Owner Name': txn.vehicleOwner?.name || '',
           'Customer Name': txn.customerName || '',
           'Group Name': groups.find(g => g.id === txn.groupId)?.name || '',
+          'Department Name': txn.departmentName || '',
           'Payment Reference': txn.paymentReference || '',
           'Recurring': txn.isRecurring ? 'Yes' : 'No',
           'Frequency': txn.recurringFrequency || '',
@@ -802,7 +823,7 @@ const Finance: React.FC = () => {
       XLSX.writeFile(workbook, 'finance_ledger_export.xlsx');
       toast.success('Finance data exported (Excel)');
     } catch (err) { toast.error('Failed to export.'); }
-  }, [filteredTransactions, vehicles, accounts, groups]);
+  }, [finalFilteredTransactions, vehicles, accounts, groups]);
 
   const handleImportClick = () => {
       if (fileInputRef.current) fileInputRef.current.click();
@@ -848,6 +869,9 @@ const Finance: React.FC = () => {
                        const groupName = row['Group Name'] || row['Group'];
                        const group = groupName ? groups.find(g => g.name.toLowerCase() === groupName.toLowerCase()) : null;
 
+                       const deptName = row['Department Name'] || row['Department'];
+                       const department = deptName ? departments.find(d => d.name.toLowerCase() === deptName.toLowerCase()) : null;
+
                        const isUpdate = !!row['Transaction ID'];
                        const ref = isUpdate ? doc(db, 'transactions', row['Transaction ID']) : doc(collection(db, 'transactions'));
                        
@@ -875,6 +899,8 @@ const Finance: React.FC = () => {
                            customerId: customers.find(c => c.name.toLowerCase() === (row['Customer Name'] || '').toLowerCase())?.id || null,
 
                            groupId: group ? group.id : null,
+                           departmentId: department ? department.id : null,
+                           departmentName: department ? department.name : null,
                            paymentReference: row['Payment Reference'] || null,
                            
                            isRecurring: row['Recurring'] === 'Yes',
@@ -907,14 +933,12 @@ const Finance: React.FC = () => {
   if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>;
 
-  // Derive the active search query for the inline category modal
   const currentCatSearch = (isBulkCatAdd ? catName.split(',').pop()?.trim() : catName.trim()) || '';
 
-  // Filter and prioritize sort based on exact / startsWith matches
   const filteredFinanceCategories = financeCategories
     .filter((cat) => cat.name.toLowerCase().includes(currentCatSearch.toLowerCase()))
     .sort((a, b) => {
-      if (!currentCatSearch) return 0; // Maintain alphabetical order if blank
+      if (!currentCatSearch) return 0;
       const query = currentCatSearch.toLowerCase();
       const aName = a.name.toLowerCase();
       const bName = b.name.toLowerCase();
@@ -949,7 +973,7 @@ const Finance: React.FC = () => {
         totalOwingFromOwners={totalOwingFromOwners} 
         totalOwingFromAccounts={totalOwingFromAccounts} 
         accounts={accounts} 
-        transactions={filteredTransactions} 
+        transactions={finalFilteredTransactions} 
       />
       
       <FinanceHeader 
@@ -959,7 +983,11 @@ const Finance: React.FC = () => {
           onAddIncome={() => setShowAddIncome(true)} 
           onAddExpense={() => setShowAddExpense(true)} 
           onAddRecurring={() => setShowRecurringModal(true)} 
-          onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} onManageGroups={() => setManageOpen(true)} onManageCategories={() => setShowCatModal(true)} onManageAccounts={() => setShowManageAccountsModal(true)} 
+          onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} 
+          onManageGroups={() => setManageOpen(true)} 
+          onManageDepartments={() => setShowManageDepartments(true)}
+          onManageCategories={() => setShowCatModal(true)} 
+          onManageAccounts={() => setShowManageAccountsModal(true)} 
       />
       
       <FinanceFilters 
@@ -975,6 +1003,8 @@ const Finance: React.FC = () => {
           categories={financeCategories.map((c) => c.name)} 
           groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} 
           groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} 
+          departmentFilter={departmentFilter} onDepartmentFilterChange={setDepartmentFilter}
+          departments={departments}
           customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter} customers={customers} 
           vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} vehicles={vehicles} 
           showLinked={showLinked} onShowLinkedChange={setShowLinked} 
@@ -986,6 +1016,18 @@ const Finance: React.FC = () => {
         <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
           <span className="font-medium text-sm text-indigo-800">{selectedTransactionIds.size} transaction(s) selected</span>
           <div className="flex gap-3">
+            <button 
+              onClick={() => setShowAssignGroupModal(true)}
+              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
+            >
+              Assign Group
+            </button>
+            <button 
+              onClick={() => setShowAssignDepartmentModal(true)}
+              className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+            >
+              Assign Dept
+            </button>
             <button 
               onClick={() => setShowTransferModal(true)}
               className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
@@ -1004,7 +1046,7 @@ const Finance: React.FC = () => {
       )}
 
       <TransactionTable 
-        transactions={filteredTransactions} 
+        transactions={finalFilteredTransactions} 
         vehicles={vehicles} 
         accounts={accounts} 
         groups={groups.map((g) => ({ id: g.id, name: g.name }))}
@@ -1015,21 +1057,22 @@ const Finance: React.FC = () => {
         onViewDocument={(url) => window.open(url, '_blank', 'noopener,noreferrer')} 
         onPrintReceipt={handlePrintReceipt} 
         onAssign={handleAssignTransaction} 
+        onAssignDepartment={(txn) => { setSelectedTransaction(txn); setShowAssignDepartmentModal(true); }}
         
         isManager={user?.role === 'manager'}
         selectedIds={selectedTransactionIds}
         onToggleOne={handleToggleOne}
         onToggleAll={handleToggleAll}
-        customers={customers} 
       />
 
       <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)} title="Transfer to Invoice" size="xl">
          <TransferToInvoiceModalContent 
-            selectedTxns={filteredTransactions.filter(t => selectedTransactionIds.has(t.id))}
+            selectedTxns={finalFilteredTransactions.filter(t => selectedTransactionIds.has(t.id))}
             customers={customers}
             vehicles={vehicles}
             accounts={accounts} 
             groups={groups}
+            departments={departments}
             user={user}
             onClose={() => setShowTransferModal(false)}
             onSuccess={() => {
@@ -1039,23 +1082,58 @@ const Finance: React.FC = () => {
          />
       </Modal>
 
+      <ManageFinanceDepartmentsModal isOpen={showManageDepartments} onClose={() => setShowManageDepartments(false)} />
+      
+      <AssignFinanceDepartmentModal
+        isOpen={showAssignDepartmentModal}
+        onClose={() => setShowAssignDepartmentModal(false)}
+        selectedIds={selectedTransactionIds}
+        departments={departments}
+        collectionName="transactions"
+        onSuccess={() => {
+          setShowAssignDepartmentModal(false);
+          setSelectedTransactionIds(new Set()); 
+        }}
+      />
+      
+      <AssignFinanceGroupModal
+        isOpen={showAssignGroupModal}
+        onClose={() => setShowAssignGroupModal(false)}
+        selectedIds={selectedTransactionIds}
+        groups={groups}
+        collectionName="transactions"
+        onSuccess={() => {
+          setShowAssignGroupModal(false);
+          setSelectedTransactionIds(new Set()); 
+        }}
+      />
+
       <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl">
-        <TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} />
+        <TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} />
       </Modal>
       
       <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
-          <TransactionForm type="income" initialIsRecurring={true} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => setShowRecurringModal(false)} />
+          <TransactionForm type="income" initialIsRecurring={true} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => setShowRecurringModal(false)} />
       </Modal>
 
-      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
-      <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">{selectedTransaction && ( <TransactionDetails transaction={selectedTransaction} vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} accounts={accounts} /> )}</Modal>
+      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
+      <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">
+        {selectedTransaction && ( 
+          <TransactionDetails 
+            transaction={selectedTransaction} 
+            vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} 
+            accounts={accounts} 
+            groups={groups} 
+            departments={departments} 
+          /> 
+        )}
+      </Modal>
       <ManageGroupsModal open={manageOpen} onClose={() => { setManageOpen(false); loadGroups(); }} />
       <AssignGroupCategoryModal open={showAssignModal} txn={selectedTransaction} groups={groups} categories={financeCategories} accounts={accounts} onClose={() => { setShowAssignModal(false); setSelectedTransaction(null); }} onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); }} />
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} title="Delete Transaction" size="sm">{selectedTransaction && ( <TransactionDeleteModal transactionId={selectedTransaction.id} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} onDeleted={handleConfirmDeleteSingle} /> )}</Modal>
       <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
       <Modal isOpen={showDeleteLinkedModal} onClose={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} title="Delete Linked Transaction?" size="md"><div className="p-1"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-4 mt-0 text-left"><h3 className="text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3><div className="mt-2"><p className="text-sm text-gray-500">This transaction appears linked to {linkedTransactionsToDelete ? linkedTransactionsToDelete.length - 1 : 0} other(s). Delete only this one, or all linked parts?</p></div></div></div><div className="mt-6 flex flex-col sm:flex-row-reverse gap-3"><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteLinked} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 sm:w-auto">{deleteLoading ? "Deleting..." : `Delete All ${linkedTransactionsToDelete?.length || 0} Linked`}</button><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteSingle} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:w-auto">{deleteLoading ? "..." : "Delete Only This One"}</button><button type="button" disabled={deleteLoading} onClick={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:mt-0 sm:w-auto">Cancel</button></div></div></Modal>
       
-      {/* Dynamic Finance Categories Modal */}
       <Modal isOpen={showCatModal} onClose={resetCatForm} title={editCat ? 'Edit Category' : (isBulkCatAdd ? 'Bulk Add Categories' : 'Add Category')} size="md">
         <form onSubmit={handleCatSubmit} className="flex flex-col space-y-3 mb-4">
           {!editCat && (

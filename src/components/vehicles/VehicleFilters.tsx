@@ -33,12 +33,15 @@ interface VehicleFiltersProps {
   onGarageFilterChange: (value: string) => void;
   garages: { id: string; name: string }[];
 
-  // ✅ NEW Group Props
   groupFilter: string;
   onGroupFilterChange: (value: string) => void;
   groups: { id: string; name: string }[];
 
-  // ✅ NEW Owner Props
+  // ✅ NEW Department Props
+  departmentFilter: string;
+  onDepartmentFilterChange: (value: string) => void;
+  departments: { id: string; name: string }[];
+
   ownerFilter: string;
   onOwnerFilterChange: (value: string) => void;
   owners: string[];
@@ -66,8 +69,9 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   garageFilter, onGarageFilterChange, garages,
   typeFilter, onTypeFilterChange,
   ageFilter, onAgeFilterChange,
-  groupFilter, onGroupFilterChange, groups, // ✅ Extract Group Props
-  ownerFilter, onOwnerFilterChange, owners // ✅ Extract Owner Props
+  groupFilter, onGroupFilterChange, groups, 
+  departmentFilter, onDepartmentFilterChange, departments, // ✅ Extract Dept Props
+  ownerFilter, onOwnerFilterChange, owners 
 }) => {
   const { isCompany } = usePermissions(); 
 
@@ -83,14 +87,19 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
     ...garages.map((g) => ({ id: g.id, label: g.name }))
   ], [garages]);
 
-  // ✅ Group Options mapping
   const groupOptions = useMemo(() => [
     { id: 'all', label: 'All Finance Groups' },
     { id: 'no_group_assigned', label: 'No Group Assigned' },
     ...groups.map((g) => ({ id: g.id, label: g.name }))
   ], [groups]);
 
-  // ✅ Owner Options mapping
+  // ✅ Department Options mapping
+  const departmentOptions = useMemo(() => [
+    { id: 'all', label: 'All Departments' },
+    { id: 'no_department_assigned', label: 'No Department Assigned' },
+    ...departments.map((d) => ({ id: d.id, label: d.name }))
+  ], [departments]);
+
   const ownerOptions = useMemo(() => [
     { id: 'all', label: 'All Owners' },
     { id: 'AIE Skyline (Default)', label: 'AIE Skyline (Default)' },
@@ -101,9 +110,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
       {/* Search */}
       <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
-         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Search
-        </label>
+         <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
         <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" />
@@ -112,7 +119,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search vehicles (reg, make, owner, account, garage, group)..."
+            placeholder="Search vehicles (reg, make, owner, account, garage, group, dept)..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
             />
         </div>
@@ -120,68 +127,38 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
 
       {!isCompany && (
         <div className="relative">
-           <SearchableSelect
-              label="Account"
-              options={accountOptions}
-              value={accountFilter}
-              onChange={onAccountFilterChange}
-              placeholder="Select account..."
-              isClearable={false}
-           />
+           <SearchableSelect label="Account" options={accountOptions} value={accountFilter} onChange={onAccountFilterChange} placeholder="Select account..." isClearable={false} />
         </div>
       )}
 
       {!isCompany && (
         <div className="relative">
-           <SearchableSelect
-              label="Garage / Company"
-              options={garageOptions}
-              value={garageFilter}
-              onChange={onGarageFilterChange}
-              placeholder="Select garage..."
-              isClearable={false}
-           />
+           <SearchableSelect label="Garage / Company" options={garageOptions} value={garageFilter} onChange={onGarageFilterChange} placeholder="Select garage..." isClearable={false} />
         </div>
       )}
 
-      {/* ✅ Finance Group Filter */}
       {!isCompany && (
         <div className="relative">
-           <SearchableSelect
-              label="Finance Group"
-              options={groupOptions}
-              value={groupFilter}
-              onChange={onGroupFilterChange}
-              placeholder="Select group..."
-              isClearable={false}
-           />
+           <SearchableSelect label="Finance Group" options={groupOptions} value={groupFilter} onChange={onGroupFilterChange} placeholder="Select group..." isClearable={false} />
         </div>
       )}
 
-      {/* ✅ Owner Filter */}
+      {/* ✅ Department Filter */}
       {!isCompany && (
         <div className="relative">
-           <SearchableSelect
-              label="Owner"
-              options={ownerOptions}
-              value={ownerFilter}
-              onChange={onOwnerFilterChange}
-              placeholder="Select owner..."
-              isClearable={false}
-           />
+           <SearchableSelect label="Department" options={departmentOptions} value={departmentFilter} onChange={onDepartmentFilterChange} placeholder="Select department..." isClearable={false} />
         </div>
       )}
 
-      {/* Status */}
+      {!isCompany && (
+        <div className="relative">
+           <SearchableSelect label="Owner" options={ownerOptions} value={ownerFilter} onChange={onOwnerFilterChange} placeholder="Select owner..." isClearable={false} />
+        </div>
+      )}
+
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Status
-        </label>
-        <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
+        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <select value={statusFilter} onChange={(e) => onStatusFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
             <option value="all">All Status</option>
             <option value="available">Available</option>
             <option value="hired">Hired</option>
@@ -190,58 +167,31 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         </select>
       </div>
 
-      {/* Make */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Make
-        </label>
-        <select
-            value={makeFilter}
-            onChange={(e) => onMakeFilterChange(e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
+        <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
+        <select value={makeFilter} onChange={(e) => onMakeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
             <option value="all">All Makes</option>
-            {makes.map((make) => (
-            <option key={make} value={make}>{make}</option>
-            ))}
+            {makes.map((make) => <option key={make} value={make}>{make}</option>)}
         </select>
       </div>
       
-      {/* Expiring or Expired Filter */}
       <div className="relative">
-        <SearchableSelect
-          label="Expiring or Expired"
-          options={EXPIRY_OPTIONS}
-          value={expiryFilter}
-          onChange={onExpiryFilterChange}
-          placeholder="Select expiry type..."
-          isClearable={true} 
-        />
+        <SearchableSelect label="Expiring or Expired" options={EXPIRY_OPTIONS} value={expiryFilter} onChange={onExpiryFilterChange} placeholder="Select expiry type..." isClearable={true} />
       </div>
+      
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vehicle Type
-        </label>
-        <select
-            value={typeFilter}
-            onChange={(e) => onTypeFilterChange(e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
+        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
+        <select value={typeFilter} onChange={(e) => onTypeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
             <option value="all">All Types</option>
             <option value="Claims">For Claims</option>
             <option value="Hire">For Hire</option>
             <option value="unassigned">Unassigned</option>
         </select>
       </div>
+      
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vehicle Age
-        </label>
-        <select
-            value={ageFilter}
-            onChange={(e) => onAgeFilterChange(e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-        >
+        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Age</label>
+        <select value={ageFilter} onChange={(e) => onAgeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
             <option value="all">All Ages</option>
             <option value="0-5">0 - 5 Years</option>
             <option value="6-10">6 - 10 Years</option>
@@ -251,27 +201,16 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
         </select>
       </div>
 
-      {/* Toggles */}
       <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-3 pt-2">
         {!isCompany && (
           <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={showSold}
-              onChange={(e) => onShowSoldChange(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
-            />
+            <input type="checkbox" checked={showSold} onChange={(e) => onShowSoldChange(e.target.checked)} className="rounded border-gray-300 text-primary focus:ring-primary" />
             <span className="text-sm text-gray-700">Show Sold</span>
           </label>
         )}
 
         <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={showDueSoon}
-            onChange={(e) => onShowDueSoonChange(e.target.checked)}
-            className="rounded border-gray-300 text-primary focus:ring-primary"
-          />
+          <input type="checkbox" checked={showDueSoon} onChange={(e) => onShowDueSoonChange(e.target.checked)} className="rounded border-gray-300 text-primary focus:ring-primary" />
           <span className="text-sm text-gray-700">Due Soon (Quick View)</span>
         </label>
       </div>

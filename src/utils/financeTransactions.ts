@@ -32,6 +32,7 @@ interface FinanceTransactionParams {
   status?: 'pending' | 'completed' | 'cancelled';
   paymentMethod?: string;
   paymentReference?: string;
+  paymentId?: string; // ✅ Dedicated system link field
   paymentStatus?: 'paid' | 'partially_paid' | 'unpaid';
   date?: Date;
   accountFrom?: string;
@@ -40,7 +41,10 @@ interface FinanceTransactionParams {
   accountsTo?: string[];   
   customerId?: string;
   customerName?: string;
-  groupId?: string; // Added Group ID Support
+  groupId?: string; 
+  groupName?: string; 
+  departmentId?: string; 
+  departmentName?: string; 
 }
 
 export async function reverseFinanceTransaction(params: {
@@ -50,12 +54,25 @@ export async function reverseFinanceTransaction(params: {
   const { referenceId, paymentId } = params;
   try {
     const txRef = collection(db, 'transactions');
-    const q = query(
+    
+    // ✅ Primary check: Look for explicit paymentId mapping
+    let q = query(
       txRef,
       where('referenceId', '==', referenceId),
-      where('paymentReference', '==', paymentId)
+      where('paymentId', '==', paymentId)
     );
-    const snap = await getDocs(q);
+    let snap = await getDocs(q);
+    
+    // ✅ Backwards compatibility fallback for older records
+    if (snap.empty) {
+        q = query(
+          txRef,
+          where('referenceId', '==', referenceId),
+          where('paymentReference', '==', paymentId)
+        );
+        snap = await getDocs(q);
+    }
+
     if (snap.empty) {
       console.warn('No matching finance transaction to reverse');
       return;
@@ -112,7 +129,7 @@ export const createMaintenanceTransaction = async (
     createdAt: new Date(),
     createdBy: 'system',
     ...(paymentMethod && { paymentMethod }),
-    ...(vehicle.assignedGroupId && { groupId: vehicle.assignedGroupId }) // ✅ Pulls the group ID from the vehicle
+    ...(vehicle.assignedGroupId && { groupId: vehicle.assignedGroupId }) 
   };
 
   if (vehicle.owner) {
@@ -155,15 +172,18 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     accountFrom,
     accountTo,
     accountsFrom,
-    accountsTo,
+    accountsTo: paramsAccountsTo, 
     customerId,
     customerName,
-    groupId
+    groupId,
+    groupName, 
+    departmentId, 
+    departmentName 
   } = params;
 
   try {
     const finalAccountsFrom = accountsFrom || (accountFrom ? [accountFrom] : []);
-    const finalAccountsTo = accountsTo || (accountTo ? [accountTo] : []);
+    const finalAccountsTo = paramsAccountsTo || (accountTo ? [accountTo] : []);
 
     if (type === ('transfer' as any)) {
       if (finalAccountsFrom.length === 0 || finalAccountsTo.length === 0) {
@@ -222,13 +242,17 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       ...(vehicleName      && { vehicleName }),
       ...(vehicleOwner     && { vehicleOwner }),
       ...(paymentMethod    && { paymentMethod }),
-      ...(paymentReference && { paymentReference }),
+      ...(paymentReference && { paymentReference }), // ✅ Saves human readable invoice ref
+      ...(params.paymentId && { paymentId: params.paymentId }), // ✅ Explicitly saves system ID for deletion linking
       ...(paymentStatus    && { paymentStatus }),
       accountsFrom: finalAccountsFrom, 
       accountsTo: finalAccountsTo,     
       ...(customerId       && { customerId }),
       ...(customerName     && { customerName }),
-      ...(groupId          && { groupId }) // Native mapping for Group ID
+      ...(groupId          && { groupId }),
+      ...(groupName        && { groupName }), 
+      ...(departmentId     && { departmentId }), 
+      ...(departmentName   && { departmentName }) 
     };
 
     const docRef = await addDoc(collection(db, 'transactions'), transaction);

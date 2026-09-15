@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
-import { calculateRentalCost, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
+import { calculateRentalCostDetailed, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
 import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
 import {
   collection,
@@ -39,19 +39,13 @@ import SearchableSelect from '../components/ui/SearchableSelect';
 import { LegalHandler } from '../types/legalHandler';
 import { Account } from '../types';
 
-// PDF Document Generation Imports
 import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { FinanceDocument, InvoiceDocument } from '../components/pdf/documents';
 import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
 
-// ---------------- DEBUG TOGGLE ----------------
 const DEBUG = true;
-// ---------------- DEBUG HELPERS ----------------
 const dlog = (...args: any[]) => DEBUG && console.log(...args);
 
-// ────────────────────────────────────────────────────────────────────────────
-// Helper Functions (render/format)
-// ────────────────────────────────────────────────────────────────────────────
 const escapeHtml = (s: string) =>
   (s || '')
     .replaceAll(/&/g, '&amp;')
@@ -99,7 +93,6 @@ function anyPhoneMatch(customerPhone?: string, ...candidates: any[]) {
   return flat.some(p => p.endsWith(cp) || cp.endsWith(p));
 }
 
-// date safety
 const safeToDate = (d: any): Date | null => {
   try {
     if (!d) return null;
@@ -162,7 +155,6 @@ export default function WhatsappCommunication() {
     });
   }, [can]);
 
-  // ── State
   const [emailType, setEmailType] = useState<EmailType>(availableTabs[0] || 'custom');
   const [recipientFilter, setRecipientFilter] = useState<RecipientFilterType>('all');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -179,14 +171,11 @@ export default function WhatsappCommunication() {
   const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
   const isUserEdited = useRef<boolean>(false);
 
-  // Preview modal
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // ── Attachments State
   const [selectedSystemDocs, setSelectedSystemDocs] = useState<{name: string, url: string}[]>([]);
   const [customFiles, setCustomFiles] = useState<File[]>([]);
 
-  // ── Data hooks
   const { customers } = useCustomers();
   const { vehicles } = useVehicles();
   const { rentals } = useRentals();
@@ -249,7 +238,6 @@ export default function WhatsappCommunication() {
     setCustomFiles([]);
   }, [selectedRecordId, emailType]);
 
-  // High performance O(1) Dictionary Lookup Engine
   const recipientMap = useMemo(() => {
     const map = new Map<string, { phone: string; email: string; name: string }>();
 
@@ -273,7 +261,6 @@ export default function WhatsappCommunication() {
     return map;
   }, [customers, serviceCenters, legalHandlers, accounts]);
 
-  // Determine available system docs for the selected tab and record
   const availableSystemDocs = useMemo(() => {
     if (!selectedRecordId) return [];
 
@@ -386,7 +373,6 @@ export default function WhatsappCommunication() {
     }
   };
 
-  // HIGH PERFORMANCE RECIPIENT FILTER - STOPS FREEZING
   const filteredRecipients = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
@@ -462,7 +448,6 @@ export default function WhatsappCommunication() {
     return matched;
   }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, isManager, accounts, vehicles, transactions]);
 
-  // HIGH PERFORMANCE RELATED RECORDS CACHING - STOPS DELAY ON KEYSTROKE
   const relatedRecordsOptions = useMemo(() => {
     if (selectedRecipients.length !== 1) return [];
     const recipientId = selectedRecipients[0];
@@ -703,7 +688,6 @@ export default function WhatsappCommunication() {
     return { name: 'Unknown' };
   }, [recipientMap, emailType, recipientFilter, customers, invoices]);
 
-  // Isolate Template Auto-Fill Logic to Prevent Infinite Rendering Loops
   const selectionCacheKey = `${selectedTemplateId}-${selectedRecipients.join(',')}-${selectedRecordId}-${selectedVehicleId}-${selectedMaintenanceId}`;
 
   useEffect(() => {
@@ -932,72 +916,111 @@ export default function WhatsappCommunication() {
         ctx['Rental Type'] = (r as any).type || '';
         ctx['rental type (daily weekly or claim)'] = String((r as any).type || '').toUpperCase();
 
-        const vehicleRate = r.type === 'daily' ? (v?.dailyRentalPrice ?? 0) : r.type === 'weekly' ? (v?.weeklyRentalPrice ?? 0) : (v?.claimRentalPrice ?? 0);
-        const fallback = RENTAL_RATES[r.type as keyof typeof RENTAL_RATES] ?? 0;
-        const effectiveRate = r.negotiatedRate ?? vehicleRate ?? fallback;
-        ctx['vehicle rate (if daily weekly or claim)'] = effectiveRate.toFixed(2);
+        const storageNet = r.type === 'claim' ? ((r as any).storageDays || 0) * ((r as any).storageCostPerDay || 0) : 0;
+        const extraTotal = ((r as any).extraCharges || []).reduce((acc: number, c: any) => acc + (Number(c.amount) || 0), 0);
 
-        const subs = r.hireSubstitutionDetails || [];
-        const activeSub = subs.find((s: any) => !s.returnCondition) || subs[subs.length - 1];
-        if (activeSub) {
-           ctx['Sub Reg'] = activeSub.registration || '';
-           ctx['Date the date from of the substitute vehicle start date'] = safeFmt(activeSub.givenAt);
-           ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
-        }
-
-        const totalWithAllVAT = calculateRentalCost(
+        const masterDetails = calculateRentalCostDetailed(
           start, end, (r as any).type, v, (r as any).reason, (r as any).negotiatedRate ?? undefined,
-          (r as any).storageCost || 0, (r as any).recoveryCost || 0, 
+          storageNet, (r as any).recoveryCost || 0, 
           (r as any).deliveryCharge || 0, (r as any).collectionCharge || 0,
           (r as any).insurancePerDay || 0, (r as any).insurancePerWeek || 0,
-          (r as any).includeVAT, false, false,
-          (r as any).insurancePerDayIncludeVAT, (r as any).insurancePerWeekIncludeVAT, (r as any).includeRecoveryCostVAT
+          (r as any).includeVAT || false, (r as any).deliveryChargeIncludeVAT || false, (r as any).collectionChargeIncludeVAT || false,
+          (r as any).insurancePerDayIncludeVAT || false, (r as any).insurancePerWeekIncludeVAT || false, (r as any).includeRecoveryCostVAT || false, (r as any).includeStorageVAT || false,
+          (r as any).discountPercentage || 0, (r as any).discountAmount || 0, (r as any).status,
+          (r as any).lockedDailyRate, (r as any).lockedWeeklyRate, (r as any).lockedClaimRate,
+          extraTotal,
+          (r as any).discounts || []
         );
 
-        const discountedTotal = totalWithAllVAT - ((r as any).discountAmount ?? 0);
         const now = new Date();
-        
-        const ongoingCharges = (r as any).status === 'active' && isAfter(now, end) ? calculateOverdueCost(r as any, now, v) : 0;
+        const ongoingChargesGross = (r as any).status === 'active' && isAfter(now, end) ? calculateOverdueCost(r as any, now, v) : 0;
+        const netOngoing = (r as any).includeVAT ? ongoingChargesGross / 1.2 : ongoingChargesGross;
+        const vatOngoing = ongoingChargesGross - netOngoing;
+
+        const mainReturnCharges = (r as any).returnCondition?.totalCharges || 0;
         const subCharges = ((r as any).hireSubstitutionDetails || []).reduce((acc: number, sub: any) => acc + (sub.returnCondition?.totalCharges || 0), 0);
-        const returnCharges = ((r as any).returnCondition?.totalCharges ?? 0) + subCharges;
+        const returnTotalGross = mainReturnCharges + subCharges;
+        const netReturnTotal = (r as any).includeVAT ? returnTotalGross / 1.2 : returnTotalGross;
+        const vatReturnTotal = returnTotalGross - netReturnTotal;
 
-        const totalAmountDue = discountedTotal + ongoingCharges + returnCharges;
+        const totalNetSubtotal = masterDetails.net + netOngoing + netReturnTotal;
+        const totalVat = masterDetails.vat + vatOngoing + vatReturnTotal;
+        const grandTotal = masterDetails.gross + ongoingChargesGross + returnTotalGross;
+
         const paid = (r as any).paidAmount || 0;
-        const remaining = totalAmountDue - paid;
+        const remaining = grandTotal - paid;
 
-        let subtotalNum = totalAmountDue;
-        let vatNum = 0;
-
-        if ((r as any).includeVAT || (r as any).type === 'claim') {
-          subtotalNum = totalAmountDue / 1.2;
-          vatNum = totalAmountDue - subtotalNum;
-        }
-
-        const totalStr = totalAmountDue.toFixed(2);
-        const subtotalStr = subtotalNum.toFixed(2);
-        const vatStr = vatNum.toFixed(2);
-        const paidStr = paid.toFixed(2);
+        ctx['Net Amount'] = totalNetSubtotal.toFixed(2);
+        ctx['VAT Total'] = totalVat.toFixed(2);
+        ctx['Grand Total'] = grandTotal.toFixed(2);
+        
+        ctx['Subtotal']            = totalNetSubtotal.toFixed(2);
+        ctx['VAT']                 = totalVat.toFixed(2);
+        ctx['Total Amount']        = grandTotal.toFixed(2);
+        
+        ctx['Amount Paid']         = paid.toFixed(2);
+        ctx['Paid']                = paid.toFixed(2);
+        
         const remStr = Math.max(0, remaining).toFixed(2);
-
-        ctx['Subtotal']            = subtotalStr;
-        ctx['VAT']                 = vatStr;
-        ctx['Total Amount']        = totalStr;
-        ctx['Amount Paid']         = paidStr;
         ctx['Outstanding Balance'] = remStr;
+        ctx['Owing']               = remStr;
         ctx['Outstanding Amount']  = remStr;
         ctx['owing Balance']       = remStr;
         ctx['owing balance']       = remStr;
         ctx['Balance']             = remStr;
         ctx['Balance (like the rental owing balance)'] = remStr;
 
-        if (currentTemplate.id === 'rental_payment_received') {
-          let latestPaymentAmount = paidStr;
-          const payments = (r as any).payments || [];
-          if (payments.length > 0) {
-            const sortedPayments = [...payments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            latestPaymentAmount = Number(sortedPayments[0].amount).toFixed(2);
-          }
-          ctx['Amount'] = latestPaymentAmount;
+        ctx['Return Charges'] = returnTotalGross.toFixed(2);
+        ctx['Extra Charges'] = extraTotal.toFixed(2);
+        const discountTotal = (r as any).discountAmount ?? 0;
+        ctx['Discount Amount'] = discountTotal.toFixed(2);
+        
+        ctx['Payment Details'] = `PAYMENT DETAILS\nBank: LLOYDS BANK\nAccount Name: AIE Skyline Limited\nAccount Number: 30513162\nSort Code: 30-99-50`;
+
+        let latestPayAmt = '0.00';
+        let latestPayDate = 'N/A';
+        let latestPayTime = 'N/A';
+        const rentalPayments = (r as any).payments || [];
+        if (rentalPayments.length > 0) {
+          const sortedPayments = [...rentalPayments].sort((a, b) => {
+             const tA = safeToDate(a.date)?.getTime() || 0;
+             const tB = safeToDate(b.date)?.getTime() || 0;
+             return tB - tA;
+          });
+          latestPayAmt = Number(sortedPayments[0].amount).toFixed(2);
+          latestPayDate = safeFmt(sortedPayments[0].date, 'dd/MM/yyyy');
+          latestPayTime = safeFmt(sortedPayments[0].date, 'HH:mm');
+        }
+        ctx['Latest Payment Amount'] = latestPayAmt;
+        ctx['Latest Payment Date'] = latestPayDate;
+        ctx['Latest Payment Time'] = latestPayTime;
+        
+        ctx['Payment Date'] = latestPayDate;
+        if (currentTemplate?.id === 'rental_payment_received') {
+          ctx['Amount'] = latestPayAmt;
+        }
+
+        ctx['Main Vehicle Reg'] = v?.registrationNumber || 'N/A';
+        const subsArray = (r as any).hireSubstitutionDetails || [];
+        if (subsArray.length > 0) {
+            ctx['Substitute Vehicle Regs'] = subsArray.map((s:any) => s.registration).filter(Boolean).join(', ');
+            
+            // Map specific sub tags for the active sub (if needed by existing templates)
+            const activeSub = subsArray.find((s: any) => !s.returnCondition) || subsArray[subsArray.length - 1];
+            if (activeSub) {
+               ctx['Sub Reg'] = activeSub.registration || '';
+               ctx['Sub Start Date'] = safeFmt(activeSub.givenAt, 'dd/MM/yyyy');
+               ctx['Sub Start Time'] = safeFmt(activeSub.givenAt, 'HH:mm');
+               
+               // Aliases for legacy templates
+               ctx['Date the date from of the substitute vehicle start date'] = safeFmt(activeSub.givenAt);
+               ctx['Time the time from of the substitute vehicle start time'] = safeFmt(activeSub.givenAt, 'HH:mm');
+            }
+        } else {
+            ctx['Substitute Vehicle Regs'] = 'None';
+            ctx['Sub Reg'] = 'N/A';
+            ctx['Sub Start Date'] = 'N/A';
+            ctx['Sub Start Time'] = 'N/A';
         }
 
         if (!ctx["Driver's Name"]) {
@@ -1023,6 +1046,32 @@ export default function WhatsappCommunication() {
         ctx['Outstanding Balance'] = Number((inv as any).remainingAmount ?? 0).toFixed(2);
         ctx['Paid Balance'] = Number((inv as any).paidAmount ?? 0).toFixed(2);
         
+        // Exact formatting matching the invoice PDF display logic
+        ctx['Net Amount'] = Number(inv.subTotal || 0).toFixed(2);
+        ctx['VAT Total'] = Number(inv.vatAmount || 0).toFixed(2);
+        ctx['Grand Total'] = Number(inv.total || 0).toFixed(2);
+        ctx['Paid'] = Number(inv.paidAmount || 0).toFixed(2);
+        ctx['Owing'] = Number(inv.remainingAmount || 0).toFixed(2);
+        ctx['Payment Details'] = `PAYMENT DETAILS\nBank: LLOYDS BANK\nAccount Name: AIE Skyline Limited\nAccount Number: 30513162\nSort Code: 30-99-50`;
+        
+        let latestPayAmt = '0.00';
+        let latestPayDate = 'N/A';
+        let latestPayTime = 'N/A';
+        const invPayments = (inv as any).payments || [];
+        if (invPayments.length > 0) {
+          const sortedPayments = [...invPayments].sort((a, b) => {
+             const tA = safeToDate(a.date)?.getTime() || 0;
+             const tB = safeToDate(b.date)?.getTime() || 0;
+             return tB - tA;
+          });
+          latestPayAmt = Number(sortedPayments[0].amount).toFixed(2);
+          latestPayDate = safeFmt(sortedPayments[0].date, 'dd/MM/yyyy');
+          latestPayTime = safeFmt(sortedPayments[0].date, 'HH:mm');
+        }
+        ctx['Latest Payment Amount'] = latestPayAmt;
+        ctx['Latest Payment Date'] = latestPayDate;
+        ctx['Latest Payment Time'] = latestPayTime;
+
         ctx['Due Date'] = `${safeFmt((inv as any).dueDate, 'dd/MM/yyyy')}`;
         ctx['Invoice No.'] = invNo;
 

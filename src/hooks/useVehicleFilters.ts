@@ -2,26 +2,19 @@
 
 import * as React from 'react';
 import type { Vehicle } from '../types';
-import { needsMonthlyMileageUpdate } from '../utils/vehicleUtils';
 
 type StatusFilter = 'all' | 'available' | 'hired' | 'scheduled-rental' | 'maintenance';
 
-// --- NEW HELPER FUNCTION FOR THE 28TH OF THE MONTH LOGIC ---
 const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
   const now = new Date();
 
-  // Find the most recent 28th of a month
   let last28th = new Date(now.getFullYear(), now.getMonth(), 28);
   if (now.getDate() < 28) {
-    // If today is before the 28th, the threshold is the 28th of the previous month
     last28th = new Date(now.getFullYear(), now.getMonth() - 1, 28);
   }
   last28th.setHours(0, 0, 0, 0);
 
-  // 1. SAFELY SCAN THE ENTIRE ARRAY FOR THE NEWEST DATE
   if (vehicle.mileageUpdates && Array.isArray(vehicle.mileageUpdates) && vehicle.mileageUpdates.length > 0) {
-    
-    // Extract all valid dates and convert them to milliseconds
     const validDateTimes = vehicle.mileageUpdates.map((u: any) => {
       if (!u || !u.date) return 0;
       const d = u.date?.toDate ? u.date.toDate() : new Date(u.date);
@@ -29,17 +22,13 @@ const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
     }).filter((time: number) => time > 0);
 
     if (validDateTimes.length > 0) {
-      // Find the absolute highest (newest) time in the array
       const maxDateMs = Math.max(...validDateTimes);
       const lastUpdateDate = new Date(maxDateMs);
       lastUpdateDate.setHours(0, 0, 0, 0);
-      
-      // If the newest date is older than the 28th, trigger warning
       return lastUpdateDate < last28th;
     }
   }
 
-  // 2. Fallback to creation date if no updates exist
   if (vehicle.createdAt) {
     const createdDate = vehicle.createdAt?.toDate ? vehicle.createdAt.toDate() : new Date(vehicle.createdAt);
     if (!isNaN(createdDate.getTime())) {
@@ -48,10 +37,8 @@ const checkNeedsMonthlyUpdate = (vehicle: any): boolean => {
     }
   }
 
-  // 3. Absolute fallback
   return true;
 };
-// -----------------------------------------------------------
 
 export function useVehicleFilters(vehicles: Vehicle[]) {
   const [searchQuery, setSearchQuery] = React.useState<string>('');
@@ -65,8 +52,8 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
   const [accountFilter, setAccountFilter] = React.useState<string>('all');
   const [garageFilter, setGarageFilter] = React.useState<string>('all');
   
-  // ✅ NEW: Group & Owner Filter States
   const [groupFilter, setGroupFilter] = React.useState<string>('all');
+  const [departmentFilter, setDepartmentFilter] = React.useState<string>('all'); // ✅ Added
   const [ownerFilter, setOwnerFilter] = React.useState<string>('all');
 
   const uniqueMakes = React.useMemo(() => {
@@ -77,7 +64,6 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [vehicles]);
 
-  // ✅ Extract unique owners for the dropdown
   const uniqueOwners = React.useMemo(() => {
     const set = new Set<string>();
     vehicles.forEach(v => {
@@ -90,9 +76,7 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
     const q = searchQuery.trim().toLowerCase();
     const normalize = (s?: string | null) => String(s ?? '').toLowerCase();
 
-    // --- EXPIRY LOGIC CONFIGURATION ---
     const now = new Date();
-    // "Within 2 weeks" = 14 days from now
     const twoWeeksFromNow = new Date();
     twoWeeksFromNow.setDate(now.getDate() + 14);
 
@@ -102,14 +86,13 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
       if (isNaN(d.getTime())) return false;
       return d <= twoWeeksFromNow;
     };
-    // ----------------------------------
 
     const matchesSearch = (v: Vehicle) => {
       if (!q) return true;
       const fields: Array<string | undefined | null> = [
         v.registrationNumber, v.make, v.model, (v as any).color,
         (v as any).vin, v.owner?.name, v.owner?.accountName, v.assignedGarageName,
-        v.assignedGroupName // ✅ Added Group Name to Search
+        v.assignedGroupName, v.assignedDepartmentName // ✅ Added to Search
       ];
       const composed = [
         [v.make, v.model].filter(Boolean).join(' '),
@@ -164,28 +147,29 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
 
     const matchesAccount = (v: Vehicle) => {
         if (!accountFilter || accountFilter === 'all') return true;
-        if (accountFilter === 'no_account_assigned') {
-            return !v.owner?.accountId;
-        }
+        if (accountFilter === 'no_account_assigned') return !v.owner?.accountId;
         return v.owner?.accountId === accountFilter;
     };
 
     const matchesGarage = (v: Vehicle) => {
         if (!garageFilter || garageFilter === 'all') return true;
-        if (garageFilter === 'no_garage_assigned') {
-            return !v.assignedGarageId;
-        }
+        if (garageFilter === 'no_garage_assigned') return !v.assignedGarageId;
         return v.assignedGarageId === garageFilter;
     };
 
-    // ✅ Match Group
     const matchesGroup = (v: Vehicle) => {
         if (!groupFilter || groupFilter === 'all') return true;
         if (groupFilter === 'no_group_assigned') return !v.assignedGroupId;
         return v.assignedGroupId === groupFilter;
     };
 
-    // ✅ Match Owner
+    // ✅ Match Department
+    const matchesDepartment = (v: Vehicle) => {
+      if (!departmentFilter || departmentFilter === 'all') return true;
+      if (departmentFilter === 'no_department_assigned') return !v.assignedDepartmentId;
+      return v.assignedDepartmentId === departmentFilter;
+    };
+
     const matchesOwner = (v: Vehicle) => {
         if (!ownerFilter || ownerFilter === 'all') return true;
         if (ownerFilter === 'AIE Skyline (Default)') return v.owner?.name === 'AIE Skyline' || v.owner?.isDefault;
@@ -219,7 +203,7 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
 
     return vehicles.filter(v => {
       if (showSold) {
-        return normalize(v.status) === 'sold' && matchesSearch(v) && matchesAccount(v) && matchesGarage(v) && matchesType(v) && matchesAge(v) && matchesGroup(v) && matchesOwner(v);
+        return normalize(v.status) === 'sold' && matchesSearch(v) && matchesAccount(v) && matchesGarage(v) && matchesType(v) && matchesAge(v) && matchesGroup(v) && matchesDepartment(v) && matchesOwner(v);
       }
       return (
         normalize(v.status) !== 'sold' && 
@@ -231,37 +215,27 @@ export function useVehicleFilters(vehicles: Vehicle[]) {
         matchesGarage(v) &&
         matchesType(v) &&
         matchesAge(v) &&
-        matchesGroup(v) && // ✅ Added
-        matchesOwner(v)    // ✅ Added
+        matchesGroup(v) && 
+        matchesDepartment(v) && // ✅ Added
+        matchesOwner(v)    
       );
     });
-  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter, accountFilter, garageFilter, typeFilter, ageFilter, groupFilter, ownerFilter]);
+  }, [vehicles, searchQuery, statusFilter, makeFilter, showSold, expiryFilter, accountFilter, garageFilter, typeFilter, ageFilter, groupFilter, departmentFilter, ownerFilter]);
 
   return {
-    searchQuery,
-    setSearchQuery,
-    statusFilter,
-    setStatusFilter,
-    makeFilter,
-    setMakeFilter,
-    showSold,
-    setShowSold,
+    searchQuery, setSearchQuery,
+    statusFilter, setStatusFilter,
+    makeFilter, setMakeFilter,
+    showSold, setShowSold,
     filteredVehicles,
-    uniqueMakes,
-    uniqueOwners, // ✅ Exported
-    expiryFilter,
-    setExpiryFilter,
-    accountFilter,
-    setAccountFilter,
-    garageFilter,
-    setGarageFilter,
-    groupFilter, // ✅ Exported
-    setGroupFilter, // ✅ Exported
-    ownerFilter, // ✅ Exported
-    setOwnerFilter, // ✅ Exported
-    typeFilter, 
-    setTypeFilter, 
-    ageFilter, 
-    setAgeFilter, 
+    uniqueMakes, uniqueOwners, 
+    expiryFilter, setExpiryFilter,
+    accountFilter, setAccountFilter,
+    garageFilter, setGarageFilter,
+    groupFilter, setGroupFilter, 
+    departmentFilter, setDepartmentFilter, // ✅ Exported
+    ownerFilter, setOwnerFilter, 
+    typeFilter, setTypeFilter, 
+    ageFilter, setAgeFilter, 
   };
 }

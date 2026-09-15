@@ -2,18 +2,11 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Claim } from '../../types';
-import {
-  Eye,
-  Edit,
-  Trash2,
-  Clock,
-  FileText,
-  MessageSquare
-} from 'lucide-react';
+import { Eye, Edit, Trash2, Clock, FileText, MessageSquare } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, differenceInDays } from 'date-fns';
-import { deriveDisplayStatus } from '../../utils/claimProgress'; // Import the new helper
+import { deriveDisplayStatus } from '../../utils/claimProgress'; 
 
 interface ClaimTableProps {
   claims: Claim[];
@@ -22,52 +15,64 @@ interface ClaimTableProps {
   onDelete: (claim: Claim) => void;
   onUpdateProgress: (claim: Claim) => void;
   onGeneratePdf: (claim: Claim) => void;
-  
   onNotes: (claim: Claim) => void;
+  selectedIds: Set<string>;
+  onToggleOne: (id: string) => void;
+  onToggleAll: (checked: boolean, allIds: string[]) => void;
 }
 
 const ClaimTable: React.FC<ClaimTableProps> = ({
-  claims,
-  onView,
-  onEdit,
-  onDelete,
-  onUpdateProgress,
-  onGeneratePdf,
-  onNotes
+  claims, onView, onEdit, onDelete, onUpdateProgress, onGeneratePdf, onNotes,
+  selectedIds, onToggleOne, onToggleAll
 }) => {
   const { can } = usePermissions();
 
   const columns = [
     {
+      id: 'selection',
+      header: () => (
+        <input
+          type="checkbox"
+          checked={claims.length > 0 && claims.every(c => selectedIds.has(c.id))}
+          onChange={(e) => onToggleAll(e.target.checked, claims.map(c => c.id))}
+          className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+          aria-label="Select all claims"
+        />
+      ),
+      cell: ({ row }: any) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => onToggleOne(row.original.id)}
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+            aria-label={`Select claim ${row.original.id}`}
+          />
+        </div>
+      ),
+    },
+    {
       header: 'Client Details',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
-          {row.original.clientRef && (
-            <div className="text-sm text-gray-500">
-              Ref: {row.original.clientRef}
-            </div>
-          )}
+          {row.original.clientRef && <div className="text-sm text-gray-500">Ref: {row.original.clientRef}</div>}
           <div className="font-medium">{row.original.clientInfo.name}</div>
           <div className="text-sm text-gray-500">
-            {row.original.clientInfo.phone && (
-              <a 
-                href={`tel:${row.original.clientInfo.phone}`}
-                className="text-blue-600 hover:underline"
-                onClick={e => e.stopPropagation()}
-              >
-                {row.original.clientInfo.phone}
-              </a>
-            )}
+            {row.original.clientInfo.phone && <a href={`tel:${row.original.clientInfo.phone}`} className="text-blue-600 hover:underline" onClick={e => e.stopPropagation()}>{row.original.clientInfo.phone}</a>}
           </div>
           <div className="text-sm text-gray-500">
-            {row.original.clientInfo.email && (
-              <a 
-                href={`mailto:${row.original.clientInfo.email}`}
-                className="text-blue-600 hover:underline"
-                onClick={e => e.stopPropagation()}
-              >
-                {row.original.clientInfo.email}
-              </a>
+            {row.original.clientInfo.email && <a href={`mailto:${row.original.clientInfo.email}`} className="text-blue-600 hover:underline" onClick={e => e.stopPropagation()}>{row.original.clientInfo.email}</a>}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {row.original.groupName && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                Grp: {row.original.groupName}
+              </span>
+            )}
+            {row.original.departmentName && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-800">
+                Dept: {row.original.departmentName}
+              </span>
             )}
           </div>
         </div>
@@ -75,17 +80,76 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     },
     {
       header: 'Vehicle',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
-          <div className="font-medium">{row.original.clientVehicle.registration}</div>
+          <div className="font-medium">{row.original.clientVehicle?.registration}</div>
         </div>
       ),
     },
     {
+      header: 'Vehicle Expiry',
+      cell: ({ row }: any) => {
+        const claim = row.original;
+        const mot = claim.clientVehicle?.motExpiry;
+        const tax = claim.clientVehicle?.roadTaxExpiry;
+        const nsl = claim.clientVehicle?.nslExpiry; 
+        const ins = claim.clientVehicle?.insuranceExpiry;
+        
+        const checks = [
+          { name: 'MOT', date: mot },
+          { name: 'Tax', date: tax },
+          { name: 'NSL', date: nsl },
+          { name: 'Ins', date: ins },
+        ];
+        
+        const now = new Date();
+        now.setHours(0,0,0,0);
+
+        const items = checks.map(c => {
+          let d: Date | null = null;
+          if (c.date) d = c.date?.toDate ? c.date.toDate() : new Date(c.date);
+          if (!d || isNaN(d.getTime())) return null;
+          
+          d.setHours(0,0,0,0);
+          const diff = differenceInDays(d, now);
+          const formattedDate = format(d, 'dd/MM/yyyy');
+          
+          const isRed = diff <= 60;
+          let displayStatus = formattedDate;
+          if (diff < 0) {
+            displayStatus = `${formattedDate} (Expired)`;
+          } else if (diff <= 60) {
+            displayStatus = `${formattedDate} (In ${diff}d)`;
+          }
+          
+          return { name: c.name, status: displayStatus, isRed };
+        }).filter(Boolean);
+        
+        if (items.length === 0) return <span className="text-gray-400 text-xs">-</span>;
+        
+        return (
+          <div className="flex flex-col gap-1 max-w-[150px]">
+            {items.map((a: any, i) => (
+               <div 
+                 key={i} 
+                 className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border leading-tight whitespace-nowrap overflow-hidden text-ellipsis ${
+                   a.isRed 
+                    ? 'bg-red-50 text-red-700 border-red-200' 
+                    : 'bg-gray-50 text-gray-700 border-gray-200'
+                 }`}
+               >
+                 {a.name}: {a.status}
+               </div>
+            ))}
+          </div>
+        );
+      }
+    },
+    {
       header: 'Incident Details',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
-          <div className="text-sm font-medium"> {/* Made date bold */}
+          <div className="text-sm font-medium"> 
             {format(new Date(row.original.incidentDetails.date), 'dd/MM/yyyy')}
           </div>
           <div className="text-sm text-gray-500">{row.original.incidentDetails.time}</div>
@@ -94,30 +158,21 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     },
     {
       header: 'Third Party',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div>
           <div className="font-medium">{row.original.thirdParty.name}</div>
           <div className="text-sm text-gray-500">{row.original.thirdParty.registration}</div>
           <div className="text-sm text-gray-500">
-            {row.original.thirdParty.phone && (
-              <a 
-                href={`tel:${row.original.thirdParty.phone}`}
-                className="text-blue-600 hover:underline"
-                onClick={e => e.stopPropagation()}
-              >
-                {row.original.thirdParty.phone}
-              </a>
-            )}
+            {row.original.thirdParty.phone && <a href={`tel:${row.original.thirdParty.phone}`} className="text-blue-600 hover:underline" onClick={e => e.stopPropagation()}>{row.original.thirdParty.phone}</a>}
           </div>
         </div>
       ),
     },
     {
       header: 'Type & Progress',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const claim = row.original;
         const { updatedAt } = claim;
-        
         const displayStatus = deriveDisplayStatus(claim);
         const daysSinceUpdate = differenceInDays(new Date(), new Date(updatedAt));
         const showWarning = displayStatus !== 'Claim Completed - Record Archived';
@@ -125,14 +180,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
         const isRed = showWarning && daysSinceUpdate >= 7;
 
         return (
-          <div
-            className={[
-              'p-2 rounded max-w-xs', // Constrain width
-              isYellow ? 'bg-yellow-50' : '',
-              isRed ? 'bg-red-50' : ''
-            ].join(' ')}
-          >
-            {/* Use flex-wrap to arrange badges efficiently */}
+          <div className={['p-2 rounded max-w-xs', isYellow ? 'bg-yellow-50' : '', isRed ? 'bg-red-50' : ''].join(' ')}>
             <div className="flex flex-wrap gap-1">
               <StatusBadge status={claim.claimType} />
               <StatusBadge status={claim.claimReason} />
@@ -141,11 +189,7 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
             </div>
 
             {showWarning && daysSinceUpdate > 0 && (
-              <div
-                className={`mt-1 text-xs font-medium ${ // Add margin-top for spacing
-                  isRed ? 'text-red-800' : 'text-yellow-800'
-                }`}
-              >
+              <div className={`mt-1 text-xs font-medium ${isRed ? 'text-red-800' : 'text-yellow-800'}`}>
                 {daysSinceUpdate} day{daysSinceUpdate !== 1 ? 's' : ''} ago
               </div>
             )}
@@ -155,83 +199,23 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
     },
     {
       header: 'Actions',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const claim = row.original;
         return (
           <div className="flex space-x-2">
-            {can('claims', 'note') && (
-            <button
-              onClick={e => { e.stopPropagation(); onNotes(claim); }}
-              className="text-gray-600 hover:text-gray-800"
-              title="Notes"
-            >
-              
-              <MessageSquare className="h-4 w-4" />
-            </button>
-            )}
-            {can('claims', 'state') && (
-            <button
-              onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }}
-              className="text-blue-600 hover:text-blue-800"
-              title="Update Progress"
-            >
-              <Clock className="h-4 w-4" />
-            </button>
-            )}
-
-            {can('claims', 'view') && (
-              <button
-                onClick={e => { e.stopPropagation(); onView(claim); }}
-                className="text-blue-600 hover:text-blue-800"
-                title="View Details"
-              >
-                <Eye className="h-4 w-4" />
-              </button>
-            )}
-
-            {can('claims', 'update') && (
-              <button
-                onClick={e => { e.stopPropagation(); onEdit(claim); }}
-                className="text-blue-600 hover:text-blue-800"
-                title="Edit Claim"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-            )}
-
-            {can('claims', 'delete') && (
-              <button
-                onClick={e => { e.stopPropagation(); onDelete(claim); }}
-                className="text-red-600 hover:text-red-800"
-                title="Delete Claim"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
-
-            {/* ALWAYS show the PDF button */}
-            {can('claims', 'singleDoc') && (
-            <button
-              onClick={e => { e.stopPropagation(); onGeneratePdf(claim); }}
-              className="text-green-600 hover:text-green-800"
-              title="Generate PDF"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-            )}
+            {can('claims', 'note') && <button onClick={e => { e.stopPropagation(); onNotes(claim); }} className="text-gray-600 hover:text-gray-800" title="Notes"><MessageSquare className="h-4 w-4" /></button>}
+            {can('claims', 'state') && <button onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }} className="text-blue-600 hover:text-blue-800" title="Update Progress"><Clock className="h-4 w-4" /></button>}
+            {can('claims', 'view') && <button onClick={e => { e.stopPropagation(); onView(claim); }} className="text-blue-600 hover:text-blue-800" title="View Details"><Eye className="h-4 w-4" /></button>}
+            {can('claims', 'update') && <button onClick={e => { e.stopPropagation(); onEdit(claim); }} className="text-blue-600 hover:text-blue-800" title="Edit Claim"><Edit className="h-4 w-4" /></button>}
+            {can('claims', 'delete') && <button onClick={e => { e.stopPropagation(); onDelete(claim); }} className="text-red-600 hover:text-red-800" title="Delete Claim"><Trash2 className="h-4 w-4" /></button>}
+            {can('claims', 'singleDoc') && <button onClick={e => { e.stopPropagation(); onGeneratePdf(claim); }} className="text-green-600 hover:text-green-800" title="Generate PDF"><FileText className="h-4 w-4" /></button>}
           </div>
         );
       },
     },
   ];
 
-  return (
-    <DataTable
-      data={claims}
-      columns={columns}
-      onRowClick={claim => can('claims', 'view') && onView(claim)}
-    />
-  );
+  return <DataTable data={claims} columns={columns} onRowClick={claim => can('claims', 'view') && onView(claim)} />;
 };
 
 export default ClaimTable;

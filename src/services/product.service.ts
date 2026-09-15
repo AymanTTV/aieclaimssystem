@@ -13,7 +13,7 @@ const IMG_PATH = 'products';
 function computeTotalValue(p: Partial<Product>): number {
   const qty   = Number(p.quantity ?? 0);
   const price = Number(p.retailPrice ?? 0);
-  const disc  = Number(p.discount ?? 0); // £ absolute
+  const disc  = Number(p.discount ?? 0); 
   const total = qty * price - disc;
   return +(Math.max(total, 0)).toFixed(2);
 }
@@ -30,7 +30,6 @@ export async function getAll(): Promise<Product[]> {
   return snap.docs.map((d) => {
     const data = d.data() as any;
 
-    // Backward-compat: if old docs have `price`, prefer it for retailPrice.
     const retailPrice =
       data.retailPrice != null ? Number(data.retailPrice) :
       data.price != null       ? Number(data.price)       : 0;
@@ -42,12 +41,14 @@ export async function getAll(): Promise<Product[]> {
       category: data.category ?? '',
       binLocation: data.binLocation ?? '',
       quantity: Number(data.quantity ?? 0),
-      retailPrice,                               // ← normalized
-      discount: Number(data.discount ?? 0),      // now absolute £
+      retailPrice,                               
+      discount: Number(data.discount ?? 0),      
       totalValue:
         data.totalValue !== undefined
           ? Number(data.totalValue)
           : computeTotalValue({ ...data, retailPrice }),
+      vehicleId: data.vehicleId ?? '',
+      vehicleName: data.vehicleName ?? '',
       imageUrl: data.imageUrl ?? '',
       description: data.description ?? '',
       createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt,
@@ -57,14 +58,12 @@ export async function getAll(): Promise<Product[]> {
   });
 }
 
-// --- NEW FUNCTION ADDED HERE ---
 export async function getById(id: string): Promise<Product | null> {
   const snap = await getDoc(doc(db, COL, id));
   if (!snap.exists()) return null;
 
   const data = snap.data() as any;
 
-  // Apply same backward-compat logic as getAll
   const retailPrice =
     data.retailPrice != null ? Number(data.retailPrice) :
     data.price != null       ? Number(data.price)       : 0;
@@ -82,6 +81,8 @@ export async function getById(id: string): Promise<Product | null> {
       data.totalValue !== undefined
         ? Number(data.totalValue)
         : computeTotalValue({ ...data, retailPrice }),
+    vehicleId: data.vehicleId ?? '',
+    vehicleName: data.vehicleName ?? '',
     imageUrl: data.imageUrl ?? '',
     description: data.description ?? '',
     createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt,
@@ -98,16 +99,17 @@ export async function create(payload: Partial<Product> & { image?: File | Blob |
     category: payload.category ?? '',
     binLocation: payload.binLocation ?? '',
     quantity: Number(payload.quantity ?? 0),
-    retailPrice: Number(payload.retailPrice ?? 0), // store canonical field
-    discount: Number(payload.discount ?? 0),       // £ absolute
+    retailPrice: Number(payload.retailPrice ?? 0), 
+    discount: Number(payload.discount ?? 0),       
     totalValue: computeTotalValue(payload),
+    vehicleId: payload.vehicleId ?? '',
+    vehicleName: payload.vehicleName ?? '',
     imageUrl: imageUrl ?? payload.imageUrl ?? '',
     description: payload.description ?? '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  // Optional: also write legacy `price` for pages still reading it
   toSave.price = toSave.retailPrice;
 
   const ref = await addDoc(collection(db, COL), toSave);
@@ -126,10 +128,11 @@ export async function update(id: string, payload: Partial<Product> & { image?: F
     ...(payload.retailPrice !== undefined && { retailPrice: Number(payload.retailPrice) }),
     ...(payload.discount !== undefined && { discount: Number(payload.discount) }),
     ...(payload.description !== undefined && { description: payload.description }),
+    ...(payload.vehicleId !== undefined && { vehicleId: payload.vehicleId }),
+    ...(payload.vehicleName !== undefined && { vehicleName: payload.vehicleName }),
     updatedAt: serverTimestamp(),
   };
 
-  // keep legacy `price` in sync to avoid breaking older pages
   if ('retailPrice' in updates) updates.price = updates.retailPrice;
 
   if (payload.image) {
@@ -137,7 +140,6 @@ export async function update(id: string, payload: Partial<Product> & { image?: F
     if (imageUrl) updates.imageUrl = imageUrl;
   }
 
-  // recompute total if drivers changed
   if ('quantity' in updates || 'retailPrice' in updates || 'discount' in updates) {
     const snap = await getDoc(refDoc);
     const existing = snap.exists() ? snap.data() : {};
@@ -156,5 +158,4 @@ export async function remove(id: string): Promise<void> {
   await deleteDoc(doc(db, COL, id));
 }
 
-// Updated export to include getById
 export default { getAll, getById, create, update, delete: remove };

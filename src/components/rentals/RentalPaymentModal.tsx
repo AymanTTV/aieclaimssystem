@@ -285,7 +285,11 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         paymentStatus: newPaymentStatus,
         date: parsedPaymentDate, 
         accountTo: targetVehicle?.owner?.accountId || undefined,
-        groupId: targetVehicle?.assignedGroupId || undefined // ✅ Attach Group ID correctly mapped to allocations
+        groupId: targetVehicle?.assignedGroupId || undefined, // Already here
+        // ✅ ADD THESE LINES:
+        groupName: targetVehicle?.assignedGroupName || undefined,
+        departmentId: targetVehicle?.assignedDepartmentId || undefined,
+        departmentName: targetVehicle?.assignedDepartmentName || undefined
       });
 
       toast.success('Payment recorded successfully');

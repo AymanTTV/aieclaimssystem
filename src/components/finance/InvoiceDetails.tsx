@@ -16,6 +16,7 @@ interface InvoiceDetailsProps {
   customer?: Customer;
   accounts?: Account[];
   groups?: { id: string; name: string }[];
+  departments?: { id: string; name: string }[]; // ✅ Added departments prop
   onDownload: () => void;
 }
 
@@ -25,6 +26,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   customer,
   accounts = [],
   groups = [],
+  departments = [], // ✅ Added default empty array
   onDownload,
 }) => {
   const formatDate = (date: any): string => {
@@ -54,6 +56,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const accToName = accounts.find(a => a.id === accToId)?.name || invoice.accountName || 'N/A';
 
   const groupName = groups.find(g => g.id === invoice.groupId)?.name || 'N/A';
+  // ✅ Department Resolver
+  const departmentName = invoice.departmentName || departments.find(d => d.id === invoice.departmentId)?.name || 'N/A';
 
   return (
     <div className="space-y-6 bg-gray-50/50 p-2 rounded-lg">
@@ -135,6 +139,8 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             </h3>
             <p className="font-medium text-gray-900">{invoice.category === 'Other' ? invoice.customCategory : invoice.category}</p>
             {invoice.groupId && <p className="text-xs text-gray-500 mt-1">Group: <span className="font-medium">{groupName}</span></p>}
+            {/* ✅ Department Display */}
+            {invoice.departmentId && <p className="text-xs text-gray-500 mt-1">Department: <span className="font-medium">{departmentName}</span></p>}
           </div>
 
           <div className="pt-3 border-t border-gray-100">
@@ -195,6 +201,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Vehicle</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Qty</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Discount</th>
@@ -214,6 +221,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 font-medium">{item.description}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{item.vehicleName || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.quantity}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
                       <td className="px-4 py-3 text-sm text-red-500 text-right">{item.discount > 0 ? `${item.discount.toFixed(1)}%` : '-'}</td>
@@ -224,7 +232,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-4 py-4 text-center text-sm text-gray-500">
                     No line items
                   </td>
                 </tr>

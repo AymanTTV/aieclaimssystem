@@ -12,22 +12,22 @@ import { Product } from '../types/product';
 import { Category } from '../types/category';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+import { useVehicles } from '../hooks/useVehicles';
 import productService from '../services/product.service';
 import categoryService from '../services/category.service';
-import { X, Edit2, Trash2, Eye, Box, Download } from 'lucide-react';
+import { X, Edit2, Trash2, Eye, Box, Download, Car } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { handleProductExport } from '../utils/productHelpers';
 import FormField from '../components/ui/FormField';
+import SearchableSelect from '../components/ui/SearchableSelect'; // Added Import
 
-// Inline spinner so no external UI import is needed
 const Spinner: React.FC = () => (
   <div className="flex items-center justify-center h-64">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
   </div>
 );
 
-// Lazy-load your DataTable component properly
 const LazyDataTable = lazy(() =>
   import('../components/DataTable/DataTable').then(mod => ({ default: mod.DataTable }))
 );
@@ -35,17 +35,15 @@ const LazyDataTable = lazy(() =>
 const ProductsPage: React.FC = () => {
   const [isPending, startTransition] = useTransition();
 
-  // Data
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const { vehicles } = useVehicles();
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCat, setFilterCat] = useState<string>('');
   const [filtered, setFiltered] = useState<Product[]>([]);
 
-  // Product form
   const [showProductModal, setShowProductModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<Partial<Product>>({
@@ -57,24 +55,22 @@ const ProductsPage: React.FC = () => {
     retailPrice: 0,
     discount: 0,
     description: '',
+    vehicleId: '',
+    vehicleName: '',
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // Detail modal
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Delete confirmation
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
-  // Category modal
   const [showCatModal, setShowCatModal] = useState(false);
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [catName, setCatName] = useState('');
 
-  // Load categories & products
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -95,33 +91,29 @@ const ProductsPage: React.FC = () => {
     load();
   }, []);
 
-  // Filter logic — primary search by Part Number
-// Replace your current filter useEffect with this:
-useEffect(() => {
-  startTransition(() => {
-    let arr = products;
+  useEffect(() => {
+    startTransition(() => {
+      let arr = products;
 
-    if (searchTerm.trim()) {
-      const norm = (s: any) => (s ?? '').toString().toLowerCase();
-      const terms = norm(searchTerm).split(/\s+/).filter(Boolean);
+      if (searchTerm.trim()) {
+        const norm = (s: any) => (s ?? '').toString().toLowerCase();
+        const terms = norm(searchTerm).split(/\s+/).filter(Boolean);
 
-      arr = arr.filter(p => {
-        const haystack = `${norm(p.partNumber)} ${norm(p.name)}`;
-        // require all words to appear somewhere in partNumber or name
-        return terms.every(t => haystack.includes(t));
-      });
-    }
+        arr = arr.filter(p => {
+          const haystack = `${norm(p.partNumber)} ${norm(p.name)}`;
+          return terms.every(t => haystack.includes(t));
+        });
+      }
 
-    if (filterCat) {
-      arr = arr.filter(p => p.category === filterCat);
-    }
+      if (filterCat) {
+        arr = arr.filter(p => p.category === filterCat);
+      }
 
-    setFiltered(arr);
-  });
-}, [products, searchTerm, filterCat]);
+      setFiltered(arr);
+    });
+  }, [products, searchTerm, filterCat]);
 
 
-  // Handlers
   const handleSearch = (e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value);
   const handleFilter = (e: ChangeEvent<HTMLSelectElement>) => setFilterCat(e.target.value);
   const { can } = usePermissions();
@@ -140,6 +132,8 @@ useEffect(() => {
           retailPrice: prod.retailPrice,
           discount: prod.discount ?? 0,
           description: prod.description ?? '',
+          vehicleId: prod.vehicleId ?? '',
+          vehicleName: prod.vehicleName ?? '',
         });
       } else {
         setEditProduct(null);
@@ -152,6 +146,8 @@ useEffect(() => {
           retailPrice: 0,
           discount: 0,
           description: '',
+          vehicleId: '',
+          vehicleName: '',
         });
       }
       setImageFile(null);
@@ -196,6 +192,7 @@ useEffect(() => {
     setDeleteTarget(prod);
     setShowDeleteModal(true);
   };
+  
   const handleProductDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -226,6 +223,7 @@ useEffect(() => {
       setShowCatModal(true);
     });
   };
+  
   const handleCatSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
@@ -241,6 +239,7 @@ useEffect(() => {
       toast.error('Failed to save category');
     }
   };
+  
   const handleCatDelete = async (cat: Category) => {
     if (!window.confirm(`Delete category "${cat.name}"?`)) return;
     try {
@@ -254,7 +253,6 @@ useEffect(() => {
 
   if (loading) return <Spinner />;
 
-  // Helper for detail fields
   const DetailItem: React.FC<{ label: string; value: any }> = ({ label, value }) => (
     <div>
       <h3 className="text-sm font-medium text-gray-500">{label}</h3>
@@ -266,17 +264,15 @@ useEffect(() => {
     categories.find(c => c.id === id)?.name || '—';
 
   const calcTotal = (p: Product) => {
-  const qty = Number(p.quantity ?? 0);
-  const price = Number(p.retailPrice ?? 0);
-  const disc = Number(p.discount ?? 0); // absolute £
-  const val = qty * price - disc;
-  return `£${Math.max(val, 0).toFixed(2)}`;
-};
-
+    const qty = Number(p.quantity ?? 0);
+    const price = Number(p.retailPrice ?? 0);
+    const disc = Number(p.discount ?? 0);
+    const val = qty * price - disc;
+    return `£${Math.max(val, 0).toFixed(2)}`;
+  };
 
   return (
     <div className="space-y-6 p-4">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Products</h1>
         <div className="flex space-x-2">
@@ -308,15 +304,13 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <input
-  className="flex-1 px-3 py-2 border rounded"
-  placeholder="Search by Part Number or Product Name…"
-  value={searchTerm}
-  onChange={handleSearch}
-/>
-
+          className="flex-1 px-3 py-2 border rounded"
+          placeholder="Search by Part Number or Product Name…"
+          value={searchTerm}
+          onChange={handleSearch}
+        />
         <select
           className="w-48 px-3 py-2 border rounded"
           value={filterCat}
@@ -329,7 +323,6 @@ useEffect(() => {
         </select>
       </div>
 
-      {/* DataTable */}
       <div className="bg-white rounded shadow overflow-auto">
         <Suspense fallback={<div className="p-8 text-center">{isPending ? 'Updating…' : 'Loading…'}</div>}>
           <LazyDataTable
@@ -352,6 +345,14 @@ useEffect(() => {
               { header: 'Part Number', cell: ({ row }) => row.original.partNumber },
               { header: 'Product Name', cell: ({ row }) => row.original.name },
               {
+                header: 'Assigned Vehicle',
+                cell: ({ row }) => row.original.vehicleName ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <Car className="w-3 h-3 mr-1" /> {row.original.vehicleName}
+                    </span>
+                ) : <span className="text-gray-400">-</span>
+              },
+              {
                 header: 'Category',
                 cell: ({ row }) => getCategoryName(row.original.category),
               },
@@ -362,19 +363,19 @@ useEffect(() => {
                 cell: ({ row }) => `£${(row.original.retailPrice ?? 0).toFixed(2)}`,
               },
               {
-  header: 'Discount (£)',
-  cell: ({ row }) => `£${Number(row.original.discount ?? 0).toFixed(2)}`,
-},
-{
-  header: 'Total Value',
-  cell: ({ row }) => {
-    const qty = Number(row.original.quantity ?? 0);
-    const price = Number(row.original.retailPrice ?? 0);
-    const disc = Number(row.original.discount ?? 0); // absolute £
-    const total = qty * price - disc;
-    return `£${Math.max(total, 0).toFixed(2)}`;
-  },
-},
+                header: 'Discount (£)',
+                cell: ({ row }) => `£${Number(row.original.discount ?? 0).toFixed(2)}`,
+              },
+              {
+                header: 'Total Value',
+                cell: ({ row }) => {
+                  const qty = Number(row.original.quantity ?? 0);
+                  const price = Number(row.original.retailPrice ?? 0);
+                  const disc = Number(row.original.discount ?? 0); 
+                  const total = qty * price - disc;
+                  return `£${Math.max(total, 0).toFixed(2)}`;
+                },
+              },
               {
                 header: 'Actions',
                 cell: ({ row }) => (
@@ -382,7 +383,7 @@ useEffect(() => {
                     {can('products', 'update') && (
                       <button
                         onClick={(e) => {
-                          e.stopPropagation(); // prevent opening details
+                          e.stopPropagation();
                           openProductForm(row.original);
                         }}
                         title="Edit"
@@ -393,7 +394,7 @@ useEffect(() => {
                     {can('products', 'delete') && (
                       <button
                         onClick={(e) => {
-                          e.stopPropagation(); // prevent opening details
+                          e.stopPropagation();
                           confirmDeleteProduct(row.original);
                         }}
                         title="Delete"
@@ -404,7 +405,7 @@ useEffect(() => {
                     {can('products', 'view') && (
                       <button
                         onClick={(e) => {
-                          e.stopPropagation(); // keep consistent, though this opens details anyway
+                          e.stopPropagation();
                           openDetail(row.original);
                         }}
                         title="View"
@@ -420,7 +421,6 @@ useEffect(() => {
         </Suspense>
       </div>
 
-      {/* Product Form Modal */}
       <Modal
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
@@ -428,7 +428,6 @@ useEffect(() => {
         size="lg"
       >
         <form onSubmit={handleProductSubmit} className="space-y-6">
-          {/* BASIC INFO */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h3 className="text-base font-semibold text-gray-900 mb-3">Basic Info</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -466,10 +465,36 @@ useEffect(() => {
                 onChange={e => setForm(f => ({ ...f, binLocation: e.target.value }))}
                 placeholder="e.g., Aisle 3 / Bin B"
               />
+              
+              {/* UPDATED: Searchable Select for Vehicle */}
+              <div className="sm:col-span-2 border-t border-gray-200 pt-3 mt-1">
+                <SearchableSelect
+                  label="Assign to Vehicle (Optional)"
+                  options={vehicles.map(v => ({
+                    id: v.id,
+                    label: `${v.registrationNumber} - ${v.make} ${v.model}`,
+                    subLabel: v.registrationNumber
+                  }))}
+                  value={form.vehicleId || ''}
+                  onChange={(val) => {
+                    const vId = Array.isArray(val) ? val[0] : val;
+                    const finalId = (!vId || vId === 'all') ? '' : vId;
+                    const v = vehicles.find(vh => vh.id === finalId);
+                    setForm(f => ({
+                      ...f,
+                      vehicleId: finalId,
+                      vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+                    }));
+                  }}
+                  placeholder="-- Search and select a vehicle --"
+                  isClearable={true}
+                />
+                <p className="mt-1 text-xs text-gray-500">If assigned, invoices using this product will auto-fill the vehicle.</p>
+              </div>
+
             </div>
           </div>
 
-          {/* STOCK & PRICING */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h3 className="text-base font-semibold text-gray-900 mb-3">Stock & Pricing</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -482,32 +507,29 @@ useEffect(() => {
                 placeholder="0"
               />
               <FormField
-  type="number"
-  step="0.01"
-  min={0}
-  label="Retail Price (£)"
-  value={String(form.retailPrice ?? 0)}
-  onChange={e => setForm(f => ({ ...f, retailPrice: parseFloat(e.target.value || '0') }))}
-  placeholder="0.00"
-/>
+                type="number"
+                step="0.01"
+                min={0}
+                label="Retail Price (£)"
+                value={String(form.retailPrice ?? 0)}
+                onChange={e => setForm(f => ({ ...f, retailPrice: parseFloat(e.target.value || '0') }))}
+                placeholder="0.00"
+              />
               <FormField
-  type="number"
-  step="0.01"
-  min={0}
-  label="Discount (£)"
-  value={String(form.discount ?? 0)}
-  onChange={e => setForm(f => ({ ...f, discount: parseFloat(e.target.value || '0') }))}
-  placeholder="0.00"
-/>
-
+                type="number"
+                step="0.01"
+                min={0}
+                label="Discount (£)"
+                value={String(form.discount ?? 0)}
+                onChange={e => setForm(f => ({ ...f, discount: parseFloat(e.target.value || '0') }))}
+                placeholder="0.00"
+              />
             </div>
             <p className="text-xs text-gray-500 mt-2">
-  Total value = <strong>Retail Price × QTY − Discount</strong>.
-</p>
-
+              Total value = <strong>Retail Price × QTY − Discount</strong>.
+            </p>
           </div>
 
-          {/* MEDIA & NOTES */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h3 className="text-base font-semibold text-gray-900 mb-3">Media & Notes</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -542,7 +564,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex justify-end space-x-2">
             <button
               type="button"
@@ -561,7 +582,6 @@ useEffect(() => {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
@@ -585,7 +605,6 @@ useEffect(() => {
         </div>
       </Modal>
 
-      {/* Category Modal */}
       <Modal
         isOpen={showCatModal}
         onClose={() => setShowCatModal(false)}
@@ -635,7 +654,6 @@ useEffect(() => {
         </ul>
       </Modal>
 
-      {/* Enhanced Details Modal */}
       <Modal
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
@@ -650,7 +668,6 @@ useEffect(() => {
               </button>
             </div>
 
-            {/* Product image */}
             <div className="flex justify-center">
               {detailProduct.imageUrl ? (
                 <img
@@ -666,15 +683,15 @@ useEffect(() => {
               )}
             </div>
 
-            {/* Key fields */}
             <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4">
               <DetailItem label="Part Number" value={detailProduct.partNumber} />
               <DetailItem label="Product Name" value={detailProduct.name} />
               <DetailItem label="Category" value={getCategoryName(detailProduct.category)} />
               <DetailItem label="Bin / Location" value={detailProduct.binLocation || '—'} />
+              <DetailItem label="Assigned Vehicle" value={detailProduct.vehicleName || '—'} />
               <DetailItem label="QTY" value={detailProduct.quantity} />
               <DetailItem label="Retail Price" value={`£${(detailProduct.retailPrice ?? 0).toFixed(2)}`} />
-              <DetailItem label="Discount (%)" value={`${detailProduct.discount ?? 0}%`} />
+              <DetailItem label="Discount (£)" value={`£${detailProduct.discount ?? 0}`} />
               <DetailItem
                 label="Total Value"
                 value={
@@ -693,7 +710,6 @@ useEffect(() => {
               />
             </div>
 
-            {/* Description */}
             {detailProduct.description ? (
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Description</h3>
@@ -706,7 +722,6 @@ useEffect(() => {
         )}
       </Modal>
 
-      {/* Fullscreen image preview */}
       {selectedImage && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"

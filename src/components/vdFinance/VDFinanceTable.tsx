@@ -17,6 +17,9 @@ interface VDFinanceTableProps {
   onViewDocument: (url: string) => void;
   onClearProfit: (record: VDFinanceRecord) => void;
   onUnclearProfit: (record: VDFinanceRecord) => void;
+  selectedIds: Set<string>; // NEW
+  onToggleOne: (id: string) => void; // NEW
+  onToggleAll: (checked: boolean, allIds: string[]) => void; // NEW
 }
 
 const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
@@ -28,15 +31,15 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
   onViewDocument,
   onClearProfit,
   onUnclearProfit,
+  selectedIds,
+  onToggleOne,
+  onToggleAll
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
-  const { user } = useAuth(); // Access user to check for 'manager' role
+  const { user } = useAuth();
 
-  // Helper to check if the profit has been paid
   const isPaid = (rec: VDFinanceRecord) => rec.profit === 0 && rec.originalProfit != null;
-  
-  // Helper to apply blur/opacity to paid rows
   const blurStyle = (rec: VDFinanceRecord) => isPaid(rec) ? "opacity-50 blur-[0.5px] select-none" : "";
 
   const profitColumn = {
@@ -55,6 +58,27 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
 
   const columns = [
     {
+      id: 'selection',
+      header: () => (
+        <input
+          type="checkbox"
+          checked={records.length > 0 && records.every(r => selectedIds.has(r.id))}
+          onChange={(e) => onToggleAll(e.target.checked, records.map(r => r.id))}
+          className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+        />
+      ),
+      cell: ({ row }: any) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => onToggleOne(row.original.id)}
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+          />
+        </div>
+      ),
+    },
+    {
       header: 'Name & Reference',
       cell: ({ row }: any) => {
         const rec = row.original;
@@ -62,6 +86,18 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
           <div className={blurStyle(rec)}>
             <div className="font-medium">{rec.name}</div>
             <div className="text-sm text-gray-500">Ref: {rec.reference}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {rec.groupName && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                  Grp: {rec.groupName}
+                </span>
+              )}
+              {rec.departmentName && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-800">
+                  Dept: {rec.departmentName}
+                </span>
+              )}
+            </div>
           </div>
         );
       },
@@ -76,18 +112,6 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
           </div>
         );
       }
-    },
-    {
-      header: 'Category / Group',
-      cell: ({ row }: any) => {
-        const rec = row.original;
-        return (
-          <div className={`text-sm ${blurStyle(rec)}`}>
-            <div className="font-medium">{rec.categoryName || '-'}</div>
-            <div className="text-gray-500">{rec.groupName || '-'}</div>
-          </div>
-        );
-      },
     },
     {
       header: 'Amount Details',
@@ -117,9 +141,24 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
         );
       },
     },
-    profitColumn, // Leaving profit clear so the "Profit Paid" tag remains easily readable
+    profitColumn,
+    {
+      header: 'Incident Details',
+      cell: ({ row }: any) => {
+        const rec = row.original;
+        if (!rec.incidentDate) return <span className="text-gray-400">-</span>;
+        return (
+          <div className={blurStyle(rec)}>
+            <div className="text-sm font-medium"> 
+              {format(new Date(rec.incidentDate), 'dd/MM/yyyy')}
+            </div>
+            {rec.incidentTime && <div className="text-sm text-gray-500">{rec.incidentTime}</div>}
+          </div>
+        );
+      },
+    },
     { 
-      header: 'Date', 
+      header: 'Record Date', 
       cell: ({ row }: any) => {
         const rec = row.original;
         return (
@@ -143,7 +182,6 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               </button>
             )}
 
-            {/* HIDE Edit if record is paid */}
             {can('vdFinance', 'update') && !recordPaid && (
                 <button onClick={e => { e.stopPropagation(); onEdit(rec); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                   <Edit className="h-4 w-4" />
@@ -156,7 +194,6 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
                 </button>
             )}
 
-            {/* HIDE Delete if record is paid (optional but recommended safety feature) */}
             {can('vdFinance', 'delete') && !recordPaid && (
               <button onClick={e => { e.stopPropagation(); onDelete(rec); }} className="text-red-600 hover:text-red-800" title="Delete">
                 <Trash2 className="h-4 w-4" />
@@ -169,7 +206,6 @@ const VDFinanceTable: React.FC<VDFinanceTableProps> = ({
               </button>
             )}
 
-            {/* ONLY Manager can see the Re-open button when paid */}
             {user?.role === 'manager' && recordPaid && (
               <button onClick={e => { e.stopPropagation(); onUnclearProfit(rec); }} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded" title="Re-open Profit">
                 Re-open

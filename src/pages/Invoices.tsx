@@ -1,5 +1,5 @@
 // src/pages/Invoices.tsx
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useCustomers } from '../hooks/useCustomers';
 import { useInvoices } from '../hooks/useInvoices';
@@ -17,9 +17,14 @@ import ManageCategoriesModal from '../components/finance/ManageCategoriesModal';
 import ManageAccountsModal from '../components/finance/ManageAccountsModal';
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service'; 
+import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
+
+import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
+import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
+
 import Modal from '../components/ui/Modal';
 import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle } from 'lucide-react';
-import { doc, collection, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, collection, getDocs, updateDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
 import { Invoice, Account } from '../types/finance'; 
@@ -29,7 +34,7 @@ import { useAuth } from '../context/AuthContext';
 import { generateBulkDocuments, generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { InvoiceBulkDocument, InvoiceDocument } from '../components/pdf/documents';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
-import { createFinanceTransaction } from '../utils/financeTransactions';
+import { reverseFinanceTransaction } from '../utils/financeTransactions';
 import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -47,14 +52,18 @@ const Invoices: React.FC = () => {
   const [categories, setCategories] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [groups, setGroups] = useState<FinanceGroup[]>([]);
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [showManageAccounts, setShowManageAccounts] = useState(false);
   const [showManageGroups, setShowManageGroups] = useState(false);
+  const [showManageDepartments, setShowManageDepartments] = useState(false);
+  const [showAssignDepartmentModal, setShowAssignDepartmentModal] = useState(false);
 
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-
+  const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -77,6 +86,13 @@ const Invoices: React.FC = () => {
     };
     fetchData();
   }, [showManageAccounts, showManageGroups]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'financeDepartments'), snap => {
+      setDepartments(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
+  }, []);
 
   const refreshCategories = async () => {
     try {
@@ -101,13 +117,25 @@ const Invoices: React.FC = () => {
     filteredInvoices,
   } = useInvoiceFilters(invoices, vehicles);
 
+  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+
+  const finalFilteredInvoices = useMemo(() => {
+    return filteredInvoices.filter((inv) => {
+      if (departmentFilter.length > 0) {
+        const dId = inv.departmentId || 'none';
+        if (!departmentFilter.includes(dId)) return false;
+      }
+      return true;
+    });
+  }, [filteredInvoices, departmentFilter]);
+
   useEffect(() => {
     setSelectedInvoiceIds(new Set());
-  }, [searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, dateRange, showCompleted]);
+  }, [searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, departmentFilter, dateRange, showCompleted]);
 
-  const totalInvoicesAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-  const totalPaidAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
-  const totalLookingAmount = filteredInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount || 0) > 0 ? inv.remainingAmount : 0), 0);
+  const totalInvoicesAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const totalPaidAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+  const totalLookingAmount = finalFilteredInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount || 0) > 0 ? inv.remainingAmount : 0), 0);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -124,8 +152,8 @@ const Invoices: React.FC = () => {
   }, []);
 
   const handleToggleAll = useCallback((checked: boolean) => {
-    setSelectedInvoiceIds(checked ? new Set(filteredInvoices.map(i => i.id)) : new Set());
-  }, [filteredInvoices]);
+    setSelectedInvoiceIds(checked ? new Set(finalFilteredInvoices.map(i => i.id)) : new Set());
+  }, [finalFilteredInvoices]);
 
   const handleBulkDeleteClick = () => {
     if (selectedInvoiceIds.size === 0) return;
@@ -155,7 +183,7 @@ const Invoices: React.FC = () => {
   const handleExport = () => {
     const safeFormatDate = (date: any): string => { if (!date) return ''; if (date instanceof Date) return date.toISOString(); if (date.toDate) return date.toDate().toISOString(); try { return new Date(date).toISOString(); } catch { return ''; } };
 
-    const exportData = filteredInvoices.map((inv) => ({
+    const exportData = finalFilteredInvoices.map((inv) => ({
       'Invoice ID': inv.id,
       'Invoice Number': inv.invoiceNumber || '',
       'Date (ISO)': safeFormatDate(inv.date),
@@ -173,6 +201,7 @@ const Invoices: React.FC = () => {
       'Category': inv.category || '',
       'Custom Category': inv.customCategory || '',
       'Group Name': groups.find(g => g.id === (inv as any).groupId)?.name || '',
+      'Department Name': inv.departmentName || '',
       'Account From Name': accounts.find(a => a.id === (inv as any).accountFrom)?.name || '',
       'Account To Name': accounts.find(a => a.id === ((inv as any).accountTo || inv.accountId))?.name || '',
       'Is Loan': inv.isLoan ? 'Yes' : 'No',
@@ -227,6 +256,9 @@ const Invoices: React.FC = () => {
             const groupName = row['Group Name'] || row['Group'];
             const group = groupName ? groups.find(g => g.name.toLowerCase() === groupName.toLowerCase()) : null;
 
+            const deptName = row['Department Name'] || row['Department'];
+            const department = deptName ? departments.find(d => d.name.toLowerCase() === deptName.toLowerCase()) : null;
+
             const totalVal = parseFloat((row['Gross Amount'] || row['Amount'])?.toString().replace(/[^\d.-]/g, '')) || 0;
             const netVal = parseFloat(row['Net Amount']?.toString().replace(/[^\d.-]/g, '')) || totalVal;
             const vatVal = parseFloat(row['VAT Amount']?.toString().replace(/[^\d.-]/g, '')) || 0;
@@ -259,6 +291,8 @@ const Invoices: React.FC = () => {
               accountId: accountTo ? accountTo.id : null,
               accountName: accountTo ? accountTo.name : null,
               groupId: group ? group.id : null,
+              departmentId: department ? department.id : null,
+              departmentName: department ? department.name : null,
               isLoan: row['Is Loan'] === 'Yes',
               description: row['Description'] || '',
               updatedAt: new Date(),
@@ -300,7 +334,9 @@ const Invoices: React.FC = () => {
                 createdAt: new Date(),
                 createdBy: user?.name || 'Import System',
                 accountsTo: accountTo ? [accountTo.id] : [],
-                groupId: group ? group.id : vehicle?.assignedGroupId || null // ✅ Add Group to import
+                groupId: group ? group.id : vehicle?.assignedGroupId || null,
+                departmentId: department ? department.id : null,
+                departmentName: department ? department.name : null,
               });
             }
           });
@@ -338,62 +374,12 @@ const Invoices: React.FC = () => {
         updatedAt: new Date()
       });
 
-      const totalLogCost = invoice.total || 1;
-      const vatRatio = (invoice.vatAmount || 0) / totalLogCost;
-      const netRatio = (invoice.subTotal || invoice.total || 0) / totalLogCost;
-      const revVatAmount = paymentToDelete.amount * vatRatio;
-      const revNetAmount = paymentToDelete.amount * netRatio;
-
-      const reversalAccounts: string[] = [];
-      
-      const mainAcc = (invoice as any).accountTo || invoice.accountId;
-      if (mainAcc) reversalAccounts.push(mainAcc);
-      
-      const secondaryAcc = (invoice as any).accountFrom;
-      if (secondaryAcc) reversalAccounts.push(secondaryAcc);
-
-      if (reversalAccounts.length === 0) {
-        const defaultAcc = accounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
-        if (defaultAcc) reversalAccounts.push(defaultAcc.id);
-      }
-
-      const revVehicle = vehicles.find(v => v.id === invoice.vehicleId);
-      let mappedVehicleOwner = undefined;
-      if (invoice.vehicleId) {
-        if (revVehicle && revVehicle.owner) {
-            mappedVehicleOwner = { name: revVehicle.owner.name, isDefault: revVehicle.owner.isDefault ?? false };
-        } else {
-            mappedVehicleOwner = { name: 'AIE Skyline Limited', isDefault: true };
-        }
-      }
-
-      const actualCategory = invoice.category === 'Other' && invoice.customCategory 
-        ? invoice.customCategory 
-        : (invoice.category || 'Invoice Payment Reversal');
-
-      // ✅ Reversal Finance Transaction
-      await createFinanceTransaction({
-        type: 'expense', 
-        category: actualCategory,
-        amount: paymentToDelete.amount,
-        netAmount: parseFloat(revNetAmount.toFixed(2)),
-        vatAmount: parseFloat(revVatAmount.toFixed(2)),
-        description: `REVERSAL: Payment for ${invoice.invoiceNumber || 'Invoice'}`,
+      await reverseFinanceTransaction({
         referenceId: invoice.id,
-        vehicleId: invoice.vehicleId,
-        vehicleName: invoice.vehicleName || undefined,
-        vehicleOwner: mappedVehicleOwner,
-        customerId: invoice.customerId,
-        customerName: invoice.customerName,
-        groupId: invoice.groupId || revVehicle?.assignedGroupId || undefined, // ✅ Include Vehicle's Group Fallback
-        paymentMethod: paymentToDelete.method,
-        paymentReference: `REV-${paymentToDelete.reference || paymentId}`,
-        status: 'completed',
-        date: new Date(),
-        accountsFrom: reversalAccounts 
+        paymentId: paymentId
       });
       
-      toast.success('Payment deleted and reversed in Finance');
+      toast.success('Payment deleted and removed from Finance Ledger');
       setSelectedInvoice(prev => prev ? {...prev, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any} : null);
     } catch (err) {
       toast.error('Failed to delete payment');
@@ -426,7 +412,7 @@ const Invoices: React.FC = () => {
 
   const handleGenerateBulkPDF = async () => {
     try {
-      if (filteredInvoices.length === 0) {
+      if (finalFilteredInvoices.length === 0) {
         toast.error("No invoices match the current filters to generate a PDF.");
         return;
       }
@@ -436,7 +422,7 @@ const Invoices: React.FC = () => {
 
       const blob = await generateBulkDocuments(
         InvoiceBulkDocument,
-        filteredInvoices,
+        finalFilteredInvoices,
         companyDetails
       );
       const url = URL.createObjectURL(blob);
@@ -520,6 +506,11 @@ const Invoices: React.FC = () => {
               <Settings className="h-4 w-4 mr-2" /> Groups
             </button>
           )}
+          {can('finance', 'departments') && (
+            <button onClick={() => setShowManageDepartments(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+              <Settings className="h-4 w-4 mr-2" /> Depts
+            </button>
+          )}
 
           {can('invoices', 'categories') && (
             <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
@@ -557,8 +548,9 @@ const Invoices: React.FC = () => {
             categoryFilter={categoryFilter} onCategoryFilterChange={setCategoryFilter}
             accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} 
             groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} 
+            departmentFilter={departmentFilter} onDepartmentFilterChange={setDepartmentFilter} 
             dateRange={dateRange} onDateRangeChange={setDateRange}
-            categories={categories} accounts={accounts} groups={groups} 
+            categories={categories} accounts={accounts} groups={groups} departments={departments}
             showCompleted={showCompleted} onShowCompletedChange={setShowCompleted}
           />
 
@@ -566,6 +558,18 @@ const Invoices: React.FC = () => {
             <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex items-center justify-between shadow-sm">
               <span className="font-medium text-sm text-red-800">{selectedInvoiceIds.size} invoice(s) selected</span>
               <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowAssignGroupModal(true)}
+                  className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
+                >
+                  Assign Group
+                </button>
+                <button 
+                  onClick={() => setShowAssignDepartmentModal(true)}
+                  className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+                >
+                  Assign Dept
+                </button>
                 <button 
                   onClick={handleBulkDeleteClick}
                   className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
@@ -577,13 +581,13 @@ const Invoices: React.FC = () => {
           )}
 
           <InvoiceTable
-            invoices={filteredInvoices} vehicles={vehicles} customers={customers}
+            invoices={finalFilteredInvoices} vehicles={vehicles} customers={customers}
             onView={(inv) => setSelectedInvoice(inv)} onEdit={(inv) => setEditingInvoice(inv)}
             onDelete={(inv) => setDeletingInvoiceId(inv.id)} onDownload={(inv) => window.open(inv.documentUrl || '', '_blank')}
             onRecordPayment={(inv) => setPayingInvoice(inv)} onApplyDiscount={() => {}}
             onDeletePayment={handleDeletePayment} onGenerateDocument={handleGenerateDocument}
             onViewDocument={(inv) => window.open(inv.documentUrl || '', '_blank')} onStatusChange={handleStatusChange}
-            
+            onAssignDepartment={(inv) => { setSelectedInvoice(inv); setShowAssignDepartmentModal(true); }}
             isManager={user?.role === 'manager'}
             selectedIds={selectedInvoiceIds}
             onToggleOne={handleToggleOne}
@@ -598,41 +602,69 @@ const Invoices: React.FC = () => {
 
       {/* --- Modals --- */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Create Invoice" size="xl">
-        <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} groups={groups} onClose={() => setShowForm(false)} />
-      </Modal>
+  <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} groups={groups} departments={departments} onClose={() => setShowForm(false)} />
+</Modal>
 
       <Modal isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} title="Invoice Details" size="3xl">
-        {selectedInvoice && (
-          <InvoiceDetails 
-            invoice={selectedInvoice} 
-            vehicle={vehicles.find((v) => v.id === selectedInvoice.vehicleId)} 
-            customer={customers.find((c) => c.id === selectedInvoice.customerId)} 
-            accounts={accounts} 
-            groups={groups}
-            onDownload={() => window.open(selectedInvoice.documentUrl || '', '_blank')} 
-          />
-        )}
-      </Modal>
+  {selectedInvoice && (
+    <InvoiceDetails 
+      invoice={selectedInvoice} 
+      vehicle={vehicles.find((v) => v.id === selectedInvoice.vehicleId)} 
+      customer={customers.find((c) => c.id === selectedInvoice.customerId)} 
+      accounts={accounts} 
+      groups={groups}
+      departments={departments} // <--- Make sure this line is added
+      onDownload={() => window.open(selectedInvoice.documentUrl || '', '_blank')} 
+    />
+  )}
+</Modal>
 
       <Modal isOpen={!!editingInvoice} onClose={() => setEditingInvoice(null)} title="Edit Invoice" size="xl">
-        {editingInvoice && <InvoiceEditModal invoice={editingInvoice} vehicles={vehicles} customers={customers} accounts={accounts} groups={groups} onClose={() => setEditingInvoice(null)} />}
-      </Modal>
+  {editingInvoice && <InvoiceEditModal invoice={editingInvoice} vehicles={vehicles} customers={customers} accounts={accounts} groups={groups} departments={departments} onClose={() => setEditingInvoice(null)} />}
+</Modal>
 
       <Modal isOpen={!!deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} title="Delete Invoice">
         {deletingInvoiceId && <InvoiceDeleteModal invoiceId={deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} />}
       </Modal>
 
-      <Modal isOpen={!!payingInvoice} onClose={() => setPayingInvoice(null)} title="Record Payment" size="xl">
+     <Modal isOpen={!!payingInvoice} onClose={() => setPayingInvoice(null)} title="Record Payment" size="xl">
         {payingInvoice && (
           <InvoicePaymentModal 
             invoice={payingInvoice} 
-            vehicle={vehicles.find((v) => v.id === payingInvoice.vehicleId)} 
+            vehicle={vehicles.find((v) => v.id === payingInvoice.vehicleId)}
+            vehicles={vehicles} 
             customers={customers} 
             accounts={accounts}
+            groups={groups} // <--- ADD THIS LINE
             onClose={() => setPayingInvoice(null)} 
           />
         )}
       </Modal>
+
+      <ManageFinanceDepartmentsModal isOpen={showManageDepartments} onClose={() => setShowManageDepartments(false)} />
+      
+      <AssignFinanceDepartmentModal
+        isOpen={showAssignDepartmentModal}
+        onClose={() => setShowAssignDepartmentModal(false)}
+        selectedIds={selectedInvoiceIds}
+        departments={departments}
+        collectionName="invoices"
+        onSuccess={() => {
+          setShowAssignDepartmentModal(false);
+          setSelectedInvoiceIds(new Set()); 
+        }}
+      />
+      <AssignFinanceGroupModal
+        isOpen={showAssignGroupModal}
+        onClose={() => setShowAssignGroupModal(false)}
+        selectedIds={selectedInvoiceIds}
+        groups={groups}
+        collectionName="invoices"
+        onSuccess={() => {
+          setShowAssignGroupModal(false);
+          setSelectedInvoiceIds(new Set()); 
+        }}
+      />
 
       <Modal isOpen={showManageCategories} onClose={() => { setShowManageCategories(false); refreshCategories(); }} title="Manage Invoice Categories" size="lg">
         <ManageCategoriesModal onClose={() => { setShowManageCategories(false); refreshCategories(); }} />

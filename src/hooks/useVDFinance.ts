@@ -1,3 +1,4 @@
+// src/hooks/useVDFinance.ts
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -19,9 +20,10 @@ export const useVDFinance = () => {
           recordData.push({
             id: doc.id,
             ...data,
-            date: data.date.toDate(),
-            createdAt: data.createdAt.toDate(),
-            updatedAt: data.updatedAt.toDate(),
+            date: data.date?.toDate(),
+            incidentDate: data.incidentDate ? data.incidentDate.toDate() : undefined,
+            createdAt: data.createdAt?.toDate(),
+            updatedAt: data.updatedAt?.toDate(),
           } as VDFinanceRecord);
         });
         setRecords(recordData);

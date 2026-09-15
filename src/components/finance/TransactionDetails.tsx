@@ -14,13 +14,17 @@ interface TransactionDetailsProps {
   vehicle?: Vehicle;
   customer?: Customer;
   accounts: Account[];
+  groups?: { id: string; name: string }[]; 
+  departments?: { id: string; name: string }[]; 
 }
 
 const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
   transaction,
   vehicle,
   accounts = [],
-  customer
+  customer,
+  groups = [], 
+  departments = [] 
 }) => {
   const { formatCurrency } = useFormattedDisplay();
   const [loadingStop, setLoadingStop] = useState(false); 
@@ -104,12 +108,31 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
             </div>
           )}
         </div>
+        
+        {/* CLEANED UP DATE FIELD */}
         <div>
-          <h3 className="text-sm font-medium text-gray-500">Important Dates</h3>
-          <div className="mt-1 space-y-1">
-            <p className="text-sm text-gray-900"><span className="font-medium text-gray-600 mr-2">Paid On:</span> {formatDate(transaction.date)}</p>
-            <p className="text-sm text-gray-900"><span className="font-medium text-gray-600 mr-2">Entered On:</span> {formatDate(transaction.createdAt)}</p>
-          </div>
+          <h3 className="text-sm font-medium text-gray-500">Date</h3>
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {formatDate(transaction.date)}
+          </p>
+        </div>
+
+        {/* ✅ NEW: Group Field using the explicitly saved groupName */}
+       <div>
+  <h3 className="text-sm font-medium text-gray-500">Finance Group</h3>
+  <p className="mt-1 text-sm font-medium text-gray-900">
+    {transaction.groupName && transaction.groupName !== transaction.groupId 
+      ? transaction.groupName 
+      : groups.find(g => g.id === transaction.groupId)?.name || transaction.groupId || 'Unassigned'}
+  </p>
+</div>
+
+        {/* ✅ NEW: Department Field */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Department</h3>
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {transaction.departmentName || departments.find(d => d.id === transaction.departmentId)?.name || 'Unassigned'}
+          </p>
         </div>
       </div>
 
@@ -163,7 +186,7 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
         </div>
       )}
 
-      {/* --- NEW ACCOUNT FLOW SECTION --- */}
+      {/* Account Flow */}
       <Section title="Account Flow">
         <div className="space-y-3">
           
@@ -221,7 +244,6 @@ const TransactionDetailsModal: React.FC<TransactionDetailsProps> = ({
 
         </div>
       </Section>
-      {/* --------------------------- */}
 
 
       {/* Customer Information */}

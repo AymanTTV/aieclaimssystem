@@ -520,7 +520,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
               referenceId: rental.id, paymentMethod: formData.paymentMethod, paymentReference: formData.paymentReference,
               status: 'completed', paymentStatus: submitPaymentStatus as any, date: new Date(), vehicleId: rental.vehicleId,
               accountTo: selectedVehicle.owner?.accountId || undefined,
-              groupId: selectedVehicle.assignedGroupId || undefined // ✅ Attach Group ID
+              groupId: selectedVehicle.assignedGroupId || undefined, // Already here
+              // ✅ ADD THESE LINES:
+              groupName: selectedVehicle.assignedGroupName || undefined,
+              departmentId: selectedVehicle.assignedDepartmentId || undefined,
+              departmentName: selectedVehicle.assignedDepartmentName || undefined
             });
           } catch {}
         }, 0);

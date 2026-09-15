@@ -1,5 +1,5 @@
 // src/pages/VDFinance.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useVDFinance } from '../hooks/useVDFinance';
 import { useVehicles } from '../hooks/useVehicles';
 import VDFinanceTable from '../components/vdFinance/VDFinanceTable';
@@ -8,10 +8,13 @@ import VDFinanceSummary from '../components/vdFinance/VDFinanceSummary';
 import VDFinanceDetails from '../components/vdFinance/VDFinanceDetails';
 import VDFinanceFilters, { ProfitStatusFilter } from '../components/vdFinance/VDFinanceFilters';
 import Modal from '../components/ui/Modal';
-import { Plus, Download, FileText, Settings, LayoutGrid, Upload, DownloadCloud } from 'lucide-react';
+import SearchableSelect from '../components/ui/SearchableSelect'; 
+import { Plus, Download, FileText, Settings, LayoutGrid, Upload, DownloadCloud, Shield, Briefcase, Edit2, Trash2 } from 'lucide-react'; 
 import { VDFinanceRecord } from '../types/vdFinance';
 import { usePermissions } from '../hooks/usePermissions';
-import { doc, deleteDoc, getDoc, updateDoc, deleteField, addDoc, collection, writeBatch } from 'firebase/firestore';
+
+// ADDED onSnapshot here
+import { doc, deleteDoc, getDoc, updateDoc, deleteField, addDoc, collection, writeBatch, query, getDocs, onSnapshot } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
@@ -21,7 +24,254 @@ import { VDFinanceDocument, VDFinanceBulkDocument } from '../components/pdf/docu
 import { moveToTrash } from '../utils/trashService';
 import ManageVDFinanceCategoriesModal from '../components/vdFinance/ManageVDFinanceCategoriesModal';
 import ManageVDFinanceGroupsModal from '../components/vdFinance/ManageVDFinanceGroupsModal';
+import ManageClaimDepartmentsModal from '../components/claims/ManageClaimDepartmentsModal'; 
+
+import AssignVDFinanceGroupModal from '../components/vdFinance/AssignVDFinanceGroupModal';
+import AssignVDFinanceDepartmentModal from '../components/vdFinance/AssignVDFinanceDepartmentModal';
+
 import { format } from 'date-fns';
+
+const VDFinancePermissionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const { user: currentUser } = useAuth(); 
+  const [usersList, setUsersList] = useState<{ id: string; label: string }[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<{ id: string; label: string }[]>([]);
+  const [usersWithAccess, setUsersWithAccess] = useState<any[]>([]); 
+
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsersAndDepts = async () => {
+    try {
+      const [usersSnap, deptsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'))),
+        getDocs(collection(db, 'claimDepartments'))
+      ]);
+      
+      const fetchedDepts = deptsSnap.docs.map((d) => ({
+        id: d.id,
+        label: d.data().name
+      })).sort((a, b) => a.label.localeCompare(b.label));
+      setDepartmentsList(fetchedDepts);
+
+      const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const assignableUsers = allUsers
+        .filter((u: any) => u.id !== currentUser?.id && u.role !== 'superadmin') 
+        .map((u: any) => ({ 
+          id: u.id, 
+          label: `${u.name || u.email || u.id} (${u.role})` 
+        }));
+      setUsersList(assignableUsers);
+
+      // We look specifically for vdFinanceAccess here
+      const activeAccessUsers = allUsers.filter((u: any) => u.vdFinanceAccess != null && u.role !== 'superadmin');
+      setUsersWithAccess(activeAccessUsers);
+
+    } catch (err) {
+      console.error('Error fetching data for permissions:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsersAndDepts();
+    } else {
+      setSelectedUsers([]);
+      setSelectedDepartments([]);
+      setStartDate('');
+      setEndDate('');
+    }
+  }, [isOpen, currentUser?.id]);
+
+  const handleSave = async (clear: boolean = false) => {
+    if (selectedUsers.length === 0) {
+      toast.error('Please select at least one user.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      for (const uid of selectedUsers) {
+        await updateDoc(doc(db, 'users', uid), {
+          vdFinanceAccess: clear ? null : { 
+            start: startDate || null, 
+            end: endDate || null,
+            departments: selectedDepartments.length > 0 ? selectedDepartments : null
+          },
+        });
+      }
+      toast.success(clear ? 'Permissions cleared.' : 'Permissions applied successfully.');
+      
+      setSelectedUsers([]);
+      setSelectedDepartments([]);
+      setStartDate('');
+      setEndDate('');
+
+      await fetchUsersAndDepts();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update permissions.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveAccess = async (uid: string) => {
+    if (!window.confirm('Are you sure you want to remove permissions for this user?')) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', uid), { vdFinanceAccess: null });
+      toast.success('Permissions removed.');
+      await fetchUsersAndDepts(); 
+    } catch(err) {
+      toast.error('Failed to remove permissions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditAccess = (user: any) => {
+    setSelectedUsers([user.id]);
+    setStartDate(user.vdFinanceAccess?.start || '');
+    setEndDate(user.vdFinanceAccess?.end || '');
+    setSelectedDepartments(user.vdFinanceAccess?.departments || []);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Manage Records Permission" size="xl">
+      <div className="space-y-6">
+        <p className="text-sm text-gray-600">
+          Assign specific creation date boundaries and/or allowed departments for selected users. These users will ONLY be able to see records matching these conditions.
+        </p>
+
+        <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-4">
+          <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Assign or Update Permissions</h3>
+          
+          <div>
+            <SearchableSelect
+              label="Select Users"
+              options={usersList}
+              value={selectedUsers}
+              onChange={(val) => setSelectedUsers(val as string[])}
+              isMulti={true}
+              multiEmptyMode="empty"
+              placeholder="Search and select users..."
+            />
+          </div>
+
+          <div>
+            <SearchableSelect
+              label="Allowed Departments (Optional)"
+              options={departmentsList}
+              value={selectedDepartments}
+              onChange={(val) => setSelectedDepartments(val as string[])}
+              isMulti={true}
+              multiEmptyMode="empty"
+              placeholder="Select allowed departments..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Created After (Start Date)</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-primary focus:border-primary sm:text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Created Before (End Date)</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-primary focus:border-primary sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center pt-2">
+            <button
+              onClick={() => handleSave(true)}
+              disabled={loading || selectedUsers.length === 0}
+              className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors disabled:opacity-50"
+            >
+              Clear for Selected
+            </button>
+            <button
+              onClick={() => handleSave(false)}
+              disabled={loading}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-600 text-sm font-medium"
+            >
+              {loading ? 'Saving...' : 'Apply Permissions'}
+            </button>
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-gray-200">
+          <h3 className="text-md font-semibold text-gray-900 mb-3">Current Active Permissions</h3>
+          {usersWithAccess.length === 0 ? (
+            <p className="text-sm text-gray-500 bg-gray-50 p-4 rounded-md text-center border border-gray-200">
+              No users currently have restricted access.
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+              {usersWithAccess.map(u => {
+                const acc = u.vdFinanceAccess;
+                const deptNames = acc.departments && acc.departments.length > 0 
+                  ? acc.departments.map((id: string) => departmentsList.find(d => d.id === id)?.label || 'Unknown').join(', ') 
+                  : 'All Departments';
+                
+                return (
+                  <div key={u.id} className="bg-white p-3 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center border border-gray-200 shadow-sm gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm text-gray-900">{u.name || u.email} <span className="text-gray-400 text-xs font-normal">({u.role})</span></div>
+                      <div className="text-xs text-gray-600 mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                        <div><span className="font-semibold text-gray-500">From Date:</span> {acc.start || 'Any'}</div>
+                        <div><span className="font-semibold text-gray-500">To Date:</span> {acc.end || 'Any'}</div>
+                        <div className="sm:col-span-2"><span className="font-semibold text-gray-500">Depts Allowed:</span> {deptNames}</div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleEditAccess(u)} 
+                        className="inline-flex items-center px-2 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" /> Edit
+                      </button>
+                      <button 
+                        onClick={() => handleRemoveAccess(u.id)} 
+                        className="inline-flex items-center px-2 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" /> Remove
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end pt-4 border-t">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium"
+          >
+            Close Window
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 const VDFinance: React.FC = () => {
   const { records, loading } = useVDFinance();
@@ -31,24 +281,52 @@ const VDFinance: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Bulk / Selection State
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
+
+  // App Level State
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  const [incidentDateRange, setIncidentDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [statusFilter, setStatusFilter] = useState<ProfitStatusFilter>('all');
 
   const [categoriesFilter, setCategoriesFilter] = useState<string[]>([]);
   const [groupsFilter, setGroupsFilter] = useState<string[]>([]);
+  const [departmentsFilter, setDepartmentsFilter] = useState<string[]>([]);
   const [claimReasonsFilter, setClaimReasonsFilter] = useState<string[]>([]);
   const [amountRange, setAmountRange] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
 
+  // Modals
   const [showForm, setShowForm] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false); 
   const [selectedRecord, setSelectedRecord] = useState<VDFinanceRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<VDFinanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<VDFinanceRecord | null>(null);
 
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [showManageGroups, setShowManageGroups] = useState(false);
+  const [showManageDepartments, setShowManageDepartments] = useState(false);
 
-  // --- SHARE RECORD LINKING LOGIC ---
+  const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
+  const [showAssignDepartmentModal, setShowAssignDepartmentModal] = useState(false);
+
+  const [groups, setGroups] = useState<{id: string, name: string}[]>([]);
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'claimGroups'), snap => {
+      setGroups(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'claimDepartments'), snap => {
+      setDepartments(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
+  }, []);
+
   const handleClearProfit = async (rec: VDFinanceRecord) => {
     try {
       const incomeRec = {
@@ -116,7 +394,6 @@ const VDFinance: React.FC = () => {
     }
   };
 
-  // --- CSV IMPORT / EXPORT LOGIC ---
   const escapeCSV = (val: any) => {
     if (val === null || val === undefined) return '';
     let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
@@ -132,10 +409,10 @@ const VDFinance: React.FC = () => {
     const headers = [
       "id", "name", "ref", "reg", "totalAmount", "vatPercentage", "netAmount", 
       "solicitorFee", "vatIn", "purchasedItems", "clientRepair", "profit", 
-      "description", "date", "laborCharge", "serviceCenter", "vatOut", 
+      "description", "date", "incidentDate", "incidentTime", "laborCharge", "serviceCenter", "vatOut", 
       "createdAt", "updatedAt", "createdBy", "claimId", "salvage", 
       "clientReferralFee", "clientRepairAmount", "categoryId", "categoryName", 
-      "groupId", "groupName", "originalProfit", "linkedShareId",
+      "groupId", "groupName", "departmentId", "departmentName", "originalProfit", "linkedShareId",
       "parts", "claimReasons", "vatDetails"
     ];
 
@@ -206,10 +483,11 @@ const VDFinance: React.FC = () => {
               try { return valStr ? JSON.parse(valStr) : fallback; } catch (e) { return fallback; }
             };
 
-            const safeDate = (valStr: string | undefined) => {
+            const safeDate = (valStr: string | undefined, allowEmpty = false) => {
+              if (!valStr && allowEmpty) return null;
               if (!valStr) return new Date();
               const d = new Date(valStr);
-              return isNaN(d.getTime()) ? new Date() : d;
+              return isNaN(d.getTime()) ? (allowEmpty ? null : new Date()) : d;
             };
 
             const docId = getVal("id") || doc(collection(db, 'vdFinance')).id;
@@ -228,6 +506,8 @@ const VDFinance: React.FC = () => {
               profit: Number(getVal("profit")) || 0,
               description: getVal("description") || '',
               date: safeDate(getVal("date")),
+              incidentDate: safeDate(getVal("incidentDate"), true), 
+              incidentTime: getVal("incidentTime") || '', 
               laborCharge: Number(getVal("laborCharge")) || 0,
               serviceCenter: getVal("serviceCenter") || '',
               vatOut: Number(getVal("vatOut")) || 0,
@@ -242,6 +522,8 @@ const VDFinance: React.FC = () => {
               categoryName: getVal("categoryName") || '',
               groupId: getVal("groupId") || '',
               groupName: getVal("groupName") || '',
+              departmentId: getVal("departmentId") || '',
+              departmentName: getVal("departmentName") || '',
               linkedShareId: getVal("linkedShareId") || '',
               
               parts: safeParseJSON(getVal("parts"), []),
@@ -272,9 +554,9 @@ const VDFinance: React.FC = () => {
 
   const handleDelete = async (record: VDFinanceRecord) => {
     try {
-      const displayName = record.reference 
-        ? `VD Finance Ref: ${record.reference}` 
-        : `VD Finance - ${record.name || record.registration}`;
+      const displayName = record.ref 
+        ? `VD Finance Ref: ${record.ref}` 
+        : `VD Finance - ${record.name || record.reg}`;
 
       if (record.linkedShareId) await deleteDoc(doc(db, 'shares', record.linkedShareId));
 
@@ -288,7 +570,7 @@ const VDFinance: React.FC = () => {
 
   const handleGenerateDocument = async (record: VDFinanceRecord) => {
     try {
-      const vehicle = vehicles.find(v => v.registrationNumber === record.registration);
+      const vehicle = vehicles.find(v => v.registrationNumber === record.reg);
       await generateAndUploadDocument(VDFinanceDocument, { ...record, vehicle }, 'vdFinance', record.id, 'vdFinance');
       toast.success('Document generated successfully');
     } catch (error) {
@@ -312,26 +594,61 @@ const VDFinance: React.FC = () => {
     }
   };
 
+  // Selection Handlers
+  const handleToggleOne = (id: string) => {
+    setSelectedRecordIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleAll = (checked: boolean, allIds: string[]) => {
+    setSelectedRecordIds(checked ? new Set(allIds) : new Set());
+  };
+
   const filteredRecords = records
     .filter(record => {
       const mq = searchQuery.toLowerCase();
       const matchesSearch =
         record.name.toLowerCase().includes(mq) ||
-        record.reference.toLowerCase().includes(mq) ||
-        record.registration.toLowerCase().includes(mq);
+        record.ref.toLowerCase().includes(mq) ||
+        record.reg.toLowerCase().includes(mq);
 
       let matchesDate = true;
       if (dateRange.start && dateRange.end) {
         matchesDate = record.date >= dateRange.start && record.date <= dateRange.end;
       }
 
-      const matchesCategory = categoriesFilter.length === 0 || categoriesFilter.includes(record.categoryId || '');
+      let matchesIncidentDate = true;
+      if (incidentDateRange.start && incidentDateRange.end) {
+        if (record.incidentDate) {
+          matchesIncidentDate = record.incidentDate >= incidentDateRange.start && record.incidentDate <= incidentDateRange.end;
+        } else {
+          matchesIncidentDate = false;
+        }
+      }
+
+      let matchesCategory = true;
+      if (categoriesFilter.length > 0) {
+        const hasNone = categoriesFilter.includes('none');
+        const hasMatch = categoriesFilter.includes(record.categoryId || '');
+        matchesCategory = (hasNone && !record.categoryId) || hasMatch;
+      }
       
       let matchesGroup = true;
       if (groupsFilter.length > 0) {
         const hasNone = groupsFilter.includes('none');
         const hasMatch = groupsFilter.includes(record.groupId || '');
         matchesGroup = (hasNone && !record.groupId) || hasMatch;
+      }
+
+      let matchesDepartment = true;
+      if (departmentsFilter.length > 0) {
+        const hasNone = departmentsFilter.includes('none');
+        const hasMatch = departmentsFilter.includes(record.departmentId || '');
+        matchesDepartment = (hasNone && !record.departmentId) || hasMatch;
       }
 
       const amt = record.totalAmount ?? 0;
@@ -348,7 +665,38 @@ const VDFinance: React.FC = () => {
         }
       }
 
-      return matchesSearch && matchesDate && matchesCategory && matchesGroup && matchesAmount && matchesClaim;
+      return matchesSearch && matchesDate && matchesIncidentDate && matchesCategory && matchesGroup && matchesDepartment && matchesAmount && matchesClaim;
+    })
+    .filter(record => {
+      // Use granular permissions instead of strict role checks where possible
+      const isManagerOrAdmin = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin';
+      const vdFinanceAccess = (user as any)?.vdFinanceAccess;
+      const hasCustomAccess = !!vdFinanceAccess && (vdFinanceAccess.start || vdFinanceAccess.end || (vdFinanceAccess.departments && vdFinanceAccess.departments.length > 0));
+
+      if (!isManagerOrAdmin && hasCustomAccess) {
+        const recordDate = record.createdAt;
+        
+        if (vdFinanceAccess.start || vdFinanceAccess.end) {
+          if (!recordDate) return false;
+          if (vdFinanceAccess.start) {
+            const s = new Date(vdFinanceAccess.start);
+            s.setHours(0, 0, 0, 0);
+            if (recordDate < s) return false;
+          }
+          if (vdFinanceAccess.end) {
+            const e = new Date(vdFinanceAccess.end);
+            e.setHours(23, 59, 59, 999);
+            if (recordDate > e) return false;
+          }
+        }
+        
+        if (vdFinanceAccess.departments && vdFinanceAccess.departments.length > 0) {
+          if (!record.departmentId || !vdFinanceAccess.departments.includes(record.departmentId)) {
+            return false;
+          }
+        }
+      }
+      return true;
     })
     .filter(record => {
       if (statusFilter === 'all') return true;
@@ -369,19 +717,25 @@ const VDFinance: React.FC = () => {
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
 
-      {/* 1. Summary Cards */}
       <VDFinanceSummary records={filteredRecords} />
 
-      {/* 2. Enhanced Header Section (Buttons ABOVE Filters) */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6 overflow-hidden">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
         <div className="flex-shrink-0">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">VD Finance Tracker</h1>
           <p className="text-sm text-gray-500 mt-1">Manage financial claims, track expenses, and oversee profit statuses.</p>
         </div>
 
-        {/* Buttons forced to one line with horizontal scroll on small screens */}
-        <div className="flex flex-nowrap items-center gap-3 overflow-x-auto w-full xl:w-auto pb-2 custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex flex-wrap items-center justify-start xl:justify-end gap-3 w-full xl:w-auto">
           
+          {can('vdFinance', 'recordsPermission') && (
+            <button 
+              onClick={() => setShowPermissionModal(true)} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors shadow-sm"
+            >
+              <Shield className="h-4 w-4 mr-2" /> Records Permission
+            </button>
+          )}
+
           {can('vdFinance', 'import') && (
             <button onClick={() => fileInputRef.current?.click()} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
               <Upload className="h-4 w-4 mr-2 text-indigo-500" /> Import CSV
@@ -406,6 +760,12 @@ const VDFinance: React.FC = () => {
             </button>
           )}
 
+          {can('vdFinance', 'departments') && (
+            <button onClick={() => setShowManageDepartments(true)} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
+              <Briefcase className="h-4 w-4 mr-2 text-gray-500" /> Depts
+            </button>
+          )}
+
           {can('vdFinance', 'export') && (
             <button onClick={handleGeneratePDF} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
               <FileText className="h-4 w-4 mr-2 text-blue-500" /> PDF Summary
@@ -420,12 +780,13 @@ const VDFinance: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Filters Section */}
       <VDFinanceFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        incidentDateRange={incidentDateRange} 
+        onIncidentDateRangeChange={setIncidentDateRange} 
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
         
@@ -433,6 +794,8 @@ const VDFinance: React.FC = () => {
         onCategoriesFilterChange={setCategoriesFilter}
         groupsFilter={groupsFilter}
         onGroupsFilterChange={setGroupsFilter}
+        departmentsFilter={departmentsFilter}
+        onDepartmentsFilterChange={setDepartmentsFilter}
         claimReasonsFilter={claimReasonsFilter}
         onClaimReasonsFilterChange={setClaimReasonsFilter}
         
@@ -440,7 +803,26 @@ const VDFinance: React.FC = () => {
         onAmountRangeChange={setAmountRange}
       />
 
-      {/* 4. Data Table */}
+      {selectedRecordIds.size > 0 && can('vdFinance', 'assign') && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
+          <span className="font-medium text-sm text-indigo-800">{selectedRecordIds.size} record(s) selected</span>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setShowAssignGroupModal(true)}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
+            >
+              Assign Group
+            </button>
+            <button 
+              onClick={() => setShowAssignDepartmentModal(true)}
+              className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+            >
+              Assign Dept
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <VDFinanceTable
           records={filteredRecords}
@@ -451,8 +833,13 @@ const VDFinance: React.FC = () => {
           onViewDocument={handleViewDocument}
           onClearProfit={handleClearProfit}
           onUnclearProfit={handleUnclearProfit}
+          selectedIds={selectedRecordIds}
+          onToggleOne={handleToggleOne}
+          onToggleAll={handleToggleAll}
         />
       </div>
+
+      <VDFinancePermissionModal isOpen={showPermissionModal} onClose={() => setShowPermissionModal(false)} />
 
       <Modal isOpen={showForm || !!editingRecord} onClose={() => { setShowForm(false); setEditingRecord(null); }} title={editingRecord ? 'Edit Record' : 'Add Record'} size="xl">
         <VDFinanceForm record={editingRecord} vehicles={vehicles} onClose={() => { setShowForm(false); setEditingRecord(null); }} />
@@ -464,6 +851,29 @@ const VDFinance: React.FC = () => {
 
       <ManageVDFinanceCategoriesModal isOpen={showManageCategories} onClose={() => setShowManageCategories(false)} />
       <ManageVDFinanceGroupsModal isOpen={showManageGroups} onClose={() => setShowManageGroups(false)} />
+      <ManageClaimDepartmentsModal isOpen={showManageDepartments} onClose={() => setShowManageDepartments(false)} />
+
+      <AssignVDFinanceGroupModal
+        isOpen={showAssignGroupModal}
+        onClose={() => setShowAssignGroupModal(false)}
+        selectedIds={selectedRecordIds}
+        groups={groups}
+        onSuccess={() => {
+          setShowAssignGroupModal(false);
+          setSelectedRecordIds(new Set()); 
+        }}
+      />
+
+      <AssignVDFinanceDepartmentModal
+        isOpen={showAssignDepartmentModal}
+        onClose={() => setShowAssignDepartmentModal(false)}
+        selectedIds={selectedRecordIds}
+        departments={departments}
+        onSuccess={() => {
+          setShowAssignDepartmentModal(false);
+          setSelectedRecordIds(new Set()); 
+        }}
+      />
 
       <Modal isOpen={!!deletingRecord} onClose={() => setDeletingRecord(null)} title="Delete Record">
         <div className="space-y-4 p-2">

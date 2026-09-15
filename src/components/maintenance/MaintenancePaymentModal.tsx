@@ -170,7 +170,11 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           paymentReference: paymentToDelete.reference ? `REV-${paymentToDelete.reference}` : `REV-${paymentId}`,
           status: 'completed',
           date: new Date(),
-          groupId: vehicle?.assignedGroupId || undefined // ✅ Attach Group ID
+          groupId: vehicle?.assignedGroupId || undefined, // ✅ Attach Group ID
+          // ✅ ADD THESE LINES:
+          groupName: vehicle?.assignedGroupName || undefined,
+          departmentId: vehicle?.assignedDepartmentId || undefined,
+          departmentName: vehicle?.assignedDepartmentName || undefined
         });
       }
 
@@ -288,7 +292,11 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         paymentStatus: newStatus,
         status: 'completed',
         date: parsedPaymentDate,
-        groupId: vehicle?.assignedGroupId || undefined // ✅ Attach Group ID
+        groupId: vehicle?.assignedGroupId || undefined, // ✅ Attach Group ID
+        // ✅ ADD THESE LINES:
+        groupName: vehicle?.assignedGroupName || undefined,
+        departmentId: vehicle?.assignedDepartmentId || undefined,
+        departmentName: vehicle?.assignedDepartmentName || undefined
       });
 
       toast.success(editingPaymentId ? 'Payment updated' : 'Payment recorded');

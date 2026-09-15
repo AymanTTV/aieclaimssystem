@@ -21,6 +21,7 @@ export const useFinanceFilters = (
   const [selectedOwner, setSelectedOwner] = useState<string | string[]>('all');
   const [accountFilter, setAccountFilter] = useState<string | string[]>([]);
   const [groupFilter, setGroupFilter] = useState<string | string[]>('all');
+  const [departmentFilter, setDepartmentFilter] = useState<string | string[]>('all'); // ✅ Added
   const [customerFilter, setCustomerFilter] = useState<string | string[]>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string | string[]>('all');
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
@@ -68,6 +69,7 @@ export const useFinanceFilters = (
     const catFilters = normalizeFilter(category);
     const ownerFilters = normalizeFilter(selectedOwner);
     const groupFilters = normalizeFilter(groupFilter);
+    const deptFilters = normalizeFilter(departmentFilter); // ✅ Added
     const custFilters = normalizeFilter(customerFilter);
     const vehFilters = normalizeFilter(vehicleFilter);
 
@@ -110,8 +112,15 @@ export const useFinanceFilters = (
       const matchesGroup =
         groupFilters.includes('all') ||
         groupFilters.some((g) => {
-          if (g === 'none') return !transaction.groupId;
+          if (g === 'no_group_assigned') return !transaction.groupId;
           return transaction.groupId === g;
+        });
+
+      const matchesDepartment =
+        deptFilters.includes('all') ||
+        deptFilters.some((d) => {
+          if (d === 'no_department_assigned') return !transaction.departmentId;
+          return transaction.departmentId === d;
         });
 
       const matchesCustomer =
@@ -140,7 +149,6 @@ export const useFinanceFilters = (
         (transaction as any).accountsTo.filter(Boolean).forEach((id: string) => assignedAccountIds.add(id));
       }
 
-      // Check if it has any assigned IDs or a related account name
       const hasAccountAssigned = assignedAccountIds.size > 0 || !!(transaction as any).relatedAccountName;
 
       if (cleanAccFilter.length === 0) {
@@ -156,10 +164,8 @@ export const useFinanceFilters = (
             (x) => x !== 'no_account_assigned' && x !== 'all'
           );
 
-          // 1. Check direct ID matches
           let anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
 
-          // 2. Check if the destination/source account matches via relatedAccountName (for Transfer Dest/Source)
           if (!anyMatch && (transaction as any).relatedAccountName) {
             const relatedStr = (transaction as any).relatedAccountName;
             anyMatch = selectedIds.some((id) => {
@@ -247,6 +253,7 @@ export const useFinanceFilters = (
         matchesVehicle &&
         matchesDateRange &&
         matchesGroup &&
+        matchesDepartment && // ✅ Added
         matchesLinked &&
         matchesRecurring &&
         matchesFrequency
@@ -264,7 +271,7 @@ export const useFinanceFilters = (
     });
   }, [
     transactions, searchQuery, type, category, paymentStatus, selectedOwner,
-    accountFilter, customerFilter, vehicleFilter, startDate, endDate, groupFilter, 
+    accountFilter, customerFilter, vehicleFilter, startDate, endDate, groupFilter, departmentFilter, 
     showLinked, recurringFilter, recurringFrequency, vehicles, accounts
   ]);
 
@@ -381,6 +388,7 @@ export const useFinanceFilters = (
     selectedOwner, setSelectedOwner,
     accountFilter, setAccountFilter,
     groupFilter, setGroupFilter,
+    departmentFilter, setDepartmentFilter, // ✅ Returned
     customerFilter, setCustomerFilter,
     vehicleFilter, setVehicleFilter,
     showLinked, setShowLinked,

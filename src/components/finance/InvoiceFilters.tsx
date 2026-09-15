@@ -15,11 +15,14 @@ interface InvoiceFiltersProps {
   onAccountFilterChange: (account: string | string[]) => void;
   groupFilter: string | string[];
   onGroupFilterChange: (group: string | string[]) => void;
+  departmentFilter: string | string[];
+  onDepartmentFilterChange: (department: string | string[]) => void;
   dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
   categories: string[];
   accounts: Account[];
   groups: { id: string; name: string }[];
+  departments: { id: string; name: string }[];
   showCompleted: boolean;
   onShowCompletedChange: (show: boolean) => void;
 }
@@ -30,22 +33,30 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   categoryFilter, onCategoryFilterChange,
   accountFilter, onAccountFilterChange,
   groupFilter, onGroupFilterChange,
+  departmentFilter, onDepartmentFilterChange,
   dateRange, onDateRangeChange,
-  categories, accounts, groups,
+  categories, accounts, groups, departments,
   showCompleted, onShowCompletedChange
 }) => {
 
   const categoryOptions = useMemo(() => [{ id: 'all', label: 'All Categories' }, ...categories.map(c => ({ id: c, label: c }))], [categories]);
   
-  // Filter out accounts that start with 'aie' or 'AIE'
   const accountOptions = useMemo(() => [
     { id: 'all', label: 'All Accounts' }, 
+    { id: 'no_account_assigned', label: 'No Account Assigned' },
     ...accounts
       .filter(a => !(a.name && a.name.toLowerCase().startsWith('aie')))
       .map(a => ({ id: a.id, label: a.name }))
   ], [accounts]);
   
-  const groupOptions = useMemo(() => [{ id: 'all', label: 'All Groups' }, ...groups.map(g => ({ id: g.id, label: g.name }))], [groups]);
+  const groupOptions = useMemo(() => [{ id: 'all', label: 'All Groups' }, { id: 'no_group_assigned', label: 'No Group Assigned' }, ...groups.map(g => ({ id: g.id, label: g.name }))], [groups]);
+  
+  // ✅ Proper Options with "No Department"
+  const deptOptions = useMemo(() => [
+    { id: 'all', label: 'All Departments' }, 
+    { id: 'no_department_assigned', label: 'No Department Assigned' },
+    ...departments.map(d => ({ id: d.id, label: d.name }))
+  ], [departments]);
 
   const isAll = (val: string | string[]) => {
     if (Array.isArray(val)) return val.length === 0 || val.includes('all') || (val.length === 1 && val[0] === '');
@@ -91,8 +102,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         </label>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        {/* Status */}
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">Status</label>
           <div className="relative">
@@ -111,7 +121,6 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           </div>
         </div>
 
-        {/* Accounts */}
         <SearchableSelect
           label="Account"
           value={accountFilter}
@@ -119,9 +128,11 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           options={accountOptions}
           isClearable={!isAll(accountFilter)}
           isMulti={true}
+          multiEmptyMode="empty"
+          showAllChipInMulti={true}
+          allId="all"
         />
 
-        {/* Groups */}
         <SearchableSelect
           label="Group"
           value={groupFilter}
@@ -129,9 +140,23 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           options={groupOptions}
           isClearable={!isAll(groupFilter)}
           isMulti={true}
+          multiEmptyMode="empty"
+          showAllChipInMulti={true}
+          allId="all"
         />
 
-        {/* Category */}
+        <SearchableSelect
+          label="Department"
+          value={departmentFilter}
+          onChange={createMultiHandler(onDepartmentFilterChange)}
+          options={deptOptions}
+          isClearable={!isAll(departmentFilter)}
+          isMulti={true}
+          multiEmptyMode="empty"
+          showAllChipInMulti={true}
+          allId="all"
+        />
+
         <SearchableSelect
           label="Category"
           value={categoryFilter}
@@ -139,9 +164,11 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           options={categoryOptions}
           isClearable={!isAll(categoryFilter)}
           isMulti={true}
+          multiEmptyMode="empty"
+          showAllChipInMulti={true}
+          allId="all"
         />
 
-        {/* Dates */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">From</label>
           <input

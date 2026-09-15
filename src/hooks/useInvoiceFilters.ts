@@ -12,6 +12,7 @@ export const useInvoiceFilters = (
   const [categoryFilter, setCategoryFilter] = useState<string | string[]>('all');
   const [accountFilter, setAccountFilter] = useState<string | string[]>('all');
   const [groupFilter, setGroupFilter] = useState<string | string[]>('all');
+  const [departmentFilter, setDepartmentFilter] = useState<string | string[]>('all'); // ✅ Added
   const [showCompleted, setShowCompleted] = useState(false);
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
     start: null,
@@ -29,6 +30,7 @@ export const useInvoiceFilters = (
     const catFilters = normalizeFilter(categoryFilter);
     const accFilters = normalizeFilter(accountFilter);
     const grpFilters = normalizeFilter(groupFilter);
+    const deptFilters = normalizeFilter(departmentFilter); // ✅ Added
 
     return invoices.filter((inv) => {
       // 1. Hide Completed Logic
@@ -60,19 +62,27 @@ export const useInvoiceFilters = (
       // 4. Multi-Select Categories
       const matchesCategory = catFilters.includes('all') || catFilters.includes(inv.category);
 
-      // 5. Multi-Select Accounts (Checks BOTH accountFrom and accountTo)
+      // 5. Multi-Select Accounts
       const invAccountTo = (inv as any).accountTo || inv.accountId || '';
       const invAccountFrom = (inv as any).accountFrom || '';
-      
       const matchesAccount = accFilters.includes('all') || 
                              (invAccountTo && accFilters.includes(invAccountTo)) || 
-                             (invAccountFrom && accFilters.includes(invAccountFrom));
+                             (invAccountFrom && accFilters.includes(invAccountFrom)) ||
+                             (accFilters.includes('no_account_assigned') && !invAccountTo && !invAccountFrom);
 
       // 6. Multi-Select Groups
       const invGrp = (inv as any).groupId || '';
-      const matchesGroup = grpFilters.includes('all') || (invGrp && grpFilters.includes(invGrp));
+      const matchesGroup = grpFilters.includes('all') || 
+                           (invGrp && grpFilters.includes(invGrp)) || 
+                           (grpFilters.includes('no_group_assigned') && !invGrp);
 
-      // 7. Dates
+      // 7. Multi-Select Departments ✅ Added
+      const invDept = inv.departmentId || '';
+      const matchesDepartment = deptFilters.includes('all') || 
+                                (invDept && deptFilters.includes(invDept)) || 
+                                (deptFilters.includes('no_department_assigned') && !invDept);
+
+      // 8. Dates
       let matchesDate = true;
       if (dateRange.start && dateRange.end) {
         matchesDate = isWithinInterval(new Date(inv.date), {
@@ -81,9 +91,9 @@ export const useInvoiceFilters = (
         });
       }
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesAccount && matchesGroup && matchesDate;
+      return matchesSearch && matchesStatus && matchesCategory && matchesAccount && matchesGroup && matchesDepartment && matchesDate;
     });
-  }, [invoices, searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, dateRange, vehicles, showCompleted]);
+  }, [invoices, searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, departmentFilter, dateRange, vehicles, showCompleted]);
 
   return {
     searchQuery, setSearchQuery,
@@ -91,6 +101,7 @@ export const useInvoiceFilters = (
     categoryFilter, setCategoryFilter,
     accountFilter, setAccountFilter, 
     groupFilter, setGroupFilter, 
+    departmentFilter, setDepartmentFilter, // ✅ Extracted
     dateRange, setDateRange,
     showCompleted, setShowCompleted,
     filteredInvoices,

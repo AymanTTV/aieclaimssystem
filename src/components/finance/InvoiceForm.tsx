@@ -15,13 +15,15 @@ import { v4 as uuidv4 } from 'uuid';
 import productService from '../../services/product.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, CheckCircle } from 'lucide-react';
+import Modal from '../ui/Modal';
 
 interface InvoiceFormProps {
   vehicles: Vehicle[];
   customers: Customer[];
   accounts?: Account[];
   groups?: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
   onClose: () => void;
 }
 
@@ -30,6 +32,8 @@ interface ProductSuggestion {
   partNumber: string;
   name: string;
   lastPrice: number; 
+  vehicleId?: string; 
+  vehicleName?: string; 
 }
 
 const getNextInvoiceNumber = async (): Promise<string> => {
@@ -53,15 +57,16 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], groups = [], onClose }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], groups = [], departments = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
 
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
-    { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false }
+    { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false, vehicleId: '', vehicleName: '' }
   ]);
 
   const [formData, setFormData] = useState({
@@ -85,8 +90,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     paymentMethod: 'cash' as const,
     paymentReference: '',
     paymentNotes: '',
-    isLoan: true, // Default to true
+    isLoan: false, 
     groupId: '',
+    departmentId: '',
     accountFrom: '',
     accountTo: '',
     isRecurring: false,
@@ -135,6 +141,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             partNumber: p.partNumber ?? '',
             name: p.name ?? '',
             lastPrice: Number(p.retailPrice ?? p.price ?? 0),
+            vehicleId: p.vehicleId, 
+            vehicleName: p.vehicleName,
           }))
         );
       } catch {
@@ -149,6 +157,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
       partNumber: product.partNumber ?? '',
       name: product.name ?? '',
       lastPrice: Number(product.retailPrice ?? 0),
+      vehicleId: product.vehicleId, 
+      vehicleName: product.vehicleName, 
     };
     setProductSuggestions(prev => [...prev, newSuggestion]);
 
@@ -158,7 +168,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
          copy[pendingLineIndex] = {
            ...copy[pendingLineIndex],
            description: newSuggestion.name,
-           unitPrice: newSuggestion.lastPrice
+           unitPrice: newSuggestion.lastPrice,
+           vehicleId: newSuggestion.vehicleId || '', 
+           vehicleName: newSuggestion.vehicleName || '', 
          };
          return copy;
       });
@@ -186,7 +198,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     if (hit) {
       setLineItems(items => {
         const copy = [...items];
-        copy[idx] = { ...copy[idx], unitPrice: hit.lastPrice };
+        copy[idx] = { 
+           ...copy[idx], 
+           unitPrice: hit.lastPrice,
+           ...(hit.vehicleId ? { vehicleId: hit.vehicleId, vehicleName: hit.vehicleName } : {}) 
+        };
         return copy;
       });
     }
@@ -234,6 +250,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         it.unitPrice = parseFloat(value as string) || 0;
       } else if (field === 'discount') {
         it.discount = parseFloat(value as string) || 0;
+      } else if (field === 'vehicleId' || field === 'vehicleName') {
+        (it as any)[field] = value as string;
       } else {
         it.description = value as string;
       }
@@ -245,7 +263,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const addLineItem = () =>
     setLineItems(prev => [
       ...prev,
-      { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false }
+      { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false, vehicleId: '', vehicleName: '' }
     ]);
 
   const removeLineItem = (idx: number) =>
@@ -255,11 +273,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     handleLineChange(idx, 'description', value);
     const arr = [...showSuggestions]; arr[idx] = true; setShowSuggestions(arr);
   };
+  
   const handleSuggestionSelect = (prod: ProductSuggestion, idx: number) => {
     handleLineChange(idx, 'description', prod.name);
     handleLineChange(idx, 'unitPrice', prod.lastPrice.toString());
+    if (prod.vehicleId) {
+       handleLineChange(idx, 'vehicleId', prod.vehicleId);
+       handleLineChange(idx, 'vehicleName', prod.vehicleName || '');
+    }
     const arr = [...showSuggestions]; arr[idx] = false; setShowSuggestions(arr);
   };
+  
   const handleFieldFocus = (idx: number) => {
     const arr = [...showSuggestions]; arr[idx] = true; setShowSuggestions(arr);
   };
@@ -269,37 +293,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     }, 200); 
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setLoading(true);
 
-    if (!formData.isLoan) {
-      toast.error('The "Is it a Loan?" checkbox must be checked before saving.');
-      setLoading(false);
-      return;
-    }
-
-    if (
-      (!formData.useCustomCustomer && !formData.customerId) ||
-      (formData.useCustomCustomer && !formData.customerName.trim())
-    ) {
+    if ((!formData.useCustomCustomer && !formData.customerId) || (formData.useCustomCustomer && !formData.customerName.trim())) {
       toast.error('A customer is required. Please select one or enter their details manually.');
-      setLoading(false);
       return;
     }
-
     if (!lineItems.length || lineItems.every(li => li.quantity * li.unitPrice - (li.discount/100)*li.quantity*li.unitPrice === 0)) {
       toast.error('Add at least one line item with a non-zero value.');
-      setLoading(false);
       return;
     }
     if (paidNow > total) {
       toast.error('Amount paid cannot exceed the total amount.');
-      setLoading(false);
       return;
     }
-    
+
+    setShowConfirmModal(true);
+  };
+
+  const confirmAndSave = async () => {
+    setLoading(true);
     try {
         const newInvoiceNumber = await getNextInvoiceNumber();
         const remaining = parseFloat((total - paidNow).toFixed(2));
@@ -308,15 +323,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         if (paidNow >= total - 0.01 && total > 0) status = 'paid';
         else if (paidNow > 0) status = 'partially_paid';
 
+        const newPaymentId = `inv_pay_${Date.now()}`;
+        const actualReference = formData.paymentReference || formData.paymentNotes || newInvoiceNumber || 'N/A'; 
+
         const payments: Invoice['payments'] = paidNow > 0 ? [{
-          id: Date.now().toString(),
+          id: newPaymentId,
           date: new Date(),
           amount: paidNow,
           method: formData.paymentMethod,
-          reference: formData.paymentReference,
+          reference: actualReference,
           notes: formData.paymentNotes,
           createdAt: new Date(),
-          createdBy: user.id,
+          createdBy: user!.id,
           document: undefined
         }] : [];
     
@@ -324,7 +342,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
           : null;
 
-        const vehicle = vehicles.find(v => v.id === formData.vehicleId); // ✅ Find vehicle
+        const mainVehicle = vehicles.find(v => v.id === formData.vehicleId); 
+        const selectedGroup = groups.find(g => g.id === formData.groupId || g.name === formData.groupId);
+        const selectedDepartment = departments.find(d => d.id === formData.departmentId || d.name === formData.departmentId);
 
         const payload: any = {
           invoiceNumber: newInvoiceNumber,
@@ -341,7 +361,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           category: formData.category,
           description: formData.description, 
           customCategory: formData.category === 'Other' ? formData.customCategory : null,
-          groupId: formData.groupId || vehicle?.assignedGroupId || null, // ✅ Assign fallback group
+          groupId: formData.groupId || mainVehicle?.assignedGroupId || null, 
+          groupName: selectedGroup?.name || null, 
+          departmentId: formData.departmentId || null, 
+          departmentName: selectedDepartment?.name || null, 
           vehicleId: formData.manualVehicleEntry ? null : (formData.vehicleId || null),
           vehicleName: formData.manualVehicleEntry ? combinedManualVehicleName : (formData.vehicleName || null),
           customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
@@ -359,10 +382,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           recurringFrequency: formData.isRecurring ? (formData.recurringFrequency as any) : null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          createdBy: user.id
+          createdBy: user!.id
         };
 
-        const docRef = await addDoc(collection(db, 'invoices'), payload as any);
+        const docRef = await addDoc(collection(db, 'invoices'), payload);
 
         let documentUrl = '';
         if (formData.uploadedDocument) {
@@ -380,28 +403,60 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         }
         await updateDoc(doc(db, 'invoices', docRef.id), { documentUrl: documentUrl });
 
-        const vehicleOwner = formData.manualVehicleEntry ? null : (vehicle?.owner
-            ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false }
-            : { name: 'AIE Skyline Limited', isDefault: true });
+        const groupsByVehicle = new Map<string, { net: number, vat: number, gross: number, vehicleName: string }>();
+        lineItems.forEach(li => {
+            const gross = li.quantity * li.unitPrice;
+            const discountAmt = (li.discount / 100) * gross;
+            const itemNet = gross - discountAmt;
+            const itemVat = li.includeVAT ? itemNet * 0.2 : 0;
+            const itemTotal = itemNet + itemVat;
+
+            const vId = li.vehicleId || formData.vehicleId || 'unassigned';
+            const vName = li.vehicleName || formData.vehicleName || 'Unassigned / General';
+
+            if (!groupsByVehicle.has(vId)) {
+                groupsByVehicle.set(vId, { net: 0, vat: 0, gross: 0, vehicleName: vName });
+            }
+            const group = groupsByVehicle.get(vId)!;
+            group.net += itemNet;
+            group.vat += itemVat;
+            group.gross += itemTotal;
+        });
 
         if (formData.isLoan) {
-            await createFinanceTransaction({
-            type: 'expense',
-            category: formData.category || 'Loan Provided',
-            amount: total,
-            description: [formData.description, `Loan for Invoice ${newInvoiceNumber}`].filter(Boolean).join(' - '),
-            referenceId: docRef.id,
-            vehicleId: payload.vehicleId || undefined,
-            vehicleName: payload.vehicleName || undefined,
-            vehicleOwner,
-            customerId: payload.customerId || undefined,
-            customerName: payload.customerName || undefined,
-            paymentMethod: 'internal',
-            paymentStatus: 'paid',
-            accountFrom: formData.accountFrom || undefined,
-            accountTo: formData.accountTo || undefined,
-            groupId: payload.groupId || undefined // ✅ Attach Group ID
-            });
+            for (const [vId, totals] of groupsByVehicle.entries()) {
+                const targetVehicle = vehicles.find(v => v.id === vId);
+                const vehicleOwner = targetVehicle?.owner 
+                    ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
+                    : { name: 'AIE Skyline Limited', isDefault: true };
+
+                const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
+                const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
+                const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
+                const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
+
+                await createFinanceTransaction({
+                    type: 'expense',
+                    category: formData.category || 'Loan Provided',
+                    amount: totals.gross,
+                    description: [formData.description, `Loan for Invoice ${newInvoiceNumber}`].filter(Boolean).join(' - '),
+                    referenceId: docRef.id,
+                    vehicleId: vId === 'unassigned' ? undefined : vId,
+                    vehicleName: totals.vehicleName,
+                    vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
+                    customerId: payload.customerId || undefined,
+                    customerName: payload.customerName || undefined,
+                    paymentMethod: 'internal',
+                    paymentStatus: 'paid',
+                    date: new Date(formData.date),
+                    accountFrom: formData.accountFrom || undefined,
+                    accountTo: formData.accountTo || undefined,
+                    groupId: rawGroupId || undefined, 
+                    groupName: resolvedGroupName || undefined, 
+                    departmentId: targetDeptId || undefined, 
+                    departmentName: targetDeptName || undefined 
+                });
+            }
         }
 
         let finalAccountId = formData.accountTo;
@@ -411,26 +466,49 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         }
 
         if (paidNow > 0) {
-            await createFinanceTransaction({
-            type: 'income',
-            category: formData.category,
-            amount: paidNow,
-            description: [formData.description, formData.paymentNotes].filter(Boolean).join(' - ') || `Payment for Invoice ${newInvoiceNumber}`,
-            referenceId: docRef.id, 
-            vehicleId: payload.vehicleId || undefined,
-            vehicleName: payload.vehicleName || undefined,
-            vehicleOwner,
-            customerId: payload.customerId || undefined,
-            customerName: payload.customerName || undefined,
-            paymentMethod: formData.paymentMethod,
-            paymentReference: formData.paymentReference,
-            paymentStatus: status as any,
-            accountTo: finalAccountId || undefined,
-            groupId: payload.groupId || undefined // ✅ Attach Group ID
-            });
+            for (const [vId, totals] of groupsByVehicle.entries()) {
+                const targetVehicle = vehicles.find(v => v.id === vId);
+                const vehicleOwner = targetVehicle?.owner 
+                    ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
+                    : { name: 'AIE Skyline Limited', isDefault: true };
+
+                const ratio = total > 0 ? totals.gross / total : 0;
+                const allocatedPayment = paidNow * ratio;
+
+                const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
+                const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
+                const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
+                const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
+
+                if (allocatedPayment > 0) {
+                    await createFinanceTransaction({
+                        type: 'income',
+                        category: formData.category,
+                        amount: allocatedPayment,
+                        description: [formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${newInvoiceNumber}`,
+                        referenceId: docRef.id, 
+                        vehicleId: vId === 'unassigned' ? undefined : vId,
+                        vehicleName: totals.vehicleName,
+                        vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
+                        customerId: payload.customerId || undefined,
+                        customerName: payload.customerName || undefined,
+                        paymentMethod: formData.method,
+                        paymentReference: actualReference, // ✅ Restored human-readable invoice reference
+                        paymentId: newPaymentId, // ✅ Dedicated system link for strict deletion tracking
+                        paymentStatus: status as any,
+                        date: new Date(formData.date), 
+                        accountTo: finalAccountId || undefined,
+                        groupId: rawGroupId || undefined, 
+                        groupName: resolvedGroupName || undefined, 
+                        departmentId: targetDeptId || undefined, 
+                        departmentName: targetDeptName || undefined 
+                    });
+                }
+            }
         }
 
         toast.success(`Invoice ${newInvoiceNumber} created successfully`);
+        setShowConfirmModal(false);
         onClose();
     } catch (err: any) {
         console.error(err);
@@ -440,6 +518,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     }
   };
 
+  const getCustomerNameDisplay = () => {
+    if (formData.useCustomCustomer) return formData.customerName || 'N/A';
+    return customers.find(c => c.id === formData.customerId)?.name || 'N/A';
+  };
+
+  const resolvedGroupId = groups.find(g => g.id === formData.groupId || g.name === formData.groupId)?.id || formData.groupId;
+  const resolvedDeptId = departments.find(d => d.id === formData.departmentId || d.name === formData.departmentId)?.id || formData.departmentId;
+
   return (
     <>
       <ProductFormModal 
@@ -448,33 +534,100 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         onProductCreated={handleProductCreated}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex justify-end">
-          <label className="flex items-center space-x-2 cursor-pointer p-2 bg-amber-50 border border-amber-200 rounded-md">
-            <input
-              type="checkbox"
-              checked={formData.isLoan}
-              required
-              onChange={e => setFormData(fd => ({ ...fd, isLoan: e.target.checked }))}
-              className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4"
-            />
-            <span className="text-sm font-bold text-amber-800">Is it a Loan? (Required)</span>
-          </label>
-        </div>
+      <Modal isOpen={showConfirmModal} onClose={() => setShowConfirmModal(false)} title="Confirm Invoice Details" size="lg">
+         <div className="space-y-6">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner">
+                <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
 
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4 border-b border-gray-200 pb-4">
+                  <div>
+                    <p className="text-gray-500">Customer</p>
+                    <p className="font-bold text-gray-900">{getCustomerNameDisplay()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Vehicles Involved</p>
+                    <p className="font-bold text-gray-900">{Array.from(new Set(lineItems.map(li => li.vehicleName || formData.vehicleName || 'General / None'))).filter(v => v !== 'General / None').join(', ') || 'None'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Invoice Date</p>
+                    <p className="font-medium text-gray-900">{formData.date}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Due Date</p>
+                    <p className="font-medium text-gray-900">{formData.dueDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Category</p>
+                    <p className="font-medium text-gray-900">{formData.category === 'Other' ? formData.customCategory : formData.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Group</p>
+                    <p className="font-medium text-gray-900">{groups.find(g => g.id === formData.groupId)?.name || 'None'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Account From (Debit)</p>
+                    <p className="font-medium text-red-600">{financeAccounts.find(a => a.id === formData.accountFrom)?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Account To (Credit)</p>
+                    <p className="font-medium text-green-600">{financeAccounts.find(a => a.id === formData.accountTo)?.name || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center text-gray-700">
+                    <span>Invoice Total (Gross)</span>
+                    <span className="font-mono font-medium">{formatCurrency(total)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-gray-700">
+                    <span>Initial Payment</span>
+                    <span className="font-mono font-medium">{formatCurrency(paidNow)}</span>
+                  </div>
+                  <div className="border-t border-gray-300 pt-3 mt-3 flex justify-between items-center">
+                    <span className="text-base font-black text-gray-900 uppercase">Remaining Amount</span>
+                    <span className="text-2xl font-black text-primary font-mono">{formatCurrency(Math.max(0, total - paidNow))}</span>
+                  </div>
+                </div>
+            </div>
+
+            <div className="flex items-start space-x-3 p-4 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
+                <input 
+                  type="checkbox" 
+                  id="confirmLoan" 
+                  checked={formData.isLoan} 
+                  onChange={e => setFormData(fd => ({ ...fd, isLoan: e.target.checked }))} 
+                  className="mt-1 h-5 w-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer" 
+                />
+                <label htmlFor="confirmLoan" className="text-sm font-bold text-amber-900 cursor-pointer">
+                  Is this a Loan Account? <br/>
+                  <span className="font-normal text-amber-700">Check this if an expense transaction should be recorded to the ledger.</span>
+                </label>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setShowConfirmModal(false)} className="px-5 py-2.5 border rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition-colors">Back to Edit</button>
+                <button type="button" onClick={confirmAndSave} disabled={loading} className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-black shadow-md flex items-center gap-2 transition-colors disabled:opacity-50">
+                  {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
+                  Confirm & Save
+                </button>
+            </div>
+         </div>
+      </Modal>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SearchableSelect
               label="Account From (Debit)"
               options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
               value={formData.accountFrom}
-              onChange={val => setFormData(fd => ({ ...fd, accountFrom: val || '' }))}
+              onChange={val => setFormData(fd => ({ ...fd, accountFrom: val as string || '' }))}
               placeholder="Select source account..."
             />
             <SearchableSelect
               label="Account To (Credit)"
               options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
               value={formData.accountTo}
-              onChange={val => setFormData(fd => ({ ...fd, accountTo: val || '' }))}
+              onChange={val => setFormData(fd => ({ ...fd, accountTo: val as string || '' }))}
               placeholder="Select destination account..."
             />
         </div>
@@ -525,7 +678,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     const c = customers.find(x => x.id === id)!;
                     setFormData(fd => ({
                       ...fd,
-                      customerId: id,
+                      customerId: id as string,
                       customerName: c.name,
                       customerPhone: c.mobile
                     }));
@@ -561,8 +714,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     const v = vehicles.find(vh => vh.id === id);
                     setFormData(fd => ({
                       ...fd,
-                      vehicleId: id || '',
-                      vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : ''
+                      vehicleId: id as string || '',
+                      vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : '',
+                      groupId: v?.assignedGroupId || fd.groupId,
+                      departmentId: v?.assignedDepartmentId || fd.departmentId,
                     }));
                   }}
                   placeholder="Search…"
@@ -588,29 +743,33 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Category</label>
-            <select
-              value={formData.category}
-              onChange={e => setFormData(fd => ({ ...fd, category: e.target.value }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              required
-            >
-              <option value="">Select…</option>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              <option value="Other">Other</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SearchableSelect
+            label="Category"
+            options={categories.map(c => ({ id: c, label: c })).concat({ id: 'Other', label: 'Other' })}
+            value={formData.category}
+            onChange={val => setFormData(fd => ({ ...fd, category: val as string || '' }))}
+            placeholder="Select category..."
+            required
+          />
 
           <SearchableSelect
             label="Group (Optional)"
             options={groups.map(g => ({ id: g.id, label: g.name }))}
-            value={formData.groupId}
-            onChange={val => setFormData(fd => ({ ...fd, groupId: val || '' }))}
+            value={resolvedGroupId}
+            onChange={val => setFormData(fd => ({ ...fd, groupId: val as string || '' }))}
             placeholder="Select a group..."
           />
+
+          <SearchableSelect
+            label="Department (Optional)"
+            options={departments.map(d => ({ id: d.id, label: d.name }))}
+            value={resolvedDeptId}
+            onChange={val => setFormData(fd => ({ ...fd, departmentId: val as string || '' }))}
+            placeholder="Select a department..."
+          />
         </div>
+
 
         <div className="grid grid-cols-1 gap-4">
           {formData.category === 'Other' && (
@@ -672,93 +831,113 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             {lineItems.map((item, idx) => (
               <div
                 key={item.id}
-                className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
+                className="relative p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3"
               >
-                <div className="sm:col-span-2 relative">
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
+                  <div className="sm:col-span-2 relative">
+                    <FormField
+                      label="Description"
+                      value={item.description}
+                      onChange={e => handleDescriptionChange(idx, e.target.value)}
+                      onFocus={() => handleFieldFocus(idx)}
+                      onBlur={() => {
+                        setTimeout(() => handleFieldBlur(idx), 120);
+                        tryAutofillUnitPrice(item.description, idx);
+                      }}
+                      required
+                    />
+                    {showSuggestions[idx] && item.description && (
+                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+                        {filterMatches(item.description).map(s => (
+                          <li
+                            key={s.id}
+                            className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                            onMouseDown={() => handleSuggestionSelect(s, idx)}
+                            title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
+                          >
+                            <span className="truncate">
+                              {s.name}
+                              {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
+                            </span>
+                            <span className="text-gray-500 text-sm ml-3">
+                              {formatCurrency(s.lastPrice)}
+                            </span>
+                          </li>
+                        ))}
+                        <li 
+                          className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
+                          onMouseDown={(e) => {
+                            e.preventDefault(); 
+                            setPendingLineIndex(idx);
+                            setShowProductModal(true);
+                          }}
+                        >
+                          <PlusCircle className="w-4 h-4" /> Create New Product
+                        </li>
+                      </ul>
+                    )}
+                  </div>
                   <FormField
-                    label="Description"
-                    value={item.description}
-                    onChange={e => handleDescriptionChange(idx, e.target.value)}
-                    onFocus={() => handleFieldFocus(idx)}
-                    onBlur={() => {
-                      setTimeout(() => handleFieldBlur(idx), 120);
-                      tryAutofillUnitPrice(item.description, idx);
-                    }}
+                    type="number"
+                    label="Quantity"
+                    value={item.quantity}
+                    onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
+                    min="1"
+                    inputClassName="w-full"
                     required
                   />
-                  {showSuggestions[idx] && item.description && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
-                      {filterMatches(item.description).map(s => (
-                        <li
-                          key={s.id}
-                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                          onMouseDown={() => handleSuggestionSelect(s, idx)}
-                          title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
-                        >
-                          <span className="truncate">
-                            {s.name}
-                            {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-                          </span>
-                          <span className="text-gray-500 text-sm ml-3">
-                            {formatCurrency(s.lastPrice)}
-                          </span>
-                        </li>
-                      ))}
-                      <li 
-                        className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
-                        onMouseDown={(e) => {
-                          e.preventDefault(); 
-                          setPendingLineIndex(idx);
-                          setShowProductModal(true);
-                        }}
-                      >
-                        <PlusCircle className="w-4 h-4" /> Create New Product
-                      </li>
-                    </ul>
-                  )}
+                  <FormField
+                    type="number"
+                    label="Unit Price"
+                    value={item.unitPrice}
+                    onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
+                    min="0"
+                    step="0.01"
+                    inputClassName="w-full"
+                    required
+                  />
+                  <FormField
+                    type="number"
+                    label="Discount (%)"
+                    value={item.discount}
+                    onChange={e => handleLineChange(idx, 'discount', e.target.value)}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    inputClassName="w-full"
+                  />
+                  <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={item.includeVAT}
+                        onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-600">+ VAT</span>
+                    </label>
+                    <button type="button" onClick={() => removeLineItem(idx)} className="text-red-600 hover:text-red-800">
+                      Remove
+                    </button>
+                  </div>
                 </div>
-                <FormField
-                  type="number"
-                  label="Quantity"
-                  value={item.quantity}
-                  onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
-                  min="1"
-                  inputClassName="w-full"
-                  required
-                />
-                <FormField
-                  type="number"
-                  label="Unit Price"
-                  value={item.unitPrice}
-                  onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
-                  min="0"
-                  step="0.01"
-                  inputClassName="w-full"
-                  required
-                />
-                <FormField
-                  type="number"
-                  label="Discount (%)"
-                  value={item.discount}
-                  onChange={e => handleLineChange(idx, 'discount', e.target.value)}
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  inputClassName="w-full"
-                />
-                <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={item.includeVAT}
-                      onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm text-gray-600">+ VAT</span>
-                  </label>
-                  <button type="button" onClick={() => removeLineItem(idx)} className="text-red-600 hover:text-red-800">
-                    Remove
-                  </button>
+                
+                <div className="grid grid-cols-1 gap-4 items-end">
+                   <div className="w-full sm:w-1/2">
+                      <SearchableSelect
+                        label="Assign to Vehicle (Optional)"
+                        options={vehicles.map(v => ({ id: v.id, label: `${v.registrationNumber} - ${v.make} ${v.model}` }))}
+                        value={item.vehicleId || ''}
+                        onChange={(val) => {
+                           const vId = Array.isArray(val) ? val[0] : val;
+                           const v = vehicles.find(vh => vh.id === vId);
+                           handleLineChange(idx, 'vehicleId', vId || '');
+                           handleLineChange(idx, 'vehicleName', v ? `${v.make} ${v.model} (${v.registrationNumber})` : '');
+                        }}
+                        placeholder="-- No specific vehicle --"
+                        isClearable={true}
+                      />
+                   </div>
                 </div>
               </div>
             ))}
@@ -829,7 +1008,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         <div className="flex justify-end space-x-3">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
           <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600">
-            {loading ? 'Creating…' : 'Create Invoice'}
+            Review Details
           </button>
         </div>
       </form>

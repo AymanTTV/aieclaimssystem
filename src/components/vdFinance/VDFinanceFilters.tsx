@@ -1,102 +1,21 @@
 // src/components/vdFinance/VDFinanceFilters.tsx
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { useVDFinanceCategories } from '../../hooks/useVDFinanceCategories';
 import { useVDFinanceGroups } from '../../hooks/useVDFinanceGroups';
+import SearchableSelect from '../ui/SearchableSelect';
 
 export type ProfitStatusFilter = 'all' | 'unpaid' | 'paid' | 'cleared';
-
-interface MultiSelectDropdownProps {
-  label: string;
-  options: { id: string; label: string }[];
-  selectedValues: string[];
-  onChange: (values: string[]) => void;
-  placeholder?: string;
-}
-
-const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({ label, options, selectedValues, onChange, placeholder }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
-
-  const toggleOption = (id: string) => {
-    if (selectedValues.includes(id)) onChange(selectedValues.filter(v => v !== id));
-    else onChange([...selectedValues, id]);
-  };
-
-  const displayText = selectedValues.length === 0 
-    ? (placeholder || 'Select...') 
-    : selectedValues.length === 1 
-      ? options.find(o => o.id === selectedValues[0])?.label 
-      : `${selectedValues.length} Selected`;
-
-  return (
-    <div className="relative" ref={wrapperRef}>
-      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm flex justify-between items-center cursor-pointer hover:bg-white transition-colors"
-      >
-        <span className={selectedValues.length === 0 ? "text-gray-500" : "text-gray-900 font-medium"}>{displayText}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-          <div className="p-2 border-b border-gray-100">
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto p-1">
-            {filteredOptions.length === 0 ? (
-              <div className="p-2 text-sm text-gray-500 text-center">No results</div>
-            ) : (
-              filteredOptions.map(opt => {
-                const isSelected = selectedValues.includes(opt.id);
-                return (
-                  <div 
-                    key={opt.id} 
-                    onClick={() => toggleOption(opt.id)}
-                    className="flex items-center px-2 py-1.5 text-sm hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                  >
-                    <div className={`w-4 h-4 mr-2 border rounded flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-gray-300'}`}>
-                      {isSelected && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <span className={isSelected ? 'font-medium text-primary' : 'text-gray-700'}>{opt.label}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 
 interface VDFinanceFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   dateRange: { start: Date | null; end: Date | null };
   onDateRangeChange: (range: { start: Date | null; end: Date | null }) => void;
+  incidentDateRange: { start: Date | null; end: Date | null }; 
+  onIncidentDateRangeChange: (range: { start: Date | null; end: Date | null }) => void; 
   statusFilter: ProfitStatusFilter;
   onStatusChange: (status: ProfitStatusFilter) => void;
 
@@ -104,6 +23,8 @@ interface VDFinanceFiltersProps {
   onCategoriesFilterChange: (ids: string[]) => void;
   groupsFilter: string[];
   onGroupsFilterChange: (ids: string[]) => void;
+  departmentsFilter: string[]; // NEW
+  onDepartmentsFilterChange: (ids: string[]) => void; // NEW
   claimReasonsFilter: string[];
   onClaimReasonsFilterChange: (reasons: string[]) => void;
   
@@ -114,20 +35,33 @@ interface VDFinanceFiltersProps {
 const VDFinanceFilters: React.FC<VDFinanceFiltersProps> = ({
   searchQuery, onSearchChange,
   dateRange, onDateRangeChange,
+  incidentDateRange, onIncidentDateRangeChange,
   statusFilter, onStatusChange,
   categoriesFilter, onCategoriesFilterChange,
   groupsFilter, onGroupsFilterChange,
+  departmentsFilter, onDepartmentsFilterChange,
   claimReasonsFilter, onClaimReasonsFilterChange,
   amountRange, onAmountRangeChange,
 }) => {
   const startStr = dateRange.start ? dateRange.start.toISOString().slice(0, 10) : '';
   const endStr   = dateRange.end ? dateRange.end.toISOString().slice(0, 10) : '';
+  const incStartStr = incidentDateRange.start ? incidentDateRange.start.toISOString().slice(0, 10) : '';
+  const incEndStr   = incidentDateRange.end ? incidentDateRange.end.toISOString().slice(0, 10) : '';
 
   const { categories } = useVDFinanceCategories();
   const { groups } = useVDFinanceGroups();
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'claimDepartments'), snap => {
+      setDepartments(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    });
+    return () => unsub();
+  }, []);
 
   const categoryOptions = categories.map(c => ({ id: c.id, label: c.name }));
   const groupOptions = [{ id: 'none', label: 'Unassigned (None)' }, ...groups.map(g => ({ id: g.id, label: g.name }))];
+  const deptOptions = [{ id: 'none', label: 'Unassigned (None)' }, ...departments.map(d => ({ id: d.id, label: d.name }))];
   const claimOptions = [
     { id: 'VD', label: 'Vehicle Damage' },
     { id: 'H', label: 'Hire' },
@@ -169,17 +103,29 @@ const VDFinanceFilters: React.FC<VDFinanceFiltersProps> = ({
       <hr className="border-gray-100" />
 
       {/* Grid Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
         
-        {/* Date Filters */}
+        {/* Record Date Filters */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">From Date</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Record From</label>
             <input type="date" value={startStr} max={endStr || undefined} onChange={e => onDateRangeChange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">To Date</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Record To</label>
             <input type="date" value={endStr} min={startStr || undefined} onChange={e => onDateRangeChange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+          </div>
+        </div>
+
+        {/* Incident Date Filters */}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Incident From</label>
+            <input type="date" value={incStartStr} max={incEndStr || undefined} onChange={e => onIncidentDateRangeChange({ ...incidentDateRange, start: e.target.value ? new Date(e.target.value) : null })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Incident To</label>
+            <input type="date" value={incEndStr} min={incStartStr || undefined} onChange={e => onIncidentDateRangeChange({ ...incidentDateRange, end: e.target.value ? new Date(e.target.value) : null })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
           </div>
         </div>
 
@@ -195,10 +141,19 @@ const VDFinanceFilters: React.FC<VDFinanceFiltersProps> = ({
           </div>
         </div>
 
-        {/* Multi-Select Components */}
-        <MultiSelectDropdown label="Categories" options={categoryOptions} selectedValues={categoriesFilter} onChange={onCategoriesFilterChange} placeholder="All Categories" />
-        <MultiSelectDropdown label="Groups" options={groupOptions} selectedValues={groupsFilter} onChange={onGroupsFilterChange} placeholder="All Groups" />
-        <MultiSelectDropdown label="Claim Reasons" options={claimOptions} selectedValues={claimReasonsFilter} onChange={onClaimReasonsFilterChange} placeholder="All Reasons" />
+        {/* Searchable Selects */}
+        <div>
+          <SearchableSelect label="Categories" options={categoryOptions} value={categoriesFilter} onChange={(val) => onCategoriesFilterChange(val as string[])} isMulti={true} multiEmptyMode="empty" placeholder="All Categories" />
+        </div>
+        <div>
+          <SearchableSelect label="Groups" options={groupOptions} value={groupsFilter} onChange={(val) => onGroupsFilterChange(val as string[])} isMulti={true} multiEmptyMode="empty" placeholder="All Groups" />
+        </div>
+        <div>
+          <SearchableSelect label="Departments" options={deptOptions} value={departmentsFilter} onChange={(val) => onDepartmentsFilterChange(val as string[])} isMulti={true} multiEmptyMode="empty" placeholder="All Depts" />
+        </div>
+        <div>
+          <SearchableSelect label="Claim Reasons" options={claimOptions} value={claimReasonsFilter} onChange={(val) => onClaimReasonsFilterChange(val as string[])} isMulti={true} multiEmptyMode="empty" placeholder="All Reasons" />
+        </div>
         
       </div>
     </div>

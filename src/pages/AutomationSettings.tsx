@@ -1,3 +1,4 @@
+// src/pages/AutomationSettings.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
@@ -14,10 +15,20 @@ const AVAILABLE_TAGS: Record<string, string[]> = {
     '[Purchased Date]', '[Insurance Expiry]', '[MOT Expiry]', 
     '[Tax Expiry]', '[Last Maintenance]', '[Next Maintenance]'
   ],
-  rental: ['[Start Date]', '[End Date]', '[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[Subtotal]', '[VAT]'],
-  finance: ['[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[New Balance]', '[Amount Owed]', '[Due Date]', '[Reason]'],
+  rental: [
+    '[Start Date]', '[End Date]', '[Net Amount]', '[VAT Total]', '[Grand Total]', 
+    '[Total Amount]', '[Amount Paid]', '[Paid]', '[Owing]', '[Outstanding Balance]', '[Subtotal]', 
+    '[Return Charges]', '[Extra Charges]', '[Discount Amount]', '[Payment Details]',
+    '[Latest Payment Amount]', '[Latest Payment Date]', '[Latest Payment Time]',
+    '[Main Vehicle Reg]', '[Substitute Vehicle Regs]', '[Sub Reg]', '[Sub Start Date]', '[Sub Start Time]'
+  ],
+  finance: ['[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[New Balance]', '[Amount Owed]', '[Due Date]', '[Reason]', '[Payment Details]'],
   maintenance: ['[Maintenance Type]', '[Date & Time]', '[Location]', '[Garage Name]', '[Additional Notes]', '[Part(s) Required]'],
-  invoice: ['[Invoice Number]', '[Invoice Date]', '[Due Date]', '[Amount]', '[Paid Balance]'],
+  invoice: [
+    '[Invoice Number]', '[Invoice Date]', '[Due Date]', '[Amount]', '[Paid Balance]',
+    '[Net Amount]', '[VAT Total]', '[Grand Total]', '[Paid]', '[Owing]', '[Payment Details]',
+    '[Latest Payment Amount]', '[Latest Payment Date]', '[Latest Payment Time]'
+  ],
   claim: ['[Claim Reference]', '[Claim Type]', '[Client Name]', '[Client Registration]', '[TP Registration]', '[Description]'],
 };
 
@@ -79,7 +90,6 @@ export default function AutomationSettings() {
   };
 
   const seedDatabase = async () => {
-    // Safety check: Only seed if user can create
     if (!canCreate) {
       toast.error('Database empty, and you lack permissions to initialize default templates.');
       return;
@@ -104,13 +114,11 @@ export default function AutomationSettings() {
     toast.success('Default templates loaded.');
   };
 
-  // ─── HISTORY MANAGEMENT ─────────────────────────────────────────
-
   const pushToHistory = useCallback((tpl: any) => {
     setHistory(prev => {
       const newHistory = prev.slice(0, historyIndex + 1);
       newHistory.push(tpl);
-      if (newHistory.length > 50) newHistory.shift(); // Keep last 50 states
+      if (newHistory.length > 50) newHistory.shift(); 
       setHistoryIndex(newHistory.length - 1);
       return newHistory;
     });
@@ -141,21 +149,17 @@ export default function AutomationSettings() {
 
   const handleEditorChange = (field: 'subjectTemplate' | 'bodyTemplate' | 'name', value: string) => {
     if (!canUpdate) return;
-    
     const newTpl = { ...editingTemplate, [field]: value };
     setEditingTemplate(newTpl);
 
-    // Debounce pushing to history so we don't save every single character typed
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       pushToHistory(newTpl);
     }, 500);
   };
 
-  // Keyboard shortcut listener
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!canUpdate) return;
-    
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) redo();
@@ -166,8 +170,6 @@ export default function AutomationSettings() {
       redo();
     }
   };
-
-  // ─── TEMPLATE ACTIONS ───────────────────────────────────────────
 
   const handleCreateNew = () => {
     if (!canCreate) return;
@@ -180,7 +182,6 @@ export default function AutomationSettings() {
       bodyTemplate: '',
       requiredFields: []
     };
-    
     setTemplates(prev => [...prev, newTpl]);
     handleSelectTemplate(newTpl);
     setTimeout(() => subjectRef.current?.focus(), 100);
@@ -203,10 +204,7 @@ export default function AutomationSettings() {
 
   const handleDelete = async () => {
     if (!editingTemplate || !canDelete) return;
-    
-    if (!window.confirm(`Are you sure you want to delete "${editingTemplate.name}"? This action cannot be undone.`)) {
-      return;
-    }
+    if (!window.confirm(`Are you sure you want to delete "${editingTemplate.name}"? This action cannot be undone.`)) return;
 
     setSaving(true);
     try {
@@ -226,19 +224,14 @@ export default function AutomationSettings() {
   const insertTagAtCursor = (tag: string) => {
     if (!editingTemplate || !canUpdate) return;
     const ref = activeField === 'subjectTemplate' ? subjectRef.current : bodyRef.current;
-    
     if (ref) {
       const start = ref.selectionStart || 0;
       const end = ref.selectionEnd || 0;
       const text = editingTemplate[activeField];
-      
       const newText = text.substring(0, start) + tag + text.substring(end);
       const newTpl = { ...editingTemplate, [activeField]: newText };
-      
       setEditingTemplate(newTpl);
-      pushToHistory(newTpl); // Immediate history save for explicit actions
-
-      // Restore cursor position seamlessly
+      pushToHistory(newTpl); 
       setTimeout(() => {
         ref.focus();
         ref.setSelectionRange(start + tag.length, start + tag.length);
@@ -250,7 +243,6 @@ export default function AutomationSettings() {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Template Manager...</div>;
 
-  // ─── PERMISSION CHECK: VIEW ──────────────────────────────────────
   if (!canViewAutomation) {
     return (
       <div className="max-w-7xl mx-auto flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-gray-100 mt-10">
@@ -263,12 +255,8 @@ export default function AutomationSettings() {
     );
   }
 
-  // ─── HELPER FOR RENDER ──────────────────────────────────────────
-  // Determines styles for tag buttons based on update permissions
   const getTagClass = (colorClass: string) => {
-    if (!canUpdate) {
-      return "text-xs px-2 py-1 bg-gray-50 text-gray-400 rounded border border-gray-200 cursor-not-allowed opacity-75";
-    }
+    if (!canUpdate) return "text-xs px-2 py-1 bg-gray-50 text-gray-400 rounded border border-gray-200 cursor-not-allowed opacity-75";
     return `text-xs px-2 py-1 rounded border transition cursor-grab active:cursor-grabbing ${colorClass}`;
   };
 
@@ -288,9 +276,7 @@ export default function AutomationSettings() {
         {/* Left Column: Categories & Template List */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-             <div className="p-3 bg-gray-50 border-b border-gray-200 font-semibold text-gray-700">
-               Categories
-             </div>
+             <div className="p-3 bg-gray-50 border-b border-gray-200 font-semibold text-gray-700">Categories</div>
              <div className="flex flex-col">
                {CATEGORIES.map(cat => (
                  <button
@@ -329,13 +315,9 @@ export default function AutomationSettings() {
                 ))}
              </div>
              
-             {/* ─── PERMISSION CHECK: CREATE ─── */}
              {canCreate && (
                <div className="p-3 border-t border-gray-200 bg-gray-50">
-                 <button 
-                   onClick={handleCreateNew}
-                   className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
-                 >
+                 <button onClick={handleCreateNew} className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-100 transition">
                    <Plus className="w-4 h-4" /> New Template
                  </button>
                </div>
@@ -355,45 +337,22 @@ export default function AutomationSettings() {
                 
                 <div className="flex items-center gap-2">
                   <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden mr-2">
-                    <button 
-                      onClick={undo} 
-                      disabled={historyIndex <= 0 || !canUpdate}
-                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
-                      title="Undo (Ctrl+Z)"
-                    >
+                    <button onClick={undo} disabled={historyIndex <= 0 || !canUpdate} className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition">
                       <Undo2 className="w-4 h-4" />
                     </button>
                     <div className="w-px h-5 bg-gray-300"></div>
-                    <button 
-                      onClick={redo} 
-                      disabled={historyIndex >= history.length - 1 || !canUpdate}
-                      className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
-                      title="Redo (Ctrl+Y)"
-                    >
+                    <button onClick={redo} disabled={historyIndex >= history.length - 1 || !canUpdate} className="p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition">
                       <Redo2 className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* ─── PERMISSION CHECK: DELETE ─── */}
                   {canDelete && (
-                    <button
-                      onClick={handleDelete}
-                      disabled={saving}
-                      className="p-2 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition"
-                      title="Delete Template"
-                    >
+                    <button onClick={handleDelete} disabled={saving} className="p-2 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition">
                       <Trash2 className="w-5 h-5" />
                     </button>
                   )}
 
-                  {/* ─── PERMISSION CHECK: UPDATE (Save Button) ─── */}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !canUpdate}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
-                      canUpdate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
+                  <button onClick={handleSave} disabled={saving || !canUpdate} className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${canUpdate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
                     <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Template'}
                   </button>
                 </div>
@@ -405,41 +364,17 @@ export default function AutomationSettings() {
                    </div>
                  )}
 
-                 {/* ─── PERMISSION CHECK: UPDATE (Inputs disabled if false) ─── */}
                  <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Template Name (Internal)</label>
-                    <input
-                      type="text"
-                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-                      value={editingTemplate.name}
-                      onChange={e => handleEditorChange('name', e.target.value)}
-                      disabled={!canUpdate}
-                    />
+                    <input type="text" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500" value={editingTemplate.name} onChange={e => handleEditorChange('name', e.target.value)} disabled={!canUpdate}/>
                  </div>
                  <div>
-                    <label className="flex justify-between text-sm font-semibold text-gray-700 mb-1">
-                      Subject Line
-                    </label>
-                    <input
-                      ref={subjectRef}
-                      type="text"
-                      onFocus={() => setActiveField('subjectTemplate')}
-                      className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-                      value={editingTemplate.subjectTemplate}
-                      onChange={e => handleEditorChange('subjectTemplate', e.target.value)}
-                      disabled={!canUpdate}
-                    />
+                    <label className="flex justify-between text-sm font-semibold text-gray-700 mb-1">Subject Line</label>
+                    <input ref={subjectRef} type="text" onFocus={() => setActiveField('subjectTemplate')} className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500" value={editingTemplate.subjectTemplate} onChange={e => handleEditorChange('subjectTemplate', e.target.value)} disabled={!canUpdate}/>
                  </div>
                  <div className="flex-1 flex flex-col h-full">
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Message Body</label>
-                    <textarea
-                      ref={bodyRef}
-                      onFocus={() => setActiveField('bodyTemplate')}
-                      className="w-full flex-1 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm leading-relaxed min-h-[350px] disabled:bg-gray-50 disabled:text-gray-500"
-                      value={editingTemplate.bodyTemplate}
-                      onChange={e => handleEditorChange('bodyTemplate', e.target.value)}
-                      disabled={!canUpdate}
-                    />
+                    <textarea ref={bodyRef} onFocus={() => setActiveField('bodyTemplate')} className="w-full flex-1 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm leading-relaxed min-h-[350px] disabled:bg-gray-50 disabled:text-gray-500" value={editingTemplate.bodyTemplate} onChange={e => handleEditorChange('bodyTemplate', e.target.value)} disabled={!canUpdate}/>
                  </div>
               </div>
             </>
@@ -470,16 +405,7 @@ export default function AutomationSettings() {
                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Global</h3>
                <div className="flex flex-wrap gap-2">
                  {AVAILABLE_TAGS.global.map(tag => (
-                   <button 
-                     key={tag} 
-                     draggable={canUpdate} 
-                     onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                     onClick={() => insertTagAtCursor(tag)} 
-                     className={getTagClass("bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100")}
-                     disabled={!canUpdate}
-                   >
-                     {tag}
-                   </button>
+                   <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100")} disabled={!canUpdate}>{tag}</button>
                  ))}
                </div>
              </div>
@@ -489,16 +415,7 @@ export default function AutomationSettings() {
                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Vehicle</h3>
                <div className="flex flex-wrap gap-2">
                  {AVAILABLE_TAGS.vehicle.map(tag => (
-                   <button 
-                     key={tag} 
-                     draggable={canUpdate} 
-                     onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                     onClick={() => insertTagAtCursor(tag)} 
-                     className={getTagClass("bg-green-50 text-green-700 border-green-100 hover:bg-green-100")}
-                     disabled={!canUpdate}
-                   >
-                     {tag}
-                   </button>
+                   <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-green-50 text-green-700 border-green-100 hover:bg-green-100")} disabled={!canUpdate}>{tag}</button>
                  ))}
                </div>
              </div>
@@ -509,16 +426,7 @@ export default function AutomationSettings() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Financial / Rental</h3>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_TAGS[activeCategory].map(tag => (
-                      <button 
-                        key={tag} 
-                        draggable={canUpdate} 
-                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                        onClick={() => insertTagAtCursor(tag)} 
-                        className={getTagClass("bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100")}
-                        disabled={!canUpdate}
-                      >
-                        {tag}
-                      </button>
+                      <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100")} disabled={!canUpdate}>{tag}</button>
                     ))}
                   </div>
                 </div>
@@ -529,16 +437,7 @@ export default function AutomationSettings() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Maintenance</h3>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_TAGS.maintenance.map(tag => (
-                      <button 
-                        key={tag} 
-                        draggable={canUpdate} 
-                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                        onClick={() => insertTagAtCursor(tag)} 
-                        className={getTagClass("bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100")}
-                        disabled={!canUpdate}
-                      >
-                        {tag}
-                      </button>
+                      <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100")} disabled={!canUpdate}>{tag}</button>
                     ))}
                   </div>
                 </div>
@@ -549,16 +448,7 @@ export default function AutomationSettings() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Invoice</h3>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_TAGS.invoice.map(tag => (
-                      <button 
-                        key={tag} 
-                        draggable={canUpdate} 
-                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                        onClick={() => insertTagAtCursor(tag)} 
-                        className={getTagClass("bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100")}
-                        disabled={!canUpdate}
-                      >
-                        {tag}
-                      </button>
+                      <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100")} disabled={!canUpdate}>{tag}</button>
                     ))}
                   </div>
                 </div>
@@ -569,16 +459,7 @@ export default function AutomationSettings() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Claims</h3>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_TAGS.claim.map(tag => (
-                      <button 
-                        key={tag} 
-                        draggable={canUpdate} 
-                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                        onClick={() => insertTagAtCursor(tag)} 
-                        className={getTagClass("bg-red-50 text-red-700 border-red-100 hover:bg-red-100")}
-                        disabled={!canUpdate}
-                      >
-                        {tag}
-                      </button>
+                      <button key={tag} draggable={canUpdate} onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)} onClick={() => insertTagAtCursor(tag)} className={getTagClass("bg-red-50 text-red-700 border-red-100 hover:bg-red-100")} disabled={!canUpdate}>{tag}</button>
                     ))}
                   </div>
                 </div>

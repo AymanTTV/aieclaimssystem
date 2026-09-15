@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
-import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature } from 'lucide-react';
+import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature, Briefcase } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -21,8 +21,8 @@ interface InvoiceTableProps {
   onDeletePayment: (invoice: Invoice, paymentId: string) => void;
   onGenerateDocument: (invoice: Invoice) => void;
   onViewDocument: (invoice: Invoice) => void;
+  onAssignDepartment: (invoice: Invoice) => void; // NEW
   
-  // NEW PROPS FOR BULK SELECTION
   isManager: boolean;
   selectedIds: Set<string>;
   onToggleAll: (checked: boolean) => void;
@@ -30,22 +30,9 @@ interface InvoiceTableProps {
 }
 
 const InvoiceTable: React.FC<InvoiceTableProps> = ({
-  invoices,
-  vehicles,
-  customers,
-  onView,
-  onEdit,
-  onDelete,
-  onDownload,
-  onRecordPayment,
-  onApplyDiscount,
-  onDeletePayment,
-  onGenerateDocument,
-  onViewDocument,
-  isManager,
-  selectedIds,
-  onToggleAll,
-  onToggleOne,
+  invoices, vehicles, customers, onView, onEdit, onDelete, onDownload,
+  onRecordPayment, onApplyDiscount, onDeletePayment, onGenerateDocument,
+  onViewDocument, onAssignDepartment, isManager, selectedIds, onToggleAll, onToggleOne,
 }) => {
   const { can } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -79,17 +66,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   const allSelected = sortedInvoices.length > 0 && selectedIds.size === sortedInvoices.length;
   const someSelected = sortedInvoices.length > 0 && selectedIds.size > 0 && !allSelected;
 
-  const ActionBtn = ({ 
-    onClick, 
-    icon: Icon, 
-    colorClass, 
-    title 
-  }: { 
-    onClick: (e: React.MouseEvent) => void, 
-    icon: any, 
-    colorClass: string, 
-    title: string 
-  }) => (
+  const ActionBtn = ({ onClick, icon: Icon, colorClass, title }: { onClick: (e: React.MouseEvent) => void, icon: any, colorClass: string, title: string }) => (
     <button 
       onClick={e => { e.stopPropagation(); onClick(e); }} 
       title={title}
@@ -104,22 +81,10 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       {
         id: 'select',
         header: (
-          <input 
-            type="checkbox" 
-            className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" 
-            checked={allSelected} 
-            ref={(input) => { if (input) input.indeterminate = someSelected; }} 
-            onChange={(e) => onToggleAll(e.target.checked)} 
-          />
+          <input type="checkbox" className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" checked={allSelected} ref={(input) => { if (input) input.indeterminate = someSelected; }} onChange={(e) => onToggleAll(e.target.checked)} />
         ),
         cell: ({ row }: any) => (
-          <input 
-            type="checkbox" 
-            className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" 
-            checked={selectedIds.has(row.original.id)} 
-            onChange={() => onToggleOne(row.original.id)} 
-            onClick={(e) => e.stopPropagation()} 
-          />
+          <input type="checkbox" className="form-checkbox h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary" checked={selectedIds.has(row.original.id)} onChange={() => onToggleOne(row.original.id)} onClick={(e) => e.stopPropagation()} />
         ),
       },
       {
@@ -135,26 +100,34 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       {
         header: 'Customer',
         cell: ({ row }: any) => {
+          let content = <span className="text-gray-500">No customer</span>;
           if (row.original.customerName) {
-            return (
+            content = (
               <div>
                 <div className="font-medium">{row.original.customerName}</div>
-                {row.original.customerPhone && (
-                  <div className="text-sm text-gray-500">
-                    {row.original.customerPhone}
-                  </div>
-                )}
+                {row.original.customerPhone && <div className="text-sm text-gray-500">{row.original.customerPhone}</div>}
               </div>
             );
+          } else {
+            const cust = customers.find(c => c.id === row.original.customerId);
+            if (cust) {
+              content = (
+                <div>
+                  <div className="font-medium">{cust.name}</div>
+                  <div className="text-sm text-gray-500">{cust.mobile}</div>
+                </div>
+              );
+            }
           }
-          const cust = customers.find(c => c.id === row.original.customerId);
-          return cust ? (
+          return (
             <div>
-              <div className="font-medium">{cust.name}</div>
-              <div className="text-sm text-gray-500">{cust.mobile}</div>
+              {content}
+              {row.original.departmentName && (
+                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-800">
+                  {row.original.departmentName}
+                </div>
+              )}
             </div>
-          ) : (
-            <span className="text-gray-500">No customer</span>
           );
         },
       },
@@ -177,13 +150,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       { 
         header: 'Type',
         cell: ({ row }: any) => {
-          if (row.original.isLoan) {
-            return (
-              <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">
-                Loan
-              </span>
-            );
-          }
+          if (row.original.isLoan) return <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">Loan</span>;
           return <span className="text-gray-400 text-sm">-</span>;
         },
       },
@@ -210,9 +177,7 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Category',
         cell: ({ row }: any) => (
           <span className="capitalize font-medium text-sm text-gray-700">
-            {row.original.category === 'Other'
-              ? row.original.customCategory
-              : row.original.category}
+            {row.original.category === 'Other' ? row.original.customCategory : row.original.category}
           </span>
         ),
       },
@@ -241,34 +206,26 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       {
         header: 'Payment History',
         cell: ({ row }: any) => {
-          const payments = row.original.payments || [];
+          const payments = [...(row.original.payments || [])]
+      .sort((a: any, b: any) => {
+        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+        return dateB - dateA;
+      })
+      .slice(0, 5);
           return payments.length > 0 ? (
             <div className="space-y-1">
               {payments.map((payment: any) => (
-                <div
-                  key={payment.id}
-                  className="text-sm flex items-center justify-between bg-gray-50 p-1.5 rounded"
-                >
+                <div key={payment.id} className="text-sm flex items-center justify-between bg-gray-50 p-1.5 rounded">
                   <div>
                     <div className="flex items-center">
                       <span className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</span>
                       {can('invoices', 'delete') && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeletePayment(row.original, payment.id);
-                          }}
-                          className="ml-2 text-red-600 hover:text-red-800"
-                          title="Delete Payment"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); onDeletePayment(row.original, payment.id); }} className="ml-2 text-red-600 hover:text-red-800" title="Delete Payment"><Trash2 className="h-3 w-3" /></button>
                       )}
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">
-                      <span className="capitalize">
-                        {payment.method.replace('_', ' ')}
-                      </span>
+                      <span className="capitalize">{payment.method.replace('_', ' ')}</span>
                       <span className="mx-1">•</span>
                       <span>{formatDateValue(payment.date)}</span>
                     </div>
@@ -289,39 +246,25 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
           return (
             <div className="flex flex-col gap-1.5 items-center justify-center py-2 min-w-[100px]">
               
-              {/* ROW 1: Editing & Core Actions */}
               <div className="flex flex-wrap justify-center gap-1">
-                {can('invoices', 'view') && (
-                  <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />
-                )}
-                {can('invoices', 'update') && (
-                  <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />
-                )}
+                {can('invoices', 'view') && <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />}
+                {can('invoices', 'update') && <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />}
+                {can('invoices', 'assign') && <ActionBtn onClick={() => onAssignDepartment(inv)} icon={Briefcase} colorClass="text-teal-600" title="Assign Department" />}
               </div>
 
-              {/* ROW 2: Financials */}
               {inv.remainingAmount > 0 && can('invoices', 'recordPayment') && (
                 <div className="flex flex-wrap justify-center gap-1 w-full pt-1 border-t border-gray-100">
                   <ActionBtn onClick={() => onRecordPayment(inv)} icon={CreditCard} colorClass="text-emerald-600" title="Record Payment" />
                 </div>
               )}
 
-              {/* ROW 3: Documents (ALWAYS SHOW REGENERATE BUTTON) */}
               {can('invoices', 'singleDoc') && (
                 <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">
-                  {inv.documentUrl && (
-                      <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-blue-700" title="View Current Document" />
-                  )}
-                  <ActionBtn 
-                      onClick={() => onGenerateDocument(inv)} 
-                      icon={FileSignature} 
-                      colorClass={inv.documentUrl ? "text-green-600" : "text-blue-600"} 
-                      title={inv.documentUrl ? "Regenerate New Document" : "Generate Document"} 
-                  />
+                  {inv.documentUrl && <ActionBtn onClick={() => onViewDocument(inv)} icon={FileText} colorClass="text-blue-700" title="View Current Document" />}
+                  <ActionBtn onClick={() => onGenerateDocument(inv)} icon={FileSignature} colorClass={inv.documentUrl ? "text-green-600" : "text-blue-600"} title={inv.documentUrl ? "Regenerate New Document" : "Generate Document"} />
                 </div>
               )}
 
-              {/* ROW 4: Destructive */}
               {can('invoices', 'delete') && (
                 <div className="flex flex-wrap justify-center gap-1 w-full pt-1">
                   <ActionBtn onClick={() => onDelete(inv)} icon={Trash2} colorClass="text-red-600 hover:bg-red-50" title="Delete Invoice" />

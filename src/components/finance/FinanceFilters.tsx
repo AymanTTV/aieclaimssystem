@@ -25,6 +25,9 @@ interface FinanceFiltersProps {
   groupFilter: string | string[];
   onGroupFilterChange: (groupId: string | string[]) => void;
   groupOptions: { id: string; name: string }[];
+  departmentFilter: string | string[]; 
+  onDepartmentFilterChange: (departmentId: string | string[]) => void; 
+  departments: { id: string; name: string }[]; 
   customerFilter: string | string[];
   onCustomerFilterChange: (customerId: string | string[]) => void;
   customers: { id: string; name: string }[];
@@ -40,23 +43,21 @@ interface FinanceFiltersProps {
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
-  dateRange, onDateRangeChange,
-  type, onTypeChange,
-  statusFilter, onStatusFilterChange,
-  categoryFilter, onCategoryFilterChange,
-  owner, onOwnerChange, owners,
+  dateRange, onDateRangeChange, type, onTypeChange, statusFilter, onStatusFilterChange,
+  categoryFilter, onCategoryFilterChange, owner, onOwnerChange, owners,
   accountFilter, onAccountFilterChange, accounts,
   groupFilter, onGroupFilterChange, groupOptions,
+  departmentFilter, onDepartmentFilterChange, departments,
   customerFilter, onCustomerFilterChange, customers,
   vehicleFilter, onVehicleFilterChange, vehicles,
   categories, showLinked, onShowLinkedChange,
   recurringFilter, onRecurringFilterChange,
   recurringFrequency, onRecurringFrequencyChange
 }) => {
-  const { formatCurrency } = useFormattedDisplay();
 
   const categoryOptions = useMemo(() => [{ id: 'all', label: 'All Categories' }, ...categories.map((cat) => ({ id: cat, label: cat }))], [categories]);
-  const groupSelectOptions = useMemo(() => [{ id: 'all', label: 'All Groups' }, { id: 'none', label: 'No Group Assigned' }, ...groupOptions.map((g) => ({ id: g.id, label: g.name }))], [groupOptions]);
+  const groupSelectOptions = useMemo(() => [{ id: 'all', label: 'All Groups' }, { id: 'no_group_assigned', label: 'No Group Assigned' }, ...groupOptions.map((g) => ({ id: g.id, label: g.name }))], [groupOptions]);
+  const deptSelectOptions = useMemo(() => [{ id: 'all', label: 'All Departments' }, { id: 'no_department_assigned', label: 'No Department Assigned' }, ...departments.map((d) => ({ id: d.id, label: d.name }))], [departments]);
   const ownerOptions = useMemo(() => [{ id: 'all', label: 'All Owners' }, { id: 'no_owner_assigned', label: 'No Vehicle Assigned' }, ...owners.map((o) => ({ id: o, label: o }))], [owners]);
   
   const customerOptions = useMemo(() => [{ id: 'all', label: 'All Customers' }, { id: 'no_customer_assigned', label: 'No Customer Assigned' }, ...customers.map((c) => ({ id: c.id, label: c.name }))], [customers]);
@@ -80,6 +81,18 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     return !val || val === '';
   };
 
+  const createMultiHandler = (onChange: (val: string | string[]) => void) => (val: any) => {
+    if (val == null) return onChange([]);
+    if (Array.isArray(val)) {
+      const cleaned = val.filter(Boolean);
+      if (cleaned.includes('all')) return onChange(['all']);
+      return onChange(cleaned.length === 0 ? [] : cleaned);
+    }
+    if (val === '') return onChange([]);
+    if (val === 'all') return onChange(['all']);
+    return onChange(val);
+  };
+
   const handleAccountChange = (val: any) => {
     if (val == null) return onAccountFilterChange([]);
     if (Array.isArray(val)) {
@@ -98,7 +111,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700">From</label>
           <input type="date" value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''} onChange={(e) => onDateRangeChange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })} className="form-input mt-1 w-full" />
@@ -120,12 +133,14 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
 
-        <SearchableSelect label="Category" value={categoryFilter} onChange={onCategoryFilterChange} options={categoryOptions} isClearable={!isAll(categoryFilter)} isMulti={true} />
-        <SearchableSelect label="Group" value={groupFilter} onChange={onGroupFilterChange} options={groupSelectOptions} isClearable={!isAll(groupFilter)} isMulti={true} />
-        <SearchableSelect label="Owner" value={owner} onChange={onOwnerChange} options={ownerOptions} isClearable={!isAll(owner)} isMulti={true} />
+        <SearchableSelect label="Category" value={categoryFilter} onChange={createMultiHandler(onCategoryFilterChange)} options={categoryOptions} isClearable={!isAll(categoryFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
+        <SearchableSelect label="Group" value={groupFilter} onChange={createMultiHandler(onGroupFilterChange)} options={groupSelectOptions} isClearable={!isAll(groupFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
+        <SearchableSelect label="Department" value={departmentFilter} onChange={createMultiHandler(onDepartmentFilterChange)} options={deptSelectOptions} isClearable={!isAll(departmentFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
+        
+        <SearchableSelect label="Owner" value={owner} onChange={createMultiHandler(onOwnerChange)} options={ownerOptions} isClearable={!isAll(owner)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
         <SearchableSelect label="Account" value={accountFilter} onChange={handleAccountChange} options={accountOptions} isClearable={!isAccountDefault(accountFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
-        <SearchableSelect label="Customer" value={customerFilter} onChange={onCustomerFilterChange} options={customerOptions} isClearable={!isAll(customerFilter)} isMulti={true} />
-        <SearchableSelect label="Vehicle" value={vehicleFilter} onChange={onVehicleFilterChange} options={vehicleOptions} isClearable={!isAll(vehicleFilter)} isMulti={true} />
+        <SearchableSelect label="Customer" value={customerFilter} onChange={createMultiHandler(onCustomerFilterChange)} options={customerOptions} isClearable={!isAll(customerFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
+        <SearchableSelect label="Vehicle" value={vehicleFilter} onChange={createMultiHandler(onVehicleFilterChange)} options={vehicleOptions} isClearable={!isAll(vehicleFilter)} isMulti={true} multiEmptyMode="empty" showAllChipInMulti={true} allId="all" />
 
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-700">Linked Status</label>

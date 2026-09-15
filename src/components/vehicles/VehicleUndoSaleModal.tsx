@@ -44,7 +44,9 @@ const VehicleUndoSaleModal: React.FC<VehicleUndoSaleModalProps> = ({ vehicle, on
           paymentStatus: 'paid',
           date: new Date(),
           accountFrom: vehicle.owner?.accountId || undefined,
-          groupId: vehicle.assignedGroupId || undefined, // ✅ Pass the vehicle's assigned group for the reversal
+          groupId: vehicle.assignedGroupId || undefined, 
+          departmentId: vehicle.assignedDepartmentId || undefined, // ✅ Pass the vehicle's assigned department for the reversal
+          departmentName: vehicle.assignedDepartmentName || undefined, // ✅ Pass the vehicle's assigned department name
         });
       }
 

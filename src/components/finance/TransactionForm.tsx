@@ -26,6 +26,7 @@ interface TransactionFormProps {
   accounts: Account[];
   vehicles: Vehicle[];
   customers: Customer[];
+  departments?: { id: string; name: string }[]; // NEW
   onClose: () => void;
 }
 
@@ -36,6 +37,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   accounts = [],
   vehicles = [],
   customers = [],
+  departments = [], // NEW
   onClose,
 }) => {
   const { user } = useAuth();
@@ -126,6 +128,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     manualVehicleModel: '',
     manualVehicleReg: '',
     groupId: transaction?.groupId || '',
+    departmentId: transaction?.departmentId || '', // NEW
     accountTo: getFirstAccount(transaction?.accountsTo),
     accountFrom: getFirstAccount(transaction?.accountsFrom),
     accountTo2: getSecondAccount(transaction?.accountsTo),
@@ -141,7 +144,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       
       let make = '', model = '', reg = '';
       if (isManualVeh && transaction.vehicleName) {
-         // Attempt to parse out Make, Model, and Reg from saved string "Make Model (Reg)"
          const match = transaction.vehicleName.match(/(.+?)\s+\((.+?)\)$/);
          if (match) {
              const makeModel = match[1];
@@ -150,7 +152,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
              make = parts[0] || '';
              model = parts.slice(1).join(' ') || '';
          } else {
-             make = transaction.vehicleName; // Fallback if formatting doesn't match
+             make = transaction.vehicleName; 
          }
       }
 
@@ -171,6 +173,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
          manualVehicleModel: model,
          manualVehicleReg: reg,
          groupId: transaction.groupId || '',
+         departmentId: transaction.departmentId || '', // NEW
          accountTo: getFirstAccount(transaction.accountsTo),
          accountFrom: getFirstAccount(transaction.accountsFrom),
          accountTo2: getSecondAccount(transaction.accountsTo),
@@ -184,7 +187,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', 
           paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', 
           vehicleId: '', vehicleName: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '', 
-          groupId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' 
+          groupId: '', departmentId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' 
         }));
         setManualEntry(false);
         setManualVehicleEntry(false);
@@ -212,6 +215,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     try {
       const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
       const selectedCustomer = customers.find((c) => c.id === formData.customerId);
+      const dept = departments.find((d) => d.id === formData.departmentId); // NEW
       const vehicleOwner = manualVehicleEntry ? null : (selectedVehicle ? (selectedVehicle.owner || null) : { name: 'AIE Skyline Limited', isDefault: true });
       const newAmount = Math.abs(parseFloat(formData.amount || '0'));
       
@@ -236,6 +240,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           vehicleName: manualVehicleEntry ? combinedManualVehicleName : (selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null),
           vehicleOwner: vehicleOwner,
           groupId: formData.groupId || null,
+          departmentId: formData.departmentId || null, // NEW
+          departmentName: dept ? dept.name : null, // NEW
           updatedAt: new Date(),
           updatedBy: user.name || user.email || '',
           amount: newAmount,
@@ -462,8 +468,21 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </>
       )}
 
-      <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Category</label>{catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}</div>
-      <div className="space-y-2"><label className="block text-sm font-medium text-gray-700">Group (Optional)</label>{groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}</div>
+      {/* NEW: Updated grid for Category, Group, and Department */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          {catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Group (Optional)</label>
+          {groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Department (Optional)</label>
+          <SearchableSelect options={departments.map(d => ({ id: d.id, label: d.name }))} value={formData.departmentId} onChange={id => setFormData({...formData, departmentId: id || ''})} placeholder="Select department..." isClearable />
+        </div>
+      </div>
       
       <div className="space-y-4">
         <div>

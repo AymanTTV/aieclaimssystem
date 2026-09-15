@@ -8,7 +8,8 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PROGRESS_OPTIONS, isLegacyClaimProgress } from '../../utils/claimProgress';
-import { generateClaimProgressDocument } from '../../utils/documentGenerator'; // Import generator
+import { generateClaimProgressDocument } from '../../utils/documentGenerator'; 
+import { usePermissions } from '../../hooks/usePermissions'; // Added import
 
 interface ProgressEntry {
   id: string;
@@ -30,13 +31,14 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
   onUpdate,
 }) => {
   const { user } = useAuth();
+  const { can } = usePermissions(); // Added hook initialization
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<ProgressEntry[]>([]);
   const [isLegacy, setIsLegacy] = useState(false);
 
   // Status State
-  const [status, setStatus] = useState<string>(''); // Default empty
-  const [previousStatus, setPreviousStatus] = useState<string>('N/A'); // Track previous
+  const [status, setStatus] = useState<string>(''); 
+  const [previousStatus, setPreviousStatus] = useState<string>('N/A'); 
   
   const [dateValue, setDateValue] = useState<string>('');
   const [note, setNote] = useState('');
@@ -99,7 +101,7 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
 
   const resetForm = () => {
     setEditing(null);
-    setStatus(''); // Reset to empty
+    setStatus(''); 
     setNote('');
     setDateValue(new Date().toISOString().substring(0, 16));
   };
@@ -282,39 +284,45 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
         </div>
       </form>
 
-      {/* History List */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-medium text-gray-700">Progress History</h4>
-        <div className="max-h-64 overflow-auto space-y-4 pr-1">
-            {sortedHistory.map(entry => (
-            <div key={entry.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-start">
-                <div>
-                <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                    {entry.status}
-                    </span>
-                    <span className="text-xs text-gray-500">{entry.date.toLocaleString()}</span>
-                </div>
-                <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{entry.note}</p>
-                <p className="mt-1 text-xs text-gray-500">By {entry.author}</p>
-                </div>
-                <div className="flex flex-col space-y-2 ml-4">
-                <button type="button" onClick={() => handleEdit(entry)} className="p-1 hover:bg-gray-200 rounded" disabled={loading}>
-                    <Edit className="h-4 w-4 text-gray-600" />
-                </button>
-                {user?.role === 'manager' && (
-                    <button type="button" onClick={() => handleDelete(entry)} className="p-1 hover:bg-gray-200 rounded" disabled={loading}>
-                    <Trash2 className="h-4 w-4 text-red-600" />
+      {/* History List wrapped in progressview check */}
+      {can('claims', 'progressview') && (
+        <div className="space-y-4">
+          <h4 className="text-sm font-medium text-gray-700">Progress History</h4>
+          <div className="max-h-64 overflow-auto space-y-4 pr-1">
+              {sortedHistory.map(entry => (
+              <div key={entry.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-start">
+                  <div>
+                  <div className="flex items-center space-x-2">
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                      {entry.status}
+                      </span>
+                      <span className="text-xs text-gray-500">{entry.date.toLocaleString()}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{entry.note}</p>
+                  <p className="mt-1 text-xs text-gray-500">By {entry.author}</p>
+                  </div>
+                  
+                  {/* Edit/Delete buttons wrapped in progressedit check */}
+                  {can('claims', 'progressedit') && (
+                    <div className="flex flex-col space-y-2 ml-4">
+                    <button type="button" onClick={() => handleEdit(entry)} className="p-1 hover:bg-gray-200 rounded" disabled={loading}>
+                        <Edit className="h-4 w-4 text-gray-600" />
                     </button>
-                )}
-                </div>
-            </div>
-            ))}
-            {sortedHistory.length === 0 && (
-            <p className="text-sm text-gray-500">No progress entries yet.</p>
-            )}
+                    {user?.role === 'manager' && (
+                        <button type="button" onClick={() => handleDelete(entry)} className="p-1 hover:bg-gray-200 rounded" disabled={loading}>
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                        </button>
+                    )}
+                    </div>
+                  )}
+              </div>
+              ))}
+              {sortedHistory.length === 0 && (
+              <p className="text-sm text-gray-500">No progress entries yet.</p>
+              )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="text-right">
         <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 hover:underline" disabled={loading}>

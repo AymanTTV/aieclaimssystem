@@ -25,6 +25,7 @@ import financeGroupService, { FinanceGroup } from '../../services/financeGroup.s
 
 interface VehicleFormProps {
   vehicle?: Vehicle;
+  departments?: { id: string; name: string }[]; // ✅ Added departments prop
   onClose: () => void;
   onSubmit: (data: Partial<Vehicle>) => Promise<void>;
 }
@@ -57,7 +58,7 @@ function useDocumentManager(initialUrls: string[]) {
   return { existingUrls, newFiles, previews, add, removeAt };
 }
 
-const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit }) => {
+const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], onClose, onSubmit }) => {
   const { user } = useAuth();
   const { can, isCompany } = usePermissions();
   const [loading, setLoading] = useState(false);
@@ -148,8 +149,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
     nslExpiry: formatDateForInput(vehicle?.nslExpiry ?? null),
     roadTaxExpiry: formatDateForInput(vehicle?.roadTaxExpiry ?? null),
 
-    // ✅ Group Field
+    // ✅ Group & Department Field
     assignedGroupId: vehicle?.assignedGroupId ?? '',
+    assignedDepartmentId: vehicle?.assignedDepartmentId ?? '', // ✅ Added
   });
 
   const handleServiceMileageChange = (field: 'mileage' | 'serviceInterval', value: string) => {
@@ -224,8 +226,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         finalOwner.accountName = null;
       }
 
-      // ✅ Lookup selected group
+      // ✅ Lookup selected group and department
       const selectedGroup = groups.find(g => g.id === formData.assignedGroupId);
+      const selectedDepartment = departments.find(d => d.id === formData.assignedDepartmentId); // ✅ Added
 
       const payload: Partial<Vehicle> & { serviceInterval?: number } = {
         vin: formData.vin,
@@ -262,9 +265,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
         warrantyEndDate: formData.warrantyEndDate ? parseISO(formData.warrantyEndDate) : undefined,
         updatedAt: new Date(),
         
-        // ✅ Inject Group IDs
+        // ✅ Inject Group and Department IDs
         assignedGroupId: formData.assignedGroupId || null,
         assignedGroupName: selectedGroup ? selectedGroup.name : null,
+        assignedDepartmentId: formData.assignedDepartmentId || null, // ✅ Added
+        assignedDepartmentName: selectedDepartment ? selectedDepartment.name : null, // ✅ Added
 
         documents: {
           nslImage: nslUrls,
@@ -361,6 +366,18 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, onClose, onSubmit })
                   value={formData.assignedGroupId}
                   onChange={(val) => setFormData({ ...formData, assignedGroupId: val || '' })}
                   placeholder="Select Group (Optional)"
+                  isClearable
+                />
+              </div>
+
+              {/* ✅ Added Department Assignment selector in Form */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Department</label>
+                <SearchableSelect
+                  options={departments.map(d => ({ id: d.id, label: d.name }))}
+                  value={formData.assignedDepartmentId}
+                  onChange={(val) => setFormData({ ...formData, assignedDepartmentId: val || '' })}
+                  placeholder="Select Department (Optional)"
                   isClearable
                 />
               </div>

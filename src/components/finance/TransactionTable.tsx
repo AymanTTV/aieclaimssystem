@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle, Account } from '../../types';
-import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw } from 'lucide-react';
+import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw, Briefcase } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, isValid } from 'date-fns';
@@ -19,6 +19,7 @@ interface TransactionTableProps {
   onViewDocument: (url: string) => void;
   onPrintReceipt?: (transaction: Transaction) => void;
   onAssign: (transaction: Transaction) => void;
+  onAssignDepartment: (transaction: Transaction) => void;
   groups: { id: string; name: string }[];
   isManager: boolean;
   selectedIds: Set<string>;
@@ -28,7 +29,7 @@ interface TransactionTableProps {
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions = [], vehicles = [], accounts = [], groups = [],
-  onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onPrintReceipt, onAssign,
+  onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onPrintReceipt, onAssign, onAssignDepartment,
   isManager, selectedIds, onToggleAll, onToggleOne,
 }) => {
   const { can } = usePermissions();
@@ -96,12 +97,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         ),
       },
       {
-        header: 'Dates',
+        header: 'Date', 
         accessorKey: 'date',
         cell: ({ row }: { row: { original: Transaction } }) => (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-bold text-gray-900" title="Actual Payment Date">Pay: {safeFormatDate(row.original.date)}</span>
-            <span className="text-xs text-gray-500 font-medium" title="System Entry Date">Entry: {safeFormatDate(row.original.createdAt)}</span>
+          <div className="text-sm font-bold text-gray-900" title="Transaction Date">
+            {safeFormatDate(row.original.date)}
           </div>
         ),
       },
@@ -130,10 +130,14 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         header: 'Category',
         cell: ({ row }: { row: { original: Transaction } }) => {
           const group = row.original.groupId ? groups.find(g => g.id === row.original.groupId) : null;
+          // Fall back gracefully to `groupName` if group mapping isn't cleanly established
+          const displayGroupName = group ? group.name : row.original.groupName;
+          
           return (
-             <div className="flex flex-col gap-1">
+             <div className="flex flex-col gap-1 items-start">
                 <span className="text-sm text-gray-900 font-medium">{row.original.category}</span>
-                {group && <span className="text-xs text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded w-fit">{group.name}</span>}
+                {displayGroupName && <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">Grp: {displayGroupName}</span>}
+                {row.original.departmentName && <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 w-fit">Dept: {row.original.departmentName}</span>}
              </div>
           );
         }
@@ -213,6 +217,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
               {can('finance', 'view') && <ActionBtn onClick={() => onView(row.original)} icon={Eye} colorClass="text-blue-600" title="View Details" />}
               {can('finance', 'update') && <ActionBtn onClick={() => onEdit(row.original)} icon={Edit} colorClass="text-indigo-600" title="Edit Transaction" />}
               {can('finance', 'assign') && <ActionBtn onClick={() => onAssign(row.original)} icon={Tag} colorClass="text-purple-600" title="Assign Group/Category" />}
+              {can('finance', 'assign') && <ActionBtn onClick={() => onAssignDepartment(row.original)} icon={Briefcase} colorClass="text-teal-600" title="Assign Department" />}
             </div>
             {can('finance', 'singleDoc') && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-1.5 border-t border-gray-100">

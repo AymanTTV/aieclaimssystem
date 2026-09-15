@@ -14,6 +14,8 @@ export interface VDFinanceRecord {
   profit: number;
   description: string;
   date: Date;
+  incidentDate?: Date; // NEW
+  incidentTime?: string; // NEW
   parts: VDFinancePart[];
   laborCharge: number;
   serviceCenter: string;
@@ -29,10 +31,12 @@ export interface VDFinanceRecord {
   categoryName?: string;
   groupId?: string;
   groupName?: string;
+  departmentId?: string; // NEW
+  departmentName?: string; // NEW
   claimReasons?: Array<'VD' | 'H' | 'S' | 'PI'>;
   originalProfit?: number;
   
-  // NEW: Link to the mirrored Share record
+  // Link to the mirrored Share record
   linkedShareId?: string; 
   
   vatDetails: {

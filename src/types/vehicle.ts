@@ -14,7 +14,6 @@ export interface VehicleOwner {
   name: string;
   address: string;
   isDefault?: boolean;
-  // Link to Finance Account
   accountId?: string;
   accountName?: string;
 }
@@ -31,7 +30,7 @@ export interface MileageUpdate {
   date: Date;
   mileage: number;
   note?: string;
-  updatedBy?: string; // uid or display name
+  updatedBy?: string; 
   source?: 'form' | 'service' | 'import' | 'other';
 }
 
@@ -51,11 +50,9 @@ export interface Vehicle {
 
   serviceInterval?: number;
 
-  // Core counters
   mileage: number;
   nextServiceMileage: number;
 
-  // Dates
   insuranceExpiry?: Date | null;
   motTestDate?: Date | null;
   motExpiry?: Date | null;
@@ -64,56 +61,49 @@ export interface Vehicle {
   lastMaintenance?: Date | null;
   nextMaintenance?: Date | null;
 
-  // when the car was purchased
   purchasedDate?: Date | null;
 
-  // Pricing
   weeklyRentalPrice: number;
   dailyRentalPrice: number;
   claimRentalPrice: number;
 
-  // Rental insurance amounts
   weeklyInsuranceAmount?: number;
   dailyInsuranceAmount?: number;
   claimInsuranceAmount?: number;
 
-  // Ownership & Assignments
   owner?: VehicleOwner;
   assignedGarageId?: string | null;   
   assignedGarageName?: string | null; 
   assignmentType?: VehicleTypeAssignment | null; 
   
-  // ✅ NEW: Finance Group Assignment
   assignedGroupId?: string | null;
   assignedGroupName?: string | null;
 
-  // Media & docs
+  // ✅ NEW: Department Assignment
+  assignedDepartmentId?: string | null;
+  assignedDepartmentName?: string | null;
+
   image?: string;
   documents?: VehicleDocuments;
 
-  // Status & audit
   status: VehicleStatus;
   activeStatuses?: string[]; 
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: string;
 
-  // Sales (if sold)
   soldDate?: Date | null;
   salePrice?: number | null;
 
-  // mileage history
   mileageUpdates?: MileageUpdate[];
 }
 
-// Defaults
 export const DEFAULT_RENTAL_PRICES = {
   weekly: 360,
   daily: 60,
   claim: 340,
 } as const;
 
-// Defaults (insurance amounts)
 export const DEFAULT_INSURANCE_AMOUNTS = {
   weekly: 0,
   daily: 0,
