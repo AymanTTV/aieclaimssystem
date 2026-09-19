@@ -12,6 +12,9 @@ export type ContactPreference = 'call' | 'sms' | 'whatsapp' | 'email';
 export interface WaitingEntry {
   id: string;
   fullName: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   phone: string;
   email?: string;
   reason?: string;

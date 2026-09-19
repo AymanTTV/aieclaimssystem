@@ -7,6 +7,7 @@ import { auth, db, storage } from '../../lib/firebase';
 import { User } from '../../types';
 import toast from 'react-hot-toast';
 import { Building2, Mail, Phone, ShieldCheck, User as UserIcon, MapPin, Upload, UserCircle, Key, AlertCircle } from 'lucide-react';
+import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
 
 interface UserEditModalProps {
   user: User;
@@ -22,14 +23,92 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose }) => {
   const [showResetConfirm, setShowResetConfirm] = useState(false); // New state for custom confirmation
   const [imagePreview, setImagePreview] = useState<string | null>(user.photoURL || null);
   
+  const initialName = user.firstName
+    ? { firstName: user.firstName, middleName: user.middleName || '', lastName: user.lastName || '' }
+    : splitFullName(user.name);
+
+  const initialAddress = (user.buildingFlat || user.streetName)
+    ? {
+        buildingFlat: user.buildingFlat || '',
+        streetName: user.streetName || '',
+        townCity: user.townCity || '',
+        postcode: user.postcode || '',
+        country: user.country || '',
+      }
+    : splitFullAddress(user.address);
+
   const [formData, setFormData] = useState({
     name: user.name || '',
+    firstName: initialName.firstName,
+    middleName: initialName.middleName,
+    lastName: initialName.lastName,
     role: user.role,
     companyName: user.companyName || '',
     phoneNumber: user.phoneNumber || '',
     address: user.address || '',
+    buildingFlat: initialAddress.buildingFlat,
+    streetName: initialAddress.streetName,
+    townCity: initialAddress.townCity,
+    postcode: initialAddress.postcode,
+    country: initialAddress.country,
     image: null as File | null,
   });
+
+  const handleFirstNameChange = (firstName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(firstName, prev.middleName, prev.lastName);
+      return { ...prev, firstName, name };
+    });
+  };
+
+  const handleMiddleNameChange = (middleName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(prev.firstName, middleName, prev.lastName);
+      return { ...prev, middleName, name };
+    });
+  };
+
+  const handleLastNameChange = (lastName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(prev.firstName, prev.middleName, lastName);
+      return { ...prev, lastName, name };
+    });
+  };
+
+  const handleBuildingFlatChange = (buildingFlat: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(buildingFlat, prev.streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, buildingFlat, address };
+    });
+  };
+
+  const handleStreetNameChange = (streetName: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, streetName, address };
+    });
+  };
+
+  const handleTownCityChange = (townCity: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, townCity, prev.postcode, prev.country);
+      return { ...prev, townCity, address };
+    });
+  };
+
+  const handlePostcodeChange = (postcode: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, postcode, prev.country);
+      return { ...prev, postcode, address };
+    });
+  };
+
+  const handleCountryChange = (country: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, prev.postcode, country);
+      return { ...prev, country, address };
+    });
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,10 +170,18 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose }) => {
       // Update Firestore document
       await updateDoc(doc(db, 'users', user.id), {
         name: formData.name,
+        firstName: formData.firstName,
+        middleName: formData.middleName,
+        lastName: formData.lastName,
         role: formData.role,
         companyName: formData.role === 'company' ? formData.companyName : null,
         phoneNumber: formData.phoneNumber,
         address: formData.address,
+        buildingFlat: formData.buildingFlat,
+        streetName: formData.streetName,
+        townCity: formData.townCity,
+        postcode: formData.postcode,
+        country: formData.country,
         photoURL,
         updatedAt: new Date(),
       });
@@ -222,15 +309,42 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose }) => {
             </div>
           )}
 
-          {/* Name */}
-          <div>
+          {/* First Name */}
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-              <UserIcon className="w-4 h-4 text-gray-400" /> Full Name
+              <UserIcon className="w-4 h-4 text-gray-400" /> First Name
             </label>
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={formData.firstName}
+              onChange={(e) => handleFirstNameChange(e.target.value)}
+              className={inputBaseClass}
+              required
+            />
+          </div>
+
+          {/* Middle Name */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-gray-400" /> Middle Name
+            </label>
+            <input
+              type="text"
+              value={formData.middleName}
+              onChange={(e) => handleMiddleNameChange(e.target.value)}
+              className={inputBaseClass}
+            />
+          </div>
+
+          {/* Last Name */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-gray-400" /> Last Name
+            </label>
+            <input
+              type="text"
+              value={formData.lastName}
+              onChange={(e) => handleLastNameChange(e.target.value)}
               className={inputBaseClass}
               required
             />
@@ -263,17 +377,73 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose }) => {
             />
           </div>
 
-          {/* Address */}
+          {/* Building Name / Flat Number */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-gray-400" /> Address
+              <MapPin className="w-4 h-4 text-gray-400" /> Building Name / Flat Number
             </label>
-            <textarea
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              rows={2}
+            <input
+              type="text"
+              value={formData.buildingFlat}
+              onChange={(e) => handleBuildingFlatChange(e.target.value)}
               className={inputBaseClass}
-              placeholder="Full physical address..."
+              placeholder="Flat 4B, Victoria Court"
+            />
+          </div>
+
+          {/* Street Name */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" /> Street Name
+            </label>
+            <input
+              type="text"
+              value={formData.streetName}
+              onChange={(e) => handleStreetNameChange(e.target.value)}
+              className={inputBaseClass}
+              placeholder="Oxford Street"
+            />
+          </div>
+
+          {/* Town / City */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" /> Town / City
+            </label>
+            <input
+              type="text"
+              value={formData.townCity}
+              onChange={(e) => handleTownCityChange(e.target.value)}
+              className={inputBaseClass}
+              placeholder="London"
+            />
+          </div>
+
+          {/* Postcode */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" /> Postcode
+            </label>
+            <input
+              type="text"
+              value={formData.postcode}
+              onChange={(e) => handlePostcodeChange(e.target.value)}
+              className={inputBaseClass}
+              placeholder="W1D 1BS"
+            />
+          </div>
+
+          {/* Country */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" /> Country
+            </label>
+            <input
+              type="text"
+              value={formData.country}
+              onChange={(e) => handleCountryChange(e.target.value)}
+              className={inputBaseClass}
+              placeholder="United Kingdom"
             />
           </div>
         </div>

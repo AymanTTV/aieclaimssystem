@@ -3,6 +3,7 @@ import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../types';
 import { format, differenceInHours, isAfter } from 'date-fns';
+import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 import { styles } from './styles';
 import {
   calculateOverdueCost,
@@ -230,6 +231,10 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     ? `#${rental.rentalAgreementNumber}` 
     : `AIE-${rental.id.slice(-8).toUpperCase()}`;
 
+  const isCompany = customer?.type === 'company';
+  const nameFields = resolveNameFields(customer);
+  const addressFields = resolveAddressFields(customer);
+
   return (
     <Document>
       {/* --- PAGE 1: Invoice Details, Breakdown, and Compact Summary --- */}
@@ -277,18 +282,64 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <View style={[styles.sectionBreak, { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 5, marginBottom: 5 }]} wrap={false}>
           <View style={[localStyles.compactSectionCard, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Bill To:</Text>
-            <Text style={localStyles.compactText}>{customer.name}</Text>
-            <Text style={localStyles.compactText}>{customer.address || 'N/A'}</Text>
-            <Text style={localStyles.compactText}>{customer.mobile}</Text>
-            <Text style={localStyles.compactText}>{customer.email}</Text>
+            {isCompany ? (
+              <View style={localStyles.detailRow}>
+                <Text style={localStyles.detailLabel}>Company Name:</Text>
+                <Text style={localStyles.detailValue}>{customer.name || '-'}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={localStyles.detailRow}>
+                  <Text style={localStyles.detailLabel}>First Name:</Text>
+                  <Text style={localStyles.detailValue}>{nameFields.firstName || '-'}</Text>
+                </View>
+                <View style={localStyles.detailRow}>
+                  <Text style={localStyles.detailLabel}>Middle Name:</Text>
+                  <Text style={localStyles.detailValue}>{nameFields.middleName || '-'}</Text>
+                </View>
+                <View style={localStyles.detailRow}>
+                  <Text style={localStyles.detailLabel}>Last Name:</Text>
+                  <Text style={localStyles.detailValue}>{nameFields.lastName || '-'}</Text>
+                </View>
+              </>
+            )}
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Building / Flat:</Text>
+              <Text style={localStyles.detailValue}>{addressFields.buildingFlat || '-'}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Street Name:</Text>
+              <Text style={localStyles.detailValue}>{addressFields.streetName || '-'}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Town / City:</Text>
+              <Text style={localStyles.detailValue}>{addressFields.townCity || '-'}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Postcode:</Text>
+              <Text style={localStyles.detailValue}>{addressFields.postcode || '-'}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Country:</Text>
+              <Text style={localStyles.detailValue}>{addressFields.country || '-'}</Text>
+            </View>
           </View>
           <View style={[localStyles.compactSectionCard, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Vehicle Details:</Text>
-            <Text style={localStyles.compactText}>{vehicle.make} {vehicle.model}</Text>
-            <Text style={localStyles.compactText}>Reg: {vehicle.registrationNumber}</Text>
-            <Text style={localStyles.compactText}>
-              Mileage: {(rental.checkOutCondition?.mileage || vehicle.mileage || 0).toLocaleString()} miles
-            </Text>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Make & Model:</Text>
+              <Text style={localStyles.detailValue}>{vehicle.make} {vehicle.model}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Registration:</Text>
+              <Text style={localStyles.detailValue}>{vehicle.registrationNumber}</Text>
+            </View>
+            <View style={localStyles.detailRow}>
+              <Text style={localStyles.detailLabel}>Mileage:</Text>
+              <Text style={localStyles.detailValue}>
+                {(rental.checkOutCondition?.mileage || vehicle.mileage || 0).toLocaleString()} miles
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -524,6 +575,22 @@ const localStyles = StyleSheet.create({
     borderRadius: 6,
     borderLeftWidth: 3,
     borderLeftColor: '#438BDC',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 1.5,
+  },
+  detailLabel: {
+    fontSize: 7.5,
+    fontWeight: 'bold',
+    color: '#1E40AF',
+    width: '42%',
+  },
+  detailValue: {
+    fontSize: 7.5,
+    color: '#374151',
+    flex: 1,
   },
   compactText: {
     fontSize: 8,

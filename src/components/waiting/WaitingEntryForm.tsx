@@ -9,6 +9,7 @@ import {
   WaitingEntry,
   WaitingGroup,
 } from '../../types/waiting';
+import { combineFullName, splitFullName } from '../../utils/nameAddressUtils';
 
 const REASONS = ['New hire','Replacement cab','Short-term hire','Accident – credit hire','Other'];
 const isE164 = (p: string) => /^\+?[1-9]\d{1,14}$/.test((p || '').trim());
@@ -34,6 +35,9 @@ const WaitingEntryForm: React.FC<Props> = ({
 
   const [form, setForm] = useState<Partial<WaitingEntry>>({
     fullName: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     phone: '',
     email: '',
     reason: '',
@@ -48,10 +52,38 @@ const WaitingEntryForm: React.FC<Props> = ({
     offerExpiryAt: null,
   });
 
+  const handleFirstNameChange = (firstName: string) => {
+    setForm(prev => {
+      const fullName = combineFullName(firstName, prev.middleName || '', prev.lastName || '');
+      return { ...prev, firstName, fullName };
+    });
+  };
+
+  const handleMiddleNameChange = (middleName: string) => {
+    setForm(prev => {
+      const fullName = combineFullName(prev.firstName || '', middleName, prev.lastName || '');
+      return { ...prev, middleName, fullName };
+    });
+  };
+
+  const handleLastNameChange = (lastName: string) => {
+    setForm(prev => {
+      const fullName = combineFullName(prev.firstName || '', prev.middleName || '', lastName);
+      return { ...prev, lastName, fullName };
+    });
+  };
+
   useEffect(() => {
     if (entry) {
+      const parsed = entry.firstName
+        ? { firstName: entry.firstName, middleName: entry.middleName || '', lastName: entry.lastName || '' }
+        : splitFullName(entry.fullName);
+
       setForm({
         fullName: entry.fullName,
+        firstName: parsed.firstName,
+        middleName: parsed.middleName,
+        lastName: parsed.lastName,
         phone: entry.phone,
         email: entry.email || '',
         reason: entry.reason || '',
@@ -68,6 +100,9 @@ const WaitingEntryForm: React.FC<Props> = ({
     } else {
       setForm({
         fullName: '',
+        firstName: '',
+        middleName: '',
+        lastName: '',
         phone: '',
         email: '',
         reason: '',
@@ -86,7 +121,8 @@ const WaitingEntryForm: React.FC<Props> = ({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fullName?.trim()) return alert('Full Name is required');
+    if (!form.firstName?.trim() && !form.fullName?.trim()) return alert('First Name is required');
+    if (!form.lastName?.trim() && !form.fullName?.trim()) return alert('Last Name is required');
     if (!form.phone || !isE164(form.phone)) return alert('Phone must be E.164 (+447...)');
     await onSubmit(form);
   };
@@ -94,12 +130,29 @@ const WaitingEntryForm: React.FC<Props> = ({
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField
-          label="Full Name"
-          value={form.fullName || ''}
-          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-          required
-        />
+        <div className="md:col-span-2">
+          <FormField
+            label="First Name"
+            value={form.firstName || ''}
+            onChange={(e) => handleFirstNameChange(e.target.value)}
+            required
+          />
+        </div>
+        <div className="md:col-span-2">
+          <FormField
+            label="Middle Name"
+            value={form.middleName || ''}
+            onChange={(e) => handleMiddleNameChange(e.target.value)}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <FormField
+            label="Last Name"
+            value={form.lastName || ''}
+            onChange={(e) => handleLastNameChange(e.target.value)}
+            required
+          />
+        </div>
         <FormField
           label="Phone (E.164)"
           value={form.phone || ''}

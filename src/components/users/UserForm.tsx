@@ -7,6 +7,7 @@ import { User } from '../../types';
 import { getDefaultPermissions } from '../../types/roles';
 import toast from 'react-hot-toast';
 import { Building2, Mail, Phone, ShieldCheck, User as UserIcon, MapPin, Key, UserPlus } from 'lucide-react';
+import { combineFullName, combineFullAddress } from '../../utils/nameAddressUtils';
 
 interface UserFormProps {
   onClose: () => void;
@@ -15,8 +16,78 @@ interface UserFormProps {
 const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: '', password: '', name: '', role: 'admin' as User['role'], companyName: '', phoneNumber: '', address: '',
+    email: '',
+    password: '',
+    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    role: 'admin' as User['role'],
+    companyName: '',
+    phoneNumber: '',
+    address: '',
+    buildingFlat: '',
+    streetName: '',
+    townCity: '',
+    postcode: '',
+    country: '',
   });
+
+  const handleFirstNameChange = (firstName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(firstName, prev.middleName, prev.lastName);
+      return { ...prev, firstName, name };
+    });
+  };
+
+  const handleMiddleNameChange = (middleName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(prev.firstName, middleName, prev.lastName);
+      return { ...prev, middleName, name };
+    });
+  };
+
+  const handleLastNameChange = (lastName: string) => {
+    setFormData(prev => {
+      const name = combineFullName(prev.firstName, prev.middleName, lastName);
+      return { ...prev, lastName, name };
+    });
+  };
+
+  const handleBuildingFlatChange = (buildingFlat: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(buildingFlat, prev.streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, buildingFlat, address };
+    });
+  };
+
+  const handleStreetNameChange = (streetName: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, streetName, address };
+    });
+  };
+
+  const handleTownCityChange = (townCity: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, townCity, prev.postcode, prev.country);
+      return { ...prev, townCity, address };
+    });
+  };
+
+  const handlePostcodeChange = (postcode: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, postcode, prev.country);
+      return { ...prev, postcode, address };
+    });
+  };
+
+  const handleCountryChange = (country: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, prev.postcode, country);
+      return { ...prev, country, address };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,10 +98,23 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
       const userPermissions = getDefaultPermissions(formData.role) || getDefaultPermissions('member');
 
       await setDoc(doc(db, 'users', userCredential.user.uid), {
-        email: formData.email, name: formData.name, role: formData.role,
+        email: formData.email,
+        name: formData.name,
+        firstName: formData.firstName,
+        middleName: formData.middleName,
+        lastName: formData.lastName,
+        role: formData.role,
         companyName: formData.role === 'company' ? formData.companyName : null,
-        phoneNumber: formData.phoneNumber, address: formData.address,
-        permissions: userPermissions, createdAt: new Date(), updatedAt: new Date(),
+        phoneNumber: formData.phoneNumber,
+        address: formData.address,
+        buildingFlat: formData.buildingFlat,
+        streetName: formData.streetName,
+        townCity: formData.townCity,
+        postcode: formData.postcode,
+        country: formData.country,
+        permissions: userPermissions,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       toast.success('User created successfully');
@@ -92,18 +176,59 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
       {/* 3. Personal Info */}
       <div>
          <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2"><UserIcon className="w-5 h-5 text-gray-400"/> Profile Information</h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+         <div className="space-y-4">
+            {/* First Name - separate box on its own line */}
             <div>
-              <label className={labelClass}>Full Name</label>
-              <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={inputClass} required placeholder="John Doe" />
+              <label className={labelClass}>First Name</label>
+              <input type="text" value={formData.firstName} onChange={(e) => handleFirstNameChange(e.target.value)} className={inputClass} required placeholder="John" />
             </div>
+
+            {/* Middle Name - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Middle Name</label>
+              <input type="text" value={formData.middleName} onChange={(e) => handleMiddleNameChange(e.target.value)} className={inputClass} placeholder="William" />
+            </div>
+
+            {/* Last Name - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Last Name</label>
+              <input type="text" value={formData.lastName} onChange={(e) => handleLastNameChange(e.target.value)} className={inputClass} required placeholder="Doe" />
+            </div>
+
+            {/* Phone Number */}
             <div>
               <label className={labelClass}>Phone Number</label>
               <input type="tel" value={formData.phoneNumber} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} className={inputClass} placeholder="+44 7000 000000" />
             </div>
-            <div className="md:col-span-2">
-              <label className={labelClass}>Full Address</label>
-              <textarea value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} rows={2} className={inputClass} placeholder="Physical mailing address..." />
+
+            {/* Building Name / Flat Number - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Building Name / Flat Number</label>
+              <input type="text" value={formData.buildingFlat} onChange={(e) => handleBuildingFlatChange(e.target.value)} className={inputClass} placeholder="Flat 4B, Victoria Court" />
+            </div>
+
+            {/* Street Name - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Street Name</label>
+              <input type="text" value={formData.streetName} onChange={(e) => handleStreetNameChange(e.target.value)} className={inputClass} placeholder="Oxford Street" />
+            </div>
+
+            {/* Town / City - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Town / City</label>
+              <input type="text" value={formData.townCity} onChange={(e) => handleTownCityChange(e.target.value)} className={inputClass} placeholder="London" />
+            </div>
+
+            {/* Postcode - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Postcode</label>
+              <input type="text" value={formData.postcode} onChange={(e) => handlePostcodeChange(e.target.value)} className={inputClass} placeholder="W1D 1BS" />
+            </div>
+
+            {/* Country - separate box on its own line */}
+            <div>
+              <label className={labelClass}>Country</label>
+              <input type="text" value={formData.country} onChange={(e) => handleCountryChange(e.target.value)} className={inputClass} placeholder="United Kingdom" />
             </div>
          </div>
       </div>

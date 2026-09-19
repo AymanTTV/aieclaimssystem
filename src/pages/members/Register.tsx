@@ -10,21 +10,71 @@ import {
   getDocs,
   doc,
   setDoc,
-  serverTimestamp
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
+import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
 
 const MemberRegister: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail]                 = useState('');
   const [password, setPassword]           = useState('');
   const [name, setName]                   = useState('');
+  const [firstName, setFirstName]         = useState('');
+  const [middleName, setMiddleName]       = useState('');
+  const [lastName, setLastName]           = useState('');
   const [address, setAddress]             = useState('');
+  const [buildingFlat, setBuildingFlat]   = useState('');
+  const [streetName, setStreetName]       = useState('');
+  const [townCity, setTownCity]           = useState('');
+  const [postcode, setPostcode]           = useState('');
+  const [country, setCountry]             = useState('');
   const [loading, setLoading]             = useState(false);
   const [showPassword, setShowPassword]   = useState(false);
   const [customerExists, setCustomerExists] = useState<boolean | null>(null);
+
+  const handleFirstNameChange = (val: string) => {
+    setFirstName(val);
+    setName(combineFullName(val, middleName, lastName));
+  };
+
+  const handleMiddleNameChange = (val: string) => {
+    setMiddleName(val);
+    setName(combineFullName(firstName, val, lastName));
+  };
+
+  const handleLastNameChange = (val: string) => {
+    setLastName(val);
+    setName(combineFullName(firstName, middleName, val));
+  };
+
+  const handleBuildingFlatChange = (val: string) => {
+    setBuildingFlat(val);
+    setAddress(combineFullAddress(val, streetName, townCity, postcode, country));
+  };
+
+  const handleStreetNameChange = (val: string) => {
+    setStreetName(val);
+    setAddress(combineFullAddress(buildingFlat, val, townCity, postcode, country));
+  };
+
+  const handleTownCityChange = (val: string) => {
+    setTownCity(val);
+    setAddress(combineFullAddress(buildingFlat, streetName, val, postcode, country));
+  };
+
+  const handlePostcodeChange = (val: string) => {
+    setPostcode(val);
+    setAddress(combineFullAddress(buildingFlat, streetName, townCity, val, country));
+  };
+
+  const handleCountryChange = (val: string) => {
+    setCountry(val);
+    setAddress(combineFullAddress(buildingFlat, streetName, townCity, postcode, val));
+  };
 
   // Check customers collection on blur
   const handleEmailBlur = async () => {
@@ -39,14 +89,44 @@ const MemberRegister: React.FC = () => {
       if (snap.empty) {
         setCustomerExists(false);
         setName('');
+        setFirstName('');
+        setMiddleName('');
+        setLastName('');
         setAddress('');
+        setBuildingFlat('');
+        setStreetName('');
+        setTownCity('');
+        setPostcode('');
+        setCountry('');
         toast.error(
           'No customer record found. Please ask an admin to add your email first.'
         );
       } else {
         const cust = snap.docs[0].data() as any;
-        setName(cust.name || '');
-        setAddress(cust.address || '');
+        const parsedName = cust.firstName
+          ? { firstName: cust.firstName, middleName: cust.middleName || '', lastName: cust.lastName || '' }
+          : splitFullName(cust.name);
+        const parsedAddr = (cust.buildingFlat || cust.streetName)
+          ? {
+              buildingFlat: cust.buildingFlat || '',
+              streetName: cust.streetName || '',
+              townCity: cust.townCity || '',
+              postcode: cust.postcode || '',
+              country: cust.country || 'United Kingdom',
+            }
+          : splitFullAddress(cust.address);
+
+        setName(cust.name || combineFullName(parsedName.firstName, parsedName.middleName, parsedName.lastName));
+        setFirstName(parsedName.firstName);
+        setMiddleName(parsedName.middleName);
+        setLastName(parsedName.lastName);
+
+        setAddress(cust.address || combineFullAddress(parsedAddr.buildingFlat, parsedAddr.streetName, parsedAddr.townCity, parsedAddr.postcode, parsedAddr.country));
+        setBuildingFlat(parsedAddr.buildingFlat);
+        setStreetName(parsedAddr.streetName);
+        setTownCity(parsedAddr.townCity);
+        setPostcode(parsedAddr.postcode);
+        setCountry(parsedAddr.country || 'United Kingdom');
         setCustomerExists(true);
       }
     } catch (err: any) {
@@ -71,7 +151,15 @@ const MemberRegister: React.FC = () => {
       );
       await setDoc(doc(db, 'users', cred.user.uid), {
         name,
+        firstName,
+        middleName,
+        lastName,
         address,
+        buildingFlat,
+        streetName,
+        townCity,
+        postcode,
+        country,
         email: email.trim().toLowerCase(),
         role: 'member',
         createdAt: serverTimestamp()
@@ -135,37 +223,133 @@ const MemberRegister: React.FC = () => {
               />
             </div>
 
-            {/* Name */}
+            {/* First Name */}
             <div className="pt-4">
-              <label htmlFor="name" className="sr-only">
-                Full Name
+              <label htmlFor="firstName" className="block text-xs font-medium text-gray-700 mb-1">
+                First Name
               </label>
               <input
-                id="name"
+                id="firstName"
                 type="text"
                 required
                 disabled={loading || !customerExists}
-                value={name}
-                onChange={e => setName(e.target.value)}
+                value={firstName}
+                onChange={e => handleFirstNameChange(e.target.value)}
                 className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                placeholder="Full Name"
+                placeholder="First Name"
               />
             </div>
 
-            {/* Address */}
+            {/* Middle Name */}
             <div className="pt-4">
-              <label htmlFor="address" className="sr-only">
-                Address
+              <label htmlFor="middleName" className="block text-xs font-medium text-gray-700 mb-1">
+                Middle Name
               </label>
               <input
-                id="address"
+                id="middleName"
+                type="text"
+                disabled={loading || !customerExists}
+                value={middleName}
+                onChange={e => handleMiddleNameChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Middle Name"
+              />
+            </div>
+
+            {/* Last Name */}
+            <div className="pt-4">
+              <label htmlFor="lastName" className="block text-xs font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                id="lastName"
                 type="text"
                 required
                 disabled={loading || !customerExists}
-                value={address}
-                onChange={e => setAddress(e.target.value)}
+                value={lastName}
+                onChange={e => handleLastNameChange(e.target.value)}
                 className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                placeholder="Address"
+                placeholder="Last Name"
+              />
+            </div>
+
+            {/* Building Name / Flat Number */}
+            <div className="pt-4">
+              <label htmlFor="buildingFlat" className="block text-xs font-medium text-gray-700 mb-1">
+                Building Name / Flat Number
+              </label>
+              <input
+                id="buildingFlat"
+                type="text"
+                disabled={loading || !customerExists}
+                value={buildingFlat}
+                onChange={e => handleBuildingFlatChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Building Name / Flat Number"
+              />
+            </div>
+
+            {/* Street Name */}
+            <div className="pt-4">
+              <label htmlFor="streetName" className="block text-xs font-medium text-gray-700 mb-1">
+                Street Name
+              </label>
+              <input
+                id="streetName"
+                type="text"
+                disabled={loading || !customerExists}
+                value={streetName}
+                onChange={e => handleStreetNameChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Street Name"
+              />
+            </div>
+
+            {/* Town / City */}
+            <div className="pt-4">
+              <label htmlFor="townCity" className="block text-xs font-medium text-gray-700 mb-1">
+                Town / City
+              </label>
+              <input
+                id="townCity"
+                type="text"
+                disabled={loading || !customerExists}
+                value={townCity}
+                onChange={e => handleTownCityChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Town / City"
+              />
+            </div>
+
+            {/* Postcode */}
+            <div className="pt-4">
+              <label htmlFor="postcode" className="block text-xs font-medium text-gray-700 mb-1">
+                Postcode
+              </label>
+              <input
+                id="postcode"
+                type="text"
+                disabled={loading || !customerExists}
+                value={postcode}
+                onChange={e => handlePostcodeChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Postcode"
+              />
+            </div>
+
+            {/* Country */}
+            <div className="pt-4">
+              <label htmlFor="country" className="block text-xs font-medium text-gray-700 mb-1">
+                Country
+              </label>
+              <input
+                id="country"
+                type="text"
+                disabled={loading || !customerExists}
+                value={country}
+                onChange={e => handleCountryChange(e.target.value)}
+                className="appearance-none rounded-lg block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                placeholder="Country"
               />
             </div>
 

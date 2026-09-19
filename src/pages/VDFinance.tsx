@@ -396,7 +396,16 @@ const VDFinance: React.FC = () => {
 
   const escapeCSV = (val: any) => {
     if (val === null || val === undefined) return '';
-    let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+    let str: string;
+    if (typeof val === 'object') {
+      try {
+        str = JSON.stringify(val);
+      } catch {
+        str = String(val);
+      }
+    } else {
+      str = String(val);
+    }
     if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
       str = `"${str.replace(/"/g, '""')}"`;
     }

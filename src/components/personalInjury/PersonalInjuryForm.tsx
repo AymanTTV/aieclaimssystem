@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PersonalInjury } from '../../types/personalInjury';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,7 @@ import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { ensureValidDate } from '../../utils/dateHelpers';
+import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
 
 interface PersonalInjuryFormProps {
   injury?: PersonalInjury;
@@ -20,12 +21,33 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
   const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
   const [manualEntry, setManualEntry] = useState(true);
 
+  const initialName = injury?.firstName
+    ? { firstName: injury.firstName, middleName: injury.middleName || '', lastName: injury.lastName || '' }
+    : splitFullName(injury?.fullName);
+
+  const initialAddress = (injury?.buildingFlat || injury?.streetName)
+    ? {
+        buildingFlat: injury.buildingFlat || '',
+        streetName: injury.streetName || '',
+        townCity: injury.townCity || '',
+        postcode: injury.postcode || '',
+        country: injury.country || 'United Kingdom',
+      }
+    : splitFullAddress(injury?.address ? `${injury.address}${injury.postcode ? ', ' + injury.postcode : ''}` : '');
+
   const [formData, setFormData] = useState({
     reference: injury?.reference || '',
     fullName: injury?.fullName || '',
+    firstName: initialName.firstName,
+    middleName: initialName.middleName,
+    lastName: initialName.lastName,
     dateOfBirth: injury?.dateOfBirth ? new Date(injury.dateOfBirth).toISOString().split('T')[0] : '',
     address: injury?.address || '',
-    postcode: injury?.postcode || '',
+    buildingFlat: initialAddress.buildingFlat,
+    streetName: initialAddress.streetName,
+    townCity: initialAddress.townCity,
+    postcode: injury?.postcode || initialAddress.postcode,
+    country: injury?.country || initialAddress.country || 'United Kingdom',
     contactNumber: injury?.contactNumber || '',
     emailAddress: injury?.emailAddress || '',
     
@@ -47,6 +69,62 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
     
     signature: injury?.signature || '',
   });
+
+  const handleFirstNameChange = (firstName: string) => {
+    setFormData(prev => {
+      const fullName = combineFullName(firstName, prev.middleName, prev.lastName);
+      return { ...prev, firstName, fullName };
+    });
+  };
+
+  const handleMiddleNameChange = (middleName: string) => {
+    setFormData(prev => {
+      const fullName = combineFullName(prev.firstName, middleName, prev.lastName);
+      return { ...prev, middleName, fullName };
+    });
+  };
+
+  const handleLastNameChange = (lastName: string) => {
+    setFormData(prev => {
+      const fullName = combineFullName(prev.firstName, prev.middleName, lastName);
+      return { ...prev, lastName, fullName };
+    });
+  };
+
+  const handleBuildingFlatChange = (buildingFlat: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(buildingFlat, prev.streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, buildingFlat, address };
+    });
+  };
+
+  const handleStreetNameChange = (streetName: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, streetName, prev.townCity, prev.postcode, prev.country);
+      return { ...prev, streetName, address };
+    });
+  };
+
+  const handleTownCityChange = (townCity: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, townCity, prev.postcode, prev.country);
+      return { ...prev, townCity, address };
+    });
+  };
+
+  const handlePostcodeChange = (postcode: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, postcode, prev.country);
+      return { ...prev, postcode, address };
+    });
+  };
+
+  const handleCountryChange = (country: string) => {
+    setFormData(prev => {
+      const address = combineFullAddress(prev.buildingFlat, prev.streetName, prev.townCity, prev.postcode, country);
+      return { ...prev, country, address };
+    });
+  };
 
   useEffect(() => {
     const fetchClaims = async () => {
@@ -168,12 +246,22 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
               const claim = claims.find(c => c.id === id);
               if (claim) {
                 setSelectedClaim(claim);
+                const parsedName = splitFullName(claim.clientInfo.name);
+                const parsedAddr = splitFullAddress(claim.clientInfo.address);
                 setFormData(prev => ({
                   ...prev,
                   reference: claim.clientRef || '',
                   fullName: claim.clientInfo.name,
+                  firstName: parsedName.firstName,
+                  middleName: parsedName.middleName,
+                  lastName: parsedName.lastName,
                   dateOfBirth: new Date(claim.clientInfo.dateOfBirth).toISOString().split('T')[0],
                   address: claim.clientInfo.address,
+                  buildingFlat: parsedAddr.buildingFlat,
+                  streetName: parsedAddr.streetName,
+                  townCity: parsedAddr.townCity,
+                  postcode: parsedAddr.postcode,
+                  country: parsedAddr.country || 'United Kingdom',
                   contactNumber: claim.clientInfo.phone,
                   emailAddress: claim.clientInfo.email,
                   incidentDate: new Date(claim.incidentDetails.date).toISOString().split('T')[0],
@@ -189,47 +277,104 @@ const PersonalInjuryForm: React.FC<PersonalInjuryFormProps> = ({ injury, onClose
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField
-          label="Reference"
-          value={formData.reference}
-          onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-          disabled={!manualEntry && !!selectedClaim}
-        />
-
-        <FormField
-          label="Full Name"
-          value={formData.fullName}
-          onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-          required
-          disabled={!manualEntry && !!selectedClaim}
-        />
-
-        <FormField
-          type="date"
-          label="Date of Birth"
-          value={formData.dateOfBirth}
-          onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-          required
-          disabled={!manualEntry && !!selectedClaim}
-        />
+        <div className="col-span-2">
+          <FormField
+            label="Reference"
+            value={formData.reference}
+            onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
 
         <div className="col-span-2">
           <FormField
-            label="Address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            label="First Name"
+            value={formData.firstName}
+            onChange={(e) => handleFirstNameChange(e.target.value)}
             required
             disabled={!manualEntry && !!selectedClaim}
           />
         </div>
 
-        <FormField
-          label="Postcode"
-          value={formData.postcode}
-          onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-          required
-          disabled={!manualEntry && !!selectedClaim}
-        />
+        <div className="col-span-2">
+          <FormField
+            label="Middle Name"
+            value={formData.middleName}
+            onChange={(e) => handleMiddleNameChange(e.target.value)}
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Last Name"
+            value={formData.lastName}
+            onChange={(e) => handleLastNameChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            type="date"
+            label="Date of Birth"
+            value={formData.dateOfBirth}
+            onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Building Name / Flat Number"
+            value={formData.buildingFlat}
+            onChange={(e) => handleBuildingFlatChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Street Name"
+            value={formData.streetName}
+            onChange={(e) => handleStreetNameChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Town / City"
+            value={formData.townCity}
+            onChange={(e) => handleTownCityChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Postcode"
+            value={formData.postcode}
+            onChange={(e) => handlePostcodeChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
+
+        <div className="col-span-2">
+          <FormField
+            label="Country"
+            value={formData.country}
+            onChange={(e) => handleCountryChange(e.target.value)}
+            required
+            disabled={!manualEntry && !!selectedClaim}
+          />
+        </div>
 
         <FormField
           type="tel"

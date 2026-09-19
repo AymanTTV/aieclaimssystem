@@ -68,6 +68,46 @@ export interface Accident {
   ambulanceReference?: string;
   ambulanceService?: string;
 
+  // Insurance Response & Spreadsheet Fields
+  claimNo?: string | number;
+  insuranceRefNo?: string;
+  insuranceClaimStatus?: string;
+  dateFormReceivedFromInsurance?: string;
+  reportedDate?: string;
+  reportedTime?: string;
+  daysTakenToReport?: number;
+  timeToReportHours?: number;
+  timeToReportDisplay?: string;
+  claimReportedBy?: string;
+  regNo?: string;
+
+  // Outside Settlement
+  settledOutsideInsurance?: boolean;
+  outsideSettlementAmount?: number;
+  settlementNotes?: string;
+
+  // Financials & Estimates (Insurer Table Format)
+  adPaid?: number;
+  tpPaid?: number;
+  adEst?: number;
+  tpPiEst?: number;
+  tpDamageEst?: number;
+  tpHireEst?: number;
+  totalTpEst?: number;
+  actRecovery?: number;
+  incurred?: number;
+
+  // Classifications & Excess
+  accCd?: string;
+  fault?: 'Fault' | 'Non-Fault' | 'Split' | string;
+  faultType?: 'Fault' | 'Non-Fault' | 'Split' | string;
+  lateReporting?: 'Yes' | 'No' | boolean | string;
+  lateReportingPenalty?: number;
+  penaltyPayment?: number;
+  excessApplies?: boolean;
+  excessRecovered?: boolean;
+  outstandingRecovery?: number;
+
   // System Fields
   isReported?: boolean; // <-- NEW
   status: 'pending' | 'reported' | 'investigating' | 'processing' | 'resolved'; // <-- UPDATED

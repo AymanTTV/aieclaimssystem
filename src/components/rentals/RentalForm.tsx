@@ -11,7 +11,7 @@ import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import FormField from '../ui/FormField';
 import { addWeeks, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Search, Car, X, AlertTriangle, CheckCircle, Info, User, FileText, PoundSterling, Plus } from 'lucide-react';
+import { Search, Car, X, AlertTriangle, CheckCircle, Info, User, FileText, PoundSterling, Plus, MessageCircle, Mail, Printer } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -19,6 +19,7 @@ import FileUpload from '../ui/FileUpload';
 import TextArea from '../ui/TextArea';
 import Modal from '../ui/Modal'; 
 import SignaturePad from '../ui/SignaturePad';
+import RentalCommunicationModal from './RentalCommunicationModal';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -64,6 +65,17 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   const [manualClaimRef, setManualClaimRef] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [rentalAgreementNumber, setRentalAgreementNumber] = useState('');
+
+  // Post-save quick action states & Share modal
+  const [postSaveActions, setPostSaveActions] = useState({
+    whatsapp: false,
+    email: false,
+    printPdf: false,
+  });
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareInitialMode, setShareInitialMode] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [savedRentalForShare, setSavedRentalForShare] = useState<Rental | null>(null);
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false);
 
   // Active step for new visual overhaul
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
@@ -214,6 +226,75 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
 
   const costs = calculatedCosts();
   const finalRemainingAmountCalc = costs.gross - (formData.paidAmount || 0);
+
+  const buildActiveRental = (): Rental => {
+    const s = formData.startDate && formData.startTime ? new Date(`${formData.startDate}T${formData.startTime}`) : new Date();
+    const e = formData.endDate && formData.endTime ? new Date(`${formData.endDate}T${formData.endTime}`) : new Date();
+    return {
+      id: rentalAgreementNumber || 'draft',
+      rentalAgreementNumber,
+      vehicleId: formData.vehicleId,
+      customerId: formData.customerId,
+      startDate: s,
+      endDate: e,
+      type: formData.type,
+      reason: formData.reason,
+      status: formData.status,
+      cost: costs.gross,
+      paidAmount: formData.paidAmount || 0,
+      remainingAmount: finalRemainingAmountCalc,
+      paymentStatus: finalRemainingAmountCalc <= 0.001 ? 'paid' : (formData.paidAmount > 0 ? 'partially_paid' : 'pending'),
+      lockedDailyRate: selectedVehicle?.dailyRentalPrice || RENTAL_RATES.daily,
+      lockedWeeklyRate: selectedVehicle?.weeklyRentalPrice || RENTAL_RATES.weekly,
+      lockedClaimRate: selectedVehicle?.claimRentalPrice || RENTAL_RATES.claim,
+      includeVAT: formData.includeVAT,
+    } as Rental;
+  };
+
+  const handlePrintOrDownloadPDF = async (targetRental?: Rental) => {
+    const r = targetRental || savedRentalForShare || buildActiveRental();
+    if (!r || !selectedVehicle || !selectedCustomer) {
+      toast.error('Vehicle and Customer are required to generate PDF');
+      return;
+    }
+    setIsPrintingPdf(true);
+    toast.loading('Preparing Rental PDF...');
+    try {
+      if (r.documents?.agreements) {
+        const keys = Object.keys(r.documents.agreements);
+        if (keys.length > 0) {
+          const latest = keys.sort().reverse()[0];
+          const url = r.documents.agreements[latest];
+          if (url) {
+            toast.dismiss();
+            window.open(url, '_blank');
+            return;
+          }
+        }
+      }
+      const docs = await generateRentalDocuments(r, selectedVehicle, selectedCustomer);
+      const blob = docs.agreement || docs.invoice;
+      toast.dismiss();
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const printWin = window.open(url, '_blank');
+        if (printWin) {
+          printWin.focus();
+          toast.success('Rental PDF ready');
+        } else {
+          window.print();
+        }
+      } else {
+        toast.error('Could not generate PDF');
+      }
+    } catch (err) {
+      toast.dismiss();
+      console.error(err);
+      toast.error('Failed to prepare PDF');
+    } finally {
+      setIsPrintingPdf(false);
+    }
+  };
 
   useEffect(() => {
     if ((costs as any).baseNet === 0 && costs.gross === 0) return;
@@ -379,9 +460,30 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         } 
       });
 
+      const fullRental = { id: docRef.id, ...rentalData } as Rental;
+      setSavedRentalForShare(fullRental);
+      setIsConfirmModalOpen(false);
       setLoading(false);
-      onClose();
       toast.success('Rental created securely.');
+
+      // Execute selected post-save actions
+      const hasWhatsApp = postSaveActions.whatsapp;
+      const hasEmail = postSaveActions.email;
+      const hasPrintPdf = postSaveActions.printPdf;
+
+      if (hasPrintPdf) {
+        handlePrintOrDownloadPDF(fullRental);
+      }
+
+      if (hasWhatsApp) {
+        setShareInitialMode('whatsapp');
+        setShowShareModal(true);
+      } else if (hasEmail) {
+        setShareInitialMode('email');
+        setShowShareModal(true);
+      } else {
+        onClose();
+      }
 
       setTimeout(async () => {
          try {
@@ -884,17 +986,56 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         )}
 
         {/* Fixed Footer */}
-        <div className="flex justify-between items-center sticky bottom-0 bg-white border-t p-4 z-10">
-          <button type="button" onClick={() => setActiveStep(p => p > 1 ? p - 1 : 1 as any)} disabled={activeStep === 1} className="px-4 py-2 border rounded-md disabled:opacity-50 font-medium text-gray-700 hover:bg-gray-50">Back</button>
+        <div className="flex justify-between items-center sticky bottom-0 bg-white border-t p-4 z-10 flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setActiveStep(p => p > 1 ? p - 1 : 1 as any)} disabled={activeStep === 1} className="px-4 py-2 border rounded-md disabled:opacity-50 font-medium text-gray-700 hover:bg-gray-50">Back</button>
+            
+            <div className="hidden sm:flex items-center gap-2 border-l pl-3 ml-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShareInitialMode('whatsapp');
+                  setShowShareModal(true);
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 transition"
+                title="Send WhatsApp"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShareInitialMode('email');
+                  setShowShareModal(true);
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 flex items-center gap-1.5 transition"
+                title="Send Email"
+              >
+                <Mail className="w-3.5 h-3.5" /> Email
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintOrDownloadPDF()}
+                disabled={isPrintingPdf}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition disabled:opacity-50"
+                title="Print / Download PDF"
+              >
+                <Printer className="w-3.5 h-3.5" /> PDF
+              </button>
+            </div>
+          </div>
           
-          {activeStep === 1 && <button type="button" onClick={() => setActiveStep(2)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
-          {activeStep === 2 && <button type="button" onClick={() => setActiveStep(3)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
-          
-          {activeStep === 3 && (
-             <button type="submit" disabled={loading} className="px-6 py-2 bg-green-600 text-white rounded-md font-bold hover:bg-green-700 shadow-md flex items-center gap-2">
-               {loading ? 'Processing...' : <><CheckCircle className="w-5 h-5"/> Verify & Confirm</>}
-             </button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeStep === 1 && <button type="button" onClick={() => setActiveStep(2)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
+            {activeStep === 2 && <button type="button" onClick={() => setActiveStep(3)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
+            
+            {activeStep === 3 && (
+               <button type="submit" disabled={loading} className="px-6 py-2 bg-green-600 text-white rounded-md font-bold hover:bg-green-700 shadow-md flex items-center gap-2">
+                 {loading ? 'Processing...' : <><CheckCircle className="w-5 h-5"/> Verify & Confirm</>}
+               </button>
+            )}
+          </div>
         </div>
       </form>
 
@@ -954,12 +1095,80 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setIsConfirmModalOpen(false)} className="px-4 py-2 border rounded-md font-medium text-gray-700">Cancel</button>
-              <button onClick={executeCreateRental} className="px-4 py-2 bg-green-600 text-white rounded-md font-bold flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Finalize Creation</button>
+            {/* Quick Actions / Share section */}
+            <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl space-y-3 mt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Quick Actions</span>
+                <span className="text-xs text-gray-400">Trigger on Confirm</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={postSaveActions.whatsapp}
+                    onChange={(e) => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
+                    className="rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-900"
+                  />
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Send via WhatsApp</span>
+                </label>
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={postSaveActions.email}
+                    onChange={(e) => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
+                    className="rounded border-gray-600 text-sky-500 focus:ring-sky-500 bg-gray-900"
+                  />
+                  <Mail className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Send via Email</span>
+                </label>
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={postSaveActions.printPdf}
+                    onChange={(e) => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
+                    className="rounded border-gray-600 text-purple-500 focus:ring-purple-500 bg-gray-900"
+                  />
+                  <Printer className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Print / Download PDF</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-2 border-t mt-6">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border rounded-lg hover:bg-gray-50"
+              >
+                Back to Edit
+              </button>
+              <button
+                type="button"
+                onClick={executeCreateRental}
+                disabled={loading}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {loading ? 'Creating...' : <><CheckCircle className="w-4 h-4" /> Confirm & Save</>}
+              </button>
             </div>
          </div>
       </Modal>
+
+      {/* Share / Communication Modal */}
+      <RentalCommunicationModal
+        isOpen={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          if (savedRentalForShare) {
+            onClose();
+          }
+        }}
+        rental={savedRentalForShare || buildActiveRental()}
+        customer={selectedCustomer || null}
+        vehicle={selectedVehicle || null}
+        initialMode={shareInitialMode}
+      />
     </>
   );
 };

@@ -9,6 +9,7 @@ import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { isLegacyClaimProgress, deriveDisplayStatus } from '../../utils/claimProgress';
 import clsx from 'clsx';
+import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 
 interface ClaimDetailsProps {
   claim: Claim;
@@ -126,20 +127,51 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
       </div>
 
       <Section title="Client Information">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><div><p className="font-medium">{claim.clientInfo?.name}</p><p className="text-sm text-gray-500">{formatDate((claim as any).clientInfo?.dateOfBirth)}</p></div></div>
-          <div className="flex items-center"><Phone className="h-5 w-5 text-gray-400 mr-2" /><div>{(claim as any).clientInfo?.phone ? <a href={`tel:${(claim as any).clientInfo?.phone}`} className="text-blue-600 hover:underline">{(claim as any).clientInfo?.phone}</a> : 'N/A'}</div></div>
-          <div className="flex items-center"><Mail className="h-5 w-5 text-gray-400 mr-2" /><div>{(claim as any).clientInfo?.email ? <a href={`mailto:${(claim as any).clientInfo?.email}`} className="text-blue-600 hover:underline">{(claim as any).clientInfo?.email}</a> : 'N/A'}</div></div>
-          <div className="flex items-center"><MapPin className="h-5 w-5 text-gray-400 mr-2" /><div>{(claim as any).clientInfo?.address ?? 'N/A'}</div></div>
-          <div className="flex items-center"><Car className="h-5 w-5 text-gray-400 mr-2" /><div><p className="text-sm text-gray-500">Driving License</p><p className="font-medium">{(claim as any).clientInfo?.driverLicenseNumber ?? 'N/A'}</p></div></div>
-          <div className="flex items-center"><Calendar className="h-5 w-5 text-gray-400 mr-2" /><div><p className="text-sm text-gray-500">License Expiry</p><p className="font-medium">{formatDate((claim as any).clientInfo?.licenseExpiry)}</p></div></div>
-          {Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
-            <>
-              <div className="col-span-2"><Field label="Occupation" value={(claim as any).clientInfo?.occupation ?? 'N/A'} /></div>
-              <div className="col-span-2"><dt className="text-sm font-medium text-gray-500">Injury Details</dt><dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{(claim as any).clientInfo?.injuryDetails ?? 'N/A'}</dd></div>
-            </>
-          )}
-        </div>
+        {(() => {
+          const clientName = resolveNameFields((claim as any).clientInfo);
+          const clientAddress = resolveAddressFields((claim as any).clientInfo);
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <Field label="First Name" value={clientName.firstName || 'N/A'} />
+              <Field label="Middle Name" value={clientName.middleName || 'N/A'} />
+              <Field label="Last Name" value={clientName.lastName || 'N/A'} />
+              <Field label="Date of Birth" value={formatDate((claim as any).clientInfo?.dateOfBirth)} />
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Phone</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {(claim as any).clientInfo?.phone ? (
+                    <a href={`tel:${(claim as any).clientInfo?.phone}`} className="text-blue-600 hover:underline">
+                      {(claim as any).clientInfo?.phone}
+                    </a>
+                  ) : 'N/A'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Email</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {(claim as any).clientInfo?.email ? (
+                    <a href={`mailto:${(claim as any).clientInfo?.email}`} className="text-blue-600 hover:underline">
+                      {(claim as any).clientInfo?.email}
+                    </a>
+                  ) : 'N/A'}
+                </dd>
+              </div>
+              <Field label="Building Name / Flat Number" value={clientAddress.buildingFlat || 'N/A'} />
+              <Field label="Street Name" value={clientAddress.streetName || 'N/A'} />
+              <Field label="Town / City" value={clientAddress.townCity || 'N/A'} />
+              <Field label="Postcode" value={clientAddress.postcode || 'N/A'} />
+              <Field label="Country" value={clientAddress.country || 'N/A'} />
+              <Field label="Driving License" value={(claim as any).clientInfo?.driverLicenseNumber ?? 'N/A'} />
+              <Field label="License Expiry" value={formatDate((claim as any).clientInfo?.licenseExpiry)} />
+              {Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
+                <>
+                  <div className="col-span-2 md:col-span-3"><Field label="Occupation" value={(claim as any).clientInfo?.occupation ?? 'N/A'} /></div>
+                  <div className="col-span-2 md:col-span-3"><dt className="text-sm font-medium text-gray-500">Injury Details</dt><dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{(claim as any).clientInfo?.injuryDetails ?? 'N/A'}</dd></div>
+                </>
+              )}
+            </div>
+          );
+        })()}
       </Section>
 
       {/* Vehicle Details */}
@@ -215,13 +247,43 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
       </Section>
 
       <Section title="Third Party Details">
-        <div className="grid grid-cols-2 gap-4">
-          <div><p className="text-sm text-gray-500">Name</p><p className="font-medium">{claim.thirdParty?.name ?? 'N/A'}</p></div>
-          <div><p className="text-sm text-gray-500">Phone</p><p className="font-medium">{claim.thirdParty?.phone ? <a href={`tel:${claim.thirdParty.phone}`} className="text-blue-600 hover:underline">{claim.thirdParty.phone}</a> : 'N/A'}</p></div>
-          <div><p className="text-sm text-gray-500">Email</p><p className="font-medium">{claim.thirdParty?.email ? <a href={`mailto:${claim.thirdParty.email}`} className="text-blue-600 hover:underline">{claim.thirdParty.email}</a> : 'N/A'}</p></div>
-          <div><p className="text-sm text-gray-500">Registration</p><p className="font-medium">{claim.thirdParty?.registration ?? 'N/A'}</p></div>
-          <div className="col-span-2"><p className="text-sm text-gray-500">Address</p><p className="font-medium">{claim.thirdParty?.address ?? 'N/A'}</p></div>
-        </div>
+        {(() => {
+          const tpName = resolveNameFields((claim as any).thirdParty);
+          const tpAddress = resolveAddressFields((claim as any).thirdParty);
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <Field label="First Name" value={tpName.firstName || 'N/A'} />
+              <Field label="Middle Name" value={tpName.middleName || 'N/A'} />
+              <Field label="Last Name" value={tpName.lastName || 'N/A'} />
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Phone</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {claim.thirdParty?.phone ? (
+                    <a href={`tel:${claim.thirdParty.phone}`} className="text-blue-600 hover:underline">
+                      {claim.thirdParty.phone}
+                    </a>
+                  ) : 'N/A'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Email</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {claim.thirdParty?.email ? (
+                    <a href={`mailto:${claim.thirdParty.email}`} className="text-blue-600 hover:underline">
+                      {claim.thirdParty.email}
+                    </a>
+                  ) : 'N/A'}
+                </dd>
+              </div>
+              <Field label="Registration" value={claim.thirdParty?.registration ?? 'N/A'} />
+              <Field label="Building Name / Flat Number" value={tpAddress.buildingFlat || 'N/A'} />
+              <Field label="Street Name" value={tpAddress.streetName || 'N/A'} />
+              <Field label="Town / City" value={tpAddress.townCity || 'N/A'} />
+              <Field label="Postcode" value={tpAddress.postcode || 'N/A'} />
+              <Field label="Country" value={tpAddress.country || 'N/A'} />
+            </div>
+          );
+        })()}
       </Section>
 
       {claim.hireDetails?.enabled && Array.isArray(claim.claimReason) && claim.claimReason.includes('H') && (
@@ -375,18 +437,27 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
       {claim.witnesses && claim.witnesses.length > 0 && (
         <Section title="Witness Details">
           <div className="space-y-4">
-            {claim.witnesses.map((witness, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Witness {index + 1}</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Name" value={witness.fullName} />
-                  <Field label="Contact" value={witness.contactNumber} />
-                  <Field label="Address" value={(witness as any).address} />
-                  <Field label="Post Code" value={(witness as any).postCode} />
-                  <Field label="Date of Birth" value={(witness as any).dob} />
+            {claim.witnesses.map((witness, index) => {
+              const wName = resolveNameFields(witness);
+              const wAddress = resolveAddressFields(witness);
+              return (
+                <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Witness {index + 1}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <Field label="First Name" value={wName.firstName || 'N/A'} />
+                    <Field label="Middle Name" value={wName.middleName || 'N/A'} />
+                    <Field label="Last Name" value={wName.lastName || 'N/A'} />
+                    <Field label="Contact" value={witness.contactNumber || 'N/A'} />
+                    <Field label="Date of Birth" value={(witness as any).dob || 'N/A'} />
+                    <Field label="Building Name / Flat Number" value={wAddress.buildingFlat || 'N/A'} />
+                    <Field label="Street Name" value={wAddress.streetName || 'N/A'} />
+                    <Field label="Town / City" value={wAddress.townCity || 'N/A'} />
+                    <Field label="Postcode" value={wAddress.postcode || (witness as any).postCode || 'N/A'} />
+                    <Field label="Country" value={wAddress.country || 'N/A'} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Section>
       )}

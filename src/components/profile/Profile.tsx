@@ -9,17 +9,25 @@ import { UserCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import RoleSelector from './RoleSelector';
 import ProfileImageUpload from './ProfileImageUpload';
+import { splitFullName, combineFullName, splitFullAddress, combineFullAddress } from '../../utils/nameAddressUtils';
 
 const Profile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const initialName = splitFullName(user?.name || '');
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    firstName: initialName.firstName,
+    middleName: initialName.middleName,
+    lastName: initialName.lastName,
     role: user?.role || 'driver',
     phoneNumber: '',
-    address: '',
+    buildingFlat: '',
+    streetName: '',
+    townCity: '',
+    postcode: '',
+    country: '',
     image: null as File | null,
   });
 
@@ -29,12 +37,20 @@ const Profile = () => {
         const userDoc = await getDoc(doc(db, 'users', user.id));
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          const nameParts = splitFullName(userData.name || user?.name || '');
+          const addrParts = splitFullAddress(userData.address || '');
           setFormData(prev => ({
             ...prev,
-            name: userData.name || '',
+            firstName: userData.firstName || nameParts.firstName,
+            middleName: userData.middleName || nameParts.middleName,
+            lastName: userData.lastName || nameParts.lastName,
             role: userData.role || 'driver',
             phoneNumber: userData.phoneNumber || '',
-            address: userData.address || '',
+            buildingFlat: userData.buildingFlat || addrParts.buildingFlat,
+            streetName: userData.streetName || addrParts.streetName,
+            townCity: userData.townCity || addrParts.townCity,
+            postcode: userData.postcode || addrParts.postcode,
+            country: userData.country || addrParts.country,
           }));
           if (userData.photoURL) {
             setImagePreview(userData.photoURL);
@@ -75,11 +91,28 @@ const Profile = () => {
         photoURL = await getDownloadURL(snapshot.ref);
       }
 
+      const combinedName = combineFullName(formData.firstName, formData.middleName, formData.lastName);
+      const combinedAddress = combineFullAddress(
+        formData.buildingFlat,
+        formData.streetName,
+        formData.townCity,
+        formData.postcode,
+        formData.country
+      );
+
       await updateDoc(doc(db, 'users', user.id), {
-        name: formData.name,
+        name: combinedName,
+        firstName: formData.firstName,
+        middleName: formData.middleName,
+        lastName: formData.lastName,
         role: formData.role,
         phoneNumber: formData.phoneNumber,
-        address: formData.address,
+        address: combinedAddress,
+        buildingFlat: formData.buildingFlat,
+        streetName: formData.streetName,
+        townCity: formData.townCity,
+        postcode: formData.postcode,
+        country: formData.country,
         photoURL,
         profileCompleted: true,
       });
@@ -116,17 +149,44 @@ const Profile = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Name
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Middle Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.middleName}
+                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
             </div>
 
             <RoleSelector
@@ -148,18 +208,68 @@ const Profile = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Address
-              </label>
-              <textarea
-                required
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Building Name / Flat Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.buildingFlat}
+                  onChange={(e) => setFormData({ ...formData, buildingFlat: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Street Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.streetName}
+                  onChange={(e) => setFormData({ ...formData, streetName: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Town / City
+                </label>
+                <input
+                  type="text"
+                  value={formData.townCity}
+                  onChange={(e) => setFormData({ ...formData, townCity: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Postcode
+                </label>
+                <input
+                  type="text"
+                  value={formData.postcode}
+                  onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                />
+              </div>
             </div>
+
 
             <ProfileImageUpload
               imagePreview={imagePreview}

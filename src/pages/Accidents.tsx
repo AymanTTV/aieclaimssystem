@@ -6,6 +6,7 @@ import { useAccidentFilters } from '../hooks/useAccidentFilters';
 
 import { generateAndUploadDocument, generateBulkDocuments } from '../utils/documentGenerator';
 import { AccidentDocument, AccidentBulkDocument } from '../components/pdf/documents';
+import { exportFleetClaimExperiencePDF } from '../utils/exportFleetExperiencePDF';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { saveAs } from 'file-saver';
 
@@ -17,6 +18,10 @@ import AccidentClaimForm from '../components/accidents/AccidentClaimForm';
 import AccidentClaimView from '../components/accidents/AccidentClaimView';
 import AccidentClaimEdit from '../components/accidents/AccidentClaimEdit';
 import StatusUpdateModal from '../components/accidents/StatusUpdateModal'; 
+import PostReportInsuranceModal from '../components/accidents/PostReportInsuranceModal';
+import { DriverRiskDashboard } from '../components/accidents/DriverRiskDashboard';
+import { useCustomers } from '../hooks/useCustomers';
+import { ClipboardList, ShieldAlert } from 'lucide-react';
 
 import Modal from '../components/ui/Modal';
 import { useVehicles } from '../hooks/useVehicles';
@@ -28,7 +33,9 @@ import toast from 'react-hot-toast';
 const Accidents = () => {
   const { accidents, loading } = useAccidents();
   const { vehicles } = useVehicles();
+  const { customers } = useCustomers();
   const { companyDetails } = useCompanyDetails();
+  const [activeTab, setActiveTab] = useState<'claims' | 'risk_analysis'>('claims');
   const {
     searchQuery,
     setSearchQuery,
@@ -49,6 +56,7 @@ const Accidents = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false); 
+  const [showInsuranceModal, setShowInsuranceModal] = useState(false);
 
   // const [showResolvedOnly, setShowResolvedOnly] = useState(false);
 
@@ -69,6 +77,11 @@ const Accidents = () => {
   const handleUpdateStatus = (accident: Accident) => {
     setSelectedAccident(accident);
     setShowStatusModal(true);
+  };
+
+  const handleUpdateInsurance = (accident: Accident) => {
+    setSelectedAccident(accident);
+    setShowInsuranceModal(true);
   };
 
   const handleDelete = async (accident: Accident) => {
@@ -93,37 +106,34 @@ const Accidents = () => {
 
   const handleGenerateDocument = async (accident: Accident) => {
     try {
-      const vehicle = vehicles.find(v => v.id === accident.vehicleId);
-
-      await generateAndUploadDocument(
-        AccidentDocument,
-        { ...accident, vehicle },
-        'accidents',
-        accident.id,
-        'accidents'
-      );
-
-      toast.success('Document generated successfully');
+      await exportFleetClaimExperiencePDF({
+        accidents,
+        sourceClaim: accident,
+        companyDetails,
+        customers,
+        highlightedAccidentId: accident.id,
+      });
     } catch (error) {
-      console.error('Error generating document:', error);
-      toast.error('Failed to generate document');
+      console.error('Error generating fleet claim experience document:', error);
+      toast.error('Failed to export Fleet Claim Experience Report');
+    }
+  };
+
+  const handleExportFleetExperiencePDF = async () => {
+    try {
+      await exportFleetClaimExperiencePDF({
+        accidents,
+        companyDetails,
+        customers,
+      });
+    } catch (error) {
+      console.error('Error generating fleet claim experience document:', error);
+      toast.error('Failed to export Fleet Claim Experience Report');
     }
   };
 
   const handleGenerateBulkDocument = async () => {
-    try {
-      const pdfBlob = await generateBulkDocuments(
-        AccidentBulkDocument,
-        filteredAccidents,
-        companyDetails
-      );
-
-      saveAs(pdfBlob, 'accident_summary.pdf');
-      toast.success('Bulk document generated successfully');
-    } catch (error) {
-      console.error('Error generating bulk document:', error);
-      toast.error('Failed to generate bulk document');
-    }
+    await handleExportFleetExperiencePDF();
   };
 
   if (loading) {
@@ -142,55 +152,90 @@ const Accidents = () => {
 
   return (
     <div className="space-y-6">
-      <AccidentHeader
-        onSearch={setSearchQuery}
-        onImport={() => {}}
-        onExport={() => {}}
-        onAdd={handleAdd}
-        onStatusFilterChange={setStatusFilter}
-        onGeneratePDF={handleGenerateBulkDocument}
-        accidents={displayedAccidents} // <-- CHANGED THIS to use the filtered records
-      />
+      {/* View Switcher Tabs */}
+      <div className="flex items-center justify-between border-b border-gray-200 pb-2 flex-wrap gap-3">
+        <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab('claims')}
+            className={`flex items-center space-x-2 py-2 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
+              activeTab === 'claims'
+                ? 'bg-white text-gray-900 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4 text-blue-600" />
+            <span>Claims Register</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] bg-gray-200 text-gray-800 font-bold">
+              {displayedAccidents.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('risk_analysis')}
+            className={`flex items-center space-x-2 py-2 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
+              activeTab === 'risk_analysis'
+                ? 'bg-white text-rose-900 shadow-xs ring-1 ring-rose-300'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-600" />
+            <span>Driver Risk &amp; Renewal Analysis</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black uppercase tracking-wider">
+              18 Dec Renewal
+            </span>
+          </button>
+        </div>
+      </div>
 
-      <AccidentFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
-        claimStatusFilter={claimStatusFilter}
-        onClaimStatusFilterChange={setClaimStatusFilter}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-      />
+      {activeTab === 'claims' ? (
+        <>
+          <AccidentHeader
+            onSearch={setSearchQuery}
+            onImport={() => {}}
+            onExport={() => {}}
+            onAdd={handleAdd}
+            onStatusFilterChange={setStatusFilter}
+            onGeneratePDF={handleGenerateBulkDocument}
+            onExportFleetExperiencePDF={handleExportFleetExperiencePDF}
+            accidents={displayedAccidents}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
 
-      {/* <div className="flex items-center space-x-2">
-        <input
-          id="showResolved"
-          type="checkbox"
-          checked={showResolvedOnly}
-          onChange={() => setShowResolvedOnly(v => !v)}
-          className="h-4 w-4 text-primary border-gray-300 rounded"
+          <AccidentFilters
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            typeFilter={typeFilter}
+            onTypeFilterChange={setTypeFilter}
+            claimStatusFilter={claimStatusFilter}
+            onClaimStatusFilterChange={setClaimStatusFilter}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
+
+          <AccidentTable
+            accidents={displayedAccidents}
+            vehicles={vehicles}
+            onView={handleView}
+            onEdit={handleEdit}
+            onUpdateStatus={handleUpdateStatus} 
+            onUpdateInsurance={handleUpdateInsurance}
+            onDelete={acc => {
+              setSelectedAccident(acc);
+              setShowDeleteModal(true);
+            }}
+            onGenerateDocument={handleGenerateDocument}
+            onViewDocument={url => window.open(url, '_blank')}
+          />
+        </>
+      ) : (
+        <DriverRiskDashboard
+          accidents={accidents}
+          customers={customers}
+          onViewAccident={handleView}
         />
-        <label htmlFor="showResolved" className="text-sm text-gray-700">
-          Show only completed (resolved) accidents
-        </label>
-      </div> */}
-
-      <AccidentTable
-        accidents={displayedAccidents}
-        vehicles={vehicles}
-        onView={handleView}
-        onEdit={handleEdit}
-        onUpdateStatus={handleUpdateStatus} 
-        onDelete={acc => {
-          setSelectedAccident(acc);
-          setShowDeleteModal(true);
-        }}
-        onGenerateDocument={handleGenerateDocument}
-        onViewDocument={url => window.open(url, '_blank')}
-      />
+      )}
 
 
       {/* Add Modal */}
@@ -215,6 +260,27 @@ const Accidents = () => {
           size="xl"
         >
           <AccidentClaimView accident={selectedAccident} />
+        </Modal>
+      )}
+
+      {/* Post-Report Insurance Data Modal */}
+      {selectedAccident && (
+        <Modal
+          isOpen={showInsuranceModal}
+          onClose={() => {
+            setShowInsuranceModal(false);
+            setSelectedAccident(null);
+          }}
+          title="Post-Report Insurance Data"
+          size="xl"
+        >
+          <PostReportInsuranceModal
+            accident={selectedAccident}
+            onClose={() => {
+              setShowInsuranceModal(false);
+              setSelectedAccident(null);
+            }}
+          />
         </Modal>
       )}
 

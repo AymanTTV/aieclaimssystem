@@ -5,6 +5,7 @@ import { Rental, Vehicle, Customer } from '../../types';
 import { RENTAL_RATES } from '../../utils/rentalCalculations';
 import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
+import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 import { styles } from './styles';
 
 const localStyles = StyleSheet.create({
@@ -16,27 +17,27 @@ const localStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3B82F6',
     borderRadius: 6,
-    padding: 8,
-    marginBottom: 15,
+    padding: 7,
+    marginBottom: 12,
   },
   hirerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   hirerItem: {
     flex: 1,
     alignItems: 'flex-start',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   hirerLabel: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
     color: '#1E40AF',
     marginBottom: 1,
   },
   hirerValue: {
-    fontSize: 9,
+    fontSize: 8,
     color: '#1F2937',
   },
   termsSection: {
@@ -352,6 +353,10 @@ const RentalAgreement: React.FC<{
     );
   };
 
+  const isCompany = customer?.type === 'company';
+  const nameFields = resolveNameFields(customer);
+  const addressFields = resolveAddressFields(customer);
+
   return (
     <Document>
       <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
@@ -378,30 +383,66 @@ const RentalAgreement: React.FC<{
             </Text>
           </View>
 
-          {/* NEW HORIZONTAL HIRER DETAILS CARD */}
+          {/* HORIZONTAL HIRER DETAILS CARD */}
           <View style={localStyles.hirerInfoCard}>
+            {/* Row 1: Name & Personal */}
             <View style={localStyles.hirerRow}>
-              <View style={localStyles.hirerItem}>
-                <Text style={localStyles.hirerLabel}>Hirer Name</Text>
-                <Text style={localStyles.hirerValue}>{customer.name}</Text>
-              </View>
+              {isCompany ? (
+                <View style={[localStyles.hirerItem, { flex: 3 }]}>
+                  <Text style={localStyles.hirerLabel}>Company Name</Text>
+                  <Text style={localStyles.hirerValue}>{customer.name || '-'}</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={localStyles.hirerItem}>
+                    <Text style={localStyles.hirerLabel}>First Name</Text>
+                    <Text style={localStyles.hirerValue}>{nameFields.firstName || '-'}</Text>
+                  </View>
+                  <View style={localStyles.hirerItem}>
+                    <Text style={localStyles.hirerLabel}>Middle Name</Text>
+                    <Text style={localStyles.hirerValue}>{nameFields.middleName || '-'}</Text>
+                  </View>
+                  <View style={localStyles.hirerItem}>
+                    <Text style={localStyles.hirerLabel}>Last Name</Text>
+                    <Text style={localStyles.hirerValue}>{nameFields.lastName || '-'}</Text>
+                  </View>
+                </>
+              )}
               <View style={localStyles.hirerItem}>
                 <Text style={localStyles.hirerLabel}>Date of Birth</Text>
                 <Text style={localStyles.hirerValue}>{formatDate(customer.dateOfBirth)}</Text>
               </View>
-              <View style={localStyles.hirerItem}>
-                <Text style={localStyles.hirerLabel}>License Number</Text>
-                <Text style={localStyles.hirerValue}>{customer.driverLicenseNumber}</Text>
-              </View>
-              <View style={localStyles.hirerItem}>
-                <Text style={localStyles.hirerLabel}>Badge Number</Text>
-                <Text style={localStyles.hirerValue}>{customer.badgeNumber || 'N/A'}</Text>
-              </View>
             </View>
+
+            {/* Row 2: Address Breakdown */}
             <View style={localStyles.hirerRow}>
               <View style={localStyles.hirerItem}>
-                <Text style={localStyles.hirerLabel}>Address</Text>
-                <Text style={localStyles.hirerValue}>{customer.address}</Text>
+                <Text style={localStyles.hirerLabel}>Building / Flat</Text>
+                <Text style={localStyles.hirerValue}>{addressFields.buildingFlat || '-'}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Street Name</Text>
+                <Text style={localStyles.hirerValue}>{addressFields.streetName || '-'}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Town / City</Text>
+                <Text style={localStyles.hirerValue}>{addressFields.townCity || '-'}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Postcode</Text>
+                <Text style={localStyles.hirerValue}>{addressFields.postcode || '-'}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Country</Text>
+                <Text style={localStyles.hirerValue}>{addressFields.country || '-'}</Text>
+              </View>
+            </View>
+
+            {/* Row 3: License & Verification */}
+            <View style={localStyles.hirerRow}>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>License Number</Text>
+                <Text style={localStyles.hirerValue}>{customer.driverLicenseNumber || '-'}</Text>
               </View>
               <View style={localStyles.hirerItem}>
                 <Text style={localStyles.hirerLabel}>License Valid From</Text>
@@ -410,6 +451,10 @@ const RentalAgreement: React.FC<{
               <View style={localStyles.hirerItem}>
                 <Text style={localStyles.hirerLabel}>License Expiry</Text>
                 <Text style={localStyles.hirerValue}>{formatDate(customer.licenseExpiry)}</Text>
+              </View>
+              <View style={localStyles.hirerItem}>
+                <Text style={localStyles.hirerLabel}>Badge Number</Text>
+                <Text style={localStyles.hirerValue}>{customer.badgeNumber || 'N/A'}</Text>
               </View>
               <View style={localStyles.hirerItem}>
                 <Text style={localStyles.hirerLabel}>Country of Issue</Text>

@@ -27,9 +27,10 @@ const Transactions: React.FC = () => {
     if (type !== "all") rows = rows.filter((t) => (t.type || "").toLowerCase() === type);
     if (search.trim()) {
       const s = search.toLowerCase();
-      rows = rows.filter((t) =>
-        JSON.stringify(t).toLowerCase().includes(s)
-      );
+      rows = rows.filter((t) => {
+        const text = `${t.id || ''} ${t.type || ''} ${t.amount || ''} ${t.category || ''} ${t.description || ''} ${t.reference || ''} ${t.notes || ''}`.toLowerCase();
+        return text.includes(s);
+      });
     }
     return rows;
   }, [transactions, search, type]);

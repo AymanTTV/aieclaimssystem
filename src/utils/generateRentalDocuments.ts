@@ -135,12 +135,21 @@ export const generateRentalDocuments = async (
         clientRef: rental.claimRef || rental.id.slice(-8).toUpperCase(),
         clientInfo: {
           name: customer.name,
+          firstName: customer.firstName,
+          middleName: customer.middleName,
+          lastName: customer.lastName,
           phone: customer.mobile,
           email: customer.email,
           dateOfBirth: customer.dateOfBirth,
           driverLicenseNumber: customer.driverLicenseNumber,
           licenseExpiry: customer.licenseExpiry,
           address: customer.address,
+          buildingFlat: customer.buildingFlat,
+          streetName: customer.streetName,
+          townCity: customer.townCity,
+          postcode: customer.postcode,
+          country: customer.country,
+          type: customer.type,
           signature: rental.signature || customer.signature || '',
         },
         clientVehicle: {
@@ -217,6 +226,15 @@ export const generateRentalDocuments = async (
         submittedAt: rental.createdAt,
         updatedAt: rental.updatedAt,
         completionStatus: rental.status === 'completed' ? 'completed' : 'in-progress',
+        rental,
+        rentalAgreementNumber: rental.rentalAgreementNumber,
+        paidAmount: rental.paidAmount || 0,
+        includeVAT: rental.includeVAT,
+        deliveryChargeIncludeVAT: rental.deliveryChargeIncludeVAT,
+        collectionChargeIncludeVAT: rental.collectionChargeIncludeVAT,
+        insurancePerDayIncludeVAT: rental.insurancePerDayIncludeVAT,
+        includeStorageVAT: rental.includeStorageVAT,
+        includeRecoveryCostVAT: rental.includeRecoveryCostVAT,
       };
 
       try {

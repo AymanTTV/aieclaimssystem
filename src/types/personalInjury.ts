@@ -9,9 +9,16 @@ reference?: string;
   id: string;
   // Personal Details
   fullName: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   dateOfBirth: Date;
   address: string;
+  buildingFlat?: string;
+  streetName?: string;
+  townCity?: string;
   postcode: string;
+  country?: string;
   contactNumber: string;
   emailAddress: string;
 

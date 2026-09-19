@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Accident } from '../../types';
 import { format } from 'date-fns';
 import StatusBadge from '../StatusBadge';
-import { Car, Calendar, MapPin, User, Phone, Shield, AlertTriangle, PoundSterling } from 'lucide-react';
+import { Car, Calendar, MapPin, User, Phone, Shield, AlertTriangle, PoundSterling, Clock, CheckCircle2 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore'; 
 import { db } from '../../lib/firebase'; 
+import { calculateReportingTiming } from '../../utils/accidentCalculations'; 
 
 interface AccidentClaimViewProps {
   accident: Accident;
@@ -46,6 +47,25 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
       <p className="font-medium">{value || 'Not provided'}</p>
     </div>
   );
+
+  const timing = useMemo(() => {
+    return calculateReportingTiming({
+      accidentDate: accident.accidentDate,
+      accidentTime: accident.accidentTime,
+      reportedDate: accident.reportedDate,
+      reportedTime: accident.reportedTime,
+      submittedAt: accident.submittedAt,
+      existingPenalty: accident.lateReportingPenalty || accident.penaltyPayment || 0,
+    });
+  }, [
+    accident.accidentDate,
+    accident.accidentTime,
+    accident.reportedDate,
+    accident.reportedTime,
+    accident.submittedAt,
+    accident.lateReportingPenalty,
+    accident.penaltyPayment,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -269,6 +289,125 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
         </Section>
       )}
 
+      {/* Insurance Response Details */}
+      {(accident.claimNo || accident.insuranceRefNo || accident.insuranceClaimStatus || accident.dateFormReceivedFromInsurance || accident.reportedDate || accident.accCd) && (
+        <Section title="Insurance Response Details">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Field label="Claim No" value={accident.claimNo || accident.refNo || accident.referenceNo} />
+            <Field label="Insurance Ref No" value={accident.insuranceRefNo} />
+            <Field label="Acc Cd (Accident Code)" value={accident.accCd} />
+            <div>
+              <p className="text-sm text-gray-500">Insurance Claim Status</p>
+              <p className="font-medium capitalize">{accident.insuranceClaimStatus?.replace('_', ' ') || 'Pending'}</p>
+            </div>
+            <Field 
+              label="Reported Date & Time" 
+              value={`${accident.reportedDate ? format(new Date(accident.reportedDate), 'dd/MM/yyyy') : 'Not provided'}${accident.reportedTime ? ` at ${accident.reportedTime}` : ''}`} 
+            />
+            <div>
+              <p className="text-sm text-gray-500">Time to Report (Locked)</p>
+              <div className="flex items-center space-x-1 font-semibold text-gray-900 mt-0.5">
+                <Clock className="w-3.5 h-3.5 text-blue-600 inline" />
+                <span>{timing.timeToReportDisplay}</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">24-Hour Late Rule</p>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold mt-1 ${
+                timing.isLate ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}>
+                {timing.lateReporting} {timing.isLate ? '(> 24h)' : '(≤ 24h)'}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Penalty Payment</p>
+              <p className={`font-bold text-base mt-0.5 ${timing.isLate && timing.penaltyPayment > 0 ? 'text-rose-700' : 'text-gray-900'}`}>
+                £{timing.penaltyPayment.toFixed(2)}
+              </p>
+            </div>
+            <Field label="Claim Reported By" value={accident.claimReportedBy} />
+            <Field 
+              label="Date Form Received from Insurance" 
+              value={accident.dateFormReceivedFromInsurance ? format(new Date(accident.dateFormReceivedFromInsurance), 'dd/MM/yyyy') : undefined} 
+            />
+          </div>
+        </Section>
+      )}
+
+      {/* Outside Settlement */}
+      {(accident.settledOutsideInsurance !== undefined || accident.outsideSettlementAmount || accident.settlementNotes) && (
+        <Section title="Outside Settlement">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Settled Outside Insurance?</p>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
+                accident.settledOutsideInsurance ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'
+              }`}>
+                {accident.settledOutsideInsurance ? 'Yes' : 'No'}
+              </span>
+            </div>
+            {accident.outsideSettlementAmount !== undefined && (
+              <Field label="Outside Settlement Amount Paid Out" value={`£${accident.outsideSettlementAmount.toFixed(2)}`} />
+            )}
+            {accident.settlementNotes && (
+              <div className="md:col-span-2">
+                <Field label="Settlement Notes" value={accident.settlementNotes} />
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Financials & Fault Tracking */}
+      {(accident.fault || accident.faultType || accident.adEst !== undefined || accident.adPaid !== undefined || accident.totalTpEst !== undefined || accident.actRecovery !== undefined || accident.incurred !== undefined) && (
+        <Section title="Financials & Fault Tracking">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Fault Type</p>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-1 ${
+                (accident.fault || accident.faultType) === 'Non-Fault'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : (accident.fault || accident.faultType) === 'Split'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}>
+                {accident.fault || accident.faultType || 'Fault'}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Late Reporting?</p>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-1 ${
+                accident.lateReporting === 'Yes' || accident.lateReporting === true
+                  ? 'bg-rose-100 text-rose-800'
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {accident.lateReporting === 'Yes' || accident.lateReporting === true ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Excess Applies?</p>
+              <p className="font-medium">{accident.excessApplies ? 'Yes' : 'No'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Excess Recovered?</p>
+              <p className="font-medium">{accident.excessRecovered ? 'Yes' : 'No'}</p>
+            </div>
+            <Field label="AD Est" value={accident.adEst !== undefined ? `£${accident.adEst.toFixed(2)}` : undefined} />
+            <Field label="AD Paid" value={accident.adPaid !== undefined ? `£${accident.adPaid.toFixed(2)}` : undefined} />
+            <Field label="TP Paid" value={accident.tpPaid !== undefined ? `£${accident.tpPaid.toFixed(2)}` : undefined} />
+            <Field label="Incurred (AD+TP)" value={accident.incurred !== undefined ? `£${accident.incurred.toFixed(2)}` : undefined} />
+            <Field label="TP PI Est" value={accident.tpPiEst !== undefined ? `£${accident.tpPiEst.toFixed(2)}` : undefined} />
+            <Field label="TP Damage Est" value={accident.tpDamageEst !== undefined ? `£${accident.tpDamageEst.toFixed(2)}` : undefined} />
+            <Field label="TP Hire Est" value={accident.tpHireEst !== undefined ? `£${accident.tpHireEst.toFixed(2)}` : undefined} />
+            <Field label="Total TP Est" value={accident.totalTpEst !== undefined ? `£${accident.totalTpEst.toFixed(2)}` : undefined} />
+            <Field label="Act Recovery" value={accident.actRecovery !== undefined ? `£${accident.actRecovery.toFixed(2)}` : undefined} />
+            <div className="md:col-span-2">
+              <Field label="Outstanding Recovery" value={accident.outstandingRecovery !== undefined ? `£${accident.outstandingRecovery.toFixed(2)}` : undefined} />
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Images */}
       {accident.images && accident.images.length > 0 && (
         <Section title="Images">
@@ -295,8 +434,5 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident }) => {
     </div>
   );
 };
-
-// Add import for Clock in the beginning of file if not present (added above in imports)
-import { Clock } from 'lucide-react';
 
 export default AccidentClaimView;

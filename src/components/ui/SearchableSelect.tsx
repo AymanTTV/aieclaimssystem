@@ -1,7 +1,7 @@
 // src/components/ui/SearchableSelect.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Search, X, Check } from 'lucide-react';
-import { useOnClickOutside } from '../../hooks/useOnClickOutside';
 
 interface Option {
   id: string;
@@ -43,6 +43,13 @@ interface SearchableSelectProps {
   allId?: string;
 }
 
+interface DropdownPosition {
+  top: number;
+  left: number;
+  width: number;
+  openUpwards: boolean;
+}
+
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
   options,
   value,
@@ -60,13 +67,74 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null);
+
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const controlRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useOnClickOutside(wrapperRef, () => setIsOpen(false));
+  // Measure control and calculate optimal position for the portal dropdown
+  const updatePosition = useCallback(() => {
+    if (!controlRef.current) return;
+    const rect = controlRef.current.getBoundingClientRect();
+    const dropdownEstimatedHeight = 250;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < dropdownEstimatedHeight && rect.top > spaceBelow;
+
+    setDropdownPosition({
+      top: openUpwards ? rect.top - 4 : rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      openUpwards,
+    });
+  }, []);
+
+  // Update position when opened or when window/parent scrolls or resizes
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      const handleScrollOrResize = () => {
+        updatePosition();
+      };
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      window.addEventListener('resize', handleScrollOrResize);
+      return () => {
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+        window.removeEventListener('resize', handleScrollOrResize);
+      };
+    } else {
+      setDropdownPosition(null);
+    }
+  }, [isOpen, updatePosition]);
+
+  // Click outside handling for both control trigger and portal dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (
+        wrapperRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) inputRef.current.focus();
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
   }, [isOpen]);
 
   const filteredOptions = options.filter(
@@ -81,9 +149,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const getOptionLabel = (id: string) => options.find((o) => o.id === id)?.label || id;
 
   const toEmptyValue = () => {
-    // Multi mode: choose whether empty means ["all"] or []
     if (isMulti) return multiEmptyMode === 'all' ? [allId] : [];
-    // Single mode: fallback to allId
     return allId;
   };
 
@@ -94,21 +160,17 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       let newValues: string[] = [];
 
       if (optionId === allId) {
-        // Selecting "All" clears everything else
         newValues = [allId];
       } else {
         const hasThis = selectedIds.includes(optionId);
 
         if (hasThis) {
-          // remove
           newValues = selectedIds.filter((id) => id !== optionId);
         } else {
-          // add (remove allId if present)
           const clean = selectedIds.filter((id) => id !== allId);
           newValues = [...clean, optionId];
         }
 
-        // If user removed the last item, follow empty-mode behavior
         if (newValues.length === 0) {
           const empty = toEmptyValue();
           onChange(empty);
@@ -119,7 +181,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       onChange(newValues);
       setSearchTerm('');
-      // do not close in multi mode
     } else {
       onChange(optionId);
       setIsOpen(false);
@@ -146,18 +207,12 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   const isValueEmpty = (() => {
     if (selectedIds.length === 0) return true;
-
-    // If empty-mode is "all", treat [allId] as empty for placeholder purposes
     if (multiEmptyMode === 'all' && selectedIds.length === 1 && selectedIds[0] === allId) return true;
-
     return false;
   })();
 
   const renderMultiChips = () => {
-    // Show "All" chip if selected
     const hasAll = selectedIds.includes(allId);
-
-    // Chips for specific selections (exclude allId)
     const specific = selectedIds.filter((id) => id !== allId);
 
     return (
@@ -215,6 +270,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       <div className="relative">
         <div
+          ref={controlRef}
           className={`w-full min-h-[38px] border ${
             error ? 'border-red-300' : 'border-gray-300'
           } rounded-md bg-white ${disabled ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'} relative`}
@@ -260,6 +316,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsOpen(false);
@@ -272,32 +329,49 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           )}
         </div>
 
-        {isOpen && (
-          <div className="absolute z-20 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-gray-200">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => {
-                const isSelected = selectedIds.includes(option.id);
-                return (
-                  <div
-                    key={option.id}
-                    className={`cursor-pointer px-3 py-2 flex items-center justify-between ${
-                      isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900 hover:bg-gray-100'
-                    }`}
-                    onClick={(e) => handleSelect(option.id, e)}
-                  >
-                    <div>
-                      <div>{option.label}</div>
-                      {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
+        {/* Render dropdown into document.body to break free from any table/modal/form overflow constraints */}
+        {isOpen &&
+          dropdownPosition &&
+          ReactDOM.createPortal(
+            <div
+              ref={dropdownRef}
+              style={{
+                position: 'fixed',
+                top: dropdownPosition.openUpwards ? undefined : dropdownPosition.top,
+                bottom: dropdownPosition.openUpwards
+                  ? window.innerHeight - dropdownPosition.top
+                  : undefined,
+                left: dropdownPosition.left,
+                width: dropdownPosition.width,
+                zIndex: 99999,
+              }}
+              className="bg-white shadow-2xl max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-gray-200"
+            >
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((option) => {
+                  const isSelected = selectedIds.includes(option.id);
+                  return (
+                    <div
+                      key={option.id}
+                      className={`cursor-pointer px-3 py-2 flex items-center justify-between transition-colors ${
+                        isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900 hover:bg-gray-100'
+                      }`}
+                      onClick={(e) => handleSelect(option.id, e)}
+                    >
+                      <div>
+                        <div>{option.label}</div>
+                        {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
+                      </div>
+                      {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
                     </div>
-                    {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-sm text-gray-500 px-3 py-2">No results found</div>
-            )}
-          </div>
-        )}
+                  );
+                })
+              ) : (
+                <div className="text-sm text-gray-500 px-3 py-2">No results found</div>
+              )}
+            </div>,
+            document.body
+          )}
       </div>
 
       {error && <p className="text-sm text-red-600 mt-1">{error}</p>}

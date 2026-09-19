@@ -10,15 +10,15 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, iconColor = 'text-primary' }) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <div className="flex items-center">
-        <div className={`rounded-full p-3 ${iconColor} bg-opacity-10`}>
-          <Icon className={`w-6 h-6 ${iconColor}`} />
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-md hover:border-gray-200">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
+        <div className={`rounded-xl p-2.5 ${iconColor.replace('text-', 'bg-').replace('600', '50').replace('500', '50')} ${iconColor} bg-opacity-20`}>
+          <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
-        <div className="ml-4">
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
-        </div>
+      </div>
+      <div>
+        <p className="text-3xl font-bold text-gray-900 font-display">{value}</p>
       </div>
     </div>
   );

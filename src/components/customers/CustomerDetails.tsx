@@ -1,6 +1,7 @@
 // src/components/customers/CustomerDetails.tsx
 import React from 'react';
 import { Eye, FileText, Globe, Hash } from 'lucide-react';
+import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 
 // --- Type Definitions ---
 
@@ -92,6 +93,8 @@ const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string)
 
 const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
   const isCompany = customer.type === 'company';
+  const nameFields = resolveNameFields(customer);
+  const addressFields = resolveAddressFields(customer);
 
   const handleDocumentView = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -107,10 +110,27 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
           <h3 className="text-sm font-medium text-gray-500">Type</h3>
           <p className="mt-1 capitalize">{customer.type}</p>
         </div>
-        <div>
-          <h3 className="text-sm font-medium text-gray-500">Name</h3>
-          <p className="mt-1">{customer.name}</p>
-        </div>
+        {isCompany ? (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500">Company Name</h3>
+            <p className="mt-1">{customer.name}</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">First Name</h3>
+              <p className="mt-1">{nameFields.firstName || '-'}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Middle Name</h3>
+              <p className="mt-1">{nameFields.middleName || '-'}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Last Name</h3>
+              <p className="mt-1">{nameFields.lastName || '-'}</p>
+            </div>
+          </>
+        )}
         <div>
           <h3 className="text-sm font-medium text-gray-500">Mobile</h3>
           <p className="mt-1">
@@ -123,9 +143,25 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
             {customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">{customer.email}</a> : 'N/A'}
           </p>
         </div>
-        <div className="col-span-1 md:col-span-2">
-          <h3 className="text-sm font-medium text-gray-500">Address</h3>
-          <p className="mt-1">{customer.address}</p>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Building Name / Flat Number</h3>
+          <p className="mt-1">{addressFields.buildingFlat || '-'}</p>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Street Name</h3>
+          <p className="mt-1">{addressFields.streetName || '-'}</p>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Town / City</h3>
+          <p className="mt-1">{addressFields.townCity || '-'}</p>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Postcode</h3>
+          <p className="mt-1">{addressFields.postcode || '-'}</p>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Country</h3>
+          <p className="mt-1">{addressFields.country || '-'}</p>
         </div>
 
         {/* Company Fields */}

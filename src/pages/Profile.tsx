@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { User } from '../types';
 import { Upload, UserCircle, Phone, MapPin, Mail, Building } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { splitFullName, combineFullName, splitFullAddress, combineFullAddress } from '../utils/nameAddressUtils';
 
 // Maximum file size (10MB)
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -16,10 +17,17 @@ const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const initialName = splitFullName(user?.name || '');
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    firstName: initialName.firstName,
+    middleName: initialName.middleName,
+    lastName: initialName.lastName,
     phoneNumber: '',
-    address: '',
+    buildingFlat: '',
+    streetName: '',
+    townCity: '',
+    postcode: '',
+    country: '',
     image: null as File | null,
   });
 
@@ -29,11 +37,19 @@ const Profile = () => {
         const userDoc = await getDoc(doc(db, 'users', user.id));
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          const nameParts = splitFullName(userData.name || user?.name || '');
+          const addrParts = splitFullAddress(userData.address || '');
           setFormData(prev => ({
             ...prev,
-            name: userData.name || '',
+            firstName: userData.firstName || nameParts.firstName,
+            middleName: userData.middleName || nameParts.middleName,
+            lastName: userData.lastName || nameParts.lastName,
             phoneNumber: userData.phoneNumber || '',
-            address: userData.address || '',
+            buildingFlat: userData.buildingFlat || addrParts.buildingFlat,
+            streetName: userData.streetName || addrParts.streetName,
+            townCity: userData.townCity || addrParts.townCity,
+            postcode: userData.postcode || addrParts.postcode,
+            country: userData.country || addrParts.country,
           }));
           if (userData.photoURL) {
             setImagePreview(userData.photoURL);
@@ -91,10 +107,27 @@ const Profile = () => {
         photoURL = await getDownloadURL(snapshot.ref);
       }
 
+      const combinedName = combineFullName(formData.firstName, formData.middleName, formData.lastName);
+      const combinedAddress = combineFullAddress(
+        formData.buildingFlat,
+        formData.streetName,
+        formData.townCity,
+        formData.postcode,
+        formData.country
+      );
+
       await updateDoc(doc(db, 'users', user.id), {
-        name: formData.name,
+        name: combinedName,
+        firstName: formData.firstName,
+        middleName: formData.middleName,
+        lastName: formData.lastName,
         phoneNumber: formData.phoneNumber,
-        address: formData.address,
+        address: combinedAddress,
+        buildingFlat: formData.buildingFlat,
+        streetName: formData.streetName,
+        townCity: formData.townCity,
+        postcode: formData.postcode,
+        country: formData.country,
         photoURL,
         updatedAt: new Date()
       });
@@ -103,7 +136,7 @@ const Profile = () => {
       setEditMode(false);
     } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      toast.error(error.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -137,10 +170,12 @@ const Profile = () => {
                 </label>
               )}
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-gray-900">
-              {formData.name}
-            </h2>
-            <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
+            <div className="mt-4">
+              <p className="text-sm text-gray-500">First Name: <span className="font-semibold text-gray-900">{formData.firstName || '-'}</span></p>
+              {formData.middleName && <p className="text-sm text-gray-500">Middle Name: <span className="font-semibold text-gray-900">{formData.middleName}</span></p>}
+              <p className="text-sm text-gray-500">Last Name: <span className="font-semibold text-gray-900">{formData.lastName || '-'}</span></p>
+            </div>
+            <p className="text-sm text-gray-500 capitalize mt-2">{user?.role}</p>
           </div>
         </div>
 
@@ -175,6 +210,38 @@ const Profile = () => {
           </div>
 
           <div className="space-y-4">
+            {editMode && (
+              <div className="space-y-3 border-b pb-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">First Name</label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Middle Name</label>
+                  <input
+                    type="text"
+                    value={formData.middleName}
+                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Last Name</label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center">
               <Mail className="h-5 w-5 text-gray-400 mr-2" />
               <div>
@@ -200,21 +267,65 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="flex items-start">
-              <MapPin className="h-5 w-5 text-gray-400 mr-2 mt-1" />
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Address</p>
-                {editMode ? (
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                  />
-                ) : (
-                  <p className="text-gray-900">{formData.address || 'Not provided'}</p>
-                )}
-              </div>
+            <div className="border-t pt-3">
+              <p className="text-sm font-medium text-gray-700 mb-2">Address Details</p>
+              {editMode ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Building Name / Flat Number</label>
+                    <input
+                      type="text"
+                      value={formData.buildingFlat}
+                      onChange={(e) => setFormData({ ...formData, buildingFlat: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Street Name</label>
+                    <input
+                      type="text"
+                      value={formData.streetName}
+                      onChange={(e) => setFormData({ ...formData, streetName: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Town / City</label>
+                    <input
+                      type="text"
+                      value={formData.townCity}
+                      onChange={(e) => setFormData({ ...formData, townCity: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Postcode</label>
+                    <input
+                      type="text"
+                      value={formData.postcode}
+                      onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Country</label>
+                    <input
+                      type="text"
+                      value={formData.country}
+                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm space-y-1 bg-gray-50 p-3 rounded-md">
+                  <p><span className="text-gray-500">Building Name / Flat Number:</span> {formData.buildingFlat || '-'}</p>
+                  <p><span className="text-gray-500">Street Name:</span> {formData.streetName || '-'}</p>
+                  <p><span className="text-gray-500">Town / City:</span> {formData.townCity || '-'}</p>
+                  <p><span className="text-gray-500">Postcode:</span> {formData.postcode || '-'}</p>
+                  <p><span className="text-gray-500">Country:</span> {formData.country || '-'}</p>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center">
@@ -225,6 +336,7 @@ const Profile = () => {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>

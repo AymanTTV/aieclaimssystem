@@ -56,6 +56,7 @@ import { pdf } from '@react-pdf/renderer';
 import { ParkingPermitLetter } from '../components/pdf/ParkingPermitLetter';
 import { ensureValidDate } from '../utils/dateHelpers';
 import { isAfter } from 'date-fns';
+import { safeStringify } from '../utils/safeJson';
 
 const Rentals = () => {
   const { rentals, loading } = useRentals();
@@ -98,9 +99,11 @@ const Rentals = () => {
   useEffect(() => {
     if (selectedRental && rentals.length > 0) {
       const fresh = rentals.find(r => r.id === selectedRental.id);
-      if (fresh && JSON.stringify(fresh) !== JSON.stringify(selectedRental)) {
-        setSelectedRental(fresh);
-      } else if (!fresh) {
+      if (fresh) {
+        if (safeStringify(fresh) !== safeStringify(selectedRental)) {
+          setSelectedRental(fresh);
+        }
+      } else {
         setSelectedRental(null);
       }
     }

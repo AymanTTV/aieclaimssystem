@@ -8,6 +8,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { User, Phone, MapPin } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
+import { resolveNameFields } from '../../utils/nameAddressUtils';
 
 interface DriverPayDetailsProps {
   record: DriverPay;
@@ -15,6 +16,7 @@ interface DriverPayDetailsProps {
 
 const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
   const [createdByUser, setCreatedByUser] = useState<string>('');
+  const nameFields = resolveNameFields(record);
 
   // Use the 'record' prop directly. The problematic data fetching has been removed.
   const rec = record;
@@ -149,13 +151,18 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
       </div>
 
       <Section title="Driver Details">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center">
-            <User className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Name</p>
-              <p className="font-medium">{rec.name}</p>
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-500">First Name</p>
+            <p className="font-medium">{nameFields.firstName || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Middle Name</p>
+            <p className="font-medium">{nameFields.middleName || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Last Name</p>
+            <p className="font-medium">{nameFields.lastName || '-'}</p>
           </div>
           <div className="flex items-center">
             <Phone className="h-5 w-5 text-gray-400 mr-2" />

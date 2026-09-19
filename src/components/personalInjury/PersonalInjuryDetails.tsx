@@ -5,12 +5,16 @@ import { PersonalInjury } from '../../types/personalInjury';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
 import { ensureValidDate } from '../../utils/dateHelpers';
+import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 
 interface PersonalInjuryDetailsProps {
   injury: PersonalInjury;
 }
 
 const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury }) => {
+  const nameFields = resolveNameFields(injury);
+  const addressFields = resolveAddressFields(injury);
+
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="border-t pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
@@ -61,19 +65,17 @@ const PersonalInjuryDetails: React.FC<PersonalInjuryDetailsProps> = ({ injury })
       {/* Personal Details */}
       <Section title="Claim Details">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Full Name" value={injury.fullName} />
+          <Field label="First Name" value={nameFields.firstName || '-'} />
+          <Field label="Middle Name" value={nameFields.middleName || '-'} />
+          <Field label="Last Name" value={nameFields.lastName || '-'} />
           <Field label="Date of Birth" value={formatDateTime(injury.dateOfBirth)} />
           <Field label="Contact Number" value={injury.contactNumber} />
           <Field label="Email Address" value={injury.emailAddress} />
-          <div className="col-span-2">
-            <Field label="Address" value={
-              <>
-                {injury.address}
-                <br />
-                {injury.postcode}
-              </>
-            } />
-          </div>
+          <Field label="Building Name / Flat Number" value={addressFields.buildingFlat || '-'} />
+          <Field label="Street Name" value={addressFields.streetName || '-'} />
+          <Field label="Town / City" value={addressFields.townCity || '-'} />
+          <Field label="Postcode" value={addressFields.postcode || '-'} />
+          <Field label="Country" value={addressFields.country || '-'} />
         </div>
       </Section>
 

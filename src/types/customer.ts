@@ -17,9 +17,19 @@ export interface Customer {
   billCopyNote?: string;
 
   name: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+
   mobile: string;
   email: string;
+
   address: string;
+  buildingFlat?: string;
+  streetName?: string;
+  townCity?: string;
+  postcode?: string;
+  country?: string;
 
   accountNumber?: string;
   vatNumber?: string;

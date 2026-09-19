@@ -29,16 +29,16 @@ export default function Table<T extends { id: string }>({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto rounded-xl border border-white/10">
+      <table className="min-w-full">
+        <thead className="bg-[#1a1b3a] border-b border-white/15">
           <tr>
             {columns.map((column, index) => (
               <th
                 key={index}
                 scope="col"
                 className={clsx(
-                  'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider',
+                  'px-6 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider border-b border-white/15',
                   column.className
                 )}
               >
@@ -47,13 +47,13 @@ export default function Table<T extends { id: string }>({
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-[#171836]">
           {data.map((item) => (
             <tr
               key={item.id}
               onClick={() => onRowClick?.(item)}
               className={clsx(
-                'hover:bg-gray-50',
+                'border-b border-white/10 hover:bg-[#23254e] transition-colors',
                 onRowClick && 'cursor-pointer'
               )}
             >
@@ -61,7 +61,7 @@ export default function Table<T extends { id: string }>({
                 <td
                   key={index}
                   className={clsx(
-                    'px-6 py-4 whitespace-nowrap text-sm text-gray-500',
+                    'px-6 py-4 whitespace-nowrap text-sm text-slate-200 border-b border-white/10',
                     column.className
                   )}
                 >

@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'cross-fetch': path.resolve(__dirname, './src/lib/fetch-stub.cjs'),
     },
   },
   build: {
@@ -40,5 +41,6 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    allowedHosts: 'all',
   }, 
 });

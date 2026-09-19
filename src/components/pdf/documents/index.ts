@@ -30,6 +30,7 @@ export { default as DriverPayDocument } from './DriverPayDocument';
 export { default as DriverPayBulkDocument } from './DriverPayBulkDocument';
 
 export { default as CustomerDocument } from './CustomerDocument';
+export { default as FleetClaimExperiencePDFDocument } from './FleetClaimExperiencePDFDocument';
 
 
 

@@ -341,13 +341,18 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
           <div className="flex flex-wrap gap-2 w-full mt-2 pt-2 border-t border-blue-200/50">
             {['conditionOfHire', 'noticeOfRightToCancel', 'hireAgreement', 'creditStorageAndRecovery', 'creditHireMitigation', 'satisfactionNotice'].map(docKey => {
               if (!rental.documents?.[docKey]) return null;
+              const formattedName = docKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+              const label = docKey === 'hireAgreement' && rental.rentalAgreementNumber
+                ? `Hire Agreement #${rental.rentalAgreementNumber}`
+                : formattedName;
               return (
                 <button
                   key={docKey} onClick={() => window.open((rental.documents as any)[docKey], '_blank')}
                   className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  title={label}
                 >
                   <FileText className="h-3 w-3 mr-1.5" />
-                  {docKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                  {label}
                 </button>
               );
             })}

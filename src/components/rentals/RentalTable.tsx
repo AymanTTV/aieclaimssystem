@@ -1,5 +1,5 @@
 // src/components/rentals/RentalTable.tsx
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Rental, Vehicle, Customer } from '../../types';
 import {
@@ -19,11 +19,14 @@ import {
   AlertTriangle,
   StickyNote,
   AlertCircle,
-  CalendarPlus 
+  CalendarPlus,
+  MessageCircle,
+  Mail
 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
+import RentalCommunicationModal from './RentalCommunicationModal';
 import {
   isAfter,
   differenceInHours,
@@ -91,6 +94,26 @@ const RentalTable: React.FC<RentalTableProps> = ({
   const { can } = usePermissions();
   const { user } = useAuth(); 
   const { formatCurrency } = useFormattedDisplay();
+
+  const [commModal, setCommModal] = useState<{
+    isOpen: boolean;
+    rental: Rental | null;
+    mode: 'whatsapp' | 'email';
+  }>({
+    isOpen: false,
+    rental: null,
+    mode: 'whatsapp',
+  });
+
+  const commCustomer = useMemo(() => {
+    if (!commModal.rental) return null;
+    return customers.find(c => c.id === commModal.rental?.customerId) || null;
+  }, [commModal.rental, customers]);
+
+  const commVehicle = useMemo(() => {
+    if (!commModal.rental) return null;
+    return vehicles.find(v => v.id === commModal.rental?.vehicleId) || null;
+  }, [commModal.rental, vehicles]);
 
   // --- CENTRALIZED COST HELPER FOR TABLE ---
   const getDetailedRentalTotals = useCallback((rental: Rental, vehicle?: Vehicle) => {
@@ -537,6 +560,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
             {/* ROW 3: Documents Generation */}
             {can('rentals', 'singleDoc') && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
+                <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
+                <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
                 <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
                 <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
                 <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />
@@ -558,36 +583,47 @@ const RentalTable: React.FC<RentalTableProps> = ({
   ];
 
   return (
-    <DataTable
-      data={sortedRentals}
-      columns={columns}
-      onRowClick={r => can('rentals','view') && onView(r)}
-      rowClassName={r => {
-        const v = vehicles.find(veh => veh.id === r.vehicleId);
-        const { remaining } = getDetailedRentalTotals(r, v);
-        const level = getUrgencyLevel(r, remaining);
+    <>
+      <DataTable
+        data={sortedRentals}
+        columns={columns}
+        onRowClick={r => can('rentals','view') && onView(r)}
+        rowClassName={r => {
+          const v = vehicles.find(veh => veh.id === r.vehicleId);
+          const { remaining } = getDetailedRentalTotals(r, v);
+          const level = getUrgencyLevel(r, remaining);
 
-        // --- 1. URGENCY HIGHLIGHTS ---
-        if (level === 'red') {
-            return 'bg-red-50/50 hover:bg-red-100 transition-colors border-l-4 border-l-red-500'; 
-        }
-        if (level === 'yellow') {
-            return 'bg-yellow-50/50 hover:bg-yellow-100 transition-colors border-l-4 border-l-yellow-400';
-        }
+          // --- 1. URGENCY HIGHLIGHTS ---
+          if (level === 'red') {
+              return 'bg-red-50/50 hover:bg-red-100 transition-colors border-l-4 border-l-red-500'; 
+          }
+          if (level === 'yellow') {
+              return 'bg-yellow-50/50 hover:bg-yellow-100 transition-colors border-l-4 border-l-yellow-400';
+          }
 
-        // 2. Standard Overdue Logic (Red-ish)
-        const now = new Date();
-        if (r.status === 'active' && isAfter(now, r.endDate)) return 'bg-red-50/30';
+          // 2. Standard Overdue Logic (Red-ish)
+          const now = new Date();
+          if (r.status === 'active' && isAfter(now, r.endDate)) return 'bg-red-50/30';
 
-        // 3. Ending Soon Logic (Yellow-ish)
-        if (
-          (r.status === 'active' || r.status === 'scheduled') &&
-          isWithinInterval(r.endDate, { start: now, end: addDays(now, 30) })
-        )
-          return 'bg-yellow-50/30';
-        return '';
-      }}
-    />
+          // 3. Ending Soon Logic (Yellow-ish)
+          if (
+            (r.status === 'active' || r.status === 'scheduled') &&
+            isWithinInterval(r.endDate, { start: now, end: addDays(now, 30) })
+          )
+            return 'bg-yellow-50/30';
+          return '';
+        }}
+      />
+
+      <RentalCommunicationModal
+        isOpen={commModal.isOpen}
+        onClose={() => setCommModal(prev => ({ ...prev, isOpen: false, rental: null }))}
+        rental={commModal.rental}
+        customer={commCustomer}
+        vehicle={commVehicle}
+        initialMode={commModal.mode}
+      />
+    </>
   );
 };
 

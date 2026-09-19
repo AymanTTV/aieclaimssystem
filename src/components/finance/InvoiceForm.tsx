@@ -15,8 +15,9 @@ import { v4 as uuidv4 } from 'uuid';
 import productService from '../../services/product.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
-import { PlusCircle, CheckCircle } from 'lucide-react';
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer } from 'lucide-react';
 import Modal from '../ui/Modal';
+import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 
 interface InvoiceFormProps {
   vehicles: Vehicle[];
@@ -68,6 +69,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
     { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false, vehicleId: '', vehicleName: '' }
   ]);
+
+  // Share Modal & Post-Save trigger states
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareInitialMode, setShareInitialMode] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [savedInvoiceForShare, setSavedInvoiceForShare] = useState<Invoice | null>(null);
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false);
+
+  // Post-Save Quick Actions Selection State (Checkboxes in confirmation modal)
+  const [postSaveActions, setPostSaveActions] = useState<{
+    whatsapp: boolean;
+    email: boolean;
+    printPdf: boolean;
+  }>({
+    whatsapp: false,
+    email: false,
+    printPdf: false,
+  });
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -507,9 +525,36 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             }
         }
 
-        toast.success(`Invoice ${newInvoiceNumber} created successfully`);
+        const savedInvoiceObj: Invoice = {
+          id: docRef.id,
+          ...payload,
+          documentUrl: documentUrl,
+        } as Invoice;
+
+        setSavedInvoiceForShare(savedInvoiceObj);
         setShowConfirmModal(false);
-        onClose();
+
+        // Execute selected post-save actions
+        const hasWhatsApp = postSaveActions.whatsapp;
+        const hasEmail = postSaveActions.email;
+        const hasPrintPdf = postSaveActions.printPdf;
+
+        if (hasPrintPdf) {
+          handlePrintOrDownloadPDF(savedInvoiceObj);
+        }
+
+        if (hasWhatsApp) {
+          setShareInitialMode('whatsapp');
+          setShowShareModal(true);
+        } else if (hasEmail) {
+          setShareInitialMode('email');
+          setShowShareModal(true);
+        } else {
+          // Neither WhatsApp nor Email selected: close form
+          onClose();
+        }
+
+        toast.success(`Invoice ${newInvoiceNumber} created successfully!`);
     } catch (err: any) {
         console.error(err);
         toast.error('Failed to create invoice: ' + err.message);
@@ -525,6 +570,95 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
 
   const resolvedGroupId = groups.find(g => g.id === formData.groupId || g.name === formData.groupId)?.id || formData.groupId;
   const resolvedDeptId = departments.find(d => d.id === formData.departmentId || d.name === formData.departmentId)?.id || formData.departmentId;
+
+  // Build active invoice for sharing or printing before/after save
+  const buildActiveInvoice = (): Invoice => {
+    if (savedInvoiceForShare) return savedInvoiceForShare;
+    const paidNow = parseFloat(formData.amountToPay) || 0;
+    const remaining = Math.max(0, parseFloat((total - paidNow).toFixed(2)));
+    let status: 'paid' | 'unpaid' | 'partially_paid' = 'unpaid';
+    if (paidNow >= total - 0.01 && total > 0) status = 'paid';
+    else if (paidNow > 0) status = 'partially_paid';
+
+    const selectedGroup = groups.find(g => g.id === formData.groupId || g.name === formData.groupId);
+    const selectedDepartment = departments.find(d => d.id === formData.departmentId || d.name === formData.departmentId);
+
+    return {
+      id: 'draft_' + Date.now(),
+      invoiceNumber: formData.invoiceNumber || 'NEW-INVOICE',
+      date: new Date(formData.date),
+      dueDate: new Date(formData.dueDate),
+      lineItems: lineItems.map(li => ({ ...li })),
+      subTotal,
+      vatAmount,
+      total,
+      amount: total,
+      paidAmount: paidNow,
+      remainingAmount: remaining,
+      paymentStatus: status,
+      category: formData.category === 'Other' ? formData.customCategory : formData.category,
+      description: formData.description,
+      customCategory: formData.category === 'Other' ? formData.customCategory : undefined,
+      groupId: formData.groupId || undefined,
+      groupName: selectedGroup?.name || undefined,
+      departmentId: formData.departmentId || undefined,
+      departmentName: selectedDepartment?.name || undefined,
+      vehicleId: formData.vehicleId || undefined,
+      vehicleName: formData.vehicleName || undefined,
+      customerId: formData.customerId || undefined,
+      customerName: getCustomerNameDisplay(),
+      customerPhone: formData.useCustomCustomer ? formData.customerPhone : customers.find(c => c.id === formData.customerId)?.mobile || '',
+      payments: paidNow > 0 ? [{
+        id: 'init_payment',
+        date: new Date(),
+        amount: paidNow,
+        method: formData.paymentMethod,
+        reference: formData.paymentReference || 'Initial',
+        notes: formData.paymentNotes,
+        createdAt: new Date(),
+        createdBy: user?.id || 'system'
+      }] : [],
+      isLoan: formData.isLoan,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  };
+
+  // Direct PDF printing or download execution without leaving view
+  const handlePrintOrDownloadPDF = async (invoiceOverride?: Invoice) => {
+    try {
+      setIsPrintingPdf(true);
+      toast.loading('Preparing PDF for printing / download...');
+      const activeInv = invoiceOverride || buildActiveInvoice();
+      const vehicle = vehicles.find(v => v.id === activeInv.vehicleId);
+
+      let url = activeInv.documentUrl;
+      if (!url) {
+        const blob = await generateInvoicePDF(activeInv, vehicle);
+        url = URL.createObjectURL(blob);
+      }
+      toast.dismiss();
+      const printWin = window.open(url, '_blank');
+      if (printWin) {
+        printWin.focus();
+        toast.success('PDF opened for printing / download');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Invoice-${activeInv.invoiceNumber || 'Document'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('PDF download started');
+      }
+    } catch (err) {
+      toast.dismiss();
+      console.error('Error generating PDF for print:', err);
+      toast.error('Failed to generate PDF for printing');
+    } finally {
+      setIsPrintingPdf(false);
+    }
+  };
 
   return (
     <>
@@ -602,6 +736,77 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                   Is this a Loan Account? <br/>
                   <span className="font-normal text-amber-700">Check this if an expense transaction should be recorded to the ledger.</span>
                 </label>
+            </div>
+
+            {/* Quick Actions (Selectable Checkboxes) */}
+            <div className="p-4 rounded-xl border border-gray-200/20 bg-gray-50/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-400">
+                    Quick Actions:
+                  </span>
+                  <span className="text-[11px] text-gray-400">
+                    Select option(s) to automatically trigger upon saving
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* WhatsApp Checkbox */}
+                  <label 
+                    className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
+                      postSaveActions.whatsapp 
+                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 ring-1 ring-emerald-500/30' 
+                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      id="postSaveWhatsApp"
+                      checked={postSaveActions.whatsapp}
+                      onChange={e => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
+                      className="h-4 w-4 rounded text-emerald-500 border-white/30 bg-black/40 focus:ring-emerald-400 cursor-pointer"
+                    />
+                    <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-xs font-bold">Send via WhatsApp</span>
+                  </label>
+
+                  {/* Email Checkbox */}
+                  <label 
+                    className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
+                      postSaveActions.email 
+                        ? 'bg-sky-500/15 border-sky-500/50 text-sky-300 ring-1 ring-sky-500/30' 
+                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      id="postSaveEmail"
+                      checked={postSaveActions.email}
+                      onChange={e => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
+                      className="h-4 w-4 rounded text-sky-500 border-white/30 bg-black/40 focus:ring-sky-400 cursor-pointer"
+                    />
+                    <Mail className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="text-xs font-bold">Send via Email</span>
+                  </label>
+
+                  {/* Print / Download PDF Checkbox */}
+                  <label 
+                    className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
+                      postSaveActions.printPdf 
+                        ? 'bg-purple-500/15 border-purple-500/50 text-purple-300 ring-1 ring-purple-500/30' 
+                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      id="postSavePrintPdf"
+                      checked={postSaveActions.printPdf}
+                      onChange={e => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
+                      className="h-4 w-4 rounded text-purple-500 border-white/30 bg-black/40 focus:ring-purple-400 cursor-pointer"
+                    />
+                    <Printer className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span className="text-xs font-bold">Print / Download PDF</span>
+                  </label>
+                </div>
             </div>
 
             <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
@@ -847,7 +1052,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       required
                     />
                     {showSuggestions[idx] && item.description && (
-                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-56 overflow-y-auto">
+                      <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-2xl mt-1 max-h-56 overflow-y-auto">
                         {filterMatches(item.description).map(s => (
                           <li
                             key={s.id}
@@ -1005,13 +1210,70 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
-          <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600">
-            Review Details
-          </button>
+        <div className="pt-4 border-t border-gray-200 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">
+              Quick Actions:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShareInitialMode('whatsapp');
+                setShowShareModal(true);
+              }}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
+              title="Share Invoice via WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+              Send WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShareInitialMode('email');
+                setShowShareModal(true);
+              }}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors shadow-sm"
+              title="Send Invoice via Email"
+            >
+              <Mail className="w-3.5 h-3.5 mr-1.5 text-sky-600" />
+              Send Email
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintOrDownloadPDF}
+              disabled={isPrintingPdf}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors shadow-sm disabled:opacity-50"
+              title="Print or Download Invoice PDF"
+            >
+              <Printer className="w-3.5 h-3.5 mr-1.5 text-purple-600" />
+              {isPrintingPdf ? 'Generating...' : 'Print / Download PDF'}
+            </button>
+          </div>
+
+          <div className="flex space-x-3 w-full sm:w-auto justify-end">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary-600 shadow-sm">
+              Review Details
+            </button>
+          </div>
         </div>
       </form>
+
+      {/* Share / Communication Modal (Triggered automatically post-save or via Quick Actions) */}
+      <InvoiceCommunicationModal
+        isOpen={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          if (savedInvoiceForShare) {
+            onClose();
+          }
+        }}
+        invoice={savedInvoiceForShare || buildActiveInvoice()}
+        customer={customers.find(c => c.id === formData.customerId) || (formData.useCustomCustomer ? { name: formData.customerName, mobile: formData.customerPhone } as any : undefined)}
+        vehicle={vehicles.find(v => v.id === formData.vehicleId)}
+        initialMode={shareInitialMode}
+      />
     </>
   );
 };

@@ -1,12 +1,14 @@
 // src/components/finance/InvoiceTable.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Invoice, Vehicle, Customer } from '../../types/finance';
-import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature, Briefcase } from 'lucide-react';
+import { Eye, FileText, Edit, Trash2, CreditCard, FileSignature, Briefcase, MessageCircle, Mail } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import toast from 'react-hot-toast';
+import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -66,6 +68,16 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   const allSelected = sortedInvoices.length > 0 && selectedIds.size === sortedInvoices.length;
   const someSelected = sortedInvoices.length > 0 && selectedIds.size > 0 && !allSelected;
 
+  const [commModal, setCommModal] = useState<{
+    isOpen: boolean;
+    mode: 'whatsapp' | 'email';
+    invoice: Invoice | null;
+  }>({
+    isOpen: false,
+    mode: 'whatsapp',
+    invoice: null,
+  });
+
   const ActionBtn = ({ onClick, icon: Icon, colorClass, title }: { onClick: (e: React.MouseEvent) => void, icon: any, colorClass: string, title: string }) => (
     <button 
       onClick={e => { e.stopPropagation(); onClick(e); }} 
@@ -75,6 +87,22 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       <Icon className="h-4 w-4" />
     </button>
   );
+
+  const handleWhatsApp = (inv: Invoice) => {
+    setCommModal({
+      isOpen: true,
+      mode: 'whatsapp',
+      invoice: inv,
+    });
+  };
+
+  const handleEmail = (inv: Invoice) => {
+    setCommModal({
+      isOpen: true,
+      mode: 'email',
+      invoice: inv,
+    });
+  };
 
   const columns = useMemo(() => {
     const cols = [
@@ -249,6 +277,8 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
               <div className="flex flex-wrap justify-center gap-1">
                 {can('invoices', 'view') && <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />}
                 {can('invoices', 'update') && <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />}
+                <ActionBtn onClick={() => handleWhatsApp(inv)} icon={MessageCircle} colorClass="text-green-600 hover:text-green-700" title="Share via WhatsApp" />
+                <ActionBtn onClick={() => handleEmail(inv)} icon={Mail} colorClass="text-sky-600 hover:text-sky-700" title="Send Email" />
                 {can('invoices', 'assign') && <ActionBtn onClick={() => onAssignDepartment(inv)} icon={Briefcase} colorClass="text-teal-600" title="Assign Department" />}
               </div>
 
@@ -281,15 +311,35 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       return cols.filter(c => c.id !== 'select');
     }
     return cols;
-  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, isManager, sortedInvoices, can, formatCurrency]);
+  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, isManager, sortedInvoices, can, formatCurrency, customers]);
+
+  const selectedCustomer = commModal.invoice
+    ? customers.find(c => c.id === commModal.invoice?.customerId) || 
+      (commModal.invoice.customerName ? customers.find(c => c.name?.toLowerCase() === commModal.invoice?.customerName?.toLowerCase()) : undefined)
+    : undefined;
+
+  const selectedVehicle = commModal.invoice
+    ? vehicles.find(v => v.id === commModal.invoice?.vehicleId)
+    : undefined;
 
   return (
-    <DataTable
-      data={sortedInvoices}
-      columns={columns as any}
-      onRowClick={(inv) => can('invoices', 'view') && onView(inv)}
-      rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500' : 'hover:bg-gray-50')}
-    />
+    <>
+      <DataTable
+        data={sortedInvoices}
+        columns={columns as any}
+        onRowClick={(inv) => can('invoices', 'view') && onView(inv)}
+        rowClassName={(inv) => (isOverdue(inv) ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500' : 'hover:bg-gray-50')}
+      />
+
+      <InvoiceCommunicationModal
+        isOpen={commModal.isOpen}
+        onClose={() => setCommModal(prev => ({ ...prev, isOpen: false, invoice: null }))}
+        invoice={commModal.invoice}
+        customer={selectedCustomer}
+        vehicle={selectedVehicle}
+        initialMode={commModal.mode}
+      />
+    </>
   );
 };
 

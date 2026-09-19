@@ -13,12 +13,13 @@ import TextArea from '../ui/TextArea';
 import FileUpload from '../ui/FileUpload';
 import SignaturePad from '../ui/SignaturePad';
 import Modal from '../ui/Modal';
-import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gauge, PoundSterling, FileText, CreditCard, Trash2 } from 'lucide-react';
+import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gauge, PoundSterling, FileText, CreditCard, Trash2, MessageCircle, Mail, Printer } from 'lucide-react';
 import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
+import RentalCommunicationModal from './RentalCommunicationModal';
 
 type BaseReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop';
 type HireVariant = 'normal' | 'h-substitute' | 'c-substitute';
@@ -50,6 +51,17 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   const [insurancePerDayTouched, setInsurancePerDayTouched] = useState<boolean>(() => rental.insurancePerDay != null);
   const [insurancePerWeekTouched, setInsurancePerWeekTouched] = useState<boolean>(() => (rental as any).insurancePerWeek != null);
   const isFirstRender = useRef(true);
+
+  // Post-save quick action states & Share modal
+  const [postSaveActions, setPostSaveActions] = useState({
+    whatsapp: false,
+    email: false,
+    printPdf: false,
+  });
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareInitialMode, setShareInitialMode] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [savedRentalForShare, setSavedRentalForShare] = useState<Rental | null>(null);
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false);
 
   const [rentalAgreementNumber, setRentalAgreementNumber] = useState(rental.rentalAgreementNumber || '');
   const [existingImages, setExistingImages] = useState<string[]>(rental.checkOutCondition?.images || []);
@@ -283,6 +295,51 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   const currentFinalCostAfterDiscount = costs.gross;
   const currentRemainingAmount = currentFinalCostAfterDiscount - (rental.paidAmount || 0);
 
+  const handlePrintOrDownloadPDF = async (targetRental?: Rental) => {
+    const r = targetRental || savedRentalForShare || rental;
+    if (!r || !selectedVehicle || !selectedCustomer) {
+      toast.error('Vehicle and Customer are required to generate PDF');
+      return;
+    }
+    setIsPrintingPdf(true);
+    toast.loading('Preparing Rental PDF...');
+    try {
+      if (r.documents?.agreements) {
+        const keys = Object.keys(r.documents.agreements);
+        if (keys.length > 0) {
+          const latest = keys.sort().reverse()[0];
+          const url = r.documents.agreements[latest];
+          if (url) {
+            toast.dismiss();
+            window.open(url, '_blank');
+            return;
+          }
+        }
+      }
+      const docs = await generateRentalDocuments(r, selectedVehicle, selectedCustomer);
+      const blob = docs.agreement || docs.invoice;
+      toast.dismiss();
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const printWin = window.open(url, '_blank');
+        if (printWin) {
+          printWin.focus();
+          toast.success('Rental PDF ready');
+        } else {
+          window.print();
+        }
+      } else {
+        toast.error('Could not generate PDF');
+      }
+    } catch (err) {
+      toast.dismiss();
+      console.error(err);
+      toast.error('Failed to prepare PDF');
+    } finally {
+      setIsPrintingPdf(false);
+    }
+  };
+
   const handleRemoveExistingImage = (imageUrl: string) => setExistingImages(p => p.filter(img => img !== imageUrl));
 
   const [subVehicleSearchQueries, setSubVehicleSearchQueries] = useState<string[]>(() => (formData.hireSubstitutionDetails || []).map(() => ''));
@@ -480,10 +537,30 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
       const finalUpdatePayload = cleanObjectForFirestore(rentalUpdateData);
 
       await updateDoc(doc(db, 'rentals', rental.id), finalUpdatePayload);
+      const completeUpdatedRental = { ...rental, ...rentalUpdateData } as Rental;
+      setSavedRentalForShare(completeUpdatedRental);
       setIsConfirmModalOpen(false);
       setLoading(false);
-      onClose();
       toast.success('Rental updated! Regenerating documents in background…');
+
+      // Execute selected post-save actions
+      const hasWhatsApp = postSaveActions.whatsapp;
+      const hasEmail = postSaveActions.email;
+      const hasPrintPdf = postSaveActions.printPdf;
+
+      if (hasPrintPdf) {
+        handlePrintOrDownloadPDF(completeUpdatedRental);
+      }
+
+      if (hasWhatsApp) {
+        setShareInitialMode('whatsapp');
+        setShowShareModal(true);
+      } else if (hasEmail) {
+        setShareInitialMode('email');
+        setShowShareModal(true);
+      } else {
+        onClose();
+      }
 
       setTimeout(async () => {
         try {
@@ -1092,13 +1169,49 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         )}
 
         {/* FORM ACTIONS */}
-        <div className="flex justify-end gap-3 pt-4 border-t mt-8 bg-gray-50 p-4 rounded-xl">
-           <button type="button" onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-bold transition-colors">
-              Cancel
-           </button>
-           <button type="submit" disabled={loading} className="px-6 py-2.5 bg-primary text-white hover:bg-primary-600 rounded-xl font-bold shadow-md transition-all hover:shadow-lg disabled:opacity-50">
-              Review Updates
-           </button>
+        <div className="flex flex-wrap justify-between items-center gap-3 pt-4 border-t mt-8 bg-gray-50 p-4 rounded-xl">
+           <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShareInitialMode('whatsapp');
+                  setShowShareModal(true);
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 transition"
+                title="Send WhatsApp"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShareInitialMode('email');
+                  setShowShareModal(true);
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 flex items-center gap-1.5 transition"
+                title="Send Email"
+              >
+                <Mail className="w-3.5 h-3.5" /> Email
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintOrDownloadPDF()}
+                disabled={isPrintingPdf}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition disabled:opacity-50"
+                title="Print / Download PDF"
+              >
+                <Printer className="w-3.5 h-3.5" /> PDF
+              </button>
+           </div>
+           <div className="flex items-center gap-3">
+              <button type="button" onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-bold transition-colors">
+                 Cancel
+              </button>
+              <button type="submit" disabled={loading} className="px-6 py-2.5 bg-primary text-white hover:bg-primary-600 rounded-xl font-bold shadow-md transition-all hover:shadow-lg disabled:opacity-50">
+                 Review Updates
+              </button>
+           </div>
         </div>
       </form>
 
@@ -1172,6 +1285,46 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
             </div>
           )}
 
+          {/* Quick Actions / Share section */}
+          <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Quick Actions</span>
+              <span className="text-xs text-gray-400">Trigger on Save</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={postSaveActions.whatsapp}
+                  onChange={(e) => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
+                  className="rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-900"
+                />
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Send via WhatsApp</span>
+              </label>
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={postSaveActions.email}
+                  onChange={(e) => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
+                  className="rounded border-gray-600 text-sky-500 focus:ring-sky-500 bg-gray-900"
+                />
+                <Mail className="w-3.5 h-3.5 text-sky-400" />
+                <span>Send via Email</span>
+              </label>
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={postSaveActions.printPdf}
+                  onChange={(e) => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
+                  className="rounded border-gray-600 text-purple-500 focus:ring-purple-500 bg-gray-900"
+                />
+                <Printer className="w-3.5 h-3.5 text-purple-400" />
+                <span>Print / Download PDF</span>
+              </label>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={() => setIsConfirmModalOpen(false)} className="px-5 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">
               Back to Edit
@@ -1183,6 +1336,21 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
           </div>
         </div>
       </Modal>
+
+      {/* Share / Communication Modal */}
+      <RentalCommunicationModal
+        isOpen={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          if (savedRentalForShare) {
+            onClose();
+          }
+        }}
+        rental={savedRentalForShare || rental}
+        customer={selectedCustomer || null}
+        vehicle={selectedVehicle || null}
+        initialMode={shareInitialMode}
+      />
 
     </>
   );

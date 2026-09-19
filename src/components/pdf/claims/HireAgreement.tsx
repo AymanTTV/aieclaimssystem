@@ -8,29 +8,156 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { resolveNameFields, resolveAddressFields, combineFullName } from '../../../utils/nameAddressUtils';
 import logo from '../../../assets/logo.png';
-import { styles } from '../styles'; // Assuming styles.ts is in ../styles
+import { styles } from '../styles';
+
+const isValidPdfImageSrc = (v: any): v is string => {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (!s) return false;
+  if (s.includes('undefined') || s.includes('null')) return false;
+  return s.startsWith('data:image/') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('blob:');
+};
+
+const formatDate = (date: any) => {
+  if (!date) return 'N/A';
+  try {
+    const d = date?.toDate ? date.toDate() : new Date(date);
+    return isNaN(d.getTime()) ? 'N/A' : format(d, 'dd/MM/yyyy');
+  } catch {
+    return 'N/A';
+  }
+};
 
 const localStyles = StyleSheet.create({
-  // REVERTED: Signature section styling with absolute positioning
-  signatureSectionPositioning: {
-    position: 'absolute',
-    bottom: 60, // Original bottom position
-    left: 40,
-    right: 40,
+  page: {
+    paddingTop: 35,
+    paddingBottom: 40,
+    paddingHorizontal: 40,
+  },
+  signatureSection: {
+    marginTop: 15,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    width: '100%',
     breakInside: 'avoid',
-    pageBreakInside: 'avoid',
   },
-  // OPTIMIZED: New style to further reduce bottom margin for the last section on a page
-  lastSectionOnPage: {
-    marginBottom: 5, // Further reduced from 10 to 5 to prevent Page 1 overflow
+  compactBox: {
+    padding: 6,
+    width: '48%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
   },
-  // Style to ensure the content of the first page stays together if possible
+  compactImage: {
+    height: 30,
+    marginVertical: 2,
+    objectFit: 'contain',
+  },
+  compactLine: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    marginTop: 2,
+    marginBottom: 2,
+    paddingTop: 2,
+    fontSize: 9,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#4B5563',
+  },
+  compactText: {
+    fontSize: 8.5,
+    color: '#1F2937',
+    textAlign: 'center',
+  },
   mainContentWrapper: {
-    flexGrow: 1, // Allows it to take up available space
-    flexDirection: 'column', // Ensures children flow vertically
+    flexDirection: 'column',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomColor: '#E5E7EB',
+    borderBottomWidth: 1,
+    paddingVertical: 3.5,
+    minHeight: 18,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  tableHeaderRow: {
+    backgroundColor: '#3C9F2C',
+    flexDirection: 'row',
+    borderBottomColor: '#006A4E',
+    borderBottomWidth: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+  },
+  tableHeaderCell: {
+    flex: 1,
+    textAlign: 'left',
+    paddingHorizontal: 4,
+    fontWeight: 'bold',
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
+  tableHeaderCellRight: {
+    flex: 1,
+    textAlign: 'right',
+    paddingHorizontal: 4,
+    fontWeight: 'bold',
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
+  tableCell: {
+    flex: 1,
+    textAlign: 'left',
+    paddingHorizontal: 4,
+    fontSize: 8.5,
+    color: '#374151',
+  },
+  tableCellRight: {
+    flex: 1,
+    textAlign: 'right',
+    paddingHorizontal: 4,
+    fontSize: 8.5,
+    color: '#374151',
+  },
+});
+
+const compactCardStyles = StyleSheet.create({
+  card: {
+    backgroundColor: '#F9FAFB',
+    padding: 8,
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#438BDC',
+  },
+  title: {
+    fontSize: 9.5,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#1E40AF',
+    textTransform: 'uppercase',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 3,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2.5,
+  },
+  label: {
+    fontSize: 8.5,
+    color: '#4B5563',
+    width: '50%',
+  },
+  value: {
+    fontSize: 8.5,
+    color: '#1F2937',
+    textAlign: 'right',
+    flex: 1,
   },
 });
 
@@ -71,7 +198,68 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
   const hireTotal = days * rate;
   const insuranceTotal = days * ipd;
   const extrasTotal = dc + cc + st + recoveryCost + insuranceTotal;
-  const totalCost = hireTotal + extrasTotal;
+  const totalNet = hireTotal + extrasTotal;
+
+  // Granular Itemized VAT Calculations (only apply VAT to items where VAT was included/checked)
+  const hasHireVat = claim.rental?.includeVAT !== undefined
+    ? Boolean(claim.rental.includeVAT)
+    : (claim.includeVAT !== undefined ? Boolean(claim.includeVAT) : true);
+
+  const hasInsuranceVat = claim.rental?.insurancePerDayIncludeVAT !== undefined
+    ? Boolean(claim.rental.insurancePerDayIncludeVAT)
+    : Boolean(claim.insurancePerDayIncludeVAT ?? claim.hireDetails?.insurancePerDayIncludeVAT);
+
+  const hasDeliveryVat = claim.rental?.deliveryChargeIncludeVAT !== undefined
+    ? Boolean(claim.rental.deliveryChargeIncludeVAT)
+    : Boolean(claim.deliveryChargeIncludeVAT ?? claim.hireDetails?.deliveryChargeIncludeVAT);
+
+  const hasCollectionVat = claim.rental?.collectionChargeIncludeVAT !== undefined
+    ? Boolean(claim.rental.collectionChargeIncludeVAT)
+    : Boolean(claim.collectionChargeIncludeVAT ?? claim.hireDetails?.collectionChargeIncludeVAT);
+
+  const hasStorageVat = claim.rental?.includeStorageVAT !== undefined
+    ? Boolean(claim.rental.includeStorageVAT)
+    : Boolean(claim.includeStorageVAT ?? claim.storage?.includeVAT);
+
+  const hasRecoveryVat = claim.rental?.includeRecoveryCostVAT !== undefined
+    ? Boolean(claim.rental.includeRecoveryCostVAT)
+    : Boolean(claim.includeRecoveryCostVAT ?? claim.recovery?.includeVAT);
+
+  const hireVat = hasHireVat ? hireTotal * 0.20 : 0;
+  const insuranceVat = hasInsuranceVat ? insuranceTotal * 0.20 : 0;
+  const deliveryVat = hasDeliveryVat ? dc * 0.20 : 0;
+  const collectionVat = hasCollectionVat ? cc * 0.20 : 0;
+  const storageVat = hasStorageVat ? st * 0.20 : 0;
+  const recoveryVat = hasRecoveryVat ? recoveryCost * 0.20 : 0;
+
+  const totalVat = Number((hireVat + insuranceVat + deliveryVat + collectionVat + storageVat + recoveryVat).toFixed(2));
+  const grandTotal = Number((totalNet + totalVat).toFixed(2));
+
+  const paidAmount = Number(claim.rental?.paidAmount ?? claim.paidAmount ?? 0);
+  const owingAmount = grandTotal - paidAmount;
+
+  const hirerSignature = claim.clientInfo?.signature || claim.rental?.signature || '';
+  const isCompany = (claim.clientInfo as any)?.type === 'company';
+  const hirerSource = claim.clientInfo || claim.driver || claim.submitter || {};
+  const hirerNameFields = resolveNameFields(hirerSource);
+  const hirerAddressFields = resolveAddressFields(hirerSource);
+  const hirerName = isCompany
+    ? (claim.clientInfo?.name || claim.rental?.customerName || 'N/A')
+    : (combineFullName(hirerNameFields.firstName, hirerNameFields.middleName, hirerNameFields.lastName) || claim.clientInfo?.name || claim.rental?.customerName || 'N/A');
+  const signatureDate = claim.hireDetails?.startDate || claim.createdAt || new Date();
+
+  const rentalAgreementNumber =
+    claim.rental?.rentalAgreementNumber ||
+    claim.rentalAgreementNumber ||
+    claim.hireDetails?.rentalAgreementNumber;
+
+  const displayAgreementNumber = rentalAgreementNumber
+    ? (rentalAgreementNumber.toString().startsWith('#') ? rentalAgreementNumber.toString() : `#${rentalAgreementNumber}`)
+    : '';
+
+  const documentTitle = displayAgreementNumber
+    ? `HIRE AGREEMENT ${displayAgreementNumber}`
+    : 'HIRE AGREEMENT';
 
   const rows = [
     {
@@ -104,225 +292,233 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
     2
   )}/day applies for up to 3 months. Payment is due in full within eleven months from this date.`;
 
+  const renderHeader = () => (
+    <View style={styles.header} fixed>
+      <View style={styles.headerLeft}>
+        {isValidPdfImageSrc(companyDetails?.logoUrl) ? (
+          <Image src={companyDetails.logoUrl} style={styles.logo} cache={false} />
+        ) : (
+          <Image src={logo} style={styles.logo} cache={false} />
+        )}
+      </View>
+      <View style={styles.headerRight}>
+        <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+        <Text style={styles.companyDetail}>
+          {companyDetails?.officialAddress}
+        </Text>
+        <Text style={styles.companyDetail}>
+          Tel: {companyDetails?.phone}
+        </Text>
+        <Text style={styles.companyDetail}>
+          Email: {companyDetails?.email}
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerText}>
+        AIE SKYLINE LIMITED, registered in England and Wales with the
+        company registration number 15616639, registered office address:
+        United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+      </Text>
+      <Text
+        style={styles.pageNumber}
+        render={({ pageNumber, totalPages }) =>
+          `Page ${pageNumber} of ${totalPages}`
+        }
+      />
+    </View>
+  );
+
   return (
     <Document>
       {/* Page 1 */}
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={[styles.page, localStyles.page]}>
         {/* HEADER */}
-        <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            <Image src={logo} style={styles.logo} />
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>
-              {companyDetails.officialAddress}
-            </Text>
-            <Text style={styles.companyDetail}>
-              Tel: {companyDetails.phone}
-            </Text>
-            <Text style={styles.companyDetail}>
-              Email: {companyDetails.email}
-            </Text>
-          </View>
-        </View>
+        {renderHeader()}
 
         {/* TITLE */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>HIRE AGREEMENT</Text>
+          <Text style={styles.title}>{documentTitle}</Text>
         </View>
 
         {/* DETAILS CARDS & TABLE */}
-        {/* Wrap the main content of the first page to better manage breaks */}
         <View style={localStyles.mainContentWrapper}>
           {/* Two-Column Info Box */}
           <View
             style={[
-              styles.sectionBreak, // styles.sectionBreak now has reduced marginBottom and paddingBottom
-              { flexDirection: 'row', justifyContent: 'space-between' },
+              styles.sectionBreak,
+              { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 6 },
             ]}
           >
             {/* Hirer Details */}
-            <View style={[styles.card, { width: '48%' }]}>
+            <View style={[styles.card, { width: '48%', marginBottom: 0, padding: 8 }]}>
               <Text style={styles.cardTitle}>Hirer Details</Text>
-              {[
-                ['Full Name', claim.clientInfo.name],
-                ['Address', claim.clientInfo.address],
-                [
-                  'Date of Birth',
-                  format(new Date(claim.clientInfo.dateOfBirth), 'dd/MM/yyyy'),
-                ],
-                [
-                  'License No',
-                  claim.clientInfo.driverLicenseNumber || 'N/A',
-                ],
-                [
-                  'License Expiry',
-                  claim.clientInfo.licenseExpiry
-                    ? format(
-                        new Date(claim.clientInfo.licenseExpiry),
-                        'dd/MM/yyyy'
-                      )
-                    : 'N/A',
-                ],
-              ].map(([lbl, val], i) => (
-                <View key={i} style={styles.flexRow}>
-                  <Text style={styles.label}>{lbl}:</Text>
-                  <Text style={styles.value}>{val}</Text>
+              {(isCompany ? [
+                ['Company Name', claim.clientInfo?.name || 'N/A'],
+              ] : [
+                ['First Name', hirerNameFields.firstName || '-'],
+                ['Middle Name', hirerNameFields.middleName || '-'],
+                ['Last Name', hirerNameFields.lastName || '-'],
+              ]).concat([
+                ['Building / Flat', hirerAddressFields.buildingFlat || '-'],
+                ['Street Name', hirerAddressFields.streetName || '-'],
+                ['Town / City', hirerAddressFields.townCity || '-'],
+                ['Postcode', hirerAddressFields.postcode || '-'],
+                ['Country', hirerAddressFields.country || '-'],
+                ['Date of Birth', formatDate(claim.clientInfo?.dateOfBirth)],
+                ['License No', claim.clientInfo?.driverLicenseNumber || 'N/A'],
+                ['License Expiry', formatDate(claim.clientInfo?.licenseExpiry)],
+              ]).map(([lbl, val], i) => (
+                <View key={i} style={[styles.flexRow, { marginBottom: 2 }]}>
+                  <Text style={[styles.label, { fontSize: 8, width: 85 }]}>{lbl}:</Text>
+                  <Text style={[styles.value, { fontSize: 8 }]}>{val}</Text>
                 </View>
               ))}
             </View>
 
             {/* Vehicle & Hire Details */}
-            <View style={[styles.card, { width: '48%' }]}>
+            <View style={[styles.card, { width: '48%', marginBottom: 0, padding: 8 }]}>
               <Text style={styles.cardTitle}>Vehicle &amp; Hire Details</Text>
               {[
                 ['Registration', d.vehicle?.registration || 'N/A'],
-                [
-                  'Start Date',
-                  d.startDate
-                    ? format(new Date(d.startDate), 'dd/MM/yyyy')
-                    : 'N/A',
-                ],
-                [
-                  'End Date',
-                  d.endDate
-                    ? format(new Date(d.endDate), 'dd/MM/yyyy')
-                    : 'N/A',
-                ],
+                ['Start Date', formatDate(d.startDate)],
+                ['End Date', formatDate(d.endDate)],
                 ['Days of Hire', String(days)],
                 ['Rate (per day)', `£${rate.toFixed(2)}`],
-                ['Extras (Total)', `£${extrasTotal.toFixed(2)}`],
-                ['Grand Total', `£${totalCost.toFixed(2)}`],
               ].map(([lbl, val], i) => (
-                <View key={i} style={styles.flexRow}>
-                  <Text style={styles.label}>{lbl}:</Text>
-                  <Text style={styles.value}>{val}</Text>
+                <View key={i} style={[styles.flexRow, { marginBottom: 2 }]}>
+                  <Text style={[styles.label, { fontSize: 8, width: 85 }]}>{lbl}:</Text>
+                  <Text style={[styles.value, { fontSize: 8 }]}>{val}</Text>
                 </View>
               ))}
             </View>
           </View>
 
           {/* Charges Table */}
-          {/* Apply lastSectionOnPage style to reduce its bottom margin EVEN MORE */}
-          <View style={[styles.sectionBreak, localStyles.lastSectionOnPage]}>
-            <Text style={styles.sectionTitle}>
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.sectionTitle, { fontSize: 11, paddingVertical: 4, paddingHorizontal: 6, marginBottom: 4 }]}>
               Hire &amp; Charges Breakdown
             </Text>
             <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={styles.tableHeaderCell}>Description</Text>
-                <Text style={styles.tableHeaderCell}>Details</Text>
-                <Text style={styles.tableHeaderCell}>Rate (£)</Text>
-                <Text style={styles.tableHeaderCell}>Days/Units</Text>
-                <Text style={styles.tableHeaderCell}>Total (£)</Text>
+              <View style={localStyles.tableHeaderRow}>
+                <Text style={[localStyles.tableHeaderCell, { flex: 1.4 }]}>Description</Text>
+                <Text style={[localStyles.tableHeaderCell, { flex: 1.2 }]}>Details</Text>
+                <Text style={[localStyles.tableHeaderCellRight, { flex: 0.8 }]}>Rate (£)</Text>
+                <Text style={[localStyles.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>Days/Units</Text>
+                <Text style={[localStyles.tableHeaderCellRight, { flex: 1.0 }]}>Total (£)</Text>
               </View>
               {rows.map((r, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <Text style={styles.tableCell}>{r.desc}</Text>
-                  <Text style={styles.tableCell}>{r.details}</Text>
-                  <Text style={styles.tableCell}>{r.rate}</Text>
-                  <Text style={styles.tableCell}>{r.units}</Text>
-                  <Text style={styles.tableCell}>{r.total}</Text>
+                <View key={i} style={localStyles.tableRow}>
+                  <Text style={[localStyles.tableCell, { flex: 1.4 }]}>{r.desc}</Text>
+                  <Text style={[localStyles.tableCell, { flex: 1.2 }]}>{r.details}</Text>
+                  <Text style={[localStyles.tableCellRight, { flex: 0.8 }]}>{r.rate}</Text>
+                  <Text style={[localStyles.tableCell, { flex: 0.8, textAlign: 'center' }]}>{r.units}</Text>
+                  <Text style={[localStyles.tableCellRight, { flex: 1.0, fontWeight: 'bold' }]}>{r.total}</Text>
                 </View>
               ))}
-              <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
-                  Total Amount
+            </View>
+          </View>
+
+          {/* --- SUMMARY (Net, VAT, Gross, Paid, Owing) --- */}
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 }} wrap={false}>
+            {/* Summary Card */}
+            <View style={[compactCardStyles.card, { width: '48%' }]}>
+              <Text style={compactCardStyles.title}>Summary</Text>
+              
+              {/* NET */}
+              <View style={compactCardStyles.row}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>NET:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                  £{totalNet.toFixed(2)}
                 </Text>
-                <Text style={styles.tableCell} />
-                <Text style={styles.tableCell} />
-                <Text style={styles.tableCell} />
-                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
-                  £{totalCost.toFixed(2)}
+              </View>
+
+              {/* VAT */}
+              <View style={compactCardStyles.row}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>VAT:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                  £{totalVat.toFixed(2)}
+                </Text>
+              </View>
+
+              {/* Gross Total */}
+              <View style={[compactCardStyles.row, { marginTop: 3, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 3 }]}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Gross Total:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                  £{grandTotal.toFixed(2)}
+                </Text>
+              </View>
+
+              {/* Paid */}
+              <View style={compactCardStyles.row}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Paid:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                  £{paidAmount.toFixed(2)}
+                </Text>
+              </View>
+
+              {/* Owing */}
+              <View style={compactCardStyles.row}>
+                <Text style={[compactCardStyles.label, { color: owingAmount > 0.001 ? '#DC2626' : '#16A34A', fontFamily: 'Helvetica-Bold' }]}>
+                  Owing:
+                </Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: owingAmount > 0.001 ? '#DC2626' : '#16A34A' }]}>
+                  £{Math.abs(owingAmount).toFixed(2)}
                 </Text>
               </View>
             </View>
           </View>
         </View>
+
         {/* FOOTER */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the
-            company registration number 15616639, registered office address:
-            United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
-          <Text
-            style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} of ${totalPages}`
-            }
-          />
-        </View>
+        {renderFooter()}
       </Page>
 
-      {/* Page 2 */}
-      <Page size="A4" style={styles.page}>
+      {/* Page 2: Terms & Signatures */}
+      <Page size="A4" style={[styles.page, localStyles.page]}>
         {/* HEADER */}
-        <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            <Image src={logo} style={styles.logo} />
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>
-              {companyDetails.officialAddress}
-            </Text>
-            <Text style={styles.companyDetail}>
-              Tel: {companyDetails.phone}
-            </Text>
-            <Text style={styles.companyDetail}>
-              Email: {companyDetails.email}
-            </Text>
-          </View>
-        </View>
+        {renderHeader()}
 
         {/* TERMS */}
-        {/* We keep the margin bottom for terms for aesthetic spacing before signatures */}
-        <View style={[styles.card, { marginBottom: 30 }]}>
-          <Text style={styles.sectionTitle}>TERMS</Text>
+        <View style={[styles.card, { marginBottom: 15 }]}>
+          <Text style={styles.cardTitle}>TERMS &amp; CONDITIONS</Text>
           <Text style={styles.text}>
-            {companyDetails.hireAgreementText || defaultTerms}
+            {companyDetails?.hireAgreementText || defaultTerms}
           </Text>
         </View>
 
-        {/* SIGNATURES - Reverted to original absolute positioning */}
-        <View style={localStyles.signatureSectionPositioning} wrap={false}>
-          <View style={styles.signatureBox}>
-            <Text style={styles.signatureLine}>Authorized Signature</Text>
-            {companyDetails.signature && (
-              <Image src={companyDetails.signature} style={styles.signature} />
-            )}
-            <Text>{companyDetails.fullName}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
-          </View>
-          <View style={styles.signatureBox}>
-            <Text style={styles.signatureLine}>Hirer’s Signature</Text>
-            {claim.clientInfo.signature && (
+        {/* SIGNATURES - Matches Rental Agreement signature design */}
+        <View style={localStyles.signatureSection} wrap={false}>
+          <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+            {isValidPdfImageSrc(hirerSignature) && (
               <Image
-                src={claim.clientInfo.signature}
-                style={styles.signature}
+                src={hirerSignature}
+                style={[styles.signature, localStyles.compactImage]}
               />
             )}
-            <Text>{claim.clientInfo.name}</Text>
-            <Text>Date: {format(new Date(), 'dd/MM/yyyy')}</Text>
+            <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
+            <Text style={localStyles.compactText}>{hirerName}</Text>
+            <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
+          </View>
+
+          <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+            {isValidPdfImageSrc(companyDetails?.signature) && (
+              <Image
+                src={companyDetails.signature}
+                style={[styles.signature, localStyles.compactImage]}
+              />
+            )}
+            <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
+            <Text style={localStyles.compactText}>{companyDetails?.fullName || companyDetails?.name || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
           </View>
         </View>
 
         {/* FOOTER */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the
-            company registration number 15616639, registered office address:
-            United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
-          <Text
-            style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} of ${totalPages}`
-            }
-          />
-        </View>
+        {renderFooter()}
       </Page>
     </Document>
   );
