@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Rental, Customer, Vehicle } from '../../types';
 import Modal from '../ui/Modal';
 import { db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
@@ -22,7 +22,15 @@ import {
   CheckCircle2,
   FileText,
   Car,
-  Clock
+  Clock,
+  Paperclip,
+  Receipt,
+  MapPin,
+  CheckSquare,
+  AlertCircle,
+  Shield,
+  Scale,
+  Award
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
@@ -30,6 +38,7 @@ import { sendEmail } from '../../utils/emailService';
 import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
+import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 
 interface RentalCommunicationModalProps {
   isOpen: boolean;
@@ -46,6 +55,16 @@ interface TemplateOption {
   category: string;
   subjectTemplate: string;
   bodyTemplate: string;
+}
+
+export interface RentalDocItem {
+  id: string;
+  docType: string;
+  label: string;
+  key?: string;
+  existingUrl?: string;
+  category: 'hire' | 'invoice' | 'permit' | 'claim';
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> = ({
@@ -73,17 +92,55 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const [recipientContact, setRecipientContact] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [baseMessage, setBaseMessage] = useState('');
   const [copied, setCopied] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [isPrintingPdf, setIsPrintingPdf] = useState(false);
   const [cachedPdfUrl, setCachedPdfUrl] = useState<string>('');
 
-  // Sync mode whenever initialMode changes upon modal opening
+  // Customer & Vehicle resolution fallback
+  const [internalCustomer, setInternalCustomer] = useState<Customer | undefined>(customer);
+  const [internalVehicle, setInternalVehicle] = useState<Vehicle | undefined>(vehicle);
+
+  // Selected Documents to Attach (All UNCHECKED by default)
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [docUrls, setDocUrls] = useState<Record<string, string>>({});
+  const [isGeneratingDocs, setIsGeneratingDocs] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setInternalCustomer(customer);
+  }, [customer]);
+
+  useEffect(() => {
+    setInternalVehicle(vehicle);
+  }, [vehicle]);
+
+  // If customer or vehicle is missing, resolve directly from Firestore
+  useEffect(() => {
+    if (!isOpen || !rental) return;
+    if (!customer && rental.customerId) {
+      getDoc(doc(db, 'customers', rental.customerId)).then((snap) => {
+        if (snap.exists()) {
+          setInternalCustomer({ id: snap.id, ...snap.data() } as Customer);
+        }
+      }).catch(console.error);
+    }
+    if (!vehicle && rental.vehicleId) {
+      getDoc(doc(db, 'vehicles', rental.vehicleId)).then((snap) => {
+        if (snap.exists()) {
+          setInternalVehicle({ id: snap.id, ...snap.data() } as Vehicle);
+        }
+      }).catch(console.error);
+    }
+  }, [isOpen, rental, customer, vehicle]);
+
+  // Sync mode and reset documents selection whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
       setIsTemplateDropdownOpen(false);
       setTemplateSearchQuery('');
+      setSelectedDocIds([]); // CRITICAL REQUIREMENT: Always unchecked by default
       
       // Look for any existing agreement or invoice URL
       if (rental?.documents?.agreements) {
@@ -97,6 +154,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       }
     } else {
       hasPreselectedRef.current = false;
+      setSelectedDocIds([]);
     }
   }, [isOpen, initialMode, rental]);
 
@@ -454,16 +512,241 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     [rental, customer, vehicle, cachedPdfUrl, formatCurrency]
   );
 
+  // Agreement key formatting helper matching the Rental Page document toolbar
+  const formatAgreementKey = useCallback((key: string): string => {
+    try {
+      const timestamp = parseInt(key.split('_')[1] || '0', 10);
+      return timestamp === 0 
+        ? 'Hire Agreement' 
+        : `Hire Agreement (${format(new Date(timestamp), 'dd/MM/yyyy')})`;
+    } catch {
+      return `Hire Agreement (${key.replace(/^agreement_/, '')})`;
+    }
+  }, []);
+
+  // Dynamically list all document files associated with the active rental record matching the document list from the UI
+  const availableDocs = useMemo<RentalDocItem[]>(() => {
+    if (!rental) return [];
+
+    const items: RentalDocItem[] = [];
+    const docs = (rental.documents as any) || {};
+
+    // 1. Hire Agreement (Main / Dated Versions)
+    const agreementKeys = docs.agreements 
+      ? Object.keys(docs.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0', 10) - parseInt(b.split('_')[1] || '0', 10)) 
+      : [];
+    const latestAgreementKey = agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
+
+    const mainAgreementUrl = latestAgreementKey 
+      ? docs.agreements[latestAgreementKey] 
+      : docs.hireAgreement || undefined;
+
+    const mainLabel = rental.rentalAgreementNumber 
+      ? `Hire Agreement #${rental.rentalAgreementNumber} (Main)` 
+      : 'Hire Agreement (Main)';
+
+    items.push({
+      id: 'hire_agreement_main',
+      docType: 'hireAgreement',
+      label: mainLabel,
+      key: latestAgreementKey || undefined,
+      existingUrl: mainAgreementUrl,
+      category: 'hire',
+      icon: FileText,
+    });
+
+    // Older dated agreement versions if any
+    agreementKeys
+      .filter((k) => k !== latestAgreementKey)
+      .forEach((key) => {
+        items.push({
+          id: `agreement_${key}`,
+          docType: 'datedAgreement',
+          label: formatAgreementKey(key),
+          key: key,
+          existingUrl: docs.agreements[key],
+          category: 'hire',
+          icon: FileText,
+        });
+      });
+
+    // 2. Invoice / Payment Receipt
+    items.push({
+      id: 'invoice',
+      docType: 'invoice',
+      label: 'Invoice / Payment Receipt',
+      existingUrl: docs.invoice || undefined,
+      category: 'invoice',
+      icon: Receipt,
+    });
+
+    // 3. Permit
+    items.push({
+      id: 'permit',
+      docType: 'permit',
+      label: 'Permit',
+      existingUrl: docs.permit || undefined,
+      category: 'permit',
+      icon: MapPin,
+    });
+
+    // 4. Condition Of Hire
+    items.push({
+      id: 'condition_of_hire',
+      docType: 'conditionOfHire',
+      label: 'Condition Of Hire',
+      existingUrl: docs.conditionOfHire || undefined,
+      category: 'claim',
+      icon: CheckSquare,
+    });
+
+    // 5. Notice Of Right To Cancel
+    items.push({
+      id: 'notice_of_right_to_cancel',
+      docType: 'noticeOfRightToCancel',
+      label: 'Notice Of Right To Cancel',
+      existingUrl: docs.noticeOfRightToCancel || undefined,
+      category: 'claim',
+      icon: AlertCircle,
+    });
+
+    // 6. Credit Storage And Recovery
+    items.push({
+      id: 'credit_storage_and_recovery',
+      docType: 'creditStorageAndRecovery',
+      label: 'Credit Storage And Recovery',
+      existingUrl: docs.creditStorageAndRecovery || undefined,
+      category: 'claim',
+      icon: Shield,
+    });
+
+    // 7. Credit Hire Mitigation
+    items.push({
+      id: 'credit_hire_mitigation',
+      docType: 'creditHireMitigation',
+      label: 'Credit Hire Mitigation',
+      existingUrl: docs.creditHireMitigation || undefined,
+      category: 'claim',
+      icon: Scale,
+    });
+
+    // 8. Satisfaction Notice
+    items.push({
+      id: 'satisfaction_notice',
+      docType: 'satisfactionNotice',
+      label: 'Satisfaction Notice',
+      existingUrl: docs.satisfactionNotice || undefined,
+      category: 'claim',
+      icon: Award,
+    });
+
+    return items;
+  }, [rental, formatAgreementKey]);
+
+  // Sync existing document URLs into local state
+  useEffect(() => {
+    if (!isOpen || !rental) return;
+
+    const initialUrls: Record<string, string> = {};
+    availableDocs.forEach((docItem) => {
+      if (docItem.existingUrl) {
+        initialUrls[docItem.id] = docItem.existingUrl;
+      }
+    });
+
+    setDocUrls(initialUrls);
+  }, [isOpen, rental, availableDocs]);
+
+  // Helper to construct the formatted Attached Documents block
+  const buildAttachedDocsSection = useCallback(
+    (selectedIds: string[], urls: Record<string, string>): string => {
+      if (selectedIds.length === 0) return '';
+      const lines = selectedIds
+        .map((id) => {
+          const item = availableDocs.find((d) => d.id === id);
+          if (!item) return null;
+          const url = urls[id] || (isGeneratingDocs[id] ? '[Generating secure link...]' : '[Link will be generated on send]');
+          return `• ${item.label}: ${url}`;
+        })
+        .filter(Boolean);
+      if (lines.length === 0) return '';
+      return `Attached Documents:\n${lines.join('\n')}`;
+    },
+    [availableDocs, isGeneratingDocs]
+  );
+
+  // Generate and upload document on demand to obtain secure persistent download URL
+  const ensureDocUrl = useCallback(
+    async (item: RentalDocItem): Promise<string> => {
+      if (docUrls[item.id]) return docUrls[item.id];
+      if (!rental) return '';
+
+      const effCustomer = internalCustomer || customer;
+      const effVehicle = internalVehicle || vehicle;
+      if (!effCustomer || !effVehicle) {
+        console.warn('Customer or Vehicle not yet loaded for doc generation');
+        return '';
+      }
+
+      setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: true }));
+      try {
+        const docs = await generateRentalDocuments(rental, effVehicle, effCustomer);
+
+        const ts = (rental as any).originalStartDate 
+          ? new Date(rental.originalStartDate as any).getTime() 
+          : new Date(rental.startDate).getTime();
+        const agreementKey = item.key || `agreement_${ts}`;
+
+        const uploadRes = await uploadRentalDocuments(rental.id, {
+          agreements: docs.agreement ? { [agreementKey]: docs.agreement } : {},
+          invoice: docs.invoice,
+          permit: docs.permit,
+          claimDocuments: docs.claimDocuments,
+        });
+
+        let targetUrl = '';
+        if (item.docType === 'hireAgreement' || item.docType === 'datedAgreement') {
+          targetUrl = uploadRes.agreementUrls?.[agreementKey] || Object.values(uploadRes.agreementUrls || {})[0] || '';
+        } else if (item.docType === 'invoice') {
+          targetUrl = uploadRes.invoiceUrl || '';
+        } else if (item.docType === 'permit') {
+          targetUrl = uploadRes.permitUrl || '';
+        } else if (uploadRes.claimDocumentUrls) {
+          if (item.docType === 'conditionOfHire') targetUrl = uploadRes.claimDocumentUrls.conditionOfHire || '';
+          else if (item.docType === 'noticeOfRightToCancel') targetUrl = uploadRes.claimDocumentUrls.noticeOfRightToCancel || '';
+          else if (item.docType === 'creditStorageAndRecovery') targetUrl = uploadRes.claimDocumentUrls.creditStorageAndRecovery || '';
+          else if (item.docType === 'creditHireMitigation') targetUrl = uploadRes.claimDocumentUrls.creditHireMitigation || '';
+          else if (item.docType === 'satisfactionNotice') targetUrl = uploadRes.claimDocumentUrls.satisfactionNotice || '';
+        }
+
+        if (targetUrl) {
+          setDocUrls((prev) => ({ ...prev, [item.id]: targetUrl }));
+          return targetUrl;
+        }
+        return '';
+      } catch (err: any) {
+        console.error('Failed to generate/upload document:', item.label, err);
+        return '';
+      } finally {
+        setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: false }));
+      }
+    },
+    [rental, internalCustomer, customer, internalVehicle, vehicle, docUrls]
+  );
+
   // Live preview update whenever selected template, mode, or rental changes
   useEffect(() => {
     if (!rental) return;
 
+    const effCustomer = internalCustomer || customer;
+    const effVehicle = internalVehicle || vehicle;
+
     // Contact info
     if (mode === 'whatsapp') {
-      const phone = customer?.mobile || customer?.phone || (customer as any)?.tel || '';
+      const phone = effCustomer?.mobile || effCustomer?.phone || (effCustomer as any)?.tel || '';
       setRecipientContact(phone);
     } else {
-      const email = customer?.email || '';
+      const email = effCustomer?.email || '';
       setRecipientContact(email);
     }
 
@@ -474,15 +757,48 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       );
       const popBody = populateTemplate(currentTpl.bodyTemplate);
       setSubject(popSubject);
-      setMessage(popBody);
+      setBaseMessage(popBody);
     } else if (templates.length === 0 && !loadingTemplates) {
       // Empty state when no templates exist under "Rental" category
       setSubject(`Rental Booking - ${rental.rentalAgreementNumber || rental.id || ''}`);
-      setMessage(
-        `Hi ${customer?.name || 'Customer'},\n\nHere are your rental details for booking #${rental.rentalAgreementNumber || rental.id || ''}:\nVehicle: ${vehicle?.make || ''} ${vehicle?.model || ''} (${vehicle?.registrationNumber || 'N/A'})\nStart Date: ${formatDateValue(rental.startDate)}\nEnd Date: ${formatDateValue(rental.endDate)}\nTotal: ${formatCurrency(rental.cost || 0)}\nAmount Paid: ${formatCurrency(rental.paidAmount || 0)}\nRemaining: ${formatCurrency(rental.remainingAmount || 0)}.`
-      );
+      const defaultBody = `Hi ${effCustomer?.name || (rental as any).customerName || 'Customer'},\n\nHere are your rental details for booking #${rental.rentalAgreementNumber || rental.id || ''}:\nVehicle: ${effVehicle?.make || ''} ${effVehicle?.model || ''} (${effVehicle?.registrationNumber || 'N/A'})\nStart Date: ${formatDateValue(rental.startDate)}\nEnd Date: ${formatDateValue(rental.endDate)}\nTotal: ${formatCurrency(rental.cost || 0)}\nAmount Paid: ${formatCurrency(rental.paidAmount || 0)}\nRemaining: ${formatCurrency(rental.remainingAmount || 0)}.`;
+      setBaseMessage(defaultBody);
     }
-  }, [selectedTemplateId, mode, rental, customer, vehicle, templates, loadingTemplates, populateTemplate, formatCurrency]);
+  }, [
+    selectedTemplateId, 
+    mode, 
+    rental, 
+    customer, 
+    internalCustomer, 
+    vehicle, 
+    internalVehicle, 
+    templates, 
+    loadingTemplates, 
+    populateTemplate, 
+    formatCurrency
+  ]);
+
+  // LIVE PREVIEW UPDATE: Instantly reflect checked/unchecked document links in real-time
+  useEffect(() => {
+    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls);
+    if (!docsSection) {
+      setMessage(baseMessage);
+    } else {
+      setMessage(`${baseMessage}\n\n${docsSection}`);
+    }
+  }, [baseMessage, selectedDocIds, docUrls, buildAttachedDocsSection]);
+
+  // Manual message edit handler preserving base template text
+  const handleMessageChange = (val: string) => {
+    setMessage(val);
+    const sep = '\n\nAttached Documents:\n';
+    const idx = val.indexOf(sep);
+    if (idx !== -1) {
+      setBaseMessage(val.substring(0, idx));
+    } else {
+      setBaseMessage(val);
+    }
+  };
 
   // Re-populate from template (Reset edits)
   const handleResetToTemplate = () => {
@@ -490,8 +806,41 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     if (!currentTpl || !rental) return;
 
     setSubject(populateTemplate(currentTpl.subjectTemplate));
-    setMessage(populateTemplate(currentTpl.bodyTemplate));
+    const popBody = populateTemplate(currentTpl.bodyTemplate);
+    setBaseMessage(popBody);
     toast.success('Reset to original template text');
+  };
+
+  // Document checkbox toggling
+  const handleToggleDoc = (id: string) => {
+    setSelectedDocIds((prev) => {
+      const isCurrentlySelected = prev.includes(id);
+      const next = isCurrentlySelected ? prev.filter((dId) => dId !== id) : [...prev, id];
+      
+      // If newly selected and has no url yet, kick off generation in background
+      if (!isCurrentlySelected && !docUrls[id]) {
+        const item = availableDocs.find((d) => d.id === id);
+        if (item) {
+          ensureDocUrl(item);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllDocs = () => {
+    const allIds = availableDocs.map((d) => d.id);
+    setSelectedDocIds(allIds);
+    allIds.forEach((id) => {
+      if (!docUrls[id]) {
+        const item = availableDocs.find((d) => d.id === id);
+        if (item) ensureDocUrl(item);
+      }
+    });
+  };
+
+  const handleClearAllDocs = () => {
+    setSelectedDocIds([]);
   };
 
   // Copy message text
@@ -525,9 +874,11 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return rental.documents.invoice;
     }
 
-    if (!rental || !vehicle || !customer) return '';
+    const effCustomer = internalCustomer || customer;
+    const effVehicle = internalVehicle || vehicle;
+    if (!rental || !effVehicle || !effCustomer) return '';
     try {
-      const docs = await generateRentalDocuments(rental, vehicle, customer);
+      const docs = await generateRentalDocuments(rental, effVehicle, effCustomer);
       const blob = docs.agreement || docs.invoice;
       if (blob) {
         const objectUrl = URL.createObjectURL(blob);
@@ -554,7 +905,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         return;
       }
 
-      // Open PDF in a new window/tab for native print/download preview
       const printWin = window.open(pdfUrl, '_blank');
       if (printWin) {
         printWin.focus();
@@ -571,7 +921,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     }
   };
 
-  // Send Trigger: WhatsApp (Appends PDF download URL directly into message text if available)
+  // Send Trigger: WhatsApp (Appends secure download URLs for checked documents to WhatsApp message)
   const handleSendWhatsApp = async () => {
     if (!rental) return;
 
@@ -587,22 +937,35 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return;
     }
 
-    if (!message.trim()) {
-      toast.error('Message text cannot be empty');
-      return;
+    // Ensure all checked documents have generated URLs
+    let currentUrls = { ...docUrls };
+    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
+    if (missingDocs.length > 0) {
+      toast.loading('Generating secure links for selected documents...');
+      try {
+        for (const item of missingDocs) {
+          const url = await ensureDocUrl(item);
+          if (url) currentUrls[item.id] = url;
+        }
+      } finally {
+        toast.dismiss();
+      }
     }
 
-    // Ensure PDF URL is included if available
-    let finalMessage = message;
-    const pdfUrl = cachedPdfUrl || (rental.documents?.invoice || '');
-    if (pdfUrl && !finalMessage.includes(pdfUrl)) {
-      finalMessage = `${finalMessage}\n\n📄 View Document PDF: ${pdfUrl}`;
+    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls);
+    let finalMessage = baseMessage.trim();
+    if (docsSection) {
+      finalMessage = `${finalMessage}\n\n${docsSection}`;
+    }
+
+    if (!finalMessage.trim()) {
+      toast.error('Message text cannot be empty');
+      return;
     }
 
     const waUrl = buildWaMeLink(digits, finalMessage);
     window.open(waUrl, '_blank', 'noopener,noreferrer');
 
-    // Attempt to log to WhatsApp history
     try {
       await logWhatsappHistory({
         sentBy: user?.email || user?.name || 'System User',
@@ -621,7 +984,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     onClose();
   };
 
-  // Send Trigger: Email via mailto: (Includes PDF download link in body)
+  // Send Trigger: Email via mailto: (Embeds download links for checked documents into body)
   const handleSendMailto = async () => {
     if (!rental) return;
 
@@ -631,10 +994,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return;
     }
 
-    let finalBody = message;
-    const pdfUrl = cachedPdfUrl || (rental.documents?.invoice || '');
-    if (pdfUrl && !finalBody.includes(pdfUrl)) {
-      finalBody = `${finalBody}\n\n📄 View / Download Document PDF:\n${pdfUrl}`;
+    // Ensure all checked documents have generated URLs
+    let currentUrls = { ...docUrls };
+    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
+    if (missingDocs.length > 0) {
+      toast.loading('Generating secure links for selected documents...');
+      try {
+        for (const item of missingDocs) {
+          const url = await ensureDocUrl(item);
+          if (url) currentUrls[item.id] = url;
+        }
+      } finally {
+        toast.dismiss();
+      }
+    }
+
+    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls);
+    let finalBody = baseMessage.trim();
+    if (docsSection) {
+      finalBody = `${finalBody}\n\n${docsSection}`;
     }
 
     const encodedSubject = encodeURIComponent(subject || `Rental Agreement ${rental.rentalAgreementNumber || ''}`);
@@ -674,10 +1052,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-    let finalBody = message;
-    const pdfUrl = cachedPdfUrl || (rental.documents?.invoice || '');
-    if (pdfUrl && !finalBody.includes(pdfUrl)) {
-      finalBody = `${finalBody}\n\n📄 View / Download Document PDF:\n${pdfUrl}`;
+    // Ensure all checked documents have generated URLs
+    let currentUrls = { ...docUrls };
+    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
+    if (missingDocs.length > 0) {
+      toast.loading('Generating secure links for selected documents...');
+      try {
+        for (const item of missingDocs) {
+          const url = await ensureDocUrl(item);
+          if (url) currentUrls[item.id] = url;
+        }
+      } finally {
+        toast.dismiss();
+      }
+    }
+
+    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls);
+    let finalBody = baseMessage.trim();
+    if (docsSection) {
+      finalBody = `${finalBody}\n\n${docsSection}`;
     }
 
     if (!serviceId || !templateId || !publicKey) {
@@ -688,9 +1081,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     setSendingEmail(true);
     toast.loading('Sending email...');
     try {
+      const effCustomer = internalCustomer || customer;
       await sendEmail({
         to_email: email,
-        to_name: customer?.name || 'Customer',
+        to_name: effCustomer?.name || (rental as any).customerName || 'Customer',
         subject: subject || `Rental Booking - ${rental.rentalAgreementNumber || ''}`,
         message: finalBody,
       });
