@@ -40,6 +40,13 @@ import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { RentalReminderTemplateSelector } from './RentalReminderTemplateSelector';
 import { BulkEmailTemplateSearchableSelect } from './BulkEmailTemplateSearchableSelect';
 import { BulkEmailTemplateEditorModal } from './BulkEmailTemplateEditorModal';
+import { Modal } from '../ui/Modal';
+import {
+  fetchSchedulerPreferences,
+  getDayInfo,
+  formatTime12h,
+  generateCronExpression,
+} from '../../utils/schedulerConfig';
 
 interface MondayAutoEmailBulkModalProps {
   isOpen: boolean;
@@ -73,6 +80,8 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
   const [bulkTemplates, setBulkTemplates] = useState<BulkEmailTemplate[]>([]);
   const [weeklyTemplateId, setWeeklyTemplateId] = useState<string>(DEFAULT_BULK_WEEKLY_TEMPLATE.id);
   const [dailyTemplateId, setDailyTemplateId] = useState<string>(DEFAULT_BULK_DAILY_TEMPLATE.id);
+  const [scheduleDay, setScheduleDay] = useState<number>(1);
+  const [scheduleTime, setScheduleTime] = useState<string>('09:00');
 
   // Template editor modal state
   const [editorModalOpen, setEditorModalOpen] = useState(false);
@@ -96,9 +105,20 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
         try {
           const tpls = await getBulkEmailTemplates();
           setBulkTemplates(tpls);
+
+          const sched = await fetchSchedulerPreferences();
+          setScheduleDay(sched.scheduleDay);
+          setScheduleTime(sched.scheduleTime);
+
           const snap = await getDoc(doc(db, 'system_settings', 'global_config'));
           if (snap.exists()) {
             const data = snap.data();
+            if (data?.schedule_day !== undefined) {
+              setScheduleDay(Number(data.schedule_day));
+            }
+            if (data?.schedule_time) {
+              setScheduleTime(data.schedule_time);
+            }
             if (data?.weekly_rental_template_id) {
               setWeeklyTemplateId(data.weekly_rental_template_id);
             } else if (tpls.length > 0) {
@@ -191,6 +211,10 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
       disabledCount,
     };
   }, [activeRentals]);
+
+  const dayInfo = useMemo(() => getDayInfo(scheduleDay), [scheduleDay]);
+  const formattedTime = useMemo(() => formatTime12h(scheduleTime), [scheduleTime]);
+  const cronExpr = useMemo(() => generateCronExpression(scheduleDay, scheduleTime), [scheduleDay, scheduleTime]);
 
   // Filtered rentals for table
   const filteredRentals = useMemo(() => {
@@ -310,47 +334,38 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
-        
-        {/* Header */}
-        <div className="p-5 sm:p-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-              <Mail className="w-6 h-6 text-indigo-200" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xl font-black">Monday Auto-Email Manager</h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/20">
-                  Cron: 0 9 * * 1 (Mondays 09:00 AM)
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/20">
-                  No Attachments
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-indigo-200/80 mt-0.5">
-                Automated payment reminders targeting active Daily and Weekly rentals with outstanding balances (owing &gt; £0). Strictly excludes claims.
-              </p>
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={activeTab === 'templates' ? 'Rental Reminder Templates' : 'Monday Auto-Email Manager'}
+      size="3xl"
+      contentClassName="p-0 overflow-hidden flex flex-col max-h-[92vh] text-white"
+    >
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Info Subheader */}
+        <div className="px-5 py-2.5 bg-gradient-to-r from-indigo-950/60 to-slate-900/60 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+              Cron: {cronExpr} ({dayInfo.plural} {formattedTime})
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+              No Attachments
+            </span>
+            <span className="text-slate-300 text-xs hidden md:inline">
+              Automated reminders for active Daily &amp; Weekly rentals with balance owing &gt; £0. Strictly excludes claims.
+            </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-indigo-200 hover:text-white hover:bg-white/10 rounded-xl transition"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
 
         {/* Navigation Tabs inside modal */}
-        <div className="flex items-center justify-between border-b border-gray-200 bg-slate-50 px-5 pt-2">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#121327] px-5 pt-2 shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('list')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer ${
                 activeTab === 'list'
-                  ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-xl'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  ? 'border-indigo-400 text-indigo-300 bg-white/5 rounded-t-xl'
+                  : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
               <Car className="w-4 h-4" />
@@ -358,54 +373,54 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
             </button>
             <button
               onClick={() => setActiveTab('templates')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer ${
                 activeTab === 'templates'
-                  ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-xl'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  ? 'border-indigo-400 text-indigo-300 bg-white/5 rounded-t-xl'
+                  : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
               <Settings2 className="w-4 h-4" />
-              Monday Automated Bulk Email Scheduler &amp; Templates
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded">
-                09:00 AM
+              Reminder Templates &amp; Scheduler
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded">
+                {formattedTime}
               </span>
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-[11px] text-gray-500 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+          <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Strict Category: Bulk Email</span>
           </div>
         </div>
 
         {/* Tab 1: Template Selection & Editing View */}
         {activeTab === 'templates' && (
-          <div className="p-5 overflow-y-auto flex-1 bg-slate-50/50">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-[#15172b] min-h-[550px] sm:min-h-[650px] max-h-[75vh]">
             <RentalReminderTemplateSelector onSaved={() => onRefresh?.()} />
           </div>
         )}
 
         {/* Tab 2: Rentals List & Control Bar */}
         {activeTab === 'list' && (
-          <>
+          <div className="flex flex-col flex-1 overflow-hidden">
             {/* Dynamic Dropdown Selection Interface & Scheduler Banner on List Tab */}
-            <div className="p-4 bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/80 border-b border-indigo-100 flex flex-col gap-3">
+            <div className="p-4 bg-[#181938] border-b border-white/10 flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-2xs">
+                  <span className="p-1.5 bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 rounded-lg">
                     <Mail className="w-4 h-4" />
                   </span>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-gray-900">
-                        Monday Automated Bulk Email Scheduler
+                      <span className="text-xs font-black text-white">
+                        Automated Bulk Email Scheduler
                       </span>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        Cron: 0 9 * * 1 (Mondays 09:00 AM)
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                        Cron: {cronExpr} ({dayInfo.plural} {formattedTime})
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-600">
-                      Select or edit templates strictly sourced from the Bulk Email module prior to the scheduled 09:00 AM auto-dispatch.
+                    <p className="text-[11px] text-slate-400">
+                      Select or edit templates strictly sourced from the Bulk Email module prior to the scheduled {formattedTime} auto-dispatch.
                     </p>
                   </div>
                 </div>
@@ -413,7 +428,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                 <button
                   type="button"
                   onClick={() => setActiveTab('templates')}
-                  className="self-start sm:self-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition text-xs flex items-center gap-1.5 shadow-2xs shrink-0"
+                  className="self-start sm:self-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   Full Template Editor &amp; Preview
@@ -423,7 +438,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
               {/* Dynamic Dropdown Selectors Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                 {/* Weekly Searchable Dropdown */}
-                <div className="bg-white p-3 rounded-2xl border border-indigo-100 shadow-2xs">
+                <div className="bg-[#0f1022] p-3 rounded-2xl border border-white/10 shadow-xs">
                   <BulkEmailTemplateSearchableSelect
                     templates={bulkTemplates}
                     selectedTemplateId={weeklyTemplateId}
@@ -447,7 +462,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                 </div>
 
                 {/* Daily Searchable Dropdown */}
-                <div className="bg-white p-3 rounded-2xl border border-indigo-100 shadow-2xs">
+                <div className="bg-[#0f1022] p-3 rounded-2xl border border-white/10 shadow-xs">
                   <BulkEmailTemplateSearchableSelect
                     templates={bulkTemplates}
                     selectedTemplateId={dailyTemplateId}
@@ -473,41 +488,41 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 border-b border-gray-200">
-              <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs">
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Active Daily &amp; Weekly</p>
-                <p className="text-xl font-black text-gray-900 mt-0.5">{stats.total}</p>
-                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#121327] border-b border-white/10">
+              <div className="bg-[#181938] p-3 rounded-xl border border-white/10 shadow-xs">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Daily &amp; Weekly</p>
+                <p className="text-xl font-black text-white mt-0.5">{stats.total}</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                   {stats.weeklyCount} Weekly • {stats.dailyCount} Daily
                 </p>
               </div>
-              <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs">
-                <p className="text-[11px] font-bold text-red-600 uppercase tracking-wider">Owing &gt; £0 (Targeted)</p>
-                <p className="text-xl font-black text-red-600 mt-0.5">
+              <div className="bg-[#181938] p-3 rounded-xl border border-white/10 shadow-xs">
+                <p className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">Owing &gt; £0 (Targeted)</p>
+                <p className="text-xl font-black text-rose-400 mt-0.5">
                   {stats.totalOwingCount}
-                  <span className="text-xs text-gray-500 font-normal ml-1.5">({formatCurrency(stats.totalOwingAmount)})</span>
+                  <span className="text-xs text-slate-400 font-normal ml-1.5">({formatCurrency(stats.totalOwingAmount)})</span>
                 </p>
-                <p className="text-[10px] text-red-500 font-medium mt-0.5">Eligible for reminder</p>
+                <p className="text-[10px] text-rose-400 font-medium mt-0.5">Eligible for reminder</p>
               </div>
-              <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs">
-                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Auto-Email Enabled</p>
-                <p className="text-xl font-black text-emerald-600 mt-0.5">{stats.enabledCount}</p>
-                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Active for Monday 12 AM</p>
+              <div className="bg-[#181938] p-3 rounded-xl border border-white/10 shadow-xs">
+                <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Auto-Email Enabled</p>
+                <p className="text-xl font-black text-emerald-400 mt-0.5">{stats.enabledCount}</p>
+                <p className="text-[10px] text-emerald-400 font-medium mt-0.5">Active for Monday 09:00 AM</p>
               </div>
-              <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs">
-                <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Auto-Email Disabled</p>
-                <p className="text-xl font-black text-amber-600 mt-0.5">{stats.disabledCount}</p>
-                <p className="text-[10px] text-amber-600 font-medium mt-0.5">Excluded by manual toggle</p>
+              <div className="bg-[#181938] p-3 rounded-xl border border-white/10 shadow-xs">
+                <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Auto-Email Disabled</p>
+                <p className="text-xl font-black text-amber-400 mt-0.5">{stats.disabledCount}</p>
+                <p className="text-[10px] text-amber-400 font-medium mt-0.5">Excluded by manual toggle</p>
               </div>
             </div>
 
             {/* Action Controls & Batch Bar */}
-            <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#15172b]">
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => handleBulkSetAll(true)}
                   disabled={isProcessingBulk}
-                  className="flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                  className="flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                   Enable All
@@ -515,7 +530,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                 <button
                   onClick={() => handleBulkSetAll(false)}
                   disabled={isProcessingBulk}
-                  className="flex items-center px-3.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                  className="flex items-center px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   <XCircle className="w-3.5 h-3.5 mr-1" />
                   Disable All
@@ -523,7 +538,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                 <button
                   onClick={handleRunJob}
                   disabled={isRunningJob}
-                  className="flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                  className="flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {isRunningJob ? (
                     <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -537,19 +552,19 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
               {/* Search and Filters */}
               <div className="flex items-center gap-2">
                 <div className="relative w-44 sm:w-56">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     placeholder="Search driver, reg..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#0f1022] border border-white/20 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400"
                   />
                 </div>
                 <select
                   value={filterType}
                   onChange={e => setFilterType(e.target.value as any)}
-                  className="py-1.5 px-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="py-1.5 px-2.5 text-xs bg-[#0f1022] border border-white/20 rounded-xl font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="all">All ({activeRentals.length})</option>
                   <option value="owing">Owing &gt; £0 ({stats.totalOwingCount})</option>
@@ -563,14 +578,14 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
 
             {/* Job Result Banner if just run */}
             {jobResult && (
-              <div className="mx-4 my-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs text-indigo-900">
+              <div className="mx-4 my-2 p-3 bg-indigo-950/60 border border-indigo-400/30 rounded-xl flex items-center justify-between text-xs text-indigo-200">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{jobResult.message}</span>
                 </div>
                 <button
                   onClick={() => setJobResult(null)}
-                  className="text-indigo-400 hover:text-indigo-700"
+                  className="text-slate-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -578,14 +593,15 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
             )}
 
             {/* Rental List */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-[500px] sm:min-h-[600px] max-h-[75vh]">
               {filteredRentals.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <Mail className="w-10 h-10 mx-auto mb-2 opacity-40 text-indigo-400" />
-                  <p className="text-xs font-semibold">No active Daily or Weekly rentals matching your criteria.</p>
+                <div className="text-center py-16 text-slate-400">
+                  <Mail className="w-12 h-12 mx-auto mb-3 opacity-40 text-indigo-400" />
+                  <p className="text-sm font-semibold text-slate-300">No active Daily or Weekly rentals matching your criteria.</p>
+                  <p className="text-xs text-slate-400 mt-1">Try adjusting your search terms or filter selection.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {filteredRentals.map(r => {
                     const v = vehicles.find(veh => veh.id === r.vehicleId);
                     const c = customers.find(cust => cust.id === r.customerId);
@@ -617,47 +633,53 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                     return (
                       <div
                         key={r.id}
-                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                        className={`flex flex-col md:flex-row md:items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition-all gap-3.5 sm:gap-4 ${
                           isEnabled
-                            ? 'bg-white border-gray-200 hover:border-indigo-300 shadow-2xs'
-                            : 'bg-gray-50/70 border-gray-200 opacity-75'
+                            ? 'bg-[#181938] border-white/10 hover:border-indigo-400/40 shadow-xs'
+                            : 'bg-[#121327] border-white/5 opacity-70'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl ${isEnabled ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          <div className={`p-2.5 rounded-xl shrink-0 ${isEnabled ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30' : 'bg-white/5 text-slate-400'}`}>
                             <Mail className="w-4 h-4" />
                           </div>
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-bold text-xs text-gray-900">{clientName}</span>
-                              <span className="font-mono text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded-md border border-gray-200">
+                              <span className="font-bold text-sm text-white truncate">{clientName}</span>
+                              {/* Registration Tag */}
+                              <span className="font-mono text-xs font-bold px-2 py-0.5 bg-[#0f1022] text-white rounded-md border border-white/20 shrink-0">
                                 {vehicleReg}
                               </span>
                               {/* Rental Type & Template Tag */}
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
                                   isWeekly
-                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30'
+                                    : 'bg-blue-500/20 text-blue-300 border-blue-400/30'
                                 }`}
                               >
                                 {isWeekly ? 'Weekly Template' : 'Daily Template'}
                               </span>
                               {r.rentalAgreementNumber && (
-                                <span className="text-[10px] text-gray-400 font-mono">
+                                <span className="text-[11px] text-slate-400 font-mono bg-white/5 px-1.5 py-0.5 rounded border border-white/10 shrink-0">
                                   #{r.rentalAgreementNumber}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-gray-500 mt-0.5">{clientEmail}</p>
+                            {/* Email Address */}
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium mt-1 truncate">
+                              <span className="text-slate-400">Email:</span>
+                              <span className="font-mono text-white select-all">{clientEmail}</span>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 sm:gap-4">
-                          <div className="text-right">
-                            <p className="text-[10px] uppercase font-bold text-gray-400">Balance Status</p>
-                            <p className={`text-xs font-mono font-bold ${owing > 0.01 ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {owing > 0.01 ? `Owing: ${formatCurrency(owing)}` : 'Cleared'}
+                        {/* Balance Status and Action Controls */}
+                        <div className="flex items-center justify-between md:justify-end gap-4 sm:gap-6 shrink-0 pt-2.5 md:pt-0 border-t md:border-t-0 border-white/10">
+                          <div className="text-left md:text-right min-w-[110px]">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Balance Status</p>
+                            <p className={`text-sm font-mono font-bold mt-0.5 ${owing > 0.01 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {owing > 0.01 ? `Owing: ${formatCurrency(owing)}` : 'Cleared (£0.00)'}
                             </p>
                           </div>
 
@@ -673,26 +695,30 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                                 toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });
                               }
                             }}
-                            className="p-1.5 text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl border border-violet-200 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-300 hover:text-white bg-indigo-500/20 hover:bg-indigo-500/30 rounded-xl border border-indigo-400/30 transition cursor-pointer shadow-xs shrink-0"
                             title="Send single test email to this driver immediately using their active template"
                           >
                             <Send className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Test Send</span>
                           </button>
 
-                          {/* Toggle */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleRental(r.id, isEnabled)}
-                            className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              isEnabled ? 'bg-indigo-600' : 'bg-gray-300'
-                            }`}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                isEnabled ? 'translate-x-5' : 'translate-x-0'
+                          {/* Toggle Switch */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleRental(r.id, isEnabled)}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                isEnabled ? 'bg-indigo-600' : 'bg-slate-700'
                               }`}
-                            />
-                          </button>
+                              title={isEnabled ? 'Monday Auto-Email: Enabled (Click to disable)' : 'Monday Auto-Email: Disabled (Click to enable)'}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                  isEnabled ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -700,18 +726,18 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-gray-500">
+        <div className="p-4 bg-[#121327] border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
             <span>Targeting active Daily &amp; Weekly rentals (owing &gt; £0). Strictly excludes claims. No attachments.</span>
           </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-xl transition self-end sm:self-auto cursor-pointer"
+            className="px-5 py-2 bg-white/10 hover:bg-white/15 text-white font-bold rounded-xl border border-white/10 transition self-end sm:self-auto cursor-pointer"
           >
             Close
           </button>
@@ -734,7 +760,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
           }
         }}
       />
-    </div>
+    </Modal>
   );
 };
 

@@ -7,6 +7,15 @@ import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
 import { usePermissions } from '../hooks/usePermissions';
 import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
+import {
+  DAYS_OF_WEEK,
+  SCHEDULE_TIME_OPTIONS,
+  formatTime12h,
+  generateCronExpression,
+  getDayInfo,
+  fetchSchedulerPreferences,
+  saveSchedulerPreferences,
+} from '../utils/schedulerConfig';
 
 // Valid tags based on BulkEmail and Whatsapp context builders
 const AVAILABLE_TAGS: Record<string, string[]> = {
@@ -55,14 +64,27 @@ export default function AutomationSettings() {
   const [globalAutoEmailEnabled, setGlobalAutoEmailEnabled] = useState<boolean>(true);
   const [isUpdatingGlobalToggle, setIsUpdatingGlobalToggle] = useState<boolean>(false);
   const [isRunningMondayJob, setIsRunningMondayJob] = useState<boolean>(false);
+  const [scheduleDay, setScheduleDay] = useState<number>(1);
+  const [scheduleTime, setScheduleTime] = useState<string>('09:00');
+  const [isSavingSchedule, setIsSavingSchedule] = useState<boolean>(false);
 
-  // Load global_auto_email_enabled setting
+  // Load global_auto_email_enabled and scheduler settings
   useEffect(() => {
     const loadGlobalSetting = async () => {
       try {
+        const sched = await fetchSchedulerPreferences();
+        setScheduleDay(sched.scheduleDay);
+        setScheduleTime(sched.scheduleTime);
+
         const snap = await getDoc(doc(db, 'system_settings', 'global_config'));
         if (snap.exists()) {
           const data = snap.data();
+          if (data?.schedule_day !== undefined) {
+            setScheduleDay(Number(data.schedule_day));
+          }
+          if (data?.schedule_time) {
+            setScheduleTime(data.schedule_time);
+          }
           if (data?.global_auto_email_enabled !== undefined) {
             setGlobalAutoEmailEnabled(data.global_auto_email_enabled !== false);
             return;
@@ -129,7 +151,7 @@ export default function AutomationSettings() {
 
   const handleManualRunJob = async () => {
     setIsRunningMondayJob(true);
-    const toastId = toast.loading('Running Monday Auto-Email test batch...');
+    const toastId = toast.loading('Running Automated Auto-Email test batch...');
     try {
       const res = await runMondayAutoEmailJob({ isTestRun: true });
       toast.success(res.message, { id: toastId, duration: 6000 });
@@ -140,6 +162,34 @@ export default function AutomationSettings() {
       setIsRunningMondayJob(false);
     }
   };
+
+  const handleSaveScheduleConfig = async (newDay: number, newTime: string) => {
+    setIsSavingSchedule(true);
+    const toastId = toast.loading('Saving schedule preferences...');
+    try {
+      await saveSchedulerPreferences(newDay, newTime);
+      await setDoc(
+        doc(db, 'system_settings', 'global_config'),
+        {
+          schedule_day: newDay,
+          schedule_time: newTime,
+          schedule_cron: generateCronExpression(newDay, newTime),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      toast.success('Automated dispatch schedule updated successfully!', { id: toastId });
+    } catch (err) {
+      console.error('Failed to update schedule config:', err);
+      toast.error('Failed to save schedule settings', { id: toastId });
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const dayInfo = getDayInfo(scheduleDay);
+  const formattedTime = formatTime12h(scheduleTime);
+  const cronExpr = generateCronExpression(scheduleDay, scheduleTime);
 
   // Field Tracking for Cursor Insertion
   const [activeField, setActiveField] = useState<'subjectTemplate' | 'bodyTemplate'>('bodyTemplate');
@@ -374,7 +424,7 @@ export default function AutomationSettings() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h2 className="text-lg font-black text-gray-900">
-                  Automated Weekly Bulk Email Scheduler
+                  Automated Bulk Email Scheduler
                 </h2>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   globalAutoEmailEnabled 
@@ -385,12 +435,66 @@ export default function AutomationSettings() {
                   {globalAutoEmailEnabled ? 'Schedule Active' : 'Schedule Paused'}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  <Clock className="w-3 h-3" /> 0 9 * * 1 (Every Monday at 09:00 AM)
+                  <Clock className="w-3 h-3 text-indigo-600" /> Cron: {cronExpr} ({dayInfo.plural} at {formattedTime})
                 </span>
               </div>
               <p className="text-xs text-gray-600 max-w-3xl leading-relaxed">
-                Automatically scans active rental contracts, targets accounts with an outstanding balance (<span className="font-semibold text-gray-800">owing &gt; £0</span>), dynamically replaces placeholders from the active Rental Bulk Email template, and delivers weekly statement reminders without attachments. Excludes Claims.
+                Automatically scans active rental contracts, targets accounts with an outstanding balance (<span className="font-semibold text-gray-800">owing &gt; £0</span>), dynamically replaces placeholders from the active Rental Bulk Email template, and delivers statement reminders without attachments every {dayInfo.shortName} at {formattedTime}. Excludes Claims.
               </p>
+
+              {/* Schedule Quick Config Row */}
+              <div className="mt-3.5 flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-700">Dispatch Day:</span>
+                  <select
+                    value={scheduleDay}
+                    onChange={(e) => {
+                      const newDay = Number(e.target.value);
+                      setScheduleDay(newDay);
+                      handleSaveScheduleConfig(newDay, scheduleTime);
+                    }}
+                    disabled={isSavingSchedule}
+                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {DAYS_OF_WEEK.map(d => (
+                      <option key={d.value} value={d.value}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-700">Dispatch Time:</span>
+                  <select
+                    value={scheduleTime}
+                    onChange={(e) => {
+                      const newTime = e.target.value;
+                      setScheduleTime(newTime);
+                      handleSaveScheduleConfig(scheduleDay, newTime);
+                    }}
+                    disabled={isSavingSchedule}
+                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {!SCHEDULE_TIME_OPTIONS.some(o => o.value === scheduleTime) && (
+                      <option value={scheduleTime}>
+                        {formattedTime} (Custom)
+                      </option>
+                    )}
+                    {SCHEDULE_TIME_OPTIONS.map(t => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {isSavingSchedule && (
+                  <span className="text-xs text-indigo-600 font-semibold flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Saving schedule...
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

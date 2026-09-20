@@ -1,15 +1,17 @@
 // src/pages/Customers.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import { useCustomers } from '../hooks/useCustomers';
+import { useClaims } from '../hooks/useClaims';
 import { useCustomerFilters } from '../hooks/useCustomerFilters';
 import CustomerTable from '../components/customers/CustomerTable';
 import CustomerFilters from '../components/customers/CustomerFilters';
 import CustomerForm from '../components/customers/CustomerForm';
 import CustomerDetails from '../components/customers/CustomerDetails';
+import { GroupMessagingModal } from '../components/customers/GroupMessagingModal';
 import Modal from '../components/ui/Modal';
 import { Customer } from '../types/customer';
 import { handleCustomerExport } from '../utils/customerHelpers';
-import { Plus, Download, CheckCircle, XCircle, Edit3 } from 'lucide-react';
+import { Plus, Download, CheckCircle, XCircle, Edit3, Radio } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
@@ -21,6 +23,7 @@ import AssignCustomerTypeForm from '../components/customers/AssignCustomerTypeFo
 
 const Customers = () => {
   const { customers, loading } = useCustomers();
+  const { claims } = useClaims();
   const { can } = usePermissions();
   const { user } = useAuth();
 
@@ -40,6 +43,7 @@ const Customers = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [assigningCustomer, setAssigningCustomer] = useState<Customer | null>(null);
+  const [isGroupMessagingOpen, setIsGroupMessagingOpen] = useState(false);
   
   // [NEW] Bill Copy Tracker State
   const [updatingBillCopy, setUpdatingBillCopy] = useState<Customer | null>(null);
@@ -169,6 +173,14 @@ const Customers = () => {
               <Download className="h-5 w-5 mr-2" /> Export
             </button>
           )}
+
+          <button
+            onClick={() => setIsGroupMessagingOpen(true)}
+            className="inline-flex items-center px-4 py-2 border border-purple-200 rounded-md shadow-sm text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+          >
+            <Radio className="h-4 w-4 mr-2 text-purple-600" /> Group Messaging / News Flash
+          </button>
+
           {can('customers', 'create') && (
             <button onClick={() => handleOpenEditForm(null)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600">
               <Plus className="h-5 w-5 mr-2" /> Add Customer
@@ -289,6 +301,15 @@ const Customers = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Group Messaging / Global News Flash Modal */}
+      <GroupMessagingModal
+        isOpen={isGroupMessagingOpen}
+        onClose={() => setIsGroupMessagingOpen(false)}
+        customers={customers}
+        claims={claims}
+        preselectedCustomerIds={Object.keys(rowSelection)}
+      />
     </div>
   );
 };

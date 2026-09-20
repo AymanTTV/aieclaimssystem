@@ -949,7 +949,7 @@ export async function runMondayAutoEmailJob(options?: {
     // Audit log
     try {
       await addDoc(collection(db, 'emailHistory'), {
-        sentBy: isTestRun ? 'Manual Bulk Test (Rental Page)' : 'System Automation (Monday 09:00 AM Cron)',
+        sentBy: isTestRun ? 'Manual Bulk Test (Rental Page)' : 'System Automation (Automated Schedule Cron)',
         type: 'rental',
         rentalType: rawType,
         templateId: activeTemplate.id,
@@ -975,18 +975,20 @@ export async function runMondayAutoEmailJob(options?: {
   if (!isTestRun) {
     try {
       const now = new Date();
-      const currentMondayStr = now.toISOString().slice(0, 10);
+      const currentDayStr = now.toISOString().slice(0, 10);
       await setDoc(
         doc(db, 'system_settings', 'global_config'),
         {
-          last_monday_job_run: currentMondayStr,
+          last_scheduled_job_run: currentDayStr,
+          last_monday_job_run: currentDayStr,
+          last_scheduled_job_timestamp: serverTimestamp(),
           last_monday_job_timestamp: serverTimestamp(),
           last_job_sent_count: sentCount,
         },
         { merge: true }
       );
     } catch (err) {
-      console.warn('[MondayAutoEmailJob] Failed to update last_monday_job_run:', err);
+      console.warn('[MondayAutoEmailJob] Failed to update last run tracking:', err);
     }
   }
 

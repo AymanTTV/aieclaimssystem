@@ -1276,25 +1276,25 @@ export default function WhatsappCommunication() {
         ))}
 
         <select
-          className="border col-span-2 md:col-span-2 p-2 rounded focus:ring-2 focus:ring-green-400"
+          className="col-span-2 md:col-span-2 px-3 py-2 bg-[#0f1022] border border-white/20 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           value={selectedTemplateId}
           onChange={e => setSelectedTemplateId(e.target.value)}
         >
-          <option value="">– Select Message… (manual) –</option>
+          <option value="" className="bg-[#0f1022] text-white">– Select Message… (manual) –</option>
           {templates.map(tpl => (
-            <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+            <option key={tpl.id} value={tpl.id} className="bg-[#0f1022] text-white">{tpl.name}</option>
           ))}
         </select>
       </div>
 
-      <div className="bg-white p-4 rounded shadow space-y-2 border border-green-100">
+      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md space-y-3 border border-white/10">
         
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
             <div className="flex gap-2 mb-2 flex-wrap">
                 {emailType !== 'finance' && (
                 <button
                     onClick={() => setRecipientFilter('all')}
-                    className={`px-3 py-1 rounded text-sm ${recipientFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-700'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'all' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                 >
                     All
                 </button>
@@ -1303,7 +1303,7 @@ export default function WhatsappCommunication() {
                 {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
                 <button
                     onClick={() => setRecipientFilter('customer')}
-                    className={`px-3 py-1 rounded text-sm ${recipientFilter === 'customer' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'customer' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                 >
                     Customers
                 </button>
@@ -1313,13 +1313,13 @@ export default function WhatsappCommunication() {
                   <>
                     <button
                         onClick={() => setRecipientFilter('account')}
-                        className={`px-3 py-1 rounded text-sm ${recipientFilter === 'account' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'account' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                     >
                         Accounts
                     </button>
                     <button
                         onClick={() => setRecipientFilter('owner')}
-                        className={`px-3 py-1 rounded text-sm ${recipientFilter === 'owner' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'owner' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                     >
                         Owners
                     </button>
@@ -1329,7 +1329,7 @@ export default function WhatsappCommunication() {
                 {emailType === 'maintenance' && (
                     <button
                         onClick={() => setRecipientFilter('serviceCenter')}
-                        className={`px-3 py-1 rounded text-sm ${recipientFilter === 'serviceCenter' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'serviceCenter' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                     >
                         Service Centers
                     </button>
@@ -1337,7 +1337,7 @@ export default function WhatsappCommunication() {
                 {emailType === 'claim' && (
                     <button
                         onClick={() => setRecipientFilter('legalHandler')}
-                        className={`px-3 py-1 rounded text-sm ${recipientFilter === 'legalHandler' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'legalHandler' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
                     >
                         Legal Handlers
                     </button>
@@ -1346,9 +1346,9 @@ export default function WhatsappCommunication() {
         )}
 
         <div className="relative">
-          <Search className="absolute left-2 top-2 text-green-400" />
+          <Search className="absolute left-3 top-3 text-emerald-400 w-4 h-4" />
           <input
-            className="pl-8 pr-4 py-2 border rounded w-full focus:ring-2 focus:ring-green-400"
+            className="pl-9 pr-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl w-full text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner transition-colors"
             placeholder="Search recipients by name or phone..."
             value={searchQuery}
             onChange={e=>setSearchQuery(e.target.value)}
@@ -1474,29 +1474,30 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded shadow space-y-4 border border-green-100">
+      <div className="bg-[#15172b] p-6 rounded-2xl shadow-xl space-y-4 border border-white/10">
         <div>
-          <label className="font-medium text-green-700">Subject</label>
+          <label className="block text-sm font-semibold text-emerald-400 mb-1.5">Subject</label>
           <input
-            className="mt-1 w-full border rounded p-2 focus:ring-2 focus:ring-green-400"
+            type="text"
+            className="w-full px-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans shadow-inner transition-colors"
             value={subject}
             onChange={e => {
               setSubject(e.target.value); 
               isUserEdited.current = true;
             }}
-            placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
+            placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : 'Enter WhatsApp subject or title...'}
           />
         </div>
         <div>
-          <label className="font-medium text-green-700">Message</label>
+          <label className="block text-sm font-semibold text-emerald-400 mb-1.5">Message</label>
           <textarea
-            className="mt-1 w-full border rounded p-2 h-[600px] focus:ring-2 focus:ring-green-400"
+            className="w-full px-4 py-3 bg-[#0f1022] border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans leading-relaxed shadow-inner min-h-[400px] sm:min-h-[550px] transition-colors"
             value={message}
             onChange={e => {
               setMessage(e.target.value);
               isUserEdited.current = true;
             }}
-            placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : ''}
+            placeholder={currentTemplate && !templateReady ? 'Pick required record(s) to auto-fill…' : 'Compose WhatsApp message...'}
           />
         </div>
 
@@ -1668,28 +1669,28 @@ export default function WhatsappCommunication() {
         )}
       </Modal>
 
-      <div className="bg-white p-4 rounded shadow border border-green-100">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="font-medium text-green-700">WhatsApp History</h2>
-          <div className="flex space-x-2">
+      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md border border-white/10 space-y-4">
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
+          <h2 className="font-bold text-emerald-400 text-base">WhatsApp History</h2>
+          <div className="flex flex-wrap items-center gap-2">
             <select
-              className="border p-1 rounded focus:ring-green-500 focus:border-green-500"
+              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               value={historyTypeFilter}
               onChange={e => setHistoryTypeFilter(e.target.value as any)}
             >
-              <option value="all">All Types</option>
-              {availableTabs.map(t => (<option key={t} value={t}>{t}</option>))}
+              <option value="all" className="bg-[#0f1022] text-white">All Types</option>
+              {availableTabs.map(t => (<option key={t} value={t} className="bg-[#0f1022] text-white">{t}</option>))}
             </select>
             <select
-              className="border p-1 rounded"
+              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               value={historyTemplateFilter}
               onChange={e => setHistoryTemplateFilter(e.target.value)}
             >
-              <option value="">All Templates</option>
-              {Array.from(new Set(history.map(h => h.templateId))).map(id => (<option key={id} value={id}>{id}</option>))}
+              <option value="" className="bg-[#0f1022] text-white">All Templates</option>
+              {Array.from(new Set(history.map(h => h.templateId))).map(id => (<option key={id} value={id} className="bg-[#0f1022] text-white">{id}</option>))}
             </select>
             <input
-              className="border p-1 rounded"
+              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white placeholder-slate-400 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="Recipient…"
               value={historyRecipientFilter}
               onChange={e => setHistoryRecipientFilter(e.target.value)}

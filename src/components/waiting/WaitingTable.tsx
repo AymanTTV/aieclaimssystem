@@ -1,6 +1,7 @@
 // src/components/waiting/WaitingTable.tsx
 import React from 'react';
 import { Eye, Pencil, Bell, Phone, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
 import type { WaitingEntry, WaitingStatus } from '../../types/waiting';
 import { usePermissions } from '../../hooks/usePermissions';
 
@@ -19,6 +20,7 @@ type Props = {
 const WaitingTable: React.FC<Props> = ({
   entries,
   categoriesById,
+  groupsById,
   onView,
   onEdit,
   onQuickContact,
@@ -29,115 +31,144 @@ const WaitingTable: React.FC<Props> = ({
   const { can } = usePermissions();
 
   return (
-    <div className="bg-white border rounded">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-left">
-            <th className="px-3 py-2">Name</th>
-            <th className="px-3 py-2">Phone</th>
-            <th className="px-3 py-2">Reason</th>
-            <th className="px-3 py-2">Date Wanted</th>
-            <th className="px-3 py-2">Type</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Category</th>
-            <th className="px-3 py-2 w-36 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.id} className="border-t hover:bg-gray-50">
-              <td className="px-3 py-2 font-medium">{e.fullName}</td>
-              <td className="px-3 py-2">{e.phone}</td>
-              <td className="px-3 py-2">{e.reason || '-'}</td>
-              <td className="px-3 py-2">
-                {e.dateWanted ? e.dateWanted.toLocaleDateString() : '—'}
-              </td>
-              <td className="px-3 py-2 capitalize">
-                {e.waitingType === 'open' ? 'Open' : 'Specific Date'}
-              </td>
-              <td className="px-3 py-2">
-                {can('waiting', 'update') ? (
-                  <select
-                    value={e.status}
-                    onChange={(ev) => onStatusChange(e, ev.target.value as WaitingStatus)}
-                    className="form-select text-xs w-full"
-                  >
-                    <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="waiting">Waiting</option>
-                    <option value="offered">Offered</option>
-                    <option value="booked">Booked</option>
-                    <option value="not_proceeding">Not Proceeding</option>
-                  </select>
-                ) : (
-                  <span className="capitalize text-xs font-medium px-2.5 py-1 rounded bg-gray-100 text-gray-700">
-                    {e.status.replace('_', ' ')}
+    <div className="bg-[#16192B] border border-white/10 rounded-2xl shadow-xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-[#0F111A] text-left border-b border-white/10">
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Driver Name</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Phone</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Reason</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Date Wanted</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Type</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Status</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider">Category</th>
+              <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-right w-44">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.id} className="border-t border-white/10 hover:bg-[#1E2238]/60 transition-colors">
+                <td className="px-5 py-4 align-middle whitespace-nowrap">
+                  <div className="font-bold text-white text-sm">{e.fullName}</div>
+                  {e.email && <div className="text-xs text-slate-400 truncate max-w-[180px]">{e.email}</div>}
+                </td>
+                <td className="px-5 py-4 align-middle whitespace-nowrap">
+                  <span className="text-sm font-semibold font-mono text-white tracking-wide">{e.phone}</span>
+                </td>
+                <td className="px-5 py-4 align-middle">
+                  <div className="text-xs font-medium text-slate-200 max-w-[200px] truncate" title={e.reason || ''}>
+                    {e.reason || '—'}
+                  </div>
+                </td>
+                <td className="px-5 py-4 align-middle whitespace-nowrap">
+                  <span className="text-xs font-bold text-white font-mono">
+                    {e.dateWanted ? format(e.dateWanted, 'dd/MM/yyyy') : '—'}
                   </span>
-                )}
-              </td>
-              <td className="px-3 py-2">
-                {(e.categoryIds || []).map((id) => categoriesById[id] || id).join(' | ') || '—'}
-              </td>
-              <td className="px-3 py-2">
-                <div className="flex items-center justify-end gap-1.5">
-                  {can('waiting', 'view') && (
-                    <button
-                      className="p-1.5 rounded hover:bg-gray-100 text-blue-600"
-                      title="View"
-                      onClick={() => onView(e)}
+                </td>
+                <td className="px-5 py-4 align-middle whitespace-nowrap">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#1E2238] text-white border border-white/15">
+                    {e.waitingType === 'open' ? 'Open' : 'Specific Date'}
+                  </span>
+                </td>
+                <td className="px-5 py-4 align-middle whitespace-nowrap">
+                  {can('waiting', 'update') ? (
+                    <select
+                      id={`waiting-status-${e.id}`}
+                      value={e.status}
+                      onChange={(ev) => onStatusChange(e, ev.target.value as WaitingStatus)}
+                      className="px-3 py-1.5 bg-[#0F111A] border border-white/20 rounded-xl text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm transition"
                     >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                      <option value="new" className="bg-[#0F111A] text-white py-1">New</option>
+                      <option value="contacted" className="bg-[#0F111A] text-white py-1">Contacted</option>
+                      <option value="waiting" className="bg-[#0F111A] text-white py-1">Waiting</option>
+                      <option value="offered" className="bg-[#0F111A] text-white py-1">Offered</option>
+                      <option value="booked" className="bg-[#0F111A] text-white py-1">Booked</option>
+                      <option value="not_proceeding" className="bg-[#0F111A] text-white py-1">Not Proceeding</option>
+                    </select>
+                  ) : (
+                    <span className="capitalize text-xs font-bold px-2.5 py-1 rounded-full bg-white/10 text-white border border-white/20">
+                      {e.status.replace('_', ' ')}
+                    </span>
                   )}
-                  {can('waiting', 'update') && (
-                    <button
-                      className="p-1.5 rounded hover:bg-gray-100 text-indigo-600"
-                      title="Edit"
-                      onClick={() => onEdit(e)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  )}
-                  {can('waiting', 'reminder') && (
-                    <button
-                      className="p-1.5 rounded hover:bg-gray-100 text-yellow-600"
-                      title="Reminder"
-                      onClick={() => onReminder(e)}
-                    >
-                      <Bell className="h-4 w-4" />
-                    </button>
-                  )}
-                  {can('waiting', 'quickContact') && (
-                    <button
-                      className="p-1.5 rounded hover:bg-gray-100 text-green-600"
-                      title="Quick Contact"
-                      onClick={() => onQuickContact(e)}
-                    >
-                      <Phone className="h-4 w-4" />
-                    </button>
-                  )}
-                  {can('waiting', 'delete') && (
-                    <button
-                      className="p-1.5 rounded hover:bg-red-50 text-red-600"
-                      title="Delete"
-                      onClick={() => onDelete?.(e)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-          {entries.length === 0 && (
-            <tr>
-              <td className="px-3 py-6 text-center text-gray-500" colSpan={8}>
-                No entries found.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                </td>
+                <td className="px-5 py-4 align-middle">
+                  <div
+                    className="text-xs font-medium text-slate-200 max-w-[180px] truncate"
+                    title={(e.categoryIds || []).map((id) => categoriesById[id] || id).join(', ')}
+                  >
+                    {(e.categoryIds || []).map((id) => categoriesById[id] || id).join(', ') || '—'}
+                  </div>
+                </td>
+                <td className="px-5 py-4 align-middle whitespace-nowrap text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    {can('waiting', 'view') && (
+                      <button
+                        id={`waiting-view-${e.id}`}
+                        className="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/25 text-sky-400 hover:text-white border border-sky-400/20 hover:border-sky-400/50 transition shadow-xs"
+                        title="View Details"
+                        onClick={() => onView(e)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
+                    {can('waiting', 'update') && (
+                      <button
+                        id={`waiting-edit-${e.id}`}
+                        className="p-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-400 hover:text-white border border-indigo-400/20 hover:border-indigo-400/50 transition shadow-xs"
+                        title="Edit Entry"
+                        onClick={() => onEdit(e)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    {can('waiting', 'reminder') && (
+                      <button
+                        id={`waiting-reminder-${e.id}`}
+                        className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 hover:text-white border border-amber-400/20 hover:border-amber-400/50 transition shadow-xs"
+                        title="Reminders & Notes"
+                        onClick={() => onReminder(e)}
+                      >
+                        <Bell className="h-4 w-4" />
+                      </button>
+                    )}
+                    {can('waiting', 'quickContact') && (
+                      <button
+                        id={`waiting-contact-${e.id}`}
+                        className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 hover:text-white border border-emerald-400/20 hover:border-emerald-400/50 transition shadow-xs"
+                        title="Quick Contact"
+                        onClick={() => onQuickContact(e)}
+                      >
+                        <Phone className="h-4 w-4" />
+                      </button>
+                    )}
+                    {can('waiting', 'delete') && (
+                      <button
+                        id={`waiting-delete-${e.id}`}
+                        className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 hover:text-white border border-rose-400/20 hover:border-rose-400/50 transition shadow-xs"
+                        title="Delete Entry"
+                        onClick={() => onDelete?.(e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {entries.length === 0 && (
+              <tr>
+                <td className="px-6 py-12 text-center text-slate-400" colSpan={8}>
+                  <div className="flex flex-col items-center justify-center space-y-1">
+                    <p className="text-sm font-bold text-white">No waiting entries found</p>
+                    <p className="text-xs text-slate-400">Try adjusting your search criteria or filters.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

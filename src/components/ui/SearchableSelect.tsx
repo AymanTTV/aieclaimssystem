@@ -218,12 +218,12 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return (
       <>
         {hasAll && showAllChipInMulti && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-500/30">
             {getOptionLabel(allId)}
             <button
               type="button"
               onClick={(e) => removeValue(allId, e)}
-              className="ml-1 text-indigo-600 hover:text-indigo-900 focus:outline-none"
+              className="ml-1 text-indigo-300 hover:text-white focus:outline-none"
             >
               <X className="h-3 w-3" />
             </button>
@@ -233,26 +233,26 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         {specific.map((id) => (
           <span
             key={id}
-            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+            className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-500/30"
           >
             {getOptionLabel(id)}
             <button
               type="button"
               onClick={(e) => removeValue(id, e)}
-              className="ml-1 text-indigo-600 hover:text-indigo-900 focus:outline-none"
+              className="ml-1 text-indigo-300 hover:text-white focus:outline-none"
             >
               <X className="h-3 w-3" />
             </button>
           </span>
         ))}
 
-        {isValueEmpty && !isOpen && <span className="text-gray-400 px-2 py-1">{placeholder}</span>}
+        {isValueEmpty && !isOpen && <span className="text-slate-400 px-2 py-1">{placeholder}</span>}
 
         {isOpen && (
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 min-w-[60px] border-0 p-1 text-sm focus:ring-0"
+            className="flex-1 min-w-[60px] bg-transparent border-0 p-1 text-sm text-white placeholder-slate-400 focus:ring-0 focus:outline-none"
             placeholder={isValueEmpty ? placeholder : ''}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -264,25 +264,25 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   return (
     <div className="space-y-1" ref={wrapperRef}>
-      <label className="block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
+      <label className="block text-sm font-medium text-slate-200">
+        {label} {required && <span className="text-red-400">*</span>}
       </label>
 
       <div className="relative">
         <div
           ref={controlRef}
           className={`w-full min-h-[38px] border ${
-            error ? 'border-red-300' : 'border-gray-300'
-          } rounded-md bg-white ${disabled ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'} relative`}
+            error ? 'border-red-400/80' : 'border-white/20'
+          } rounded-xl bg-[#0f1022] text-white ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} relative shadow-inner`}
           onClick={() => !disabled && setIsOpen(true)}
         >
           <div className="flex flex-wrap items-center gap-1 p-1 pr-8">
             {!isMulti && !isOpen && (
-              <div className="px-2 py-1 text-gray-900 w-full truncate">
+              <div className="px-2 py-1 text-white w-full truncate">
                 {selectedIds.length > 0 && selectedIds[0] !== allId ? (
                   <span>{getOptionLabel(selectedIds[0])}</span>
                 ) : (
-                  <span className="text-gray-400">{placeholder}</span>
+                  <span className="text-slate-400">{placeholder}</span>
                 )}
               </div>
             )}
@@ -294,23 +294,23 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             {isClearable && !isValueEmpty && !disabled && (
               <button
                 type="button"
-                className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 mr-1"
+                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 mr-1"
                 onClick={clearAll}
                 aria-label="Clear selection"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
-            {!isOpen && !isMulti && <Search className="h-4 w-4 text-gray-400" />}
+            {!isOpen && !isMulti && <Search className="h-4 w-4 text-slate-400" />}
           </div>
 
           {isOpen && !isMulti && (
-            <div className="absolute inset-0 z-10 bg-white rounded-md flex items-center px-2">
-              <Search className="h-4 w-4 text-gray-400 mr-2" />
+            <div className="absolute inset-0 z-10 bg-[#0f1022] rounded-xl flex items-center px-3 border border-indigo-500/50">
+              <Search className="h-4 w-4 text-slate-400 mr-2" />
               <input
                 ref={inputRef}
                 type="text"
-                className="flex-1 border-0 p-0 text-sm focus:ring-0"
+                className="flex-1 bg-transparent border-0 p-0 text-sm text-white placeholder-slate-400 focus:ring-0 focus:outline-none"
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -321,7 +321,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   e.stopPropagation();
                   setIsOpen(false);
                 }}
-                className="ml-2 text-gray-400 hover:text-gray-600"
+                className="ml-2 text-slate-400 hover:text-white p-1 rounded hover:bg-white/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -345,7 +345,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 width: dropdownPosition.width,
                 zIndex: 99999,
               }}
-              className="bg-white shadow-2xl max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-gray-200"
+              className="bg-[#15172b] shadow-2xl max-h-60 rounded-xl py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-white/15 custom-scrollbar text-white"
             >
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((option) => {
@@ -354,20 +354,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     <div
                       key={option.id}
                       className={`cursor-pointer px-3 py-2 flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900 hover:bg-gray-100'
+                        isSelected ? 'bg-indigo-600/30 text-indigo-300 font-semibold' : 'text-slate-200 hover:bg-white/10 hover:text-white'
                       }`}
                       onClick={(e) => handleSelect(option.id, e)}
                     >
                       <div>
                         <div>{option.label}</div>
-                        {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
+                        {option.subLabel && <div className="text-xs text-slate-400">{option.subLabel}</div>}
                       </div>
-                      {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
+                      {isSelected && <Check className="h-4 w-4 text-indigo-400" />}
                     </div>
                   );
                 })
               ) : (
-                <div className="text-sm text-gray-500 px-3 py-2">No results found</div>
+                <div className="text-sm text-slate-400 px-3 py-2">No results found</div>
               )}
             </div>,
             document.body

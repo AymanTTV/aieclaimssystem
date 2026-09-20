@@ -17,23 +17,13 @@ export function useMondayAutoEmailScheduler() {
     const checkAndExecuteMondayJob = async () => {
       if (isRunningRef.current) return;
 
-      const now = new Date();
-      // Day 1 is Monday in JavaScript (0 = Sunday, 1 = Monday)
-      const isMonday = now.getDay() === 1;
-      if (!isMonday) return;
-
-      // Scheduled 09:00 AM auto-dispatch (Cron: 0 9 * * 1)
-      // Only dispatches once 09:00 AM arrives on Monday
-      if (now.getHours() < 9) {
-        return;
-      }
-
-      const currentMondayStr = now.toISOString().slice(0, 10);
-
       try {
-        isRunningRef.current = true;
         const configRef = doc(db, 'system_settings', 'global_config');
         const snap = await getDoc(configRef);
+
+        let schedDay = 1; // default Monday (0=Sun, 1=Mon, ..., 6=Sat)
+        let schedHours = 9;
+        let schedMinutes = 0;
 
         if (snap.exists()) {
           const data = snap.data();
@@ -41,26 +31,52 @@ export function useMondayAutoEmailScheduler() {
           if (data?.global_auto_email_enabled === false) {
             return;
           }
-          // Check if already ran for today's Monday
-          if (data?.last_monday_job_run === currentMondayStr) {
+          if (data?.schedule_day !== undefined) {
+            schedDay = Number(data.schedule_day);
+          }
+          if (data?.schedule_time) {
+            const [h, m] = String(data.schedule_time).split(':').map(Number);
+            if (!isNaN(h)) schedHours = h;
+            if (!isNaN(m)) schedMinutes = m;
+          }
+
+          const now = new Date();
+          const isTargetDay = now.getDay() === schedDay;
+          if (!isTargetDay) return;
+
+          const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+          const targetTotalMinutes = schedHours * 60 + schedMinutes;
+          if (currentTotalMinutes < targetTotalMinutes) {
             return;
           }
+
+          const currentDayStr = now.toISOString().slice(0, 10);
+          // Check if already ran today (prevents duplicate dispatches)
+          if (
+            data?.last_scheduled_job_run === currentDayStr ||
+            (schedDay === 1 && data?.last_monday_job_run === currentDayStr)
+          ) {
+            return;
+          }
+
+          isRunningRef.current = true;
+          console.log(`[AutoEmailScheduler] Executing scheduled automated reminder job for ${currentDayStr} (Day ${schedDay}, ${schedHours}:${schedMinutes})...`);
+
+          // Mark run in progress before dispatch
+          await setDoc(
+            configRef,
+            {
+              last_scheduled_job_run: currentDayStr,
+              last_monday_job_run: currentDayStr,
+              last_scheduled_job_timestamp: serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          await runMondayAutoEmailJob({ isTestRun: false, bypassGlobalToggle: false });
         }
-
-        console.log(`[MondayScheduler] Executing scheduled Monday 09:00 AM job for ${currentMondayStr}...`);
-        // Mark run in progress
-        await setDoc(
-          configRef,
-          {
-            last_monday_job_run: currentMondayStr,
-            last_monday_job_timestamp: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        await runMondayAutoEmailJob({ isTestRun: false, bypassGlobalToggle: false });
       } catch (err) {
-        console.error('[MondayScheduler] Error executing automated Monday job:', err);
+        console.error('[AutoEmailScheduler] Error executing automated schedule job:', err);
       } finally {
         isRunningRef.current = false;
       }

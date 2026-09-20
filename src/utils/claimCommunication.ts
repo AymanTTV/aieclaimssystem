@@ -797,9 +797,7 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
     '[Handler Phone]': context.legal_handler_phone,
 
     '[Client Name]': context.client_name,
-    '[Customer Name]': context.client_name,
     '[Recipient Name]': context.legal_handler_name || context.client_name,
-    '[Driver Name]': context.client_name,
     '[Claim Number]': context.claim_id,
     '[Claim Reference]': context.claim_id,
     '[Claim Ref]': context.claim_id,

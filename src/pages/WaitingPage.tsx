@@ -18,6 +18,7 @@ import { Navigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { Search, X } from 'lucide-react';
 
 import WaitingDeleteModal from '../components/waiting/WaitingDeleteModal';
 
@@ -116,6 +117,97 @@ const WaitingPage: React.FC = () => {
     [groups]
   );
 
+  // ─────────────────── Multi-Field Search Matching ───────────────────
+  const matchesWaitingEntry = (
+    e: WaitingEntry,
+    queryText: string,
+    catMap: Record<string, string>,
+    grpMap: Record<string, string>
+  ): boolean => {
+    const q = queryText.trim().toLowerCase();
+    if (!q) return true;
+
+    // Split search query by whitespace into individual tokens so multi-field search matches seamlessly
+    const terms = q.split(/\s+/).filter(Boolean);
+
+    // 1. Driver Name (First, Middle, Last and combined variants)
+    const nameParts = [
+      e.fullName,
+      e.firstName,
+      e.middleName,
+      e.lastName,
+      e.firstName && e.lastName ? `${e.firstName} ${e.lastName}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    // 2. Phone Number (full string and normalized digits only)
+    const rawPhone = (e.phone || '').toLowerCase();
+    const digitsPhone = rawPhone.replace(/\D/g, '');
+
+    // 3. Reason / Notes content
+    const notesContent = [
+      e.reason,
+      e.preferredNotes,
+      e.consentNote,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    // 4. Date Wanted / Entry Date (createdAt)
+    const dateTokens: string[] = [];
+    const addDateVariants = (d: Date | null | undefined) => {
+      if (!d || isNaN(d.getTime())) return;
+      try {
+        dateTokens.push(format(d, 'yyyy-MM-dd'));
+        dateTokens.push(format(d, 'dd/MM/yyyy'));
+        dateTokens.push(format(d, 'dd-MM-yyyy'));
+        dateTokens.push(format(d, 'd/M/yyyy'));
+        dateTokens.push(format(d, 'd MMM yyyy'));
+        dateTokens.push(format(d, 'd MMMM yyyy'));
+        dateTokens.push(format(d, 'MMM yyyy'));
+        dateTokens.push(format(d, 'MMMM yyyy'));
+        dateTokens.push(format(d, 'dd/MM'));
+        dateTokens.push(format(d, 'd MMM'));
+        dateTokens.push(d.toLocaleDateString());
+      } catch {
+        // ignore date formatting errors
+      }
+    };
+    addDateVariants(e.dateWanted);
+    addDateVariants(e.createdAt);
+    const dateText = dateTokens.join(' ').toLowerCase();
+
+    // 5. Category & Group tags
+    const categoryNames = (e.categoryIds || [])
+      .map((id) => catMap[id] || id)
+      .join(' ')
+      .toLowerCase();
+    const groupNames = (e.groupIds || [])
+      .map((id) => grpMap[id] || id)
+      .join(' ')
+      .toLowerCase();
+    const tagsText = `${categoryNames} ${groupNames} ${(e.categoryIds || []).join(' ')} ${(e.groupIds || []).join(' ')} ${e.waitingType || ''} ${e.email || ''}`.toLowerCase();
+
+    // Combined searchable haystack
+    const combinedHaystack = `${nameParts} ${rawPhone} ${notesContent} ${dateText} ${tagsText}`;
+
+    // Ensure every typed term matches at least one of the fields
+    return terms.every((term) => {
+      if (combinedHaystack.includes(term)) return true;
+
+      // Match partial digit sequence against phone numbers (e.g. "07123" matching "+44 7123 456 789")
+      const termDigits = term.replace(/\D/g, '');
+      if (termDigits.length >= 2 && digitsPhone.includes(termDigits)) {
+        return true;
+      }
+
+      return false;
+    });
+  };
+
   // ─────────────────── Filters ───────────────────
   const [qText, setQText] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | WaitingStatus>('all');
@@ -131,16 +223,14 @@ const WaitingPage: React.FC = () => {
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
       if (catFilter !== 'all' && !(e.categoryIds || []).includes(catFilter)) return false;
       if (grpFilter !== 'all' && !(e.groupIds || []).includes(grpFilter)) return false;
-      if (qText.trim()) {
-        const s = qText.toLowerCase();
-        const hay = `${e.fullName} ${e.phone} ${e.email || ''} ${e.reason || ''} ${
-          e.preferredNotes || ''
-        }`.toLowerCase();
-        if (!hay.includes(s)) return false;
+      
+      if (!matchesWaitingEntry(e, qText, categoriesById, groupsById)) {
+        return false;
       }
+
       return true;
     });
-  }, [entries, statusFilter, catFilter, grpFilter, qText, showCompleted]); 
+  }, [entries, statusFilter, catFilter, grpFilter, qText, showCompleted, categoriesById, groupsById]); 
 
   // ─────────────────── Summary ───────────────────
   const summary = useMemo(() => {
@@ -296,52 +386,80 @@ const WaitingPage: React.FC = () => {
       </div>
 
       {/* FILTERS BAR */}
-      <div className="p-3 bg-white border rounded grid grid-cols-1 md:grid-cols-4 gap-3">
-        <FormField
-          label="Search"
-          value={qText}
-          onChange={(e) => setQText(e.target.value)}
-          placeholder="Name, phone, reason…"
-        />
+      <div className="p-4 bg-[#16192B] border border-white/10 rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 items-end shadow-md">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <label htmlFor="waiting-search-input" className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
+            Search
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="h-4 w-4" />
+            </div>
+            <input
+              id="waiting-search-input"
+              type="text"
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
+              placeholder="Name, phone, notes, dates, tags…"
+              className="block w-full pl-9 pr-8 py-2 bg-[#0F111A] border border-white/20 rounded-xl text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors shadow-inner"
+            />
+            {qText && (
+              <button
+                type="button"
+                id="waiting-search-clear"
+                onClick={() => setQText('')}
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white"
+                title="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div>
+          <label htmlFor="waiting-status-filter" className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
+            Status
+          </label>
           <select
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            id="waiting-status-filter"
+            className="block w-full py-2 px-3 bg-[#0F111A] border border-white/20 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer shadow-inner"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
           >
-            <option value="all">All</option>
+            <option value="all" className="bg-[#0F111A] text-white">All Statuses</option>
             {STATUS_FLOW.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
+              <option key={s} value={s} className="bg-[#0F111A] text-white">
+                {s.replace('_', ' ').toUpperCase()}
               </option>
             ))}
           </select>
         </div>
-        <div className="flex items-center justify-start md:mt-6">
-          <input
-            id="show-completed"
-            type="checkbox"
-            checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <label htmlFor="show-completed" className="ml-2 block text-sm text-gray-900">
-            Show completed
+        <div className="flex items-center pb-2.5">
+          <label htmlFor="show-completed" className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              id="show-completed"
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-[#0F111A] text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+            />
+            <span className="text-xs sm:text-sm font-semibold text-white">
+              Show completed
+            </span>
           </label>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
           <SearchableSelect
-            options={[{ id: 'all', label: 'All' }, ...categories.map((c) => ({ id: c.id, label: c.name }))]}
+            label="Category"
+            options={[{ id: 'all', label: 'All Categories' }, ...categories.map((c) => ({ id: c.id, label: c.name }))]}
             value={catFilter}
             onChange={(v: string) => setCatFilter((v as any) || 'all')}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Group</label>
           <SearchableSelect
-            options={[{ id: 'all', label: 'All' }, ...groups.map((g) => ({ id: g.id, label: g.name }))]}
+            label="Group"
+            options={[{ id: 'all', label: 'All Groups' }, ...groups.map((g) => ({ id: g.id, label: g.name }))]}
             value={grpFilter}
             onChange={(v: string) => setGrpFilter((v as any) || 'all')}
           />
@@ -352,6 +470,7 @@ const WaitingPage: React.FC = () => {
       <WaitingTable
         entries={filtered}
         categoriesById={categoriesById}
+        groupsById={groupsById}
         onView={(e) => setViewing(e)}
         onEdit={(e) => {
           setViewing(null);
