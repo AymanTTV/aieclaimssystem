@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Claim } from '../../types';
-import { Eye, Edit, Trash2, Clock, FileText, MessageSquare } from 'lucide-react';
+import { Eye, Edit, Trash2, Clock, FileText, MessageSquare, MessageCircle, Mail } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, differenceInDays } from 'date-fns';
@@ -16,6 +16,8 @@ interface ClaimTableProps {
   onUpdateProgress: (claim: Claim) => void;
   onGeneratePdf: (claim: Claim) => void;
   onNotes: (claim: Claim) => void;
+  onWhatsApp?: (claim: Claim) => void;
+  onEmail?: (claim: Claim) => void;
   selectedIds: Set<string>;
   onToggleOne: (id: string) => void;
   onToggleAll: (checked: boolean, allIds: string[]) => void;
@@ -23,6 +25,7 @@ interface ClaimTableProps {
 
 const ClaimTable: React.FC<ClaimTableProps> = ({
   claims, onView, onEdit, onDelete, onUpdateProgress, onGeneratePdf, onNotes,
+  onWhatsApp, onEmail,
   selectedIds, onToggleOne, onToggleAll
 }) => {
   const { can } = usePermissions();
@@ -202,7 +205,33 @@ const ClaimTable: React.FC<ClaimTableProps> = ({
       cell: ({ row }: any) => {
         const claim = row.original;
         return (
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
+            {onWhatsApp && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onWhatsApp(claim);
+                }}
+                className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                title="Send WhatsApp Message"
+                aria-label="Send WhatsApp message"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </button>
+            )}
+            {onEmail && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEmail(claim);
+                }}
+                className="text-indigo-600 hover:text-indigo-800 transition-colors"
+                title="Send Email"
+                aria-label="Send email"
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+            )}
             {can('claims', 'note') && <button onClick={e => { e.stopPropagation(); onNotes(claim); }} className="text-gray-600 hover:text-gray-800" title="Notes"><MessageSquare className="h-4 w-4" /></button>}
             {can('claims', 'state') && <button onClick={e => { e.stopPropagation(); onUpdateProgress(claim); }} className="text-blue-600 hover:text-blue-800" title="Update Progress"><Clock className="h-4 w-4" /></button>}
             {can('claims', 'view') && <button onClick={e => { e.stopPropagation(); onView(claim); }} className="text-blue-600 hover:text-blue-800" title="View Details"><Eye className="h-4 w-4" /></button>}

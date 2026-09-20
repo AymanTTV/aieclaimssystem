@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
-import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
+import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Clock, Play, Loader2 } from 'lucide-react'; 
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
+import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
 import {
   collection,
   query,
@@ -342,6 +343,21 @@ export default function BulkEmail() {
   // ─── LEGAL HANDLERS & CLAIMS CACHE ──────────────────────────────
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
   const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
+  const [isRunningRentalTestBatch, setIsRunningRentalTestBatch] = useState(false);
+
+  const handleRunRentalTestBatch = async () => {
+    setIsRunningRentalTestBatch(true);
+    const toastId = toast.loading('Running Monday Auto-Email test batch for eligible rentals...');
+    try {
+      const res = await runMondayAutoEmailJob({ isTestRun: true });
+      toast.success(res.message, { id: toastId, duration: 6000 });
+    } catch (err: any) {
+      console.error('Error running test email batch:', err);
+      toast.error(`Batch error: ${err?.message || 'Failed to execute'}`, { id: toastId });
+    } finally {
+      setIsRunningRentalTestBatch(false);
+    }
+  };
 
   // Uses live database templates if available, otherwise falls back to the static file
   const templates = dbTemplates[emailType]?.length > 0 
@@ -1405,6 +1421,45 @@ export default function BulkEmail() {
           {templates.map(tpl => (<option key={tpl.id} value={tpl.id}>{tpl.name}</option>))}
         </select>
       </div>
+
+      {/* Monday Auto-Email Bulk Test Action Banner for Rental tab */}
+      {emailType === 'rental' && (
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 border border-indigo-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs mt-0.5 shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-900">Monday Automated Bulk Email Scheduler</h4>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                  0 0 * * 1 (Mondays 12:00 AM)
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  Strict Claim Exclusion
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                Targets active rentals with an outstanding balance (<span className="font-semibold text-gray-800">owing &gt; £0</span>) and sends weekly statement breakdown without attachments. Automatically ignores and excludes all Claim/Claims rentals.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleRunRentalTestBatch}
+            disabled={isRunningRentalTestBatch}
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 shrink-0 cursor-pointer"
+            title="Manually execute full filtering logic and send emails to all eligible active non-claim rentals immediately"
+          >
+            {isRunningRentalTestBatch ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4 mr-2 fill-white" />
+            )}
+            Run Test Email Batch
+          </button>
+        </div>
+      )}
 
       {/* Recipients */}
       <div className="bg-white p-4 rounded shadow space-y-2">

@@ -5,11 +5,13 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import TextArea from '../ui/TextArea';
 import SearchableSelect from '../ui/SearchableSelect';
-import { Trash2, Edit } from 'lucide-react';
+import { Trash2, Edit, MessageCircle, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PROGRESS_OPTIONS, isLegacyClaimProgress } from '../../utils/claimProgress';
 import { generateClaimProgressDocument } from '../../utils/documentGenerator'; 
 import { usePermissions } from '../../hooks/usePermissions'; // Added import
+import { Claim } from '../../types';
+import ClaimCommunicationModal from './ClaimCommunicationModal';
 
 interface ProgressEntry {
   id: string;
@@ -33,6 +35,7 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
   const { user } = useAuth();
   const { can } = usePermissions(); // Added hook initialization
   const [loading, setLoading] = useState(false);
+  const [claimData, setClaimData] = useState<Claim | null>(null);
   const [history, setHistory] = useState<ProgressEntry[]>([]);
   const [isLegacy, setIsLegacy] = useState(false);
 
@@ -43,6 +46,12 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
   const [dateValue, setDateValue] = useState<string>('');
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState<ProgressEntry | null>(null);
+
+  // Notification state
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false);
+  const [notifyChannel, setNotifyChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [notifyOnSave, setNotifyOnSave] = useState(false);
+  const [notifyOnSaveChannel, setNotifyOnSaveChannel] = useState<'whatsapp' | 'email'>('whatsapp');
 
   const sortedHistory = useMemo(
     () => [...history].sort((a, b) => b.date.getTime() - a.date.getTime()),
@@ -58,6 +67,7 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
         const snap = await getDoc(claimRef);
         if (!snap.exists()) return;
         const data = snap.data() as any;
+        setClaimData({ id: claimId, ...data } as Claim);
 
         const rawHistory: any[] = data.progressHistory || [];
         const historyMapped: ProgressEntry[] = rawHistory.map(r => ({
@@ -173,6 +183,11 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
       toast.success(editing ? 'Entry updated' : 'Entry added');
       onUpdate();
       resetForm();
+
+      if (notifyOnSave) {
+        setNotifyChannel(notifyOnSaveChannel);
+        setNotifyModalOpen(true);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to save', { id: toastId });
@@ -186,6 +201,15 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
     setStatus(entry.status);
     setNote(entry.note);
     setDateValue(entry.date.toISOString().substring(0, 16));
+  };
+
+  const handleOpenNotify = (ch: 'whatsapp' | 'email') => {
+    if (!status) {
+      toast.error('Please select a progress status first.');
+      return;
+    }
+    setNotifyChannel(ch);
+    setNotifyModalOpen(true);
   };
 
   const handleDelete = async (entry: ProgressEntry) => {
@@ -263,6 +287,80 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
           />
         </div>
 
+        {/* Progress Update Client Notification Feature */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3.5 space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div>
+              <span className="text-xs font-semibold text-blue-900 block flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                Notify Client of Progress Update
+              </span>
+              <span className="text-[11px] text-blue-700">
+                Instantly pre-fill and preview the active Claim Progress template to notify the client.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenNotify('whatsapp')}
+                disabled={loading || !status}
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-sm disabled:opacity-50"
+                title={!status ? 'Select a status to preview WhatsApp notification' : 'Open WhatsApp message pre-filled with this progress update'}
+              >
+                <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                Notify via WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenNotify('email')}
+                disabled={loading || !status}
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors shadow-sm disabled:opacity-50"
+                title={!status ? 'Select a status to preview email notification' : 'Send email pre-filled with this progress update'}
+              >
+                <Mail className="h-3.5 w-3.5 mr-1" />
+                Notify via Email
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-blue-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <label className="flex items-center space-x-2 text-blue-950 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={notifyOnSave}
+                onChange={(e) => setNotifyOnSave(e.target.checked)}
+                className="rounded border-blue-300 text-primary focus:ring-primary h-3.5 w-3.5"
+              />
+              <span className="font-medium">Prompt client notification automatically upon saving this entry</span>
+            </label>
+            {notifyOnSave && (
+              <div className="flex items-center space-x-3 bg-white/70 px-2 py-1 rounded border border-blue-200">
+                <span className="text-[11px] font-semibold text-gray-600">Channel:</span>
+                <label className="text-xs text-blue-900 flex items-center gap-1 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="notifyChannel"
+                    checked={notifyOnSaveChannel === 'whatsapp'}
+                    onChange={() => setNotifyOnSaveChannel('whatsapp')}
+                    className="text-emerald-600 focus:ring-emerald-500 h-3 w-3"
+                  />
+                  WhatsApp
+                </label>
+                <label className="text-xs text-blue-900 flex items-center gap-1 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="notifyChannel"
+                    checked={notifyOnSaveChannel === 'email'}
+                    onChange={() => setNotifyOnSaveChannel('email')}
+                    className="text-indigo-600 focus:ring-indigo-500 h-3 w-3"
+                  />
+                  Email
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="flex justify-end space-x-3">
           {editing && (
             <button
@@ -329,6 +427,18 @@ const ProgressUpdateModal: React.FC<ProgressUpdateModalProps> = ({
           Close
         </button>
       </div>
+
+      {claimData && (
+        <ClaimCommunicationModal
+          isOpen={notifyModalOpen}
+          onClose={() => setNotifyModalOpen(false)}
+          claim={claimData}
+          initialChannel={notifyChannel}
+          initialCategory="progress"
+          overrideStage={status}
+          overrideNotes={note}
+        />
+      )}
     </div>
   );
 };

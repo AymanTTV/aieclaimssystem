@@ -1228,6 +1228,48 @@ ${aieClaimsSignature}`,
   /* ───────── CUSTOM ───────── */
   custom: [
     {
+      id: 'driver_pay_advice_custom',
+      name: 'Driver Payment Advice (Standard)',
+      subjectTemplate: 'Driver Payment Advice - {payment_id}',
+      bodyTemplate:
+`Dear {driver_name},
+
+Your driver payment details have been processed:
+
+📋 Payment Ref: {payment_id}
+💰 Amount Paid: {amount_paid}
+📅 Payment Date: {payment_date}
+📊 Status: {payment_status}
+🗓️ Pay Period: {period_start} to {period_end}
+📝 Notes: {notes}
+
+If you have any questions regarding your statement or payout, please reply to this message.
+
+${aieSkylineSignature}`,
+      requiredFields: [],
+    },
+    {
+      id: 'driver_pay_statement_summary_custom',
+      name: 'Driver Payment Statement Summary',
+      subjectTemplate: 'Payment Statement - {driver_name}',
+      bodyTemplate:
+`Hello {driver_name},
+
+Here is a summary of your driver payment statement for {period_start} to {period_end}:
+
+• Payment ID: {payment_id}
+• Amount Paid: {amount_paid}
+• Net Pay: {net_pay}
+• Status: {payment_status}
+• Date: {payment_date}
+• Notes: {notes}
+
+Thank you for your valued cooperation.
+
+${aieSkylineSignature}`,
+      requiredFields: [],
+    },
+    {
       id: 'skyline_welcome_account_details',
       name: 'Welcome to AIE Skyline - Important Account & Contact Details',
       subjectTemplate: 'Welcome to AIE Skyline - Important Account & Contact Details',

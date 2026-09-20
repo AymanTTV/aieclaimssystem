@@ -13,6 +13,7 @@ import ClaimDetailsModal from '../components/claims/ClaimDetailsModal';
 import NotesModal from '../components/claims/NotesModal';
 import ClaimDeleteModal from '../components/claims/ClaimDeleteModal';
 import ProgressUpdateModal from '../components/claims/ProgressUpdateModal';
+import ClaimCommunicationModal from '../components/claims/ClaimCommunicationModal';
 import SearchableSelect from '../components/ui/SearchableSelect'; 
 
 import ManageClaimGroupsModal from '../components/claims/ManageClaimGroupsModal';
@@ -357,6 +358,23 @@ const Claims: React.FC = () => {
 
   const [incidentDateStart, setIncidentDateStart] = useState<string>('');
   const [incidentDateEnd, setIncidentDateEnd] = useState<string>('');
+
+  // Claim Communication Modal State
+  const [commClaim, setCommClaim] = useState<Claim | null>(null);
+  const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [commCategory, setCommCategory] = useState<'general' | 'progress'>('general');
+
+  const handleOpenWhatsApp = (c: Claim) => {
+    setCommClaim(c);
+    setCommChannel('whatsapp');
+    setCommCategory('general');
+  };
+
+  const handleOpenEmail = (c: Claim) => {
+    setCommClaim(c);
+    setCommChannel('email');
+    setCommCategory('general');
+  };
 
   const allProgressOptions = useMemo(() => {
     const union = new Set<string>(PROGRESS_OPTIONS);
@@ -1005,6 +1023,8 @@ const Claims: React.FC = () => {
         onUpdateProgress={setUpdatingProgress}
         onGeneratePdf={handleGeneratePdf}
         onNotes={(c) => setNotesFor(c)}
+        onWhatsApp={handleOpenWhatsApp}
+        onEmail={handleOpenEmail}
         selectedIds={selectedClaimIds}
         onToggleOne={handleToggleOne}
         onToggleAll={handleToggleAll}
@@ -1066,7 +1086,12 @@ const Claims: React.FC = () => {
 
       {selectedClaim && !showEditModal && !showDeleteModal && (
         <Modal isOpen onClose={() => setSelectedClaim(null)} title="Claim Details" size="xl">
-          <ClaimDetailsModal claim={selectedClaim} onDownloadDocument={(url) => window.open(url, '_blank')} />
+          <ClaimDetailsModal
+            claim={selectedClaim}
+            onDownloadDocument={(url) => window.open(url, '_blank')}
+            onWhatsApp={handleOpenWhatsApp}
+            onEmail={handleOpenEmail}
+          />
         </Modal>
       )}
 
@@ -1095,6 +1120,16 @@ const Claims: React.FC = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {commClaim && (
+        <ClaimCommunicationModal
+          isOpen={!!commClaim}
+          onClose={() => setCommClaim(null)}
+          claim={commClaim}
+          initialChannel={commChannel}
+          initialCategory={commCategory}
+        />
       )}
     </div>
   );

@@ -1,0 +1,6 @@
+{
+  "name": "Fleet Maintenance System",
+  "description": "Fleet, rental, and maintenance management platform with automated email workflows",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

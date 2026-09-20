@@ -16,9 +16,12 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ transactions }) => {
       const start = startOfMonth(date);
       const end = endOfMonth(date);
 
-      const monthTx = transactions.filter(t => 
-        isWithinInterval(t.date, { start, end })
-      );
+      const monthTx = transactions.filter(t => {
+        if (!t.date) return false;
+        const d = t.date instanceof Date ? t.date : new Date(t.date);
+        if (isNaN(d.getTime())) return false;
+        return isWithinInterval(d, { start, end });
+      });
 
       const income = monthTx
         .filter(t => t.type === 'income')

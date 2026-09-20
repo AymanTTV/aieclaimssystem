@@ -7,6 +7,7 @@ import { FormatProvider } from './context/FormatContext';
 import AppRoutes from './routes';
 import { ToDoIcon } from './components/todo/ToDoIcon';
 import { ToDoModal } from './components/todo/ToDoModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function AppInner() {
   const [todoOpen, setTodoOpen] = useState(false);
@@ -14,7 +15,7 @@ function AppInner() {
   const isMemberRoute = location.pathname.startsWith('/members');
 
   return (
-    <>
+    <ErrorBoundary>
       {/* Global toast notifications */}
       <Toaster
         position="top-right"
@@ -36,7 +37,7 @@ function AppInner() {
           <ToDoModal open={todoOpen} onClose={() => setTodoOpen(false)} />
         </>
       )} */}
-    </>
+    </ErrorBoundary>
   );
 }
 

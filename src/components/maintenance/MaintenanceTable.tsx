@@ -1,7 +1,7 @@
 // src/components/maintenance/MaintenanceTable.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { MaintenanceLog, Vehicle } from '../../types';
+import { MaintenanceLog, Vehicle, Customer, Rental } from '../../types';
 import {
   Eye,
   Pencil,
@@ -10,17 +10,33 @@ import {
   CreditCard,
   CheckCircle2,
   Receipt,
-  FileSignature
+  FileSignature,
+  MessageCircle,
+  Mail
 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
+import { useCustomers } from '../../hooks/useCustomers';
+import { useRentals } from '../../hooks/useRentals';
+import { useServiceCenters } from '../../hooks/useServiceCenters';
+import {
+  resolveMaintenanceContext,
+  ResolvedMaintenanceContext,
+  MaintenanceChannelMode,
+  MaintenanceRecipientType,
+} from '../../utils/maintenanceCommunication';
+import MaintenanceRecipientSelectorModal from './MaintenanceRecipientSelectorModal';
+import MaintenanceCommunicationModal from './MaintenanceCommunicationModal';
+import MaintenanceBulkCommunicationModal from './MaintenanceBulkCommunicationModal';
 
 interface MaintenanceTableProps {
   logs: MaintenanceLog[];
   vehicles: Record<string, Vehicle>;
+  customers?: Record<string, Customer>;
+  rentals?: Rental[];
   onView: (log: MaintenanceLog) => void;
   onEdit: (log: MaintenanceLog) => void;
   onDelete: (log: MaintenanceLog) => void;
@@ -58,6 +74,8 @@ const ActionBtn = ({
 const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   logs,
   vehicles,
+  customers,
+  rentals,
   onView,
   onEdit,
   onDelete,
@@ -71,6 +89,87 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   const { can, isCompany } = usePermissions();
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
+  const { customers: fallbackCustomers } = useCustomers();
+  const { rentals: hookRentals } = useRentals();
+  const { serviceCenters } = useServiceCenters();
+
+  const activeRentals = useMemo(() => {
+    return rentals && rentals.length > 0 ? rentals : hookRentals;
+  }, [rentals, hookRentals]);
+
+  const activeCustomersMap = useMemo(() => {
+    if (customers && Object.keys(customers).length > 0) {
+      return customers;
+    }
+    return fallbackCustomers.reduce((acc, c) => {
+      acc[c.id] = c;
+      return acc;
+    }, {} as Record<string, Customer>);
+  }, [customers, fallbackCustomers]);
+
+  // Multi-selection state for bulk actions
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
+
+  // Quick recipient selector modal state
+  const [selectorState, setSelectorState] = useState<{
+    isOpen: boolean;
+    log: MaintenanceLog | null;
+    context: ResolvedMaintenanceContext | null;
+    mode: MaintenanceChannelMode;
+  }>({
+    isOpen: false,
+    log: null,
+    context: null,
+    mode: 'whatsapp',
+  });
+
+  // Individual communication modal state
+  const [commModal, setCommModal] = useState<{
+    isOpen: boolean;
+    log: MaintenanceLog | null;
+    context: ResolvedMaintenanceContext | null;
+    mode: MaintenanceChannelMode;
+    recipientType: MaintenanceRecipientType;
+  }>({
+    isOpen: false,
+    log: null,
+    context: null,
+    mode: 'whatsapp',
+    recipientType: 'driver',
+  });
+
+  // Bulk communication modal state
+  const [bulkModal, setBulkModal] = useState<{
+    isOpen: boolean;
+    mode: MaintenanceChannelMode;
+  }>({
+    isOpen: false,
+    mode: 'email',
+  });
+
+  const handleOpenCommunication = (log: MaintenanceLog, mode: MaintenanceChannelMode) => {
+    const ctx = resolveMaintenanceContext(log, vehicles, activeCustomersMap, serviceCenters, activeRentals);
+    setSelectorState({
+      isOpen: true,
+      log,
+      context: ctx,
+      mode,
+    });
+  };
+
+  const handleRecipientSelected = (recipientType: MaintenanceRecipientType) => {
+    const { log, context, mode } = selectorState;
+    setSelectorState({ isOpen: false, log: null, context: null, mode: 'whatsapp' });
+    if (log && context) {
+      setCommModal({
+        isOpen: true,
+        log,
+        context,
+        mode,
+        recipientType,
+      });
+    }
+  };
 
   const canSeeCompleted = can('maintenance', 'completed') && !isCompany;
   const canEditStatusFromTable = can('maintenance', 'tableStatus');
@@ -88,7 +187,52 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     }
   };
 
+  const selectedLogsList = useMemo(() => {
+    return logs.filter((l) => selectedLogIds.has(l.id));
+  }, [logs, selectedLogIds]);
+
   const columns = useMemo(() => [
+    {
+      id: 'select',
+      header: () => (
+        <div className="w-6 flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={logs.length > 0 && selectedLogIds.size === logs.length}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedLogIds(new Set(logs.map((l) => l.id)));
+              } else {
+                setSelectedLogIds(new Set());
+              }
+            }}
+            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-3.5 h-3.5"
+            title="Select all"
+          />
+        </div>
+      ),
+      cell: ({ row }: any) => (
+        <div
+          className="w-6 flex items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={selectedLogIds.has(row.original.id)}
+            onChange={(e) => {
+              const next = new Set(selectedLogIds);
+              if (e.target.checked) {
+                next.add(row.original.id);
+              } else {
+                next.delete(row.original.id);
+              }
+              setSelectedLogIds(next);
+            }}
+            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-3.5 h-3.5"
+          />
+        </div>
+      ),
+    },
     {
       id: 'orderNumber',
       header: <div className="w-16">Order #</div>,
@@ -382,10 +526,26 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               </>
             )}
           </div>
+
+          {/* Email and WhatsApp action bar options */}
+          <div className="flex gap-1 mt-1 pt-1 border-t w-full justify-center border-gray-200">
+            <ActionBtn
+              onClick={() => handleOpenCommunication(row.original, 'whatsapp')}
+              icon={MessageCircle}
+              colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-200"
+              title="WhatsApp: Send to Driver or Garage"
+            />
+            <ActionBtn
+              onClick={() => handleOpenCommunication(row.original, 'email')}
+              icon={Mail}
+              colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-800 border border-sky-200"
+              title="Email: Send to Driver or Garage"
+            />
+          </div>
         </div>
       )
     }
-  ].filter(Boolean), [vehicles, canEditStatusFromTable, isCompany, canSeeCompleted, onView, onEdit, onComplete, onPay, onDelete, onGenerateDocument, onViewDocument, onGenerateInvoice, onStatusChange, formatCurrency, can]);
+  ].filter(Boolean), [vehicles, canEditStatusFromTable, isCompany, canSeeCompleted, onView, onEdit, onComplete, onPay, onDelete, onGenerateDocument, onViewDocument, onGenerateInvoice, onStatusChange, formatCurrency, can, selectedLogIds, logs, activeCustomersMap, serviceCenters]);
 
   const rowClassName = (row: { original: MaintenanceLog }) => {
     const { date, status } = row.original;
@@ -397,13 +557,87 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   };
 
   return (
-    <DataTable
-      // ✅ FIX: Use logs directly, as filtering is fully handled by useMaintenanceFilters now
-      data={logs} 
-      columns={columns as any}
-      onRowClick={(log) => can('maintenance', 'view') && onView(log)}
-      rowClassName={rowClassName as any}
-    />
+    <>
+      {selectedLogIds.size > 0 && (
+        <div className="bg-indigo-900 text-white px-4 py-3 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center gap-3">
+            <span className="bg-indigo-700 text-indigo-100 text-xs font-bold px-2.5 py-1 rounded-full">
+              {selectedLogIds.size} {selectedLogIds.size === 1 ? 'record' : 'records'} selected
+            </span>
+            <span className="text-xs text-indigo-200 hidden sm:inline">
+              Perform batch communications for selected maintenance jobs
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkModal({ isOpen: true, mode: 'whatsapp' })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer"
+              title="Send batch WhatsApp to drivers or garages"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              Batch WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkModal({ isOpen: true, mode: 'email' })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer"
+              title="Send batch Email to drivers or garages"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Batch Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedLogIds(new Set())}
+              className="px-2.5 py-1.5 bg-indigo-800 hover:bg-indigo-700 text-indigo-200 hover:text-white text-xs font-medium rounded-lg transition cursor-pointer"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        // ✅ FIX: Use logs directly, as filtering is fully handled by useMaintenanceFilters now
+        data={logs} 
+        columns={columns as any}
+        onRowClick={(log) => can('maintenance', 'view') && onView(log)}
+        rowClassName={rowClassName as any}
+      />
+
+      {/* Recipient Quick Selector Modal ("Send to Driver" OR "Send to Garage") */}
+      <MaintenanceRecipientSelectorModal
+        isOpen={selectorState.isOpen}
+        onClose={() => setSelectorState({ isOpen: false, log: null, context: null, mode: 'whatsapp' })}
+        log={selectorState.log}
+        context={selectorState.context}
+        mode={selectorState.mode}
+        onSelectRecipient={handleRecipientSelected}
+      />
+
+      {/* Maintenance Single Communication Modal */}
+      <MaintenanceCommunicationModal
+        isOpen={commModal.isOpen}
+        onClose={() => setCommModal({ isOpen: false, log: null, context: null, mode: 'whatsapp', recipientType: 'driver' })}
+        log={commModal.log}
+        context={commModal.context}
+        initialMode={commModal.mode}
+        initialRecipient={commModal.recipientType}
+      />
+
+      {/* Maintenance Bulk Communication Modal */}
+      <MaintenanceBulkCommunicationModal
+        isOpen={bulkModal.isOpen}
+        onClose={() => setBulkModal({ isOpen: false, mode: 'email' })}
+        selectedLogs={selectedLogsList}
+        vehiclesMap={vehicles}
+        customersMap={activeCustomersMap}
+        serviceCenters={serviceCenters}
+        rentals={activeRentals}
+        initialMode={bulkModal.mode}
+      />
+    </>
   );
 };
 

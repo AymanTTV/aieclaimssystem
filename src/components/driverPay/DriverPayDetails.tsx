@@ -5,16 +5,17 @@ import { DriverPay, PaymentPeriod } from '../../types/driverPay';
 import { doc, getDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { User, Phone, MapPin } from 'lucide-react';
+import { User, Phone, MapPin, MessageCircle } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { resolveNameFields } from '../../utils/nameAddressUtils';
 
 interface DriverPayDetailsProps {
   record: DriverPay;
+  onWhatsApp?: (record: DriverPay) => void;
 }
 
-const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
+const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record, onWhatsApp }) => {
   const [createdByUser, setCreatedByUser] = useState<string>('');
   const nameFields = resolveNameFields(record);
 
@@ -148,6 +149,16 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
             Driver No: {rec.driverNo} | TID: {rec.tidNo}
           </div>
         </div>
+        {onWhatsApp && (
+          <button
+            onClick={() => onWhatsApp(rec)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-300 rounded-md shadow-sm text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+            title="Contact Driver via WhatsApp"
+          >
+            <MessageCircle className="h-4 w-4 text-emerald-600" />
+            <span>WhatsApp Driver</span>
+          </button>
+        )}
       </div>
 
       <Section title="Driver Details">
@@ -164,12 +175,23 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record }) => {
             <p className="text-sm text-gray-500">Last Name</p>
             <p className="font-medium">{nameFields.lastName || '-'}</p>
           </div>
-          <div className="flex items-center">
-            <Phone className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Phone Number</p>
-              <p className="font-medium">{rec.phoneNumber}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Phone className="h-5 w-5 text-gray-400 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Phone Number</p>
+                <p className="font-medium">{rec.phoneNumber || '-'}</p>
+              </div>
             </div>
+            {onWhatsApp && rec.phoneNumber && (
+              <button
+                onClick={() => onWhatsApp(rec)}
+                className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition-colors ml-2"
+                title="Send WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="flex items-center">
             <MapPin className="h-5 w-5 text-gray-400 mr-2" />

@@ -14,6 +14,7 @@ import {setGlobalOptions} from "firebase-functions";
 // functions/src/index.ts
 export { sendWhatsAppCloudText } from './sendWhatsAppCloudText';
 export { whatsappCloudInbound } from './whatsappCloudInbound'; // (your webhook)
+export { mondayAutoEmailJob } from './mondayAutoEmailJob';
 
 
 

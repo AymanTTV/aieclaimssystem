@@ -89,7 +89,6 @@ export function DataTable<T extends AnyRow>({
         setPageIndex(Math.max(0, total - 1));
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.length]);
 
   // -------- Mobile/Tablet card renderer (<= lg) --------

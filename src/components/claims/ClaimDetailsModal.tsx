@@ -3,21 +3,46 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Claim } from '../../types';
 import { format, differenceInDays } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Activity } from 'lucide-react';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Activity, MessageCircle } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { isLegacyClaimProgress, deriveDisplayStatus } from '../../utils/claimProgress';
 import clsx from 'clsx';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
+import ClaimCommunicationModal from './ClaimCommunicationModal';
 
 interface ClaimDetailsProps {
   claim: Claim;
   onDownloadDocument?: (url: string) => void;
+  onWhatsApp?: (claim: Claim) => void;
+  onEmail?: (claim: Claim) => void;
 }
 
-const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocument }) => {
+const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
+  claim,
+  onDownloadDocument,
+  onWhatsApp,
+  onEmail,
+}) => {
   const [createdByName, setCreatedByName] = useState<string | null>(null);
+  const [commModalOpen, setCommModalOpen] = useState(false);
+  const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [commCategory, setCommCategory] = useState<'general' | 'progress'>('general');
+
+  const handleOpenComm = (channel: 'whatsapp' | 'email', category: 'general' | 'progress' = 'general') => {
+    if (channel === 'whatsapp' && onWhatsApp) {
+      onWhatsApp(claim);
+      return;
+    }
+    if (channel === 'email' && onEmail) {
+      onEmail(claim);
+      return;
+    }
+    setCommChannel(channel);
+    setCommCategory(category);
+    setCommModalOpen(true);
+  };
   const { formatCurrency } = useFormattedDisplay();
   const legacy = useMemo(() => isLegacyClaimProgress(claim), [claim]);
   const displayStatus = useMemo(() => deriveDisplayStatus(claim) ?? 'N/A', [claim]);
@@ -110,9 +135,31 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Claim #{claim.id.slice(-8).toUpperCase()}</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-900">Claim #{claim.id.slice(-8).toUpperCase()}</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenComm('whatsapp', 'general')}
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors shadow-sm"
+                title="Send WhatsApp message to client"
+              >
+                <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
+                WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenComm('email', 'general')}
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors shadow-sm"
+                title="Send email to client"
+              >
+                <Mail className="w-3.5 h-3.5 mr-1.5" />
+                Email
+              </button>
+            </div>
+          </div>
           <div className="mt-1 space-y-1">{claim.clientRef && <p className="text-sm text-gray-500">Client Ref: {claim.clientRef}</p>}</div>
         </div>
         <div className="space-y-1">
@@ -589,6 +636,14 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({ claim, onDownloadDocum
           <div>Last Updated: {formatDateTime(claim.updatedAt)}</div>
         </div>
       </div>
+
+      <ClaimCommunicationModal
+        isOpen={commModalOpen}
+        onClose={() => setCommModalOpen(false)}
+        claim={claim}
+        initialChannel={commChannel}
+        initialCategory={commCategory}
+      />
     </div>
   );
 };

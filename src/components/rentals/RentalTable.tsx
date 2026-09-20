@@ -21,12 +21,18 @@ import {
   AlertCircle,
   CalendarPlus,
   MessageCircle,
-  Mail
+  Mail,
+  MailCheck,
+  Send,
 } from 'lucide-react';
+import { db } from '../../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate, ensureValidDate } from '../../utils/dateHelpers';
 import RentalCommunicationModal from './RentalCommunicationModal';
+import { sendSingleRentalTestEmail } from '../../jobs/mondayAutoEmailJob';
 import {
   isAfter,
   differenceInHours,
@@ -557,11 +563,63 @@ const RentalTable: React.FC<RentalTableProps> = ({
               </div>
             )}
 
-            {/* ROW 3: Documents Generation */}
+            {/* ROW 3: Documents Generation & Communications */}
             {can('rentals', 'singleDoc') && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
                 <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
                 <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
+                {r.status === 'active' && (() => {
+                  const isClaim = ['claim', 'claims'].includes(String(r.type || r.reason || r.category || '').trim().toLowerCase());
+                  if (isClaim) {
+                    return (
+                      <ActionBtn 
+                        onClick={() => toast('Claim rentals are excluded from Monday Auto-Emails.', { icon: 'ℹ️' })}
+                        icon={Mail} 
+                        colorClass="text-gray-300 bg-gray-50 border border-dashed border-gray-200" 
+                        title="Monday Auto-Email: Excluded (Claim Rental)" 
+                      />
+                    );
+                  }
+                  const isEnabled = r.enable_monday_auto_email !== false;
+                  return (
+                    <ActionBtn 
+                      onClick={async () => {
+                        const nextState = !isEnabled;
+                        try {
+                          await updateDoc(doc(db, 'rentals', r.id), {
+                            enable_monday_auto_email: nextState,
+                            updatedAt: new Date(),
+                          });
+                          r.enable_monday_auto_email = nextState;
+                          toast.success(nextState ? 'Monday auto-email enabled' : 'Monday auto-email disabled');
+                        } catch (err) {
+                          toast.error('Failed to update Monday auto-email');
+                        }
+                      }} 
+                      icon={isEnabled ? MailCheck : Mail} 
+                      colorClass={isEnabled ? "text-indigo-700 bg-indigo-50 border border-indigo-200 shadow-xs" : "text-gray-400 bg-gray-50 border border-gray-200"} 
+                      title={isEnabled ? "Monday Auto-Email: Enabled (Click to disable)" : "Monday Auto-Email: Disabled (Click to enable)"} 
+                    />
+                  );
+                })()}
+
+                {/* Send Test Email (Single test bypassing Monday cron & toggle restrictions) */}
+                <ActionBtn 
+                  onClick={async () => {
+                    const recipientLabel = r.customerName || 'driver';
+                    const toastId = toast.loading(`Sending test email to ${recipientLabel}...`);
+                    try {
+                      const res = await sendSingleRentalTestEmail(r);
+                      toast.success(res.message, { id: toastId, duration: 6000 });
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });
+                    }
+                  }} 
+                  icon={Send} 
+                  colorClass="text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 shadow-xs" 
+                  title="Send Test Email (Immediately sends active Rental Bulk Email template to this driver, bypassing cron & toggles)" 
+                />
+
                 <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
                 <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
                 <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />

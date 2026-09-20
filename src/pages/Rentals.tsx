@@ -26,8 +26,10 @@ import {
   Search, 
   FileText, 
   Image as ImageIcon, 
-  FileText as FileTextIcon 
+  FileText as FileTextIcon,
+  Mail
 } from 'lucide-react';
+import MondayAutoEmailBulkModal from '../components/rentals/MondayAutoEmailBulkModal';
 
 
 import { exportRentals } from '../utils/RentalsExport';
@@ -84,6 +86,7 @@ const Rentals = () => {
   const [payingRental, setPayingRental] = useState<Rental | null>(null);
   const [completingRental, setCompletingRental] = useState<Rental | null>(null);
   const [showAvailableVehicles, setShowAvailableVehicles] = useState(false);
+  const [showMondayAutoEmailModal, setShowMondayAutoEmailModal] = useState(false);
   
   const [agreementRental, setAgreementRental] = useState<Rental | null>(null);
   const [showReturnSelector, setShowReturnSelector] = useState(false);
@@ -480,6 +483,14 @@ const Rentals = () => {
               </button>
             </>
           )}
+          <button 
+            onClick={() => setShowMondayAutoEmailModal(true)} 
+            className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow transition-all"
+            title="Manage Monday Auto-Email for Active Rentals"
+          >
+            <Mail className="h-4 w-4 mr-2 text-indigo-600" />
+            <span className="truncate">Monday Auto-Email</span>
+          </button>
           {can('rentals', 'availableVehicles') && (
             <button 
               onClick={() => setShowAvailableVehicles(true)} 
@@ -733,6 +744,14 @@ const Rentals = () => {
       <Modal isOpen={!!returnExpectationRental} onClose={() => setReturnExpectationRental(null)} title="Set Expected Return Time" size="sm">
         {returnExpectationRental && <ExpectedReturnModal rental={returnExpectationRental} onClose={() => setReturnExpectationRental(null)} />}
       </Modal>
+
+      <MondayAutoEmailBulkModal
+        isOpen={showMondayAutoEmailModal}
+        onClose={() => setShowMondayAutoEmailModal(false)}
+        rentals={rentals}
+        vehicles={vehicles}
+        customers={customers}
+      />
     </div>
   );
 };

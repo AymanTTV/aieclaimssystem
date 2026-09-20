@@ -1,11 +1,12 @@
 // src/pages/AutomationSettings.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
-import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert, Trash2 } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, writeBatch, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert, Trash2, Mail, Play, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
 import { usePermissions } from '../hooks/usePermissions';
+import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
 
 // Valid tags based on BulkEmail and Whatsapp context builders
 const AVAILABLE_TAGS: Record<string, string[]> = {
@@ -48,6 +49,96 @@ export default function AutomationSettings() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+
+  // Global Automated Weekly Email Scheduler State
+  const [globalAutoEmailEnabled, setGlobalAutoEmailEnabled] = useState<boolean>(true);
+  const [isUpdatingGlobalToggle, setIsUpdatingGlobalToggle] = useState<boolean>(false);
+  const [isRunningMondayJob, setIsRunningMondayJob] = useState<boolean>(false);
+
+  // Load global_auto_email_enabled setting
+  useEffect(() => {
+    const loadGlobalSetting = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'system_settings', 'global_config'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data?.global_auto_email_enabled !== undefined) {
+            setGlobalAutoEmailEnabled(data.global_auto_email_enabled !== false);
+            return;
+          }
+        }
+        const setSnap = await getDoc(doc(db, 'settings', 'automation'));
+        if (setSnap.exists()) {
+          const data = setSnap.data();
+          if (data?.global_auto_email_enabled !== undefined) {
+            setGlobalAutoEmailEnabled(data.global_auto_email_enabled !== false);
+            return;
+          }
+        }
+        const local = localStorage.getItem('global_auto_email_enabled');
+        if (local !== null) {
+          setGlobalAutoEmailEnabled(local !== 'false');
+        }
+      } catch (err) {
+        const local = localStorage.getItem('global_auto_email_enabled');
+        if (local !== null) {
+          setGlobalAutoEmailEnabled(local !== 'false');
+        }
+      }
+    };
+    loadGlobalSetting();
+  }, []);
+
+  const handleToggleGlobalAutoEmail = async () => {
+    if (isUpdatingGlobalToggle) return;
+    const nextVal = !globalAutoEmailEnabled;
+    setIsUpdatingGlobalToggle(true);
+
+    try {
+      setGlobalAutoEmailEnabled(nextVal);
+      localStorage.setItem('global_auto_email_enabled', String(nextVal));
+
+      try {
+        await setDoc(doc(db, 'system_settings', 'global_config'), {
+          global_auto_email_enabled: nextVal,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        await setDoc(doc(db, 'settings', 'automation'), {
+          global_auto_email_enabled: nextVal,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (dbErr) {
+        console.warn('Firestore write notice:', dbErr);
+      }
+
+      toast.success(
+        nextVal
+          ? 'Global Monday automated email scheduler enabled'
+          : 'Global Monday automated email scheduler paused'
+      );
+    } catch (err) {
+      console.error('Failed to update global auto-email setting:', err);
+      toast.error('Failed to update global setting');
+      setGlobalAutoEmailEnabled(!nextVal);
+    } finally {
+      setIsUpdatingGlobalToggle(false);
+    }
+  };
+
+  const handleManualRunJob = async () => {
+    setIsRunningMondayJob(true);
+    const toastId = toast.loading('Running Monday Auto-Email test batch...');
+    try {
+      const res = await runMondayAutoEmailJob({ isTestRun: true });
+      toast.success(res.message, { id: toastId, duration: 6000 });
+    } catch (err: any) {
+      console.error('Error running test batch:', err);
+      toast.error(`Test batch error: ${err?.message || 'Failed to execute'}`, { id: toastId });
+    } finally {
+      setIsRunningMondayJob(false);
+    }
+  };
 
   // Field Tracking for Cursor Insertion
   const [activeField, setActiveField] = useState<'subjectTemplate' | 'bodyTemplate'>('bodyTemplate');
@@ -269,6 +360,83 @@ export default function AutomationSettings() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Message Template Manager</h1>
           <p className="text-sm text-gray-500">Edit templates, drag-and-drop tags, and manage communications.</p>
+        </div>
+      </div>
+
+      {/* --- AUTOMATION CONTROL: GLOBAL SCHEDULED EMAIL SYSTEM --- */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className={`p-3.5 rounded-2xl ${globalAutoEmailEnabled ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>
+              <Mail className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h2 className="text-lg font-black text-gray-900">
+                  Automated Weekly Bulk Email Scheduler
+                </h2>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                  globalAutoEmailEnabled 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                    : 'bg-gray-100 text-gray-600 border-gray-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${globalAutoEmailEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+                  {globalAutoEmailEnabled ? 'Schedule Active' : 'Schedule Paused'}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <Clock className="w-3 h-3" /> 0 0 * * 1 (Every Monday at 12:00 AM)
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 max-w-3xl leading-relaxed">
+                Automatically scans active rental contracts, targets accounts with an outstanding balance (<span className="font-semibold text-gray-800">owing &gt; £0</span>), dynamically replaces placeholders from the active Rental Bulk Email template, and delivers weekly statement reminders without attachments. Excludes Claims.
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Switch & Actions */}
+          <div className="flex items-center gap-4 shrink-0 self-start md:self-center">
+            <button
+              onClick={handleManualRunJob}
+              disabled={isRunningMondayJob}
+              className="flex items-center px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition disabled:opacity-50"
+              title="Trigger manual run of the full filtering logic and send emails to eligible active non-claim rentals immediately"
+            >
+              {isRunningMondayJob ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin text-indigo-600" />
+              ) : (
+                <Play className="w-4 h-4 mr-2 text-indigo-600 fill-indigo-600" />
+              )}
+              Run Test Email Batch
+            </button>
+
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+              <span className="text-xs font-bold text-gray-700">
+                {globalAutoEmailEnabled ? 'Enabled' : 'Disabled'}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={globalAutoEmailEnabled}
+                disabled={isUpdatingGlobalToggle}
+                onClick={handleToggleGlobalAutoEmail}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  globalAutoEmailEnabled ? 'bg-indigo-600' : 'bg-gray-300'
+                } ${isUpdatingGlobalToggle ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <span className="sr-only">Toggle Global Monday Auto-Email</span>
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out flex items-center justify-center ${
+                    globalAutoEmailEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                >
+                  {isUpdatingGlobalToggle ? (
+                    <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                  ) : null}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

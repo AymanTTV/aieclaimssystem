@@ -17,9 +17,12 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
     const periodStart = startOfMonth(now);
     const periodEnd = endOfMonth(now);
 
-    const periodTransactions = transactions.filter(t =>
-      isWithinInterval(t.date, { start: periodStart, end: periodEnd })
-    );
+    const periodTransactions = transactions.filter(t => {
+      if (!t.date) return false;
+      const d = t.date instanceof Date ? t.date : new Date(t.date);
+      if (isNaN(d.getTime())) return false;
+      return isWithinInterval(d, { start: periodStart, end: periodEnd });
+    });
 
     const totalIncome = periodTransactions
       .filter(t => t.type === 'income')

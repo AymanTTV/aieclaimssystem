@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { DriverPay, PaymentPeriod } from '../../types/driverPay';
-import { Eye, Edit, DollarSign, Trash2, FileText, CalendarPlus, Lock, Unlock } from 'lucide-react';
+import { Eye, Edit, DollarSign, Trash2, FileText, CalendarPlus, Lock, Unlock, MessageCircle } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format } from 'date-fns';
@@ -24,6 +24,7 @@ interface DriverPayTableProps {
   onAddPeriod: (record: DriverPay) => void;
   onLockDriver: (record: DriverPay) => void;
   onActivateDriver: (record: DriverPay) => void;
+  onWhatsApp?: (record: DriverPay) => void;
   // 🟢 Added selection properties
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
@@ -41,6 +42,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
   onAddPeriod,
   onLockDriver,
   onActivateDriver,
+  onWhatsApp,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -200,6 +202,19 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                     <Eye className="h-4 w-4" />
                   </button>
                 )}
+                {onWhatsApp && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onWhatsApp(record);
+                    }}
+                    className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition-colors"
+                    title="Send WhatsApp Message"
+                    aria-label={`Send WhatsApp to ${record.name}`}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                )}
                 {can('driverPay', 'unlock') && (
                   <button
                     onClick={(e) => {
@@ -225,6 +240,20 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                     title="View Details"
                   >
                     <Eye className="h-4 w-4" />
+                  </button>
+                )}
+
+                {onWhatsApp && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onWhatsApp(record);
+                    }}
+                    className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition-colors"
+                    title="Send WhatsApp Message"
+                    aria-label={`Send WhatsApp to ${record.name}`}
+                  >
+                    <MessageCircle className="h-4 w-4" />
                   </button>
                 )}
 

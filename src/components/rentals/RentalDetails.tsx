@@ -26,9 +26,11 @@ import {
   StickyNote,
   AlertTriangle,
   Plus,
-  Clock
+  Clock,
+  Send,
+  Loader2
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -41,6 +43,9 @@ import {
   getWeeklyHybridUnits // 👈 ADD THIS NEW IMPORT
 } from '../../utils/rentalCalculations';
 import RentalPaymentHistory from './RentalPaymentHistory';
+import RentalMondayAutoEmailToggle from './RentalMondayAutoEmailToggle';
+import { sendSingleRentalTestEmail } from '../../jobs/mondayAutoEmailJob';
+import toast from 'react-hot-toast';
 
 interface RentalDetailsProps {
   rental: Rental;
@@ -260,6 +265,85 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* --- AUTOMATED WEEKLY MONDAY EMAIL SETTING --- */}
+      {(() => {
+        const isClaim = ['claim', 'claims'].includes(String(rental.type || rental.reason || rental.category || '').trim().toLowerCase());
+        const isEnabled = rental.enable_monday_auto_email !== false;
+
+        return (
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${isClaim ? 'bg-amber-50 text-amber-600' : isEnabled ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+                <Mail className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-gray-900">Monday Automated Email Reminders</h4>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isClaim 
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : isEnabled 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                        : 'bg-gray-100 text-gray-600 border border-gray-200'
+                  }`}>
+                    {isClaim ? 'Excluded (Claim Rental)' : isEnabled ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {isClaim 
+                    ? 'This rental has TYPE set to Claim/Claims and is strictly excluded from weekly automated emails.'
+                    : 'Automatically sends weekly statement breakdown on Mondays at 12:00 AM when owing balance is greater than £0.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Send Test Email Button (Bypasses Cron & Toggles for this specific rental) */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetName = rental.customerName || rental.driverName || 'driver';
+                  const toastId = toast.loading(`Sending test email to ${targetName}...`);
+                  try {
+                    const res = await sendSingleRentalTestEmail(rental);
+                    toast.success(res.message, { id: toastId, duration: 6000 });
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold rounded-xl border border-violet-200 transition shadow-xs cursor-pointer"
+                title="Send test email now with active Rental Bulk Email template (bypasses cron & toggles)"
+              >
+                <Send className="w-3.5 h-3.5 text-violet-600" />
+                Send Test Email
+              </button>
+
+              {isClaim ? (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-100 text-gray-500 border border-gray-200">
+                  Not Applicable
+                </span>
+              ) : (
+                <RentalMondayAutoEmailToggle
+                  rentalId={rental.id}
+                  enabled={isEnabled}
+                  onToggle={async (id, newState) => {
+                    try {
+                      await updateDoc(doc(db, 'rentals', id), {
+                        enable_monday_auto_email: newState,
+                        updatedAt: new Date(),
+                      });
+                      rental.enable_monday_auto_email = newState;
+                    } catch (err) {
+                      console.error('Failed to update rental enable_monday_auto_email:', err);
+                      throw err;
+                    }
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* --- FINANCIAL DASHBOARD --- */}
       {/* --- FINANCIAL DASHBOARD --- */}

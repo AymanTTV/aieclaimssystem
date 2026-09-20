@@ -1,11 +1,11 @@
 // src/pages/DriverPay.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
 import { usePermissions } from '../hooks/usePermissions';
 import { useDriverPay } from '../hooks/useDriverPay';
 import { useDriverPayFilters } from '../hooks/useDriverPayFilters';
-import { Download, Plus, FileText, Settings } from 'lucide-react';
+import { Download, Plus, FileText, Settings, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AddPaymentPeriodModal from '../components/driverPay/AddPaymentPeriodModal';
 import { format } from 'date-fns';
@@ -19,6 +19,17 @@ import DriverPayPaymentModal from '../components/driverPay/DriverPayPaymentModal
 import FormField from '../components/ui/FormField';
 import ManageDriverGroupsModal from '../components/driverPay/ManageDriverGroupsModal';
 import Modal from '../components/ui/Modal';
+import DriverPayWhatsAppModal from '../components/driverPay/DriverPayWhatsAppModal';
+import DriverPayBulkWhatsAppModal from '../components/driverPay/DriverPayBulkWhatsAppModal';
+import {
+  fetchDriverPayTemplates,
+  getActiveDriverPayTemplate,
+  resolveDriverPayContext,
+  replaceDriverPayPlaceholders,
+  buildDriverPayWhatsAppLink,
+  dispatchDriverPayWhatsApp,
+  DriverPayTemplateOption,
+} from '../utils/driverPayWhatsApp';
 import { exportToExcel } from '../utils/excel';
 import toast from 'react-hot-toast';
 import { generateAndUploadDocument } from '../utils/documentGenerator';
@@ -79,6 +90,30 @@ const DriverPayPage = () => {
   const [defaultsForm, setDefaultsForm] = useState({ commA: '6', commB: '0' });
   const [isUpdatingDefaults, setIsUpdatingDefaults] = useState(false);
   const [showManageGroups, setShowManageGroups] = useState(false);
+
+  // WhatsApp States
+  const [cachedTemplates, setCachedTemplates] = useState<DriverPayTemplateOption[]>([]);
+  const [whatsAppModalRecord, setWhatsAppModalRecord] = useState<DriverPay | null>(null);
+  const [isBulkWhatsAppOpen, setIsBulkWhatsAppOpen] = useState(false);
+
+  // Load WhatsApp templates on mount
+  useEffect(() => {
+    fetchDriverPayTemplates()
+      .then((tpls) => setCachedTemplates(tpls))
+      .catch((err) => console.warn('Error fetching driver pay templates:', err));
+  }, []);
+
+  const handleWhatsApp = useCallback((record: DriverPay) => {
+    setWhatsAppModalRecord(record);
+  }, []);
+
+  const handleBulkWhatsApp = () => {
+    if (selectedRecordIds.size === 0) {
+      toast.error('Please select at least one driver record.');
+      return;
+    }
+    setIsBulkWhatsAppOpen(true);
+  };
 
   const sortedFilteredRecords = [...filteredRecords].sort((a, b) => {
     const numA = getDriverNumber(a.driverNo);
@@ -315,6 +350,18 @@ const DriverPayPage = () => {
             </button>
           )}
 
+          {/* 🟢 Bulk WhatsApp Action Button */}
+          {selectedRecordIds.size > 0 && (
+            <button
+              onClick={handleBulkWhatsApp}
+              className="inline-flex items-center px-4 py-2 border border-emerald-600 text-emerald-700 rounded-md shadow-sm text-sm font-medium bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+              title="Batch WhatsApp messages to selected drivers"
+            >
+              <MessageCircle className="h-5 w-5 mr-2 text-emerald-600" />
+              WhatsApp Drivers ({selectedRecordIds.size})
+            </button>
+          )}
+
           {can('driverPay', 'export') && (
             <button
               onClick={handleGeneratePDF}
@@ -390,6 +437,7 @@ const DriverPayPage = () => {
             setEditingRecord(record);
         }}
         onDelete={handleDelete}
+        onWhatsApp={handleWhatsApp}
         onRecordPayment={(record) => setRecordingPayment(record)}
         onGenerateDocument={handleGenerateDocument}
         onViewDocument={handleViewDocument}
@@ -437,7 +485,7 @@ const DriverPayPage = () => {
       >
         {selectedRecord && (
           <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <DriverPayDetails record={selectedRecord} />
+            <DriverPayDetails record={selectedRecord} onWhatsApp={handleWhatsApp} />
           </div>
         )}
       </Modal>
@@ -622,6 +670,20 @@ const DriverPayPage = () => {
           </div>
         )}
       </Modal>
+
+      {/* WhatsApp Single Preview/Edit Modal */}
+      <DriverPayWhatsAppModal
+        isOpen={!!whatsAppModalRecord}
+        onClose={() => setWhatsAppModalRecord(null)}
+        record={whatsAppModalRecord}
+      />
+
+      {/* WhatsApp Bulk Dispatch Queue Modal */}
+      <DriverPayBulkWhatsAppModal
+        isOpen={isBulkWhatsAppOpen}
+        onClose={() => setIsBulkWhatsAppOpen(false)}
+        records={sortedFilteredRecords.filter((r) => selectedRecordIds.has(r.id))}
+      />
     </div>
   );
 };

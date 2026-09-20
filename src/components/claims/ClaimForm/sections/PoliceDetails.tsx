@@ -18,8 +18,6 @@ const PoliceDetails = () => {
       values.policeIncidentNumber ||
       values.policeContactInfo
     );
-    // We only want this to run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getValues]); 
 
   // 3. Use this check to set the *initial* state

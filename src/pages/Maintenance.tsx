@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import maintenanceCategoryService from '../services/maintenanceCategory.service';
 import { useCustomers } from '../hooks/useCustomers'; 
+import { useRentals } from '../hooks/useRentals';
 import { updateDoc, doc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase'; 
 import FormField from '../components/ui/FormField';
@@ -34,6 +35,7 @@ const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { logs, loading: logsLoading } = useMaintenanceLogs();
   const { customers, loading: customersLoading } = useCustomers(); 
+  const { rentals, loading: rentalsLoading } = useRentals();
   const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
   const { companyDetails } = useCompanyDetails();
@@ -491,6 +493,8 @@ const Maintenance: React.FC = () => {
        <MaintenanceTable
           logs={orderedLogs}
           vehicles={vehiclesMap}
+          customers={customersMap}
+          rentals={rentals}
           onView={setSelectedLog}
           onEdit={setEditingLog}
           onDelete={handleDelete}

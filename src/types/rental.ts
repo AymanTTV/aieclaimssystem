@@ -268,6 +268,8 @@ export interface Rental {
   paymentMethod?: PaymentMethod;
   paymentReference?: string | null;
   paymentNotes?: string | null;
+
+  enable_monday_auto_email?: boolean;
 }
 
 export const DEFAULT_RENTAL_PRICES = {

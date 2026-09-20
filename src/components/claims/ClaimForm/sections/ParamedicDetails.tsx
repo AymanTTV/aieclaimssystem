@@ -14,7 +14,6 @@ const ParamedicDetails = () => {
       values.ambulanceReference ||
       values.ambulanceService
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getValues]); 
 
   // 3. Use this check to set the *initial* state

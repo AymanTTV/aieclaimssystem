@@ -1,7 +1,7 @@
 // src/lib/firebase.ts
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, ActionCodeSettings } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -15,12 +15,21 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || 'mock-app-id',
 };
 
-// 1. Initialize Firebase app exactly once
-const app = initializeApp(firebaseConfig);
+// 1. Initialize Firebase app exactly once (prevents duplicate app initialization)
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// 2. Initialize core services using standard, optimized methods
+// 2. Initialize Firestore with experimentalForceLongPolling to eliminate WebChannel streaming failures in iframe/preview environments
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  });
+} catch {
+  firestoreDb = getFirestore(app);
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
-export const db = getFirestore(app); // Removes the buggy long-polling
 export const functions = getFunctions(app, 'europe-west2');
 export const storage = getStorage(app);
 
