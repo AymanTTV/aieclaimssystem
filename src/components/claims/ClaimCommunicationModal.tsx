@@ -8,6 +8,8 @@ import {
   ClaimRecipientType,
   ClaimTemplateOption,
   ClaimAttachment,
+  SelectableClaimFile,
+  extractClaimAvailableFiles,
   resolveClaimContext,
   resolveLegalHandlerDetails,
   replaceClaimTemplatePlaceholders,
@@ -19,6 +21,7 @@ import {
 import { fetchLegalHandlers } from '../../utils/legalHandlers';
 import { LegalHandler } from '../../types/legalHandler';
 import { useAuth } from '../../context/AuthContext';
+import ClaimTemplateSearchableSelect from './ClaimTemplateSearchableSelect';
 import {
   MessageCircle,
   Mail,
@@ -34,6 +37,12 @@ import {
   Building,
   AlertCircle,
   RefreshCw,
+  Paperclip,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Eye,
+  Check,
+  Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -86,9 +95,24 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   const [legalHandlersList, setLegalHandlersList] = useState<LegalHandler[]>([]);
   const [selectedLegalHandlerId, setSelectedLegalHandlerId] = useState<string>('');
 
-  // Claim Card Attachment (Mandatory for Email to Legal Handler)
+  // Claim Card Attachment & Available Files
   const [claimCardAttachment, setClaimCardAttachment] = useState<ClaimAttachment | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>(
+    initialRecipient === 'legalHandler' ? ['claim_card_pdf'] : []
+  );
+
+  // Extract all available files from the claim (Claim Card PDF, evidence files, photos)
+  const availableFiles = useMemo(() => {
+    if (!claim) return [];
+    return extractClaimAvailableFiles(claim, claimCardAttachment);
+  }, [claim, claimCardAttachment]);
+
+  // Grouped available files for UI presentation
+  const claimCardFile = useMemo(() => availableFiles.find((f) => f.id === 'claim_card_pdf'), [availableFiles]);
+  const evidenceDocFiles = useMemo(() => availableFiles.filter((f) => f.category === 'document'), [availableFiles]);
+  const imageFiles = useMemo(() => availableFiles.filter((f) => f.category === 'image'), [availableFiles]);
+  const videoFiles = useMemo(() => availableFiles.filter((f) => f.category === 'video'), [availableFiles]);
 
   // Message fields
   const [subject, setSubject] = useState('');
@@ -116,6 +140,9 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     setRecipientType(startRecipient);
     const startCategory = startRecipient === 'legalHandler' ? 'legal_handler' : initialCategory;
     setCategory(startCategory);
+
+    // Initialize selected files: Claim Card PDF checked by default for Legal Handler, empty for Client
+    setSelectedFileIds(startRecipient === 'legalHandler' ? ['claim_card_pdf'] : []);
 
     // Resolve client
     const baseContext = resolveClaimContext(claim, overrideNotes, overrideStage);
@@ -166,11 +193,11 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
       });
   }, [isOpen, claim, initialChannel, initialCategory, initialRecipient, overrideNotes, overrideStage]);
 
-  // Automatic Claim Card PDF generation when Email to Legal Handler is active
+  // Automatic Claim Card PDF generation when Claim Card is selected
   useEffect(() => {
     if (!isOpen || !claim) return;
 
-    if (recipientType === 'legalHandler' && channel === 'email') {
+    if (selectedFileIds.includes('claim_card_pdf')) {
       if (!claimCardAttachment && !generatingPdf) {
         setGeneratingPdf(true);
         generateClaimCardPdf(claim)
@@ -186,7 +213,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           });
       }
     }
-  }, [isOpen, claim, recipientType, channel, claimCardAttachment, generatingPdf]);
+  }, [isOpen, claim, selectedFileIds, claimCardAttachment, generatingPdf]);
 
   // Handler to manually re-generate Claim Card PDF
   const handleRegeneratePdf = async () => {
@@ -204,6 +231,56 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     } finally {
       setGeneratingPdf(false);
     }
+  };
+
+  // Attachment toggle & batch selection handlers
+  const handleToggleFile = (fileId: string) => {
+    setSelectedFileIds((prev) => {
+      const isChecked = prev.includes(fileId);
+      const next = isChecked ? prev.filter((id) => id !== fileId) : [...prev, fileId];
+
+      if (!isChecked && fileId === 'claim_card_pdf' && !claimCardAttachment && !generatingPdf && claim) {
+        setGeneratingPdf(true);
+        generateClaimCardPdf(claim)
+          .then((att) => setClaimCardAttachment(att))
+          .catch((err) => console.warn('Could not generate claim card PDF on check:', err))
+          .finally(() => setGeneratingPdf(false));
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const allIds = availableFiles.map((f) => f.id);
+    setSelectedFileIds(allIds);
+    if (allIds.includes('claim_card_pdf') && !claimCardAttachment && !generatingPdf && claim) {
+      setGeneratingPdf(true);
+      generateClaimCardPdf(claim)
+        .then((att) => setClaimCardAttachment(att))
+        .catch((err) => console.warn('Could not generate claim card PDF on select all:', err))
+        .finally(() => setGeneratingPdf(false));
+    }
+  };
+
+  const handleSelectAllImages = () => {
+    const imgIds = availableFiles.filter((f) => f.category === 'image').map((f) => f.id);
+    setSelectedFileIds((prev) => Array.from(new Set([...prev, ...imgIds])));
+  };
+
+  const handleSelectAllDocuments = () => {
+    const docIds = availableFiles.filter((f) => f.category === 'document' || f.category === 'claim_card').map((f) => f.id);
+    setSelectedFileIds((prev) => Array.from(new Set([...prev, ...docIds])));
+    if (docIds.includes('claim_card_pdf') && !claimCardAttachment && !generatingPdf && claim) {
+      setGeneratingPdf(true);
+      generateClaimCardPdf(claim)
+        .then((att) => setClaimCardAttachment(att))
+        .catch((err) => console.warn('Could not generate claim card PDF on doc select:', err))
+        .finally(() => setGeneratingPdf(false));
+    }
+  };
+
+  const handleClearAll = () => {
+    setSelectedFileIds([]);
   };
 
   // Directory picker selection for Legal Handler
@@ -285,12 +362,20 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
   // Filter templates based on current category
   const filteredTemplates = useMemo(() => {
+    if (category === 'all') return templates;
     return templates.filter((t) => t.category === category);
   }, [templates, category]);
 
   // Switch Recipient Type: Client vs Legal Handler
   const handleRecipientTypeChange = (newRecipient: ClaimRecipientType) => {
     setRecipientType(newRecipient);
+
+    // Adjust attachment defaults: Legal Handler defaults to having Claim Card PDF checked; Client defaults to not having it unless user picked it
+    if (newRecipient === 'legalHandler') {
+      setSelectedFileIds((prev) => (prev.includes('claim_card_pdf') ? prev : ['claim_card_pdf', ...prev]));
+    } else {
+      setSelectedFileIds((prev) => prev.filter((id) => id !== 'claim_card_pdf'));
+    }
 
     // Intelligently adjust category and default template
     let targetCat: ClaimTemplateCategory = category;
@@ -302,7 +387,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
     setCategory(targetCat);
 
-    const matching = templates.filter((t) => t.category === targetCat);
+    const matching = targetCat === 'all' ? templates : templates.filter((t) => t.category === targetCat);
     const choice = matching[0] || templates[0];
     if (choice && currentContext) {
       setSelectedTemplateId(choice.id);
@@ -313,7 +398,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   // When category tab changes
   const handleCategoryChange = (newCat: ClaimTemplateCategory) => {
     setCategory(newCat);
-    const matching = templates.filter((t) => t.category === newCat);
+    const matching = newCat === 'all' ? templates : templates.filter((t) => t.category === newCat);
     if (matching.length > 0 && currentContext) {
       setSelectedTemplateId(matching[0].id);
       applyTemplate(matching[0], currentContext);
@@ -350,6 +435,32 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   const handleSend = async () => {
     if (!claim || !currentContext) return;
 
+    // Gather and resolve all selected attachments
+    const selectedAttachments: ClaimAttachment[] = [];
+    for (const fileId of selectedFileIds) {
+      if (fileId === 'claim_card_pdf') {
+        if (claimCardAttachment) {
+          selectedAttachments.push(claimCardAttachment);
+        } else {
+          try {
+            const generated = await generateClaimCardPdf(claim);
+            setClaimCardAttachment(generated);
+            selectedAttachments.push(generated);
+          } catch (pdfErr) {
+            console.warn('Could not generate claim card PDF attachment:', pdfErr);
+          }
+        }
+      } else {
+        const found = availableFiles.find((f) => f.id === fileId);
+        if (found && found.url) {
+          selectedAttachments.push({
+            filename: found.filename,
+            url: found.url,
+          });
+        }
+      }
+    }
+
     if (channel === 'whatsapp') {
       const targetPhone = recipientType === 'legalHandler' ? legalHandlerPhone : clientPhone;
       const targetName =
@@ -379,9 +490,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           templateId: selectedTemplateId,
           subject,
           recipientType,
+          attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
         });
 
-        toast.success('WhatsApp link opened successfully!');
+        toast.success(
+          selectedAttachments.length > 0
+            ? `WhatsApp opened with ${selectedAttachments.length} attachment link(s) included!`
+            : 'WhatsApp link opened successfully!'
+        );
         if (onSuccess) onSuccess();
         onClose();
       } catch (err: any) {
@@ -419,19 +535,6 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
       );
 
       try {
-        // Ensure Claim Card PDF is generated for Legal Handler emails
-        let attachments: ClaimAttachment[] = [];
-        if (recipientType === 'legalHandler') {
-          if (claimCardAttachment) {
-            attachments = [claimCardAttachment];
-          } else {
-            toast.loading('Generating Claim Card PDF attachment...', { id: toastId });
-            const generated = await generateClaimCardPdf(claim);
-            setClaimCardAttachment(generated);
-            attachments = [generated];
-          }
-        }
-
         const res = await executeClaimEmail({
           email: targetEmail,
           recipientName: targetName,
@@ -441,12 +544,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           userName: user?.name,
           templateId: selectedTemplateId,
           recipientType,
-          attachments,
+          attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
         });
 
         if (res.mode === 'provider') {
           toast.success(
-            `Email dispatched to ${recipientType === 'legalHandler' ? 'Legal Handler' : 'Client'} successfully!`,
+            `Email dispatched to ${recipientType === 'legalHandler' ? 'Legal Handler' : 'Client'} successfully!${
+              selectedAttachments.length > 0 ? ` (${selectedAttachments.length} file(s) attached)` : ''
+            }`,
             { id: toastId }
           );
         } else {
@@ -623,19 +728,31 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <Sparkles className="h-3.5 w-3.5" />
               <span>Custom Templates</span>
             </button>
+            <button
+              type="button"
+              onClick={() => handleCategoryChange('all')}
+              className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                category === 'all'
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>All Templates</span>
+            </button>
           </div>
         </div>
 
         {/* Template Picker */}
-        <div className="bg-gray-50 p-3.5 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-semibold text-gray-700">
+        <div className="bg-gray-50 dark:bg-[#1E1E2D] p-3.5 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
               Select Template ({filteredTemplates.length} available)
             </label>
             <button
               type="button"
               onClick={handleRefreshPlaceholders}
-              className="text-xs text-primary hover:text-primary-700 flex items-center gap-1 font-medium transition-colors"
+              className="text-xs text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1 font-medium transition-colors"
               title="Re-populate template with current field values"
             >
               <RefreshCw className="h-3 w-3" />
@@ -649,20 +766,13 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <span>Loading saved templates...</span>
             </div>
           ) : (
-            <select
-              value={selectedTemplateId}
-              onChange={(e) => handleTemplateSelect(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm bg-white focus:ring-primary focus:border-primary shadow-sm"
-            >
-              {filteredTemplates.map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} {tpl.isCustom ? '(Custom)' : ''}
-                </option>
-              ))}
-              {filteredTemplates.length === 0 && (
-                <option value="">No templates found in this category</option>
-              )}
-            </select>
+            <ClaimTemplateSearchableSelect
+              templates={filteredTemplates}
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={handleTemplateSelect}
+              channel={channel}
+              activeCategory={category}
+            />
           )}
         </div>
 
@@ -838,54 +948,371 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           </div>
         )}
 
-        {/* CLAIM CARD AUTOMATIC ATTACHMENT BADGE (MANDATORY FOR EMAIL TO LEGAL HANDLER) */}
-        {recipientType === 'legalHandler' && channel === 'email' && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start sm:items-center gap-2.5">
-              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-md">
-                <FileText className="h-5 w-5" />
+        {/* SELECTABLE ATTACHMENTS (OPTIONAL) SECTION */}
+        <div className="bg-[#1E1E2D] rounded-xl p-4 border border-[#2B2B40] space-y-3.5 shadow-sm attachment-container" data-attachment-box="true">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#2B2B40]">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-primary/20 text-primary-300 rounded-lg">
+                <Paperclip className="h-4 w-4" />
               </div>
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-emerald-900">
-                    Attached: {claimCardAttachment?.filename || `Claim_Card_${cleanClaimRef}.pdf`}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Mandatory Claim Card Attached
-                  </span>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-gray-200 uppercase tracking-wider attachment-title">
+                    Select Attachments (Optional)
+                  </label>
+                  {selectedFileIds.length > 0 ? (
+                    <span className="px-2 py-0.5 text-[11px] font-semibold bg-primary/20 text-primary-300 rounded-full border border-primary/30">
+                      {selectedFileIds.length} selected
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-[11px] text-gray-400 bg-[#13131A] border border-[#2B2B40] rounded-full">
+                      No files selected (text only)
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-emerald-700 mt-0.5">
-                  Official Claim Card PDF containing incident particulars, insurer info, and client declaration is automatically bound to this outbound email.
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {channel === 'whatsapp'
+                    ? 'Selected files will have secure download links appended to the bottom of the WhatsApp message body.'
+                    : 'Selected documents, evidence files, and photos will be attached directly to the outbound email dispatch.'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
-              {claimCardAttachment?.url && (
-                <a
-                  href={claimCardAttachment.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-300 px-2.5 py-1 rounded shadow-xs transition-colors"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Preview PDF
-                </a>
-              )}
+            {/* Quick Batch Actions */}
+            <div className="flex items-center space-x-2 text-xs self-end sm:self-center">
               <button
                 type="button"
-                onClick={handleRegeneratePdf}
-                disabled={generatingPdf}
-                className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 px-2 py-1 transition-colors disabled:opacity-50"
-                title="Re-generate Claim Card PDF"
+                onClick={handleSelectAll}
+                className="text-primary-400 hover:text-primary-300 font-medium px-1.5 py-0.5 rounded hover:bg-primary/10 transition-colors"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${generatingPdf ? 'animate-spin' : ''}`} />
-                <span>{generatingPdf ? 'Generating...' : 'Refresh PDF'}</span>
+                Select All ({availableFiles.length})
+              </button>
+              {imageFiles.length > 0 && (
+                <>
+                  <span className="text-[#3E3E5B]">|</span>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllImages}
+                    className="text-gray-300 hover:text-white font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+                  >
+                    Photos ({imageFiles.length})
+                  </button>
+                </>
+              )}
+              {evidenceDocFiles.length > 0 && (
+                <>
+                  <span className="text-[#3E3E5B]">|</span>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllDocuments}
+                    className="text-gray-300 hover:text-white font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+                  >
+                    Documents
+                  </button>
+                </>
+              )}
+              <span className="text-[#3E3E5B]">|</span>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="text-gray-400 hover:text-gray-200 font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+              >
+                Clear
               </button>
             </div>
           </div>
-        )}
+
+          {/* 1. Official Generated Claim Card PDF */}
+          {claimCardFile && (
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Generated Claim Card PDF</span>
+                  {recipientType === 'legalHandler' && (
+                    <span className="text-[10px] text-purple-300 bg-purple-950/60 border border-purple-700/50 px-1.5 py-0.2 rounded font-normal normal-case">
+                      Default for Legal Handler
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] text-gray-400 font-mono">
+                  {claimCardAttachment?.filename || claimCardFile.filename}
+                </span>
+              </div>
+
+              <div
+                className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border text-xs transition-all attachment-item ${
+                  selectedFileIds.includes('claim_card_pdf')
+                    ? 'is-selected bg-emerald-950/40 border-emerald-500/80 shadow-xs ring-1 ring-emerald-500/30'
+                    : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                }`}
+              >
+                <label className="flex items-start sm:items-center space-x-2.5 cursor-pointer select-none flex-1 pr-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedFileIds.includes('claim_card_pdf')}
+                    onChange={() => handleToggleFile('claim_card_pdf')}
+                    className="h-4 w-4 mt-0.5 sm:mt-0 rounded border-[#3E3E5B] bg-[#1E1E2D] text-emerald-500 focus:ring-emerald-500 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`font-semibold ${
+                          selectedFileIds.includes('claim_card_pdf') ? 'text-white' : 'text-gray-200'
+                        }`}
+                      >
+                        {claimCardFile.name}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-900/60 border border-emerald-700/50 text-emerald-200 rounded font-semibold">
+                        Official PDF
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Comprehensive incident particulars, insured & third-party details, vehicle specifications, and client statement.
+                    </p>
+                  </div>
+                </label>
+
+                <div className="flex items-center gap-2 mt-2 sm:mt-0 ml-6 sm:ml-0 shrink-0">
+                  {claimCardAttachment?.url ? (
+                    <a
+                      href={claimCardAttachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300 hover:text-white bg-[#1E1E2D] border border-emerald-500/40 px-2.5 py-1 rounded shadow-2xs hover:bg-emerald-950/40 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Preview PDF
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRegeneratePdf}
+                      disabled={generatingPdf}
+                      className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:underline"
+                    >
+                      {generatingPdf ? 'Generating...' : 'Generate Preview'}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleRegeneratePdf}
+                    disabled={generatingPdf}
+                    className="inline-flex items-center gap-1 text-[11px] text-gray-300 hover:text-white px-2 py-1 rounded border border-[#2B2B40] bg-[#1E1E2D] hover:bg-[#252538] transition-colors disabled:opacity-50"
+                    title="Re-generate Claim Card PDF"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${generatingPdf ? 'animate-spin text-emerald-400' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Evidence Files & Documents uploaded to the claim record */}
+          <div className="space-y-1.5 pt-1">
+            <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-blue-400" />
+                <span>Evidence Files & Documents</span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-normal">
+                {evidenceDocFiles.length} file{evidenceDocFiles.length !== 1 ? 's' : ''} available
+              </span>
+            </div>
+
+            {evidenceDocFiles.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {evidenceDocFiles.map((docFile) => {
+                  const isSelected = selectedFileIds.includes(docFile.id);
+                  return (
+                    <div
+                      key={docFile.id}
+                      className={`flex items-center justify-between p-2.5 rounded-lg border text-xs transition-all attachment-item ${
+                        isSelected
+                          ? 'is-selected bg-blue-950/40 border-blue-500/80 shadow-xs ring-1 ring-blue-500/30'
+                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                      }`}
+                    >
+                      <label className="flex items-center space-x-2 cursor-pointer select-none flex-1 min-w-0 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleFile(docFile.id)}
+                          className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-blue-500 focus:ring-blue-500 shrink-0"
+                        />
+                        <FileText className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue-400' : 'text-gray-400'}`} />
+                        <div className="truncate">
+                          <div className={`truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                            {docFile.name}
+                          </div>
+                          <div className="text-[10px] text-gray-400 truncate font-mono">{docFile.filename}</div>
+                        </div>
+                      </label>
+
+                      {docFile.url && (
+                        <a
+                          href={docFile.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-blue-400 p-1 shrink-0"
+                          title="View document in new tab"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic bg-[#13131A] p-2.5 rounded-lg border border-dashed border-[#2B2B40] text-center">
+                No additional evidence documents (engineer reports, bank statements, hire forms) uploaded on this claim record.
+              </div>
+            )}
+          </div>
+
+          {/* 3. Claim Images & Photos uploaded under the claim record */}
+          <div className="space-y-1.5 pt-1">
+            <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
+                <span>Claim Images & Accident Photos</span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-normal">
+                {imageFiles.length} photo{imageFiles.length !== 1 ? 's' : ''} available
+              </span>
+            </div>
+
+            {imageFiles.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                {imageFiles.map((imgFile) => {
+                  const isSelected = selectedFileIds.includes(imgFile.id);
+                  return (
+                    <div
+                      key={imgFile.id}
+                      onClick={() => handleToggleFile(imgFile.id)}
+                      className={`group relative flex flex-col p-1.5 rounded-lg border cursor-pointer select-none transition-all attachment-item ${
+                        isSelected
+                          ? 'is-selected bg-amber-950/40 border-amber-500/80 shadow-xs ring-2 ring-amber-500/40'
+                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                      }`}
+                    >
+                      <div className="relative w-full h-20 bg-[#0d0e1a] rounded overflow-hidden mb-1.5">
+                        <img
+                          src={imgFile.url}
+                          alt={imgFile.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          loading="lazy"
+                        />
+                        <div className="absolute top-1 left-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleFile(imgFile.id);
+                            }}
+                            className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-amber-500 focus:ring-amber-500 shadow-xs"
+                          />
+                        </div>
+                        <a
+                          href={imgFile.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute bottom-1 right-1 p-1 bg-black/70 hover:bg-black/90 text-white rounded text-[10px] transition-colors"
+                          title="View full image"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="px-0.5 truncate">
+                        <div className={`text-[11px] truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                          {imgFile.name}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic bg-[#13131A] p-2.5 rounded-lg border border-dashed border-[#2B2B40] text-center">
+                No accident scene or vehicle damage photos uploaded under this claim record.
+              </div>
+            )}
+          </div>
+
+          {/* 4. Evidence Videos (if any) */}
+          {videoFiles.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <VideoIcon className="h-3.5 w-3.5 text-purple-400" />
+                <span>Incident Videos ({videoFiles.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {videoFiles.map((vFile) => {
+                  const isSelected = selectedFileIds.includes(vFile.id);
+                  return (
+                    <div
+                      key={vFile.id}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs attachment-item ${
+                        isSelected ? 'is-selected bg-purple-950/40 border-purple-500/80 ring-1 ring-purple-500/30' : 'bg-[#13131A] border-[#2B2B40]'
+                      }`}
+                    >
+                      <label className="flex items-center space-x-2 cursor-pointer select-none flex-1 truncate pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleFile(vFile.id)}
+                          className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-purple-500 focus:ring-purple-500 shrink-0"
+                        />
+                        <VideoIcon className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                        <span className={`truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>{vFile.name}</span>
+                      </label>
+                      {vFile.url && (
+                        <a
+                          href={vFile.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-purple-400 p-1"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Selection Live Status Footer */}
+          <div className="pt-2 border-t border-[#2B2B40] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+            {selectedFileIds.length > 0 ? (
+              <span className="text-primary-300 font-medium flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5 text-primary-400" />
+                <strong className="text-white">{selectedFileIds.length} attachment{selectedFileIds.length > 1 ? 's' : ''}</strong> will be included ({channel === 'whatsapp' ? 'appended as secure download links' : 'directly attached to email'}).
+              </span>
+            ) : (
+              <span className="text-gray-400 italic">
+                💬 <strong className="text-gray-300 font-semibold">No attachments selected.</strong> Only message text will be dispatched.
+              </span>
+            )}
+
+            {selectedFileIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="text-[11px] text-gray-400 hover:text-white underline self-end sm:self-auto"
+              >
+                Clear all attachments
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Claim & Vehicle Context Badges Bar */}
         {currentContext && (
@@ -1011,6 +1438,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                 <span>
                   Opens direct WhatsApp link for{' '}
                   <strong>{recipientType === 'legalHandler' ? 'Legal Handler' : 'Client'}</strong>
+                  {selectedFileIds.length > 0 ? (
+                    <span className="text-emerald-700 font-medium">
+                      {' '}
+                      ({selectedFileIds.length} file link{selectedFileIds.length > 1 ? 's' : ''} appended)
+                    </span>
+                  ) : (
+                    <span className="text-gray-400"> (text only)</span>
+                  )}
                 </span>
               </>
             ) : (
@@ -1019,7 +1454,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                 <span>
                   Sends to{' '}
                   <strong>{recipientType === 'legalHandler' ? 'Legal Handler' : 'Client'}</strong>
-                  {recipientType === 'legalHandler' && ' with Claim Card attached'}
+                  {selectedFileIds.length > 0 ? (
+                    <span className="text-indigo-700 font-medium">
+                      {' '}
+                      ({selectedFileIds.length} file{selectedFileIds.length > 1 ? 's' : ''} attached)
+                    </span>
+                  ) : (
+                    <span className="text-gray-400"> (text only)</span>
+                  )}
                 </span>
               </>
             )}

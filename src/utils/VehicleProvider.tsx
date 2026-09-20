@@ -27,6 +27,7 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoading(false);
     }, (error) => {
       console.error('fetching all data:', error);
+      setLoading(false);
     });
 
     // Cleanup listener on unmount

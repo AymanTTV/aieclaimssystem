@@ -15,7 +15,7 @@ import { createElement } from 'react';
 import ClaimDocument from '../components/pdf/documents/ClaimDocument';
 
 export type ClaimCommunicationChannel = 'whatsapp' | 'email';
-export type ClaimTemplateCategory = 'general' | 'progress' | 'legal_handler' | 'custom';
+export type ClaimTemplateCategory = 'general' | 'progress' | 'legal_handler' | 'custom' | 'all';
 export type ClaimRecipientType = 'client' | 'legalHandler';
 
 export interface LegalHandlerDetails {
@@ -62,6 +62,208 @@ export interface ClaimAttachment {
   url: string;
   blob?: Blob;
   data?: any;
+}
+
+export interface SelectableClaimFile {
+  id: string;
+  name: string;
+  category: 'claim_card' | 'document' | 'image' | 'video';
+  url: string;
+  filename: string;
+  isGeneratedPdf?: boolean;
+}
+
+function cleanFilenameFromUrl(url: string, fallback: string): string {
+  try {
+    const cleanUrl = url.split('?')[0];
+    const parts = cleanUrl.split('/');
+    const lastPart = decodeURIComponent(parts[parts.length - 1] || '');
+    if (lastPart && (lastPart.includes('.') || lastPart.length < 50)) {
+      return lastPart.length > 32 ? lastPart.slice(-28) : lastPart;
+    }
+  } catch {}
+  return fallback;
+}
+
+/**
+ * Extracts all available files, uploaded documents, evidence, and photos from a claim record.
+ */
+export function extractClaimAvailableFiles(
+  claim: Claim,
+  claimCardAttachment?: ClaimAttachment | null
+): SelectableClaimFile[] {
+  const files: SelectableClaimFile[] = [];
+  const cleanClaimRef = (claim.claimId || claim.id || 'claim').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  // 1. Official Generated Claim Card PDF
+  const cardUrl = claimCardAttachment?.url || (claim as any).claimCardUrl || '';
+  files.push({
+    id: 'claim_card_pdf',
+    name: 'Claim Card PDF (Incident Particulars & Schedule)',
+    category: 'claim_card',
+    url: cardUrl,
+    filename: claimCardAttachment?.filename || `Claim_Card_${cleanClaimRef}.pdf`,
+    isGeneratedPdf: true,
+  });
+
+  // 2. Evidence Files & Documents uploaded to the claim record
+  const evidence = (claim as any).evidence || {};
+
+  // 2a. Engineer Reports
+  if (Array.isArray(evidence.engineerReport)) {
+    evidence.engineerReport.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `engineer_report_${idx}`,
+          name: `Engineer Report ${idx + 1}`,
+          category: 'document',
+          url,
+          filename: cleanFilenameFromUrl(url, `Engineer_Report_${idx + 1}.pdf`),
+        });
+      }
+    });
+  }
+
+  // 2b. Bank Statements
+  if (Array.isArray(evidence.bankStatement)) {
+    evidence.bankStatement.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `bank_statement_${idx}`,
+          name: `Bank Statement ${idx + 1}`,
+          category: 'document',
+          url,
+          filename: cleanFilenameFromUrl(url, `Bank_Statement_${idx + 1}.pdf`),
+        });
+      }
+    });
+  }
+
+  // 2c. Admin Documents
+  if (Array.isArray(evidence.adminDocuments)) {
+    evidence.adminDocuments.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `admin_doc_${idx}`,
+          name: `Admin Document ${idx + 1}`,
+          category: 'document',
+          url,
+          filename: cleanFilenameFromUrl(url, `Admin_Document_${idx + 1}.pdf`),
+        });
+      }
+    });
+  }
+
+  // 2d. Claim Progress Document
+  if ((claim as any).progressDocumentUrl && typeof (claim as any).progressDocumentUrl === 'string') {
+    const pUrl = (claim as any).progressDocumentUrl;
+    files.push({
+      id: 'progress_document',
+      name: 'Claim Progress Record Document',
+      category: 'document',
+      url: pUrl,
+      filename: cleanFilenameFromUrl(pUrl, `Progress_Record_${cleanClaimRef}.pdf`),
+    });
+  }
+
+  // 2e. Standard Claim Documents (claim.documents)
+  const docLabels: Record<string, string> = {
+    conditionOfHire: 'Condition of Hire',
+    creditHireMitigation: 'Credit Hire Mitigation Form',
+    noticeOfRightToCancel: 'Notice of Right to Cancel',
+    creditHireAgreement: 'Credit Hire Agreement',
+    uld: 'Uninsured Loss Document (ULD)',
+    medicalReport: 'Medical Report (PI) 1',
+    medicalReport2: 'Medical Report (PI) 2',
+    scheduleOfLoss: 'Schedule of Loss Document',
+    courtBundle: 'Court Bundle Pack',
+    interimBilling: 'Interim Billing Document',
+    finalBilling: 'Final Billing Document',
+    invoice: 'Hire / Claim Invoice',
+    chaseLetter1: 'Chase Letter 1',
+    chaseLetter2: 'Chase Letter 2',
+    chaseLetter3: 'Chase Letter 3',
+    chaseLetter4: 'Chase Letter 4',
+    chaseLetter5: 'Chase Letter 5',
+  };
+
+  if (claim.documents && typeof claim.documents === 'object') {
+    Object.entries(claim.documents).forEach(([docKey, docVal]) => {
+      if (typeof docVal === 'string' && docVal.trim()) {
+        const label = docLabels[docKey] || `Claim Document: ${docKey}`;
+        files.push({
+          id: `doc_${docKey}`,
+          name: label,
+          category: 'document',
+          url: docVal,
+          filename: cleanFilenameFromUrl(docVal, `${docKey}_${cleanClaimRef}.pdf`),
+        });
+      }
+    });
+  }
+
+  // 2f. Vehicle Documents (claim.clientVehicle?.documents)
+  if (claim.clientVehicle?.documents && typeof claim.clientVehicle.documents === 'object') {
+    Object.entries(claim.clientVehicle.documents).forEach(([vKey, vVal]) => {
+      if (typeof vVal === 'string' && vVal.trim()) {
+        files.push({
+          id: `vdoc_${vKey}`,
+          name: `Vehicle Document: ${vKey.toUpperCase()}`,
+          category: 'document',
+          url: vVal,
+          filename: cleanFilenameFromUrl(vVal, `Vehicle_${vKey}_${cleanClaimRef}.pdf`),
+        });
+      }
+    });
+  }
+
+  // 3. Claim Images & Photos uploaded under the claim record
+  // 3a. Incident Evidence Images
+  if (Array.isArray(evidence.images)) {
+    evidence.images.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `evidence_img_${idx}`,
+          name: `Incident Scene Photo ${idx + 1}`,
+          category: 'image',
+          url,
+          filename: cleanFilenameFromUrl(url, `Incident_Photo_${idx + 1}.jpg`),
+        });
+      }
+    });
+  }
+
+  // 3b. Client Vehicle Photos
+  if (Array.isArray(evidence.clientVehiclePhotos)) {
+    evidence.clientVehiclePhotos.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `vehicle_photo_${idx}`,
+          name: `Client Vehicle Photo ${idx + 1}`,
+          category: 'image',
+          url,
+          filename: cleanFilenameFromUrl(url, `Vehicle_Photo_${idx + 1}.jpg`),
+        });
+      }
+    });
+  }
+
+  // 3c. Incident Videos
+  if (Array.isArray(evidence.videos)) {
+    evidence.videos.forEach((url: string, idx: number) => {
+      if (typeof url === 'string' && url.trim()) {
+        files.push({
+          id: `evidence_video_${idx}`,
+          name: `Incident Video Evidence ${idx + 1}`,
+          category: 'video',
+          url,
+          filename: cleanFilenameFromUrl(url, `Incident_Video_${idx + 1}.mp4`),
+        });
+      }
+    });
+  }
+
+  return files;
 }
 
 const DEFAULT_SIGNATURE = `Kind regards,
@@ -562,7 +764,25 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
     '{legal_handler_email}': context.legal_handler_email,
     '{legal_handler_phone}': context.legal_handler_phone,
 
+    // Cross-module aliases for system-wide unlocked templates
+    '{driver_name}': context.client_name,
+    '{customer_name}': context.client_name,
+    '{reference_number}': context.claim_id,
+    '{rental_ref}': context.claim_id,
+    '{maintenance_id}': context.claim_id,
+    '{invoice_id}': context.claim_id,
+    '{date_time}': context.incident_date,
+    '{date}': context.incident_date,
+    '{time}': '',
+    '{additional_notes}': context.latest_update_notes,
+    '{amount_due}': '',
+    '{total_amount}': '',
+
     // Bracketed variations
+    '[Driver Name]': context.client_name,
+    '[Customer Name]': context.client_name,
+    '[Date & Time]': context.incident_date,
+    '[Additional Notes]': context.latest_update_notes,
     '[Legal Handler Name]': context.legal_handler_name,
     '[Legal Handler]': context.legal_handler_name,
     '[Handler Name]': context.legal_handler_name,
@@ -716,67 +936,63 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
   const result: ClaimTemplateOption[] = [];
   const seenIds = new Set<string>();
 
-  // 1. Fetch live custom/legal templates from Firestore
+  // 1. Fetch live templates from Firestore (all categories unlocked)
   try {
     const snap = await getDocs(collection(db, 'messageTemplates'));
     snap.forEach((docSnap) => {
       const data = docSnap.data();
       const cat = String(data.category || data.type || '').toLowerCase().trim();
       const recipientType = String(data.recipientType || data.tab || '').toLowerCase().trim();
-      const name = data.name || 'Claim Template';
-      const lowerName = name.toLowerCase();
+      const rawName = data.name || 'Communication Template';
+      const lowerName = rawName.toLowerCase();
       const lowerBody = (data.bodyTemplate || data.body || data.content || '').toLowerCase();
 
-      // Check if this template belongs to Claim communication
-      const isClaimRelated =
-        cat === 'claim' ||
-        cat === 'custom' ||
+      // Categorize into 'legal_handler', 'progress', 'custom', or 'general'
+      let templateCategory: ClaimTemplateCategory = 'general';
+
+      if (
         cat === 'legal_handler' ||
         cat === 'legal' ||
         recipientType === 'legalhandler' ||
-        data.claimCategory === 'legal_handler';
-
-      if (isClaimRelated) {
-        // Categorize into 'legal_handler', 'progress', 'custom', or 'general'
-        let templateCategory: ClaimTemplateCategory = 'general';
-
-        if (
-          cat === 'legal_handler' ||
-          cat === 'legal' ||
-          recipientType === 'legalhandler' ||
-          data.claimCategory === 'legal_handler' ||
-          lowerName.includes('legal') ||
-          lowerName.includes('solicitor') ||
-          lowerName.includes('handler')
-        ) {
-          templateCategory = 'legal_handler';
-        } else if (
-          data.claimCategory === 'progress' ||
-          lowerName.includes('progress') ||
-          lowerName.includes('status') ||
-          lowerName.includes('stage') ||
-          lowerName.includes('update') ||
-          lowerBody.includes('progress stage') ||
-          lowerBody.includes('status update')
-        ) {
-          templateCategory = 'progress';
-        } else if (cat === 'custom' || data.isCustom) {
-          templateCategory = 'custom';
-        }
-
-        const option: ClaimTemplateOption = {
-          id: docSnap.id,
-          name,
-          category: templateCategory,
-          channel: data.channel === 'whatsapp' ? 'whatsapp' : data.channel === 'email' ? 'email' : 'all',
-          subjectTemplate: data.subjectTemplate || data.subject || 'Claim Update - {claim_id}',
-          bodyTemplate: data.bodyTemplate || data.body || data.content || '',
-          isCustom: true,
-        };
-
-        result.push(option);
-        seenIds.add(docSnap.id);
+        data.claimCategory === 'legal_handler' ||
+        lowerName.includes('legal') ||
+        lowerName.includes('solicitor') ||
+        lowerName.includes('handler')
+      ) {
+        templateCategory = 'legal_handler';
+      } else if (
+        data.claimCategory === 'progress' ||
+        lowerName.includes('progress') ||
+        lowerName.includes('status') ||
+        lowerName.includes('stage') ||
+        lowerName.includes('update') ||
+        lowerBody.includes('progress stage') ||
+        lowerBody.includes('status update')
+      ) {
+        templateCategory = 'progress';
+      } else if (cat === 'custom' || data.isCustom) {
+        templateCategory = 'custom';
+      } else if (cat && cat !== 'claim') {
+        templateCategory = 'custom';
       }
+
+      const displayName = cat && cat !== 'claim' && cat !== 'general'
+        ? `[${data.category}] ${rawName}`
+        : rawName;
+
+      // Channel is unlocked to 'all' so user can dispatch via either WhatsApp or Email
+      const option: ClaimTemplateOption = {
+        id: docSnap.id,
+        name: displayName,
+        category: templateCategory,
+        channel: 'all',
+        subjectTemplate: data.subjectTemplate || data.subject || 'Claim Update - {claim_id}',
+        bodyTemplate: data.bodyTemplate || data.body || data.content || '',
+        isCustom: true,
+      };
+
+      result.push(option);
+      seenIds.add(docSnap.id);
     });
   } catch (err) {
     console.warn('Could not fetch Firestore messageTemplates for claims:', err);
@@ -824,6 +1040,7 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
 /**
  * Direct WhatsApp Action:
  * Opens https://wa.me/{phone}?text={encoded_message}
+ * Appends secure download/view links if attachments are selected,
  * and logs to whatsappHistory
  */
 export async function executeClaimWhatsApp(params: {
@@ -835,25 +1052,45 @@ export async function executeClaimWhatsApp(params: {
   templateId?: string;
   subject?: string;
   recipientType?: ClaimRecipientType;
+  attachments?: ClaimAttachment[];
 }): Promise<{ url: string; digits: string }> {
   const digits = formatWhatsAppNumber(params.phone);
   if (!digits) {
     throw new Error('A valid phone number with country code is required for WhatsApp.');
   }
 
-  const url = buildWaMeLink(digits, params.message);
+  let finalMessage = params.message.trim();
+
+  // If attachments are selected, append secure download links to WhatsApp message
+  if (params.attachments && params.attachments.length > 0) {
+    const attLines = params.attachments.map((a) => {
+      const isImg = Boolean(
+        a.filename.match(/\.(jpeg|jpg|png|webp|gif|bmp)$/i) ||
+        a.url.match(/\.(jpeg|jpg|png|webp|gif|bmp)/i) ||
+        a.filename.toLowerCase().includes('photo') ||
+        a.filename.toLowerCase().includes('image')
+      );
+      const isPdf = a.filename.toLowerCase().endsWith('.pdf') || a.url.toLowerCase().includes('.pdf');
+      const prefix = isImg ? '🖼️ View Photo' : isPdf ? '📄 Download Document' : '📎 View File';
+      return `• ${prefix} (${a.filename}):\n${a.url}`;
+    });
+
+    finalMessage += `\n\n📎 ATTACHED FILES & DOWNLOAD LINKS:\n${attLines.join('\n\n')}`;
+  }
+
+  const url = buildWaMeLink(digits, finalMessage);
   window.open(url, '_blank', 'noopener,noreferrer');
 
   // Record to WhatsApp history
   try {
-    const claimRef = params.claim.claimId || params.claim.id.slice(-8).toUpperCase();
+    const claimRef = params.claim.claimId || (params.claim.id ? params.claim.id.slice(-8).toUpperCase() : 'N/A');
     await logWhatsappHistory({
       sentBy: params.userName || 'Admin',
       type: 'claim',
       templateId: params.templateId || 'claim_whatsapp_direct',
       recipients: [params.phone],
       subject: params.subject || `Claim ${claimRef} Update (${params.recipientType || 'client'})`,
-      body: params.message,
+      body: finalMessage,
       timestamp: new Date(),
     });
   } catch (histErr) {
@@ -893,9 +1130,19 @@ export async function executeClaimEmail(params: {
   let finalBody = params.body;
   if (params.attachments && params.attachments.length > 0) {
     const attText =
-      '\n\n📎 ATTACHED DOCUMENTS:\n' +
+      '\n\n📎 ATTACHED DOCUMENTS & EVIDENCE FILES:\n' +
       params.attachments
-        .map((a) => `📄 ${a.filename}\nClick to view / download:\n${a.url}`)
+        .map((a) => {
+          const isImg = Boolean(
+            a.filename.match(/\.(jpeg|jpg|png|webp|gif|bmp)$/i) ||
+            a.url.match(/\.(jpeg|jpg|png|webp|gif|bmp)/i) ||
+            a.filename.toLowerCase().includes('photo') ||
+            a.filename.toLowerCase().includes('image')
+          );
+          const isPdf = a.filename.toLowerCase().endsWith('.pdf') || a.url.toLowerCase().includes('.pdf');
+          const prefix = isImg ? '🖼️ Photo' : isPdf ? '📄 Document' : '📎 File';
+          return `• ${prefix} (${a.filename})\n  Download / View: ${a.url}`;
+        })
         .join('\n\n') +
       '\n\n';
 

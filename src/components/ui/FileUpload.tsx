@@ -174,13 +174,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
+      <label className="block text-sm font-medium text-gray-200">{label}</label>
 
-      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl border-[#2B2B40] bg-[#1E1E2D] hover:bg-[#252538] transition-colors">
         <div className="space-y-1 text-center">
           <Upload className="mx-auto h-12 w-12 text-gray-400" />
-          <div className="flex text-sm text-gray-600">
-            <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+          <div className="flex text-sm text-gray-300 justify-center">
+            <label className="relative cursor-pointer bg-transparent rounded-md font-medium text-blue-400 hover:text-blue-300 focus-within:outline-none">
               <span>Upload {multiple ? 'files' : 'a file'}</span>
               <input
                 ref={fileInputRef}
@@ -192,32 +192,32 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 disabled={uploading}
               />
             </label>
-            <p className="pl-1">or drag and drop</p>
+            <p className="pl-1 text-gray-400">or drag and drop</p>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-400">
             {accept.split(',').join(', ')} up to {formatFileSize(maxSize)}
           </p>
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
 
       {showPreview && previews.length > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4">
           {previews.map(({ url, size, type }, index) => (
             <div key={index} className="relative group">
-              <div className="aspect-video rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+              <div className="aspect-video rounded-lg border border-[#2B2B40] overflow-hidden bg-[#13131A]">
                 {getFileIcon(url, type)}
               </div>
-              <div className="absolute inset-x-0 bottom-0 p-2 bg-black bg-opacity-50 text-white text-xs">
+              <div className="absolute inset-x-0 bottom-0 p-2 bg-black/70 text-white text-xs">
                 {formatFileSize(size)}
               </div>
               <button
                 type="button"
                 onClick={() => removeFile(index)}
-                className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 hover:bg-red-200"
+                className="absolute -top-2 -right-2 bg-red-900/80 border border-red-500 rounded-full p-1 hover:bg-red-800 text-red-200"
               >
-                <X className="h-4 w-4 text-red-600" />
+                <X className="h-4 w-4 text-red-200" />
               </button>
             </div>
           ))}

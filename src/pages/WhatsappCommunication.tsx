@@ -1500,34 +1500,34 @@ export default function WhatsappCommunication() {
           />
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
-            <Paperclip className="w-4 h-4" /> Attachments
+        <div className="border border-[#2B2B40] rounded-xl p-4 bg-[#1E1E2D] attachment-container shadow-sm" data-attachment-box="true">
+          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-3">
+            <Paperclip className="w-4 h-4 text-emerald-400" /> Attachments
           </h3>
 
           {/* On-The-Fly Generate Document Buttons */}
           {selectedRecordId && (emailType === 'finance' || emailType === 'invoice') && (
             <div className="mb-4">
-              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+              <span className="text-xs text-gray-400 uppercase tracking-wider mb-2 block font-medium">
                 Generate Documents
               </span>
               <div className="flex flex-wrap gap-2">
                 {emailType === 'finance' && (
                   <>
                     {!transactions.find(t => t.id === selectedRecordId)?.documentUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Finance Document'}
                       </button>
                     )}
                     {!transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-500/40 bg-indigo-950/40 text-indigo-300 hover:bg-indigo-900/50 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Receipt'}
                       </button>
                     )}
                   </>
                 )}
                 {emailType === 'invoice' && !invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
-                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors">
+                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-500/40 bg-purple-950/40 text-purple-300 hover:bg-purple-900/50 disabled:opacity-50 transition-colors">
                     {isGeneratingDoc ? 'Generating...' : '+ Generate Invoice PDF'}
                   </button>
                 )}
@@ -1543,7 +1543,7 @@ export default function WhatsappCommunication() {
           
           {availableSystemDocs.length > 0 && (
             <div className="mb-4">
-              <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
+              <span className="text-xs text-gray-400 uppercase tracking-wider mb-2 block font-medium">
                 {emailType === 'rental' ? 'Rental Documents' : emailType === 'finance' ? 'Finance Documents' : emailType === 'invoice' ? 'Invoice Documents' : 'System Documents'}
               </span>
               <div className="flex flex-wrap gap-2">
@@ -1553,10 +1553,10 @@ export default function WhatsappCommunication() {
                     <button
                       key={idx}
                       onClick={() => toggleSystemDoc(doc)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 attachment-item ${
                         isSelected 
-                          ? 'bg-green-100 border-green-500 text-green-800' 
-                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                          ? 'is-selected bg-emerald-600 border-emerald-400 text-white shadow-xs' 
+                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:bg-[#1A1A26] hover:border-[#3E3E5B]'
                       }`}
                     >
                       {doc.name}
@@ -1569,7 +1569,7 @@ export default function WhatsappCommunication() {
           )}
 
           <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Upload Files</span>
+            <span className="text-xs text-gray-400 uppercase tracking-wider mb-2 block font-medium">Upload Files</span>
             <input 
               type="file" 
               multiple 
@@ -1578,14 +1578,14 @@ export default function WhatsappCommunication() {
                   setCustomFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                 }
               }}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-950/60 file:text-emerald-300 hover:file:bg-emerald-900/60"
             />
             {customFiles.length > 0 && (
               <div className="mt-2 space-y-1">
                 {customFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm bg-white border px-3 py-1.5 rounded">
+                  <div key={idx} className="flex items-center justify-between text-sm bg-[#13131A] border border-[#2B2B40] px-3 py-1.5 rounded-lg text-gray-200">
                     <span className="truncate max-w-[80%]">{file.name}</span>
-                    <button onClick={() => setCustomFiles(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
+                    <button onClick={() => setCustomFiles(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300">
                       <X className="w-4 h-4" />
                     </button>
                   </div>

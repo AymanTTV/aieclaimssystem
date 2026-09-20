@@ -11,7 +11,11 @@ const formatDateForInput = (d?: Date | null) => {
   return d.toISOString().slice(0, 10);
 };
 
-const VehicleDetails = () => {
+interface VehicleDetailsProps {
+  hideDocuments?: boolean;
+}
+
+const VehicleDetails: React.FC<VehicleDetailsProps> = ({ hideDocuments = false }) => {
   const { register, formState: { errors }, setValue, watch } = useFormContext();
   const documents = watch('clientVehicle.documents') || {};
   
@@ -120,82 +124,84 @@ const VehicleDetails = () => {
       </div>
 
       {/* Document Uploads */}
-      <div className="space-y-4 pt-4 border-t border-gray-100">
-        <h4 className="text-sm font-medium text-gray-900">Documents</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FileUpload
-            label="License Front"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.licenseFront}
-            onChange={(files) => setValue('clientVehicle.documents.licenseFront', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.licenseFront', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.licenseFront?.message as string}
-          />
+      {!hideDocuments && (
+        <div className="space-y-4 pt-4 border-t border-gray-100">
+          <h4 className="text-sm font-medium text-gray-900">Documents</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FileUpload
+              label="License Front"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.licenseFront}
+              onChange={(files) => setValue('clientVehicle.documents.licenseFront', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.licenseFront', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.licenseFront?.message as string}
+            />
 
-          <FileUpload
-            label="License Back"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.licenseBack}
-            onChange={(files) => setValue('clientVehicle.documents.licenseBack', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.licenseBack', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.licenseBack?.message as string}
-          />
+            <FileUpload
+              label="License Back"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.licenseBack}
+              onChange={(files) => setValue('clientVehicle.documents.licenseBack', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.licenseBack', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.licenseBack?.message as string}
+            />
 
-          <FileUpload
-            label="Log Book"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.logBook}
-            onChange={(files) => setValue('clientVehicle.documents.logBook', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.logBook', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.logBook?.message as string}
-          />
+            <FileUpload
+              label="Log Book"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.logBook}
+              onChange={(files) => setValue('clientVehicle.documents.logBook', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.logBook', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.logBook?.message as string}
+            />
 
-          <FileUpload
-            label="NSL"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.nsl}
-            onChange={(files) => setValue('clientVehicle.documents.nsl', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.nsl', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.nsl?.message as string}
-          />
+            <FileUpload
+              label="NSL"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.nsl}
+              onChange={(files) => setValue('clientVehicle.documents.nsl', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.nsl', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.nsl?.message as string}
+            />
 
-          <FileUpload
-            label="Insurance Certificate"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.insuranceCertificate}
-            onChange={(files) => setValue('clientVehicle.documents.insuranceCertificate', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.insuranceCertificate', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.insuranceCertificate?.message as string}
-          />
+            <FileUpload
+              label="Insurance Certificate"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.insuranceCertificate}
+              onChange={(files) => setValue('clientVehicle.documents.insuranceCertificate', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.insuranceCertificate', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.insuranceCertificate?.message as string}
+            />
 
-          <FileUpload
-            label="TfL Bill"
-            accept=".pdf,image/*"
-            multiple={false}
-            value={documents.tflBill}
-            onChange={(files) => setValue('clientVehicle.documents.tflBill', files?.[0] || null)}
-            onRemove={() => {
-              setValue('clientVehicle.documents.tflBill', null, { shouldDirty: true, shouldValidate: true });
-            }}
-            error={errors.clientVehicle?.documents?.tflBill?.message as string}
-          />
+            <FileUpload
+              label="TfL Bill"
+              accept=".pdf,image/*"
+              multiple={false}
+              value={documents.tflBill}
+              onChange={(files) => setValue('clientVehicle.documents.tflBill', files?.[0] || null)}
+              onRemove={() => {
+                setValue('clientVehicle.documents.tflBill', null, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={errors.clientVehicle?.documents?.tflBill?.message as string}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

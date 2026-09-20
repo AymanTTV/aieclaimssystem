@@ -17,6 +17,7 @@ import {
   executeMaintenanceWhatsApp,
   executeMaintenanceEmail,
 } from '../../utils/maintenanceCommunication';
+import { MaintenanceTemplateSearchableSelect } from './MaintenanceTemplateSearchableSelect';
 import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
 import {
   MessageCircle,
@@ -115,6 +116,12 @@ export const MaintenanceBulkCommunicationModal: React.FC<
   useEffect(() => {
     if (!isOpen || templates.length === 0) return;
 
+    // If current template already matches recipient and mode, preserve user's selection
+    const current = templates.find((t) => t.id === selectedTemplateId);
+    if (current && current.recipientType === recipientType && current.channel === mode) {
+      return;
+    }
+
     let best = templates.find(
       (t) => t.recipientType === recipientType && t.channel === mode
     );
@@ -127,7 +134,16 @@ export const MaintenanceBulkCommunicationModal: React.FC<
     if (best) {
       setSelectedTemplateId(best.id);
     }
-  }, [isOpen, templates, recipientType, mode]);
+  }, [isOpen, templates, recipientType, mode, selectedTemplateId]);
+
+  // Handle template selection from searchable dropdown
+  const handleTemplateSelect = (template: MaintenanceTemplateOption) => {
+    setSelectedTemplateId(template.id);
+    // Channel is purely controlled by the user's manual dispatch toggle (Email vs WhatsApp)
+    if (template.recipientType && template.recipientType !== recipientType) {
+      setRecipientType(template.recipientType);
+    }
+  };
 
   // Resolve context for all selected logs
   const resolvedItems = useMemo(() => {
@@ -361,32 +377,16 @@ export const MaintenanceBulkCommunicationModal: React.FC<
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-gray-700">
-            Select Active Template for Batch:
-          </label>
-          <select
-            value={selectedTemplateId}
-            onChange={(e) => setSelectedTemplateId(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs text-gray-800 focus:ring-2 focus:ring-indigo-500 font-medium"
-          >
-            {templates
-              .filter((t) => t.recipientType === recipientType)
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.channel.toUpperCase()})
-                </option>
-              ))}
-            {templates
-              .filter((t) => t.recipientType !== recipientType)
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  [Other] {t.name}
-                </option>
-              ))}
-          </select>
-        </div>
+        {/* TEMPLATE SELECTION (SEARCHABLE SELECT) */}
+        <MaintenanceTemplateSearchableSelect
+          templates={templates}
+          selectedTemplateId={selectedTemplateId}
+          onSelectTemplate={handleTemplateSelect}
+          currentChannel={mode}
+          currentRecipientType={recipientType}
+          label="Select Active Template for Batch:"
+          placeholder="Search batch templates by keyword, channel (Email / WhatsApp), or recipient..."
+        />
 
         {/* RECIPIENTS BATCH TABLE */}
         <div className="space-y-2">

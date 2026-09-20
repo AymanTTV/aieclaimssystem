@@ -21,7 +21,8 @@
 
 @layer utilities {
   /* Override light theme backgrounds to solid, crisp dark surfaces with zero scroll lag */
-  .bg-white, .bg-gray-50, .bg-gray-100 {
+  .bg-white, .bg-gray-50, .bg-gray-100,
+  [class*="bg-gray-50/"], [class*="bg-gray-100/"], [class*="bg-gray-200/"], [class*="bg-white/"]:not([class*="bg-white/10"]):not([class*="bg-white/20"]):not([class*="bg-white/5"]) {
     background-color: #171836 !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
     color: #ffffff !important;
@@ -32,7 +33,37 @@
   .text-gray-700 { color: #f1f5f9 !important; }
   .text-gray-600 { color: #cbd5e1 !important; }
   .text-gray-500 { color: #94a3b8 !important; }
-  
+
+  /* Dark mode attachment container styling */
+  .attachment-container,
+  .attachment-box,
+  [data-attachment-box] {
+    background-color: #1E1E2D !important;
+    border: 1px solid #2B2B40 !important;
+    color: #F1F5F9 !important;
+  }
+
+  .attachment-item,
+  [data-attachment-item] {
+    background-color: #13131A !important;
+    border: 1px solid #2B2B40 !important;
+    color: #E2E8F0 !important;
+  }
+
+  .attachment-item:hover,
+  [data-attachment-item]:hover {
+    background-color: #1A1A26 !important;
+    border-color: #3E3E5B !important;
+  }
+
+  .attachment-item.is-selected,
+  .attachment-item:has(input:checked),
+  [data-attachment-item].is-selected {
+    background-color: rgba(99, 102, 241, 0.22) !important;
+    border-color: #6366f1 !important;
+    color: #FFFFFF !important;
+  }
+
   /* Make gray borders subtle in dark mode */
   .border-gray-100 { border-color: rgba(255, 255, 255, 0.08) !important; }
   .border-gray-200 { border-color: rgba(255, 255, 255, 0.12) !important; }

@@ -28,6 +28,7 @@ import { sendEmail } from '../../utils/emailService';
 import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
+import { emailTemplates } from '../../constants/emailTemplates';
 
 interface InvoiceCommunicationModalProps {
   isOpen: boolean;
@@ -115,30 +116,63 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       setLoadingTemplates(true);
       try {
         const snap = await getDocs(collection(db, 'messageTemplates'));
+        const allTpls: TemplateOption[] = [];
+        const seenIds = new Set<string>();
+
         if (!snap.empty && isMounted) {
-          const invoiceOnlyTpls: TemplateOption[] = [];
           snap.docs.forEach((d) => {
             const data = d.data() as any;
-            const cat = String(data.category || '').trim().toLowerCase();
-            // ONLY load templates saved under the "Invoice" category tab
-            if (cat === 'invoice') {
-              invoiceOnlyTpls.push({
-                id: d.id,
-                name: data.name || 'Untitled Invoice Template',
-                category: 'invoice',
-                subjectTemplate: data.subjectTemplate || data.subject || '',
-                bodyTemplate: data.bodyTemplate || data.body || '',
-              });
-            }
+            const cat = String(data.category || 'general').trim();
+            const option: TemplateOption = {
+              id: d.id,
+              name: data.name || 'Untitled Template',
+              category: cat || 'Invoice',
+              subjectTemplate: data.subjectTemplate || data.subject || '',
+              bodyTemplate: data.bodyTemplate || data.body || '',
+            };
+            allTpls.push(option);
+            seenIds.add(d.id);
           });
-          setTemplates(invoiceOnlyTpls);
-        } else if (isMounted) {
-          setTemplates([]);
+        }
+
+        // Add built-in defaults from emailTemplates.invoice if not already in Firestore
+        (emailTemplates.invoice || []).forEach((et) => {
+          if (!seenIds.has(et.id)) {
+            allTpls.push({
+              id: et.id,
+              name: et.name,
+              category: 'invoice',
+              subjectTemplate: et.subjectTemplate,
+              bodyTemplate: et.bodyTemplate,
+            });
+            seenIds.add(et.id);
+          }
+        });
+
+        // Prioritize invoice templates at the top, then alphabetically
+        allTpls.sort((a, b) => {
+          const aIsInvoice = String(a.category || '').toLowerCase() === 'invoice';
+          const bIsInvoice = String(b.category || '').toLowerCase() === 'invoice';
+          if (aIsInvoice && !bIsInvoice) return -1;
+          if (!aIsInvoice && bIsInvoice) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        if (isMounted) {
+          setTemplates(allTpls);
         }
       } catch (err) {
-        console.error('Failed to load invoice templates from Firestore', err);
+        console.error('Failed to load templates from Firestore', err);
         if (isMounted) {
-          setTemplates([]);
+          // Fallback to built-in invoice templates
+          const fallback = (emailTemplates.invoice || []).map((et) => ({
+            id: et.id,
+            name: et.name,
+            category: 'invoice',
+            subjectTemplate: et.subjectTemplate,
+            bodyTemplate: et.bodyTemplate,
+          }));
+          setTemplates(fallback);
         }
       } finally {
         if (isMounted) setLoadingTemplates(false);
@@ -786,7 +820,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Communication Template <span className="text-gray-400 font-normal lowercase">(Invoice category only)</span>
+              Communication Template <span className="text-gray-400 font-normal lowercase">(All Communication Templates)</span>
             </label>
             {paymentState === 'overdue' && currentTemplate && (
               <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
@@ -823,14 +857,14 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                   {currentTemplate
                     ? currentTemplate.name
                     : loadingTemplates
-                    ? 'Loading invoice templates...'
+                    ? 'Loading templates...'
                     : templates.length === 0
-                    ? 'No Invoice templates in database'
-                    : 'Select an Invoice template...'}
+                    ? 'No templates in database'
+                    : 'Select a template...'}
                 </span>
                 {currentTemplate && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 rounded border border-blue-200">
-                    Invoice
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 rounded border border-blue-200 uppercase">
+                    {currentTemplate.category || 'Invoice'}
                   </span>
                 )}
               </div>
@@ -852,7 +886,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                       autoFocus
                       value={templateSearchQuery}
                       onChange={(e) => setTemplateSearchQuery(e.target.value)}
-                      placeholder="Search invoice templates by name..."
+                      placeholder="Search communication templates by name or keyword..."
                       className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                     />
                   </div>
@@ -863,8 +897,8 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                   {filteredTemplates.length === 0 ? (
                     <div className="px-4 py-5 text-center text-xs text-gray-500">
                       {templates.length === 0
-                        ? 'No templates saved under "Invoice" category. Please save templates in WhatsApp/Bulk Email settings.'
-                        : `No invoice templates match "${templateSearchQuery}"`}
+                        ? 'No communication templates available.'
+                        : `No templates match "${templateSearchQuery}"`}
                     </div>
                   ) : (
                     filteredTemplates.map((t) => {
@@ -885,7 +919,12 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                           }`}
                         >
                           <div className="truncate pr-2">
-                            <div className="font-bold text-gray-900">{t.name}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-gray-900">{t.name}</span>
+                              <span className="px-1.5 py-0.2 text-[9px] font-semibold bg-gray-100 text-gray-600 rounded border border-gray-200 uppercase">
+                                {t.category || 'general'}
+                              </span>
+                            </div>
                             {t.subjectTemplate && (
                               <div className="text-[11px] text-gray-500 truncate mt-0.5">
                                 {t.subjectTemplate}

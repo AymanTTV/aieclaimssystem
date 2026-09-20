@@ -14,6 +14,7 @@ import {
   executeMaintenanceWhatsApp,
   executeMaintenanceEmail,
 } from '../../utils/maintenanceCommunication';
+import { MaintenanceTemplateSearchableSelect } from './MaintenanceTemplateSearchableSelect';
 import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
 import {
   MessageCircle,
@@ -118,6 +119,12 @@ export const MaintenanceCommunicationModal: React.FC<
   useEffect(() => {
     if (!isOpen || templates.length === 0) return;
 
+    // If current template already matches recipient and mode, preserve user's selection
+    const current = templates.find((t) => t.id === selectedTemplateId);
+    if (current && current.recipientType === recipientType && current.channel === mode) {
+      return;
+    }
+
     // Try finding exact match for recipientType AND channel
     let best = templates.find(
       (t) => t.recipientType === recipientType && t.channel === mode
@@ -136,7 +143,16 @@ export const MaintenanceCommunicationModal: React.FC<
     if (best) {
       setSelectedTemplateId(best.id);
     }
-  }, [isOpen, templates, recipientType, mode]);
+  }, [isOpen, templates, recipientType, mode, selectedTemplateId]);
+
+  // Handle template selection from searchable dropdown
+  const handleTemplateSelect = (template: MaintenanceTemplateOption) => {
+    setSelectedTemplateId(template.id);
+    // Channel is purely controlled by the user's manual dispatch toggle (Email vs WhatsApp)
+    if (template.recipientType && template.recipientType !== recipientType) {
+      setRecipientType(template.recipientType);
+    }
+  };
 
   // Update contact details and message body whenever template, context, or recipient changes
   useEffect(() => {
@@ -418,32 +434,16 @@ export const MaintenanceCommunicationModal: React.FC<
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-gray-700">
-            Select Active Template:
-          </label>
-          <div className="relative">
-            <select
-              value={selectedTemplateId}
-              onChange={(e) => setSelectedTemplateId(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
-            >
-              {relevantTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.channel.toUpperCase()})
-                </option>
-              ))}
-              {templates
-                .filter((t) => t.recipientType !== recipientType)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    [Other] {t.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </div>
+        {/* TEMPLATE SELECTION (SEARCHABLE SELECT) */}
+        <MaintenanceTemplateSearchableSelect
+          templates={templates}
+          selectedTemplateId={selectedTemplateId}
+          onSelectTemplate={handleTemplateSelect}
+          currentChannel={mode}
+          currentRecipientType={recipientType}
+          label="Select Active Template:"
+          placeholder="Search templates by keyword, channel (Email / WhatsApp), or recipient..."
+        />
 
         {/* RECIPIENT CONTACT INPUT */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -534,20 +534,20 @@ export const MaintenanceCommunicationModal: React.FC<
               <span className="font-semibold text-gray-800 truncate block">{context.serviceType}</span>
             </div>
             <div className="bg-white p-2 rounded-lg border border-gray-200">
-              <span className="text-gray-400 block text-[10px]">{'{scheduled_date}'}</span>
-              <span className="font-semibold text-gray-800 truncate block">{context.scheduledDate}</span>
+              <span className="text-gray-400 block text-[10px]">{'{date_time}'}</span>
+              <span className="font-semibold text-gray-800 truncate block">{context.scheduledDateTime}</span>
+            </div>
+            <div className="bg-white p-2 rounded-lg border border-gray-200">
+              <span className="text-gray-400 block text-[10px]">{'{time}'}</span>
+              <span className="font-semibold text-gray-800 truncate block">{context.scheduledTime || 'N/A'}</span>
+            </div>
+            <div className="bg-white p-2 rounded-lg border border-gray-200">
+              <span className="text-gray-400 block text-[10px]">{'{additional_notes}'}</span>
+              <span className="font-semibold text-gray-800 truncate block">{context.additionalNotes || '(None)'}</span>
             </div>
             <div className="bg-white p-2 rounded-lg border border-gray-200">
               <span className="text-gray-400 block text-[10px]">{'{garage_name}'}</span>
               <span className="font-semibold text-gray-800 truncate block">{context.garageName}</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-gray-200">
-              <span className="text-gray-400 block text-[10px]">{'{garage_address}'}</span>
-              <span className="font-semibold text-gray-800 truncate block">{context.garageAddress || 'N/A'}</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-gray-200">
-              <span className="text-gray-400 block text-[10px]">{'{driver_phone}'}</span>
-              <span className="font-semibold text-gray-800 truncate block">{context.driverPhone || 'N/A'}</span>
             </div>
           </div>
         </div>

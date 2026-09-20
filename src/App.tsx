@@ -8,11 +8,15 @@ import AppRoutes from './routes';
 import { ToDoIcon } from './components/todo/ToDoIcon';
 import { ToDoModal } from './components/todo/ToDoModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { useMondayAutoEmailScheduler } from './hooks/useMondayAutoEmailScheduler';
 
 function AppInner() {
   const [todoOpen, setTodoOpen] = useState(false);
   const location = useLocation();
   const isMemberRoute = location.pathname.startsWith('/members');
+
+  // Automatically runs Monday 12:00 AM payment reminders (Cron: 0 0 * * 1)
+  useMondayAutoEmailScheduler();
 
   return (
     <ErrorBoundary>

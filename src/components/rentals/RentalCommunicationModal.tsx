@@ -39,6 +39,7 @@ import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
+import { emailTemplates } from '../../constants/emailTemplates';
 
 interface RentalCommunicationModalProps {
   isOpen: boolean;
@@ -182,31 +183,63 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       setLoadingTemplates(true);
       try {
         const snap = await getDocs(collection(db, 'messageTemplates'));
+        const allTpls: TemplateOption[] = [];
+        const seenIds = new Set<string>();
+
         if (!snap.empty && isMounted) {
-          const rentalOnlyTpls: TemplateOption[] = [];
           snap.docs.forEach((d) => {
             const data = d.data() as any;
-            const cat = String(data.category || '').trim().toLowerCase();
-            // STRICTLY load templates saved under the "Rental" category tab
-            // (exclude Invoice, Finance, Maintenance, Claim, and Custom categories)
-            if (cat === 'rental') {
-              rentalOnlyTpls.push({
-                id: d.id,
-                name: data.name || 'Untitled Rental Template',
-                category: 'rental',
-                subjectTemplate: data.subjectTemplate || data.subject || '',
-                bodyTemplate: data.bodyTemplate || data.body || '',
-              });
-            }
+            const cat = String(data.category || 'general').trim();
+            const option: TemplateOption = {
+              id: d.id,
+              name: data.name || 'Untitled Template',
+              category: cat || 'Rental',
+              subjectTemplate: data.subjectTemplate || data.subject || '',
+              bodyTemplate: data.bodyTemplate || data.body || '',
+            };
+            allTpls.push(option);
+            seenIds.add(d.id);
           });
-          setTemplates(rentalOnlyTpls);
-        } else if (isMounted) {
-          setTemplates([]);
+        }
+
+        // Add built-in defaults from emailTemplates.rental if not already in Firestore
+        (emailTemplates.rental || []).forEach((et) => {
+          if (!seenIds.has(et.id)) {
+            allTpls.push({
+              id: et.id,
+              name: et.name,
+              category: 'rental',
+              subjectTemplate: et.subjectTemplate,
+              bodyTemplate: et.bodyTemplate,
+            });
+            seenIds.add(et.id);
+          }
+        });
+
+        // Prioritize rental templates at the top, then alphabetically
+        allTpls.sort((a, b) => {
+          const aIsRental = String(a.category || '').toLowerCase() === 'rental';
+          const bIsRental = String(b.category || '').toLowerCase() === 'rental';
+          if (aIsRental && !bIsRental) return -1;
+          if (!aIsRental && bIsRental) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        if (isMounted) {
+          setTemplates(allTpls);
         }
       } catch (err) {
-        console.error('Failed to load rental templates from Firestore', err);
+        console.error('Failed to load templates from Firestore', err);
         if (isMounted) {
-          setTemplates([]);
+          // Fallback to built-in rental templates
+          const fallback = (emailTemplates.rental || []).map((et) => ({
+            id: et.id,
+            name: et.name,
+            category: 'rental',
+            subjectTemplate: et.subjectTemplate,
+            bodyTemplate: et.bodyTemplate,
+          }));
+          setTemplates(fallback);
         }
       } finally {
         if (isMounted) setLoadingTemplates(false);
@@ -1264,7 +1297,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Communication Template <span className="text-gray-400 font-normal lowercase">(Rental category only)</span>
+              Communication Template <span className="text-gray-400 font-normal lowercase">(All Communication Templates)</span>
             </label>
             {rentalState === 'overdue' && currentTemplate && (
               <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
@@ -1306,14 +1339,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   {currentTemplate
                     ? currentTemplate.name
                     : loadingTemplates
-                    ? 'Loading rental templates...'
+                    ? 'Loading templates...'
                     : templates.length === 0
-                    ? 'No Rental templates in database'
-                    : 'Select a Rental template...'}
+                    ? 'No templates in database'
+                    : 'Select a template...'}
                 </span>
                 {currentTemplate && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 rounded border border-blue-200">
-                    Rental
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 rounded border border-blue-200 uppercase">
+                    {currentTemplate.category || 'Rental'}
                   </span>
                 )}
               </div>
@@ -1335,7 +1368,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       autoFocus
                       value={templateSearchQuery}
                       onChange={(e) => setTemplateSearchQuery(e.target.value)}
-                      placeholder="Search rental templates by name..."
+                      placeholder="Search communication templates by name or keyword..."
                       className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                     />
                   </div>
@@ -1346,8 +1379,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   {filteredTemplates.length === 0 ? (
                     <div className="px-4 py-5 text-center text-xs text-gray-500">
                       {templates.length === 0
-                        ? 'No templates saved under "Rental" category. Please save templates in WhatsApp/Bulk Email settings.'
-                        : `No rental templates match "${templateSearchQuery}"`}
+                        ? 'No communication templates available.'
+                        : `No templates match "${templateSearchQuery}"`}
                     </div>
                   ) : (
                     filteredTemplates.map((t) => {
@@ -1368,7 +1401,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                           }`}
                         >
                           <div className="truncate pr-2">
-                            <div className="font-bold text-gray-900">{t.name}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-gray-900">{t.name}</span>
+                              <span className="px-1.5 py-0.2 text-[9px] font-semibold bg-gray-100 text-gray-600 rounded border border-gray-200 uppercase">
+                                {t.category || 'general'}
+                              </span>
+                            </div>
                             {t.subjectTemplate && (
                               <div className="text-[11px] text-gray-500 truncate mt-0.5">
                                 {t.subjectTemplate}
@@ -1421,15 +1459,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         )}
 
         {/* Document Attachment Selection (Optional) */}
-        <div className="bg-gray-50/75 rounded-xl p-3.5 border border-gray-200">
+        <div className="bg-[#1E1E2D] rounded-xl p-3.5 border border-[#2B2B40] shadow-sm attachment-container" data-attachment-box="true">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
               <Paperclip className="w-4 h-4 text-primary" />
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider attachment-title">
                 Select Attachments (Optional)
               </label>
               {selectedDocIds.length > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary/10 text-primary rounded-full">
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary/20 text-primary-300 border border-primary/30 rounded-full">
                   {selectedDocIds.length} selected
                 </span>
               )}
@@ -1438,15 +1476,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSelectAllDocs}
-                className="text-primary hover:text-primary-700 font-medium"
+                className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
               >
                 Select All
               </button>
-              <span className="text-gray-300">|</span>
+              <span className="text-[#3E3E5B]">|</span>
               <button
                 type="button"
                 onClick={handleClearAllDocs}
-                className="text-gray-500 hover:text-gray-700 font-medium"
+                className="text-gray-400 hover:text-gray-200 font-medium transition-colors"
               >
                 Clear
               </button>
@@ -1462,24 +1500,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               return (
                 <label
                   key={docItem.id}
-                  className={`flex items-center space-x-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all select-none ${
+                  data-attachment-item="true"
+                  className={`flex items-center space-x-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all select-none attachment-item ${
                     isSelected
-                      ? 'bg-white border-primary/40 shadow-xs ring-1 ring-primary/20'
-                      : 'bg-white/60 border-gray-200 hover:bg-white hover:border-gray-300'
+                      ? 'is-selected bg-primary/20 border-primary text-white shadow-xs ring-1 ring-primary/30'
+                      : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:bg-[#1A1A26] hover:border-[#3E3E5B]'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleDoc(docItem.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0"
+                    className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-primary focus:ring-primary shrink-0"
                   />
-                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
-                  <span className={`truncate ${isSelected ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary-400' : 'text-gray-400'}`} />
+                  <span className={`truncate attachment-label ${isSelected ? 'font-semibold text-white' : 'text-gray-200 font-medium'}`}>
                     {docItem.label}
                   </span>
                   {isGen && (
-                    <span className="ml-auto text-[10px] text-amber-600 animate-pulse shrink-0">
+                    <span className="ml-auto text-[10px] text-amber-400 animate-pulse shrink-0">
                       Generating...
                     </span>
                   )}
@@ -1488,7 +1527,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             })}
           </div>
           
-          <p className="text-[11px] text-gray-500 mt-2">
+          <p className="text-[11px] text-gray-400 mt-2">
             {mode === 'whatsapp'
               ? 'Selected documents will have secure download links attached to the WhatsApp message.'
               : 'Selected documents will be attached as PDF files to the email dispatch.'}

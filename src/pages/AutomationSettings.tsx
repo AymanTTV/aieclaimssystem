@@ -31,9 +31,10 @@ const AVAILABLE_TAGS: Record<string, string[]> = {
     '[Latest Payment Amount]', '[Latest Payment Date]', '[Latest Payment Time]'
   ],
   claim: ['[Claim Reference]', '[Claim Type]', '[Client Name]', '[Client Registration]', '[TP Registration]', '[Description]'],
+  'Bulk Email': ['[Rental Reference]', '[Client Name]', '[Vehicle Reg]', '[Rental Type]', '[Total Amount]', '[Amount Paid]', '[Outstanding Balance]', '[Due Date]'],
 };
 
-const CATEGORIES: EmailType[] = ['custom', 'rental', 'maintenance', 'invoice', 'claim', 'finance'];
+const CATEGORIES: EmailType[] = ['custom', 'rental', 'maintenance', 'invoice', 'claim', 'finance', 'Bulk Email'];
 
 export default function AutomationSettings() {
   const { can } = usePermissions();
@@ -384,7 +385,7 @@ export default function AutomationSettings() {
                   {globalAutoEmailEnabled ? 'Schedule Active' : 'Schedule Paused'}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  <Clock className="w-3 h-3" /> 0 0 * * 1 (Every Monday at 12:00 AM)
+                  <Clock className="w-3 h-3" /> 0 9 * * 1 (Every Monday at 09:00 AM)
                 </span>
               </div>
               <p className="text-xs text-gray-600 max-w-3xl leading-relaxed">

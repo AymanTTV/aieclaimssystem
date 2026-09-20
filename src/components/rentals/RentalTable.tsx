@@ -609,7 +609,9 @@ const RentalTable: React.FC<RentalTableProps> = ({
                     const recipientLabel = r.customerName || 'driver';
                     const toastId = toast.loading(`Sending test email to ${recipientLabel}...`);
                     try {
-                      const res = await sendSingleRentalTestEmail(r);
+                      const matchingVehicle = vehicles.find(v => v.id === r.vehicleId || (v.registration && v.registration === r.vehicleId));
+                      const matchingCustomer = customers.find(c => c.id === r.customerId);
+                      const res = await sendSingleRentalTestEmail(r, matchingVehicle, matchingCustomer);
                       toast.success(res.message, { id: toastId, duration: 6000 });
                     } catch (err: any) {
                       toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });

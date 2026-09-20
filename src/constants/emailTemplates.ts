@@ -1,6 +1,6 @@
 // src/constants/emailTemplates.ts
 
-export type EmailType = 'custom' | 'rental' | 'maintenance' | 'invoice' | 'claim' | 'finance';
+export type EmailType = 'custom' | 'rental' | 'maintenance' | 'invoice' | 'claim' | 'finance' | 'Bulk Email';
 
 export interface EmailTemplate {
   id: string;
@@ -1494,6 +1494,74 @@ Failure to settle the outstanding balance may result in late fees or suspension 
 
 ${aieSkylineSignature}`,
       requiredFields: ['vehicle'],
+    },
+  ],
+  'Bulk Email': [
+    {
+      id: 'bulk_email_weekly_rental_reminder',
+      name: 'Weekly Rental Payment Reminder',
+      subjectTemplate: 'Weekly Rental Statement Breakdown - {rental_id}',
+      bodyTemplate:
+`Dear {client_name},
+
+We hope you had a productive week. This is your automated statement for your active weekly rental, for the week starting Monday, {due_date}.
+
+📄 Weekly Rental Statement Breakdown
+Rental Reference: {rental_id}
+Vehicle Reg: {vehicle_reg}
+Rental Type: Weekly Hire
+Total Cost: £{total_amount}
+Amount Paid: £{paid_amount}
+Total Outstanding Balance: £{owing_amount}
+
+Due Date: {due_date}
+
+🏦 Payment Instructions
+Bank: Lloyds Bank
+Account: AIE Skyline Limited
+Account Number: 30513162 | Sort Code: 30-99-50
+Reference: {vehicle_reg}
+
+🤝 Payment Request
+Please kindly arrange for the Total Outstanding Balance to be settled today. Clearing your balance on Mondays ensures your account remains up to date and your vehicle hire continues without interruption.
+
+If you have already made this payment, thank you—please feel free to ignore this reminder.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental'],
+    },
+    {
+      id: 'bulk_email_daily_rental_reminder',
+      name: 'Daily Rental Payment Reminder',
+      subjectTemplate: 'Daily Rental Statement Breakdown - {rental_id}',
+      bodyTemplate:
+`Dear {client_name},
+
+This is your automated daily rental statement and payment reminder for the week starting Monday, {due_date}.
+
+📄 Daily Rental Statement Breakdown
+Rental Reference: {rental_id}
+Vehicle Reg: {vehicle_reg}
+Rental Type: Daily Hire
+Total Cost: £{total_amount}
+Amount Paid: £{paid_amount}
+Total Outstanding Balance: £{owing_amount}
+
+Due Date: {due_date}
+
+🏦 Payment Instructions
+Bank: Lloyds Bank
+Account: AIE Skyline Limited
+Account Number: 30513162 | Sort Code: 30-99-50
+Reference: {vehicle_reg}
+
+🤝 Payment Request
+Please kindly settle your outstanding daily balance today to ensure your account remains in good standing and hire continues without interruption.
+
+If you have already made this payment, thank you—please feel free to ignore this reminder.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental'],
     },
   ],
 };

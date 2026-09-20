@@ -305,7 +305,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                   const targetName = rental.customerName || rental.driverName || 'driver';
                   const toastId = toast.loading(`Sending test email to ${targetName}...`);
                   try {
-                    const res = await sendSingleRentalTestEmail(rental);
+                    const res = await sendSingleRentalTestEmail(rental, vehicle, customer);
                     toast.success(res.message, { id: toastId, duration: 6000 });
                   } catch (err: any) {
                     toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });

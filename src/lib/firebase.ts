@@ -1,16 +1,26 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, ActionCodeSettings } from 'firebase/auth';
-import { initializeFirestore, getFirestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  memoryLocalCache,
+  setLogLevel 
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
+
+const rawStorageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'mock-storage-bucket';
+const storageBucket = rawStorageBucket.replace(/^gs:\/\//, '');
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'mock-api-key',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'mock-auth-domain',
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'mock-project-id',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'mock-storage-bucket',
+  storageBucket: storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || 'mock-sender-id',
   appId: import.meta.env.VITE_FIREBASE_APP_ID || 'mock-app-id',
 };
@@ -18,14 +28,33 @@ const firebaseConfig = {
 // 1. Initialize Firebase app exactly once (prevents duplicate app initialization)
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// 2. Initialize Firestore with experimentalForceLongPolling to eliminate WebChannel streaming failures in iframe/preview environments
+// 2. Suppress low-level internal retry logs so benign offline status messages don't alarm user
+try {
+  setLogLevel('error');
+} catch {
+  // Ignore if setLogLevel is not supported in the environment
+}
+
+// 3. Initialize Firestore with auto-detect long polling and multi-tab local cache
 let firestoreDb;
 try {
   firestoreDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
+    useFetchStreams: false,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
   });
 } catch {
-  firestoreDb = getFirestore(app);
+  try {
+    firestoreDb = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      useFetchStreams: false,
+      localCache: memoryLocalCache(),
+    });
+  } catch {
+    firestoreDb = getFirestore(app);
+  }
 }
 
 export const db = firestoreDb;
