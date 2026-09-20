@@ -10,6 +10,7 @@ export interface EmailParams {
   show_bank_details?: boolean;
   reference?: string;
   reply_to?: string;
+  attachments?: any;
 }
 
 /**
@@ -28,6 +29,7 @@ export const sendEmail = async (params: EmailParams) => {
       reply_to: params.reply_to || 'admin@aieskyline.com',
       from_name: 'AIE Fleet System',
       from_email: 'admin@aieskyline.com',
+      attachments: params.attachments,
     };
 
     const resp = await emailjs.send(

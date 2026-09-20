@@ -362,18 +362,21 @@ const Claims: React.FC = () => {
   // Claim Communication Modal State
   const [commClaim, setCommClaim] = useState<Claim | null>(null);
   const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
-  const [commCategory, setCommCategory] = useState<'general' | 'progress'>('general');
+  const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
+  const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
 
-  const handleOpenWhatsApp = (c: Claim) => {
+  const handleOpenWhatsApp = (c: Claim, recipient: 'client' | 'legalHandler' = 'client') => {
     setCommClaim(c);
     setCommChannel('whatsapp');
-    setCommCategory('general');
+    setCommRecipient(recipient);
+    setCommCategory(recipient === 'legalHandler' ? 'legal_handler' : 'general');
   };
 
-  const handleOpenEmail = (c: Claim) => {
+  const handleOpenEmail = (c: Claim, recipient: 'client' | 'legalHandler' = 'client') => {
     setCommClaim(c);
     setCommChannel('email');
-    setCommCategory('general');
+    setCommRecipient(recipient);
+    setCommCategory(recipient === 'legalHandler' ? 'legal_handler' : 'general');
   };
 
   const allProgressOptions = useMemo(() => {
@@ -1129,6 +1132,7 @@ const Claims: React.FC = () => {
           claim={commClaim}
           initialChannel={commChannel}
           initialCategory={commCategory}
+          initialRecipient={commRecipient}
         />
       )}
     </div>

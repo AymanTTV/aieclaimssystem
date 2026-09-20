@@ -1,22 +1,23 @@
 // src/components/claims/ClaimDetailsModal.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Claim } from '../../types';
 import { format, differenceInDays } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Activity, MessageCircle } from 'lucide-react';
+import { FileText, Download, Car, User, Mail, Phone, MapPin, Calendar, Activity, MessageCircle, Scale, ChevronDown } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { isLegacyClaimProgress, deriveDisplayStatus } from '../../utils/claimProgress';
 import clsx from 'clsx';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
+import { resolveLegalHandlerDetails } from '../../utils/claimCommunication';
 import ClaimCommunicationModal from './ClaimCommunicationModal';
 
 interface ClaimDetailsProps {
   claim: Claim;
   onDownloadDocument?: (url: string) => void;
-  onWhatsApp?: (claim: Claim) => void;
-  onEmail?: (claim: Claim) => void;
+  onWhatsApp?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
+  onEmail?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
 }
 
 const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
@@ -28,19 +29,45 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const [commModalOpen, setCommModalOpen] = useState(false);
   const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
-  const [commCategory, setCommCategory] = useState<'general' | 'progress'>('general');
+  const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
+  const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
 
-  const handleOpenComm = (channel: 'whatsapp' | 'email', category: 'general' | 'progress' = 'general') => {
+  const [activeCommDropdown, setActiveCommDropdown] = useState<'whatsapp' | 'email' | null>(null);
+  const commDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (commDropdownRef.current && !commDropdownRef.current.contains(e.target as Node)) {
+        setActiveCommDropdown(null);
+      }
+    };
+    if (activeCommDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [activeCommDropdown]);
+
+  const legalDetails = useMemo(() => resolveLegalHandlerDetails(claim), [claim]);
+
+  const handleOpenComm = (
+    channel: 'whatsapp' | 'email',
+    category: 'general' | 'progress' | 'legal_handler' | 'custom' = 'general',
+    recipient: 'client' | 'legalHandler' = 'client'
+  ) => {
+    setActiveCommDropdown(null);
     if (channel === 'whatsapp' && onWhatsApp) {
-      onWhatsApp(claim);
+      onWhatsApp(claim, recipient);
       return;
     }
     if (channel === 'email' && onEmail) {
-      onEmail(claim);
+      onEmail(claim, recipient);
       return;
     }
     setCommChannel(channel);
     setCommCategory(category);
+    setCommRecipient(recipient);
     setCommModalOpen(true);
   };
   const { formatCurrency } = useFormattedDisplay();
@@ -139,25 +166,109 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold text-gray-900">Claim #{claim.id.slice(-8).toUpperCase()}</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenComm('whatsapp', 'general')}
-                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors shadow-sm"
-                title="Send WhatsApp message to client"
-              >
-                <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
-                WhatsApp
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenComm('email', 'general')}
-                className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors shadow-sm"
-                title="Send email to client"
-              >
-                <Mail className="w-3.5 h-3.5 mr-1.5" />
-                Email
-              </button>
+            <div className="flex items-center gap-2 relative" ref={commDropdownRef}>
+              {/* WhatsApp Button with Recipient Selector */}
+              <div className="relative inline-block text-left">
+                <button
+                  type="button"
+                  onClick={() => setActiveCommDropdown(activeCommDropdown === 'whatsapp' ? null : 'whatsapp')}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors shadow-sm gap-1"
+                  title="Send WhatsApp message"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                  <ChevronDown className="w-3 h-3 text-emerald-600" />
+                </button>
+
+                {activeCommDropdown === 'whatsapp' && (
+                  <div className="absolute left-0 mt-1 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 py-1 text-xs divide-y divide-gray-100">
+                    <div className="px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
+                      Send WhatsApp To:
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenComm('whatsapp', 'general', 'client')}
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-emerald-50 transition-colors text-gray-800"
+                    >
+                      <User className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                      <div className="truncate">
+                        <div className="font-semibold text-gray-900">Send to Client</div>
+                        <div className="text-[11px] text-gray-500 truncate">
+                          {claim.clientInfo?.name || 'Client'} ({claim.clientInfo?.phone || 'No phone'})
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenComm('whatsapp', 'legal_handler', 'legalHandler')}
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-purple-50 transition-colors text-gray-800"
+                    >
+                      <Scale className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="truncate">
+                        <div className="font-semibold text-purple-900">Send to Legal Handler</div>
+                        <div className="text-[11px] text-gray-500 truncate">
+                          {legalDetails.legal_handler_name || legalDetails.legal_handler_firm || 'Legal Handler'}{' '}
+                          {legalDetails.legal_handler_phone ? `(${legalDetails.legal_handler_phone})` : '(Directory / Manual)'}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Email Button with Recipient Selector */}
+              <div className="relative inline-block text-left">
+                <button
+                  type="button"
+                  onClick={() => setActiveCommDropdown(activeCommDropdown === 'email' ? null : 'email')}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors shadow-sm gap-1"
+                  title="Send email"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email</span>
+                  <ChevronDown className="w-3 h-3 text-indigo-600" />
+                </button>
+
+                {activeCommDropdown === 'email' && (
+                  <div className="absolute left-0 mt-1 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 py-1 text-xs divide-y divide-gray-100">
+                    <div className="px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
+                      Send Email To:
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenComm('email', 'general', 'client')}
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-indigo-50 transition-colors text-gray-800"
+                    >
+                      <User className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                      <div className="truncate">
+                        <div className="font-semibold text-gray-900">Send to Client</div>
+                        <div className="text-[11px] text-gray-500 truncate">
+                          {claim.clientInfo?.name || 'Client'} ({claim.clientInfo?.email || 'No email'})
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenComm('email', 'legal_handler', 'legalHandler')}
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-purple-50 transition-colors text-gray-800"
+                    >
+                      <Scale className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="truncate">
+                        <div className="flex items-center gap-1 font-semibold text-purple-900">
+                          <span>Send to Legal Handler</span>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-normal">
+                            + Claim Card
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-500 truncate">
+                          {legalDetails.legal_handler_name || legalDetails.legal_handler_firm || 'Legal Handler'}{' '}
+                          {legalDetails.legal_handler_email ? `(${legalDetails.legal_handler_email})` : '(Directory / Manual)'}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="mt-1 space-y-1">{claim.clientRef && <p className="text-sm text-gray-500">Client Ref: {claim.clientRef}</p>}</div>
@@ -553,6 +664,27 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   Phone: {claim.fileHandlers.legalHandler.phone ? <a href={`tel:${claim.fileHandlers.legalHandler.phone}`} className="text-blue-600 hover:underline">{claim.fileHandlers.legalHandler.phone}</a> : 'N/A'}
                 </div>
                 <div className="text-sm text-gray-500">Address: {claim.fileHandlers.legalHandler.address}</div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenComm('whatsapp', 'legal_handler', 'legalHandler')}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded transition-colors"
+                    title="Send WhatsApp to Legal Handler"
+                  >
+                    <MessageCircle className="h-3 w-3" />
+                    <span>WhatsApp Handler</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenComm('email', 'legal_handler', 'legalHandler')}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded transition-colors"
+                    title="Send Email to Legal Handler (with Claim Card attached)"
+                  >
+                    <Mail className="h-3 w-3" />
+                    <span>Email Handler</span>
+                  </button>
+                </div>
               </div>
             ) : (<div className="font-medium">N/A</div>)}
           </div>
@@ -643,6 +775,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         claim={claim}
         initialChannel={commChannel}
         initialCategory={commCategory}
+        initialRecipient={commRecipient}
       />
     </div>
   );

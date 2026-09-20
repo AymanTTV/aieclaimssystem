@@ -1,22 +1,37 @@
 // src/utils/claimCommunication.ts
 import { Claim } from '../types';
 import { format } from 'date-fns';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { sendEmail } from './emailService';
 import { formatWhatsAppNumber, buildWaMeLink } from './whatsapp';
 import { logWhatsappHistory } from '../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../hooks/useEmailHistory';
 import { resolveNameFields } from './nameAddressUtils';
 import { emailTemplates } from '../constants/emailTemplates';
+import { pdf } from '@react-pdf/renderer';
+import { createElement } from 'react';
+import ClaimDocument from '../components/pdf/documents/ClaimDocument';
 
 export type ClaimCommunicationChannel = 'whatsapp' | 'email';
-export type ClaimTemplateCategory = 'general' | 'progress';
+export type ClaimTemplateCategory = 'general' | 'progress' | 'legal_handler' | 'custom';
+export type ClaimRecipientType = 'client' | 'legalHandler';
+
+export interface LegalHandlerDetails {
+  legal_handler_name: string;
+  legal_handler_firm: string;
+  legal_handler_email: string;
+  legal_handler_phone: string;
+}
 
 export interface ClaimContext {
+  // Client details
   client_name: string;
   client_phone: string;
   client_email: string;
+
+  // Claim & Vehicle details
   claim_id: string;
   vehicle_reg: string;
   incident_date: string;
@@ -24,6 +39,12 @@ export interface ClaimContext {
   progress_stage: string;
   latest_update_notes: string;
   next_steps: string;
+
+  // Legal Handler details
+  legal_handler_name: string;
+  legal_handler_firm: string;
+  legal_handler_email: string;
+  legal_handler_phone: string;
 }
 
 export interface ClaimTemplateOption {
@@ -36,6 +57,13 @@ export interface ClaimTemplateOption {
   isCustom?: boolean;
 }
 
+export interface ClaimAttachment {
+  filename: string;
+  url: string;
+  blob?: Blob;
+  data?: any;
+}
+
 const DEFAULT_SIGNATURE = `Kind regards,
 AIE Claims Team
 📍 AIE Claims, United House, 39–41 North Road, London, N7 9DP
@@ -44,6 +72,84 @@ AIE Claims Team
 🌐 www.aieclaims.co.uk`;
 
 export const DEFAULT_CLAIM_TEMPLATES: ClaimTemplateOption[] = [
+  // ─── LEGAL HANDLER TEMPLATES ───
+  {
+    id: 'claim_legal_instruction_card',
+    name: 'Legal Handler: New Claim Instruction & Claim Card',
+    category: 'legal_handler',
+    channel: 'all',
+    subjectTemplate: 'New Claim Instruction & Claim Card: {vehicle_reg} - {claim_id}',
+    bodyTemplate: `Dear {legal_handler_name},
+
+Please find instructed the accident claim file for our client {client_name} regarding vehicle {vehicle_reg}.
+
+📋 Claim Reference: {claim_id}
+🚗 Vehicle Registration: {vehicle_reg}
+📅 Incident Date: {incident_date}
+⚖️ Appointed Firm: {legal_handler_firm}
+📊 Current Status: {claim_status}
+🔄 Progress Stage: {progress_stage}
+
+👤 Client Contact:
+• Name: {client_name}
+• Contact Number: {client_phone}
+
+Attached to this transmission is the official Claim Card ({claim_id}) containing complete incident particulars, third-party details, and declarations.
+
+Please confirm receipt, advise your internal reference upon setup, and notify our office once initial representation has been served on the insurer.
+
+${DEFAULT_SIGNATURE}`,
+  },
+  {
+    id: 'claim_legal_progress_chase',
+    name: 'Legal Handler: Status & Settlement Review Chase',
+    category: 'legal_handler',
+    channel: 'all',
+    subjectTemplate: 'Claim Progression & Settlement Review Chase - {claim_id} ({vehicle_reg})',
+    bodyTemplate: `Dear {legal_handler_name},
+
+We are following up regarding the progression and settlement status for the following instructed claim:
+
+📋 Claim Reference: {claim_id}
+🚗 Vehicle Registration: {vehicle_reg}
+👤 Client Name: {client_name}
+📅 Incident Date: {incident_date}
+⚖️ Appointed Firm: {legal_handler_firm}
+🔄 Current Stage: {progress_stage}
+
+📝 Latest Notes on File:
+{latest_update_notes}
+
+⏭️ Next Required Action:
+{next_steps}
+
+Kindly provide an update regarding third-party insurer response, current liability position, and upcoming settlement milestones.
+
+${DEFAULT_SIGNATURE}`,
+  },
+  {
+    id: 'claim_legal_file_request',
+    name: 'Legal Handler: File Schedule & Evidence Submission',
+    category: 'legal_handler',
+    channel: 'all',
+    subjectTemplate: 'Claim Evidence Schedule & File Update - {claim_id}',
+    bodyTemplate: `Dear {legal_handler_name},
+
+Please find the updated evidence schedule and file documents for claim {claim_id} ({vehicle_reg}).
+
+Client: {client_name}
+Contact Number: {client_phone}
+Incident Date: {incident_date}
+Firm: {legal_handler_firm}
+
+Update Details:
+{latest_update_notes}
+
+The full Claim Card PDF is attached for your records. Please let us know if any further engineer or witness statements are required.
+
+${DEFAULT_SIGNATURE}`,
+  },
+
   // ─── CLAIM PROGRESS UPDATES ───
   {
     id: 'claim_progress_default_update',
@@ -283,12 +389,61 @@ export function deriveDefaultNextSteps(stage?: string): string {
 }
 
 /**
- * Resolves all claim client & progress context for placeholders
+ * Resolves Legal Handler details for a given claim
+ */
+export function resolveLegalHandlerDetails(
+  claim: Claim,
+  override?: Partial<LegalHandlerDetails>
+): LegalHandlerDetails {
+  const rawAny = claim as any;
+  const lh =
+    claim.fileHandlers?.legalHandler ||
+    rawAny.legalHandler ||
+    rawAny.fileHandlers?.legalHandler ||
+    null;
+
+  let name = '';
+  let firm = '';
+  let email = '';
+  let phone = '';
+
+  if (lh) {
+    if (typeof lh === 'string') {
+      name = lh.trim();
+      firm = lh.trim();
+    } else if (typeof lh === 'object') {
+      name = lh.name || lh.contactName || lh.fullName || '';
+      firm = lh.firm || lh.firmName || lh.company || lh.name || '';
+      email = lh.email || '';
+      phone = lh.phone || lh.contactNumber || lh.telephone || '';
+    }
+  }
+
+  // Fallbacks if top-level fields exist
+  if (!name && rawAny.legalHandlerName) name = rawAny.legalHandlerName;
+  if (!firm && rawAny.legalHandlerFirm) firm = rawAny.legalHandlerFirm;
+  if (!email && rawAny.legalHandlerEmail) email = rawAny.legalHandlerEmail;
+  if (!phone && rawAny.legalHandlerPhone) phone = rawAny.legalHandlerPhone;
+
+  // Default firm to name if firm is still empty
+  if (!firm && name) firm = name;
+
+  return {
+    legal_handler_name: override?.legal_handler_name !== undefined ? override.legal_handler_name : name,
+    legal_handler_firm: override?.legal_handler_firm !== undefined ? override.legal_handler_firm : firm,
+    legal_handler_email: override?.legal_handler_email !== undefined ? override.legal_handler_email : email,
+    legal_handler_phone: override?.legal_handler_phone !== undefined ? override.legal_handler_phone : phone,
+  };
+}
+
+/**
+ * Resolves all claim client, vehicle, progress, and legal handler context for placeholders
  */
 export function resolveClaimContext(
   claim: Claim,
   overrideNotes?: string,
-  overrideStage?: string
+  overrideStage?: string,
+  overrideLegal?: Partial<LegalHandlerDetails>
 ): ClaimContext {
   const rawAny = claim as any;
 
@@ -361,6 +516,9 @@ export function resolveClaimContext(
   // Derive Next Steps
   const next_steps = deriveDefaultNextSteps(progress_stage);
 
+  // Resolve Legal Handler
+  const legalDetails = resolveLegalHandlerDetails(claim, overrideLegal);
+
   return {
     client_name,
     client_phone,
@@ -372,6 +530,7 @@ export function resolveClaimContext(
     progress_stage,
     latest_update_notes,
     next_steps,
+    ...legalDetails,
   };
 }
 
@@ -385,6 +544,7 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
 
   // Map of keys to replace
   const replacements: Record<string, string> = {
+    // Client & Claim Placeholders
     '{client_name}': context.client_name,
     '{client_phone}': context.client_phone,
     '{client_email}': context.client_email,
@@ -396,10 +556,29 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
     '{latest_update_notes}': context.latest_update_notes,
     '{next_steps}': context.next_steps,
 
+    // Legal Handler Placeholders
+    '{legal_handler_name}': context.legal_handler_name,
+    '{legal_handler_firm}': context.legal_handler_firm,
+    '{legal_handler_email}': context.legal_handler_email,
+    '{legal_handler_phone}': context.legal_handler_phone,
+
     // Bracketed variations
+    '[Legal Handler Name]': context.legal_handler_name,
+    '[Legal Handler]': context.legal_handler_name,
+    '[Handler Name]': context.legal_handler_name,
+    '[Solicitor Name]': context.legal_handler_name,
+    '[Legal Handler Firm]': context.legal_handler_firm,
+    '[Firm Name]': context.legal_handler_firm,
+    '[Solicitors]': context.legal_handler_firm,
+    '[Solicitor Firm]': context.legal_handler_firm,
+    '[Legal Handler Email]': context.legal_handler_email,
+    '[Handler Email]': context.legal_handler_email,
+    '[Legal Handler Phone]': context.legal_handler_phone,
+    '[Handler Phone]': context.legal_handler_phone,
+
     '[Client Name]': context.client_name,
     '[Customer Name]': context.client_name,
-    '[Recipient Name]': context.client_name,
+    '[Recipient Name]': context.legal_handler_name || context.client_name,
     '[Driver Name]': context.client_name,
     '[Claim Number]': context.claim_id,
     '[Claim Reference]': context.claim_id,
@@ -427,6 +606,8 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
 
   // Also catch lowercase / alternate case variants of brackets/braces via regex
   result = result.replace(/\{client_name\}/gi, context.client_name);
+  result = result.replace(/\{client_phone\}/gi, context.client_phone);
+  result = result.replace(/\{client_email\}/gi, context.client_email);
   result = result.replace(/\{claim_id\}/gi, context.claim_id);
   result = result.replace(/\{vehicle_reg\}/gi, context.vehicle_reg);
   result = result.replace(/\{incident_date\}/gi, context.incident_date);
@@ -435,42 +616,158 @@ export function replaceClaimTemplatePlaceholders(text: string, context: ClaimCon
   result = result.replace(/\{latest_update_notes\}/gi, context.latest_update_notes);
   result = result.replace(/\{next_steps\}/gi, context.next_steps);
 
+  result = result.replace(/\{legal_handler_name\}/gi, context.legal_handler_name);
+  result = result.replace(/\{legal_handler_firm\}/gi, context.legal_handler_firm);
+  result = result.replace(/\{legal_handler_email\}/gi, context.legal_handler_email);
+  result = result.replace(/\{legal_handler_phone\}/gi, context.legal_handler_phone);
+
   return result;
 }
 
 /**
- * Fetches active templates from Firestore `messageTemplates` where category is 'claim'
- * and merges with built-ins from emailTemplates.claim and DEFAULT_CLAIM_TEMPLATES
+ * Automatically generates/fetches the Claim Card PDF for a specific claim record
+ */
+export async function generateClaimCardPdf(claim: Claim): Promise<ClaimAttachment> {
+  const cleanRef = (claim.claimId || claim.id || 'claim').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `Claim_Card_${cleanRef}.pdf`;
+
+  // Check if already stored and valid
+  const rawAny = claim as any;
+  if (rawAny.claimCardUrl && typeof rawAny.claimCardUrl === 'string' && rawAny.claimCardUrl.startsWith('http')) {
+    return {
+      filename,
+      url: rawAny.claimCardUrl,
+    };
+  }
+
+  // 1. Fetch company details with fallback
+  let companyDetails: any = {
+    fullName: 'AIE Claims LTD',
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP',
+    phone: '+442080505337',
+    email: 'claims@aieclaims.co.uk',
+  };
+  try {
+    const docRef = doc(db, 'companySettings', 'details');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      companyDetails = { ...companyDetails, ...docSnap.data() };
+    }
+  } catch (err) {
+    console.warn('Using default company details for Claim Card:', err);
+  }
+
+  // 2. Normalize claim reasons
+  const normalized: Claim = {
+    ...claim,
+    claimReason: Array.isArray(claim.claimReason) ? claim.claimReason : [claim.claimReason as any],
+  };
+
+  // 3. Render PDF Blob
+  const pdfBlob = await pdf(
+    createElement(ClaimDocument, {
+      data: normalized,
+      companyDetails,
+    })
+  ).toBlob();
+
+  // 4. Upload to Firebase Storage
+  let downloadUrl = '';
+  try {
+    const storageRef = ref(storage, `claims/${claim.id || 'temp'}/${filename}`);
+    const snapshot = await uploadBytes(storageRef, pdfBlob, {
+      contentType: 'application/pdf',
+      customMetadata: {
+        'Cache-Control': 'public,max-age=7200',
+      },
+    });
+    downloadUrl = await getDownloadURL(snapshot.ref);
+
+    // Update claim in Firestore if claim.id exists
+    if (claim.id) {
+      try {
+        await updateDoc(doc(db, 'claims', claim.id), {
+          claimCardUrl: downloadUrl,
+          documentUrl: downloadUrl,
+          updatedAt: new Date(),
+        });
+      } catch (upErr) {
+        console.warn('Could not update claim with claimCardUrl:', upErr);
+      }
+    }
+  } catch (uploadErr) {
+    console.warn('Storage upload error, using object URL for preview/download:', uploadErr);
+    downloadUrl = URL.createObjectURL(pdfBlob);
+  }
+
+  return {
+    filename,
+    url: downloadUrl,
+    blob: pdfBlob,
+  };
+}
+
+/**
+ * Fetches active templates from Firestore `messageTemplates` where category is 'claim' or related,
+ * and merges with built-ins from DEFAULT_CLAIM_TEMPLATES and emailTemplates.claim
  */
 export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
   const result: ClaimTemplateOption[] = [];
   const seenIds = new Set<string>();
 
-  // 1. Fetch live custom templates from Firestore
+  // 1. Fetch live custom/legal templates from Firestore
   try {
     const snap = await getDocs(collection(db, 'messageTemplates'));
-    snap.forEach((doc) => {
-      const data = doc.data();
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
       const cat = String(data.category || data.type || '').toLowerCase().trim();
-      if (cat === 'claim') {
-        const name = data.name || 'Claim Template';
-        const lowerName = name.toLowerCase();
-        const lowerBody = (data.bodyTemplate || data.body || data.content || '').toLowerCase();
+      const recipientType = String(data.recipientType || data.tab || '').toLowerCase().trim();
+      const name = data.name || 'Claim Template';
+      const lowerName = name.toLowerCase();
+      const lowerBody = (data.bodyTemplate || data.body || data.content || '').toLowerCase();
 
-        // Categorize into 'progress' vs 'general'
-        const isProgress =
+      // Check if this template belongs to Claim communication
+      const isClaimRelated =
+        cat === 'claim' ||
+        cat === 'custom' ||
+        cat === 'legal_handler' ||
+        cat === 'legal' ||
+        recipientType === 'legalhandler' ||
+        data.claimCategory === 'legal_handler';
+
+      if (isClaimRelated) {
+        // Categorize into 'legal_handler', 'progress', 'custom', or 'general'
+        let templateCategory: ClaimTemplateCategory = 'general';
+
+        if (
+          cat === 'legal_handler' ||
+          cat === 'legal' ||
+          recipientType === 'legalhandler' ||
+          data.claimCategory === 'legal_handler' ||
+          lowerName.includes('legal') ||
+          lowerName.includes('solicitor') ||
+          lowerName.includes('handler')
+        ) {
+          templateCategory = 'legal_handler';
+        } else if (
           data.claimCategory === 'progress' ||
           lowerName.includes('progress') ||
           lowerName.includes('status') ||
           lowerName.includes('stage') ||
           lowerName.includes('update') ||
           lowerBody.includes('progress stage') ||
-          lowerBody.includes('status update');
+          lowerBody.includes('status update')
+        ) {
+          templateCategory = 'progress';
+        } else if (cat === 'custom' || data.isCustom) {
+          templateCategory = 'custom';
+        }
 
         const option: ClaimTemplateOption = {
-          id: doc.id,
+          id: docSnap.id,
           name,
-          category: isProgress ? 'progress' : 'general',
+          category: templateCategory,
           channel: data.channel === 'whatsapp' ? 'whatsapp' : data.channel === 'email' ? 'email' : 'all',
           subjectTemplate: data.subjectTemplate || data.subject || 'Claim Update - {claim_id}',
           bodyTemplate: data.bodyTemplate || data.body || data.content || '',
@@ -478,7 +775,7 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
         };
 
         result.push(option);
-        seenIds.add(doc.id);
+        seenIds.add(docSnap.id);
       }
     });
   } catch (err) {
@@ -502,10 +799,15 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
           tpl.name.toLowerCase().includes('status') ||
           tpl.name.toLowerCase().includes('update');
 
+        const isLegal =
+          tpl.id.includes('legal') ||
+          tpl.name.toLowerCase().includes('legal') ||
+          tpl.name.toLowerCase().includes('solicitor');
+
         result.push({
           id: tpl.id,
           name: tpl.name,
-          category: isProgress ? 'progress' : 'general',
+          category: isLegal ? 'legal_handler' : isProgress ? 'progress' : 'general',
           channel: 'all',
           subjectTemplate: tpl.subjectTemplate,
           bodyTemplate: tpl.bodyTemplate,
@@ -521,17 +823,18 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
 
 /**
  * Direct WhatsApp Action:
- * Opens https://wa.me/{client_phone}?text={encoded_message}
+ * Opens https://wa.me/{phone}?text={encoded_message}
  * and logs to whatsappHistory
  */
 export async function executeClaimWhatsApp(params: {
   phone: string;
   message: string;
-  clientName: string;
+  recipientName: string;
   claim: Claim;
   userName?: string;
   templateId?: string;
   subject?: string;
+  recipientType?: ClaimRecipientType;
 }): Promise<{ url: string; digits: string }> {
   const digits = formatWhatsAppNumber(params.phone);
   if (!digits) {
@@ -549,7 +852,7 @@ export async function executeClaimWhatsApp(params: {
       type: 'claim',
       templateId: params.templateId || 'claim_whatsapp_direct',
       recipients: [params.phone],
-      subject: params.subject || `Claim ${claimRef} Update`,
+      subject: params.subject || `Claim ${claimRef} Update (${params.recipientType || 'client'})`,
       body: params.message,
       timestamp: new Date(),
     });
@@ -563,16 +866,18 @@ export async function executeClaimWhatsApp(params: {
 /**
  * Direct Email Action:
  * Dispatches via sendEmail (EmailJS) with fallback to mailto:
- * and logs to emailHistory
+ * Attaches Claim Card PDF and formatted links, and logs to emailHistory
  */
 export async function executeClaimEmail(params: {
   email: string;
-  clientName: string;
+  recipientName: string;
   subject: string;
   body: string;
   claim: Claim;
   userName?: string;
   templateId?: string;
+  recipientType?: ClaimRecipientType;
+  attachments?: ClaimAttachment[];
 }): Promise<{ mode: 'provider' | 'mailto' }> {
   if (!params.email || !params.email.includes('@')) {
     throw new Error('A valid email address is required.');
@@ -582,17 +887,45 @@ export async function executeClaimEmail(params: {
   const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-  const claimRef = params.claim.claimId || params.claim.id.slice(-8).toUpperCase();
+  const claimRef = params.claim.claimId || (params.claim.id ? params.claim.id.slice(-8).toUpperCase() : 'N/A');
+
+  // Format message body to cleanly include attachment links if present
+  let finalBody = params.body;
+  if (params.attachments && params.attachments.length > 0) {
+    const attText =
+      '\n\n📎 ATTACHED DOCUMENTS:\n' +
+      params.attachments
+        .map((a) => `📄 ${a.filename}\nClick to view / download:\n${a.url}`)
+        .join('\n\n') +
+      '\n\n';
+
+    const sigMarkers = ['Kind regards,', 'Best regards,', 'AIE Claims Team', 'AIE Skyline Limited'];
+    let sigIndex = -1;
+    for (const marker of sigMarkers) {
+      const idx = finalBody.lastIndexOf(marker);
+      if (idx !== -1) {
+        sigIndex = idx;
+        break;
+      }
+    }
+
+    if (sigIndex !== -1) {
+      finalBody = finalBody.substring(0, sigIndex) + attText + finalBody.substring(sigIndex);
+    } else {
+      finalBody += attText;
+    }
+  }
 
   // If EmailJS credentials are configured, send directly
   if (serviceId && templateId && publicKey) {
     try {
       await sendEmail({
         to_email: params.email,
-        to_name: params.clientName,
+        to_name: params.recipientName,
         subject: params.subject,
-        message: params.body,
+        message: finalBody,
         reference: `Claim ${claimRef}`,
+        attachments: params.attachments,
       });
 
       // Log email history
@@ -619,7 +952,7 @@ export async function executeClaimEmail(params: {
   // Mailto fallback
   const mailtoUrl = `mailto:${encodeURIComponent(params.email)}?subject=${encodeURIComponent(
     params.subject
-  )}&body=${encodeURIComponent(params.body)}`;
+  )}&body=${encodeURIComponent(finalBody)}`;
   window.open(mailtoUrl, '_blank');
 
   try {
@@ -637,3 +970,4 @@ export async function executeClaimEmail(params: {
 
   return { mode: 'mailto' };
 }
+

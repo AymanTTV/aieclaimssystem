@@ -570,21 +570,21 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         });
       });
 
-    // 2. Invoice / Payment Receipt
+    // 2. View Invoice
     items.push({
       id: 'invoice',
       docType: 'invoice',
-      label: 'Invoice / Payment Receipt',
+      label: 'View Invoice',
       existingUrl: docs.invoice || undefined,
       category: 'invoice',
       icon: Receipt,
     });
 
-    // 3. Permit
+    // 3. View Permit
     items.push({
       id: 'permit',
       docType: 'permit',
-      label: 'Permit',
+      label: 'View Permit',
       existingUrl: docs.permit || undefined,
       category: 'permit',
       icon: MapPin,
@@ -1082,11 +1082,30 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     toast.loading('Sending email...');
     try {
       const effCustomer = internalCustomer || customer;
+      
+      // Build email attachments array for any selected documents
+      const emailAttachments = selectedDocIds
+        .map((id) => {
+          const item = availableDocs.find((d) => d.id === id);
+          const url = currentUrls[id];
+          if (!item || !url) return null;
+          const cleanRef = (rental.rentalAgreementNumber || rental.id || 'Rental').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const cleanDocType = item.label.replace(/[^a-zA-Z0-9_-]/g, '_');
+          const filename = `${cleanDocType}_${cleanRef}.pdf`;
+          return {
+            filename,
+            url,
+          };
+        })
+        .filter(Boolean);
+
       await sendEmail({
         to_email: email,
         to_name: effCustomer?.name || (rental as any).customerName || 'Customer',
         subject: subject || `Rental Booking - ${rental.rentalAgreementNumber || ''}`,
         message: finalBody,
+        reference: `Rental ${rental.rentalAgreementNumber || rental.id || ''}`,
+        attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
       });
 
       await logEmailHistory({
@@ -1401,6 +1420,81 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
         )}
 
+        {/* Document Attachment Selection (Optional) */}
+        <div className="bg-gray-50/75 rounded-xl p-3.5 border border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <Paperclip className="w-4 h-4 text-primary" />
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Select Attachments (Optional)
+              </label>
+              {selectedDocIds.length > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary/10 text-primary rounded-full">
+                  {selectedDocIds.length} selected
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2 text-xs">
+              <button
+                type="button"
+                onClick={handleSelectAllDocs}
+                className="text-primary hover:text-primary-700 font-medium"
+              >
+                Select All
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                type="button"
+                onClick={handleClearAllDocs}
+                className="text-gray-500 hover:text-gray-700 font-medium"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {availableDocs.map((docItem) => {
+              const isSelected = selectedDocIds.includes(docItem.id);
+              const isGen = isGeneratingDocs[docItem.id];
+              const IconComp = docItem.icon || FileText;
+
+              return (
+                <label
+                  key={docItem.id}
+                  className={`flex items-center space-x-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all select-none ${
+                    isSelected
+                      ? 'bg-white border-primary/40 shadow-xs ring-1 ring-primary/20'
+                      : 'bg-white/60 border-gray-200 hover:bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleToggleDoc(docItem.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0"
+                  />
+                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
+                  <span className={`truncate ${isSelected ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                    {docItem.label}
+                  </span>
+                  {isGen && (
+                    <span className="ml-auto text-[10px] text-amber-600 animate-pulse shrink-0">
+                      Generating...
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          
+          <p className="text-[11px] text-gray-500 mt-2">
+            {mode === 'whatsapp'
+              ? 'Selected documents will have secure download links attached to the WhatsApp message.'
+              : 'Selected documents will be attached as PDF files to the email dispatch.'}
+          </p>
+        </div>
+
         {/* Message Editor & Live Preview Area */}
         <div>
           <div className="flex items-center justify-between mb-1">
@@ -1442,7 +1536,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <textarea
                   rows={8}
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) => handleMessageChange(e.target.value)}
                   className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs sm:text-sm p-3 rounded-lg shadow-sm border border-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y font-sans leading-relaxed"
                   placeholder="Type your WhatsApp message..."
                 />
@@ -1462,7 +1556,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <textarea
                   rows={8}
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) => handleMessageChange(e.target.value)}
                   className="w-full bg-gray-50 text-gray-900 text-xs sm:text-sm p-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-y font-sans leading-relaxed"
                   placeholder="Type your email message body..."
                 />
