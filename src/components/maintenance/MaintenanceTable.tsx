@@ -174,16 +174,19 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   const canSeeCompleted = can('maintenance', 'completed') && !isCompany;
   const canEditStatusFromTable = can('maintenance', 'tableStatus');
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, isScheduledUrgent?: boolean) => {
+    if (status === 'scheduled' && isScheduledUrgent) {
+      return 'text-red-900 bg-red-50 border-red-300 ring-red-300 font-bold';
+    }
     switch (status) {
       case 'completed':
-        return 'text-green-700 bg-green-50 border-green-200';
+        return 'text-emerald-900 bg-emerald-50 border-emerald-300 ring-emerald-300 font-bold';
       case 'in-progress':
-        return 'text-blue-700 bg-blue-50 border-blue-200';
+        return 'text-orange-950 bg-orange-50 border-orange-300 ring-orange-300 font-bold';
       case 'cancelled':
-        return 'text-gray-700 bg-gray-50 border-gray-200';
+        return 'text-gray-700 bg-gray-50 border-gray-200 ring-gray-200';
       default:
-        return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+        return 'text-amber-900 bg-amber-50 border-amber-200 ring-amber-200 font-semibold';
     }
   };
 
@@ -363,6 +366,10 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="w-28">Status</div>,
       cell: ({ row }: any) => {
         const log = row.original;
+        const isScheduledUrgent =
+          log.status === 'scheduled' &&
+          log.date &&
+          differenceInCalendarDays(new Date(log.date), new Date()) <= 7;
 
         const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
           const val = e.target.value;
@@ -374,13 +381,14 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         };
 
         return (
-          <div className="space-y-1 w-28" onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-1.5 w-28" onClick={(e) => e.stopPropagation()}>
             {canEditStatusFromTable ? (
               <select
                 value={log.status}
                 onChange={handleChange}
-                className={`block w-full text-xs font-medium rounded-md border-0 py-1 pl-2 pr-6 ring-1 ring-inset focus:ring-2 focus:ring-primary sm:text-xs sm:leading-6 ${getStatusColor(
-                  log.status
+                className={`block w-full text-xs font-bold rounded-md border py-1 pl-2 pr-6 ring-1 ring-inset shadow-2xs sm:text-xs sm:leading-6 ${getStatusColor(
+                  log.status,
+                  isScheduledUrgent
                 )}`}
               >
                 <option value="scheduled">Scheduled</option>
@@ -397,7 +405,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             )}
 
             {!isCompany && (
-              <div className="pl-1">
+              <div className="pl-0.5">
                 <StatusBadge status={log.paymentStatus} />
               </div>
             )}
@@ -435,8 +443,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               <span>{formatCurrency(paidAmount)}</span>
             </div>
             <div
-              className={`flex justify-between font-medium ${
-                remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'
+              className={`flex justify-between font-bold ${
+                remainingAmount > 0 ? 'text-purple-700 bg-purple-50/60 px-1 py-0.5 rounded' : 'text-gray-400'
               }`}
             >
               <span>Owing:</span>
@@ -550,12 +558,48 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   ].filter(Boolean), [vehicles, canEditStatusFromTable, isCompany, canSeeCompleted, onView, onEdit, onComplete, onPay, onDelete, onGenerateDocument, onViewDocument, onGenerateInvoice, onStatusChange, formatCurrency, can, selectedLogIds, logs, activeCustomersMap, serviceCenters]);
 
   const rowClassName = (row: { original: MaintenanceLog }) => {
-    const { date, status } = row.original;
+    const { date, status, paymentStatus, remainingAmount, cost, paidAmount } = row.original;
+    const isUnpaid =
+      paymentStatus === 'unpaid' ||
+      (!isCompany && remainingAmount !== undefined && remainingAmount > 0 && paymentStatus !== 'paid') ||
+      (!isCompany && paymentStatus !== 'paid' && cost !== undefined && paidAmount !== undefined && cost > paidAmount);
+
+    // 1. Scheduled within 7 days (or overdue) -> Light red highlight
     if (status === 'scheduled') {
-      const days = differenceInCalendarDays(date, new Date());
-      if (days <= 7) return '!bg-red-50/80 hover:!bg-red-100 border-l-4 !border-l-red-500 transition-colors duration-200';
+      if (date) {
+        const days = differenceInCalendarDays(new Date(date), new Date());
+        if (days <= 7) {
+          return '!bg-rose-50/90 hover:!bg-rose-100/90 border-l-4 !border-l-rose-500 transition-colors duration-200';
+        }
+      }
+      return 'hover:!bg-gray-50/80 transition-colors duration-200';
     }
-    return '';
+
+    // 2. In Progress -> Orange highlight
+    if (status === 'in-progress') {
+      return '!bg-orange-50/90 hover:!bg-orange-100/90 border-l-4 !border-l-orange-500 transition-colors duration-200';
+    }
+
+    // 3. Completed but Unpaid -> Distinct Unpaid highlight (Soft Purple / Violet)
+    if (status === 'completed' && isUnpaid) {
+      return '!bg-purple-50/85 hover:!bg-purple-100/90 border-l-4 !border-l-purple-500 transition-colors duration-200';
+    }
+
+    // 4. Completed & Paid -> Distinct Completed highlight (Soft Emerald / Green)
+    if (status === 'completed') {
+      return '!bg-emerald-50/65 hover:!bg-emerald-100/80 border-l-4 !border-l-emerald-500 transition-colors duration-200';
+    }
+
+    // 5. Any other Unpaid item (not cancelled) -> Distinct Unpaid highlight
+    if (isUnpaid && status !== 'cancelled') {
+      return '!bg-purple-50/60 hover:!bg-purple-100/75 border-l-4 !border-l-purple-400 transition-colors duration-200';
+    }
+
+    if (status === 'cancelled') {
+      return '!bg-gray-50/60 text-gray-500 border-l-4 !border-l-gray-300 transition-colors duration-200';
+    }
+
+    return 'hover:!bg-gray-50/80 transition-colors duration-200';
   };
 
   return (
@@ -599,6 +643,27 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           </div>
         </div>
       )}
+
+      {/* Color Status Legend */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 py-2.5 px-3.5 bg-white border border-gray-200 rounded-xl shadow-xs text-xs mb-3">
+        <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">Row Indicators:</span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-rose-500 border border-rose-600 inline-block shadow-2xs"></span>
+          <span className="text-gray-800 font-medium">Due in ≤7d (Light Red)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-orange-500 border border-orange-600 inline-block shadow-2xs"></span>
+          <span className="text-gray-800 font-medium">In Progress (Orange)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600 inline-block shadow-2xs"></span>
+          <span className="text-gray-800 font-medium">Completed (Soft Green)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-purple-500 border border-purple-600 inline-block shadow-2xs"></span>
+          <span className="text-gray-800 font-medium">Unpaid (Soft Purple)</span>
+        </div>
+      </div>
 
       <DataTable
         // ✅ FIX: Use logs directly, as filtering is fully handled by useMaintenanceFilters now

@@ -37,21 +37,21 @@ const money = (n = 0) => new Intl.NumberFormat('en-GB', { style: 'currency', cur
 
 const SummaryCards: React.FC<{ total: number; paid: number; unpaid: number; count: number }> = ({ total, paid, unpaid, count }) => (
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Total Invoices</div>
-      <div className="mt-2 text-2xl font-semibold">{count}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Total Invoices</div>
+      <div className="mt-2 text-3xl font-black font-mono text-white">{count}</div>
     </div>
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Total Amount</div>
-      <div className="mt-2 text-2xl font-semibold">{money(total)}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-indigo-300">Total Amount</div>
+      <div className="mt-2 text-3xl font-black font-mono text-indigo-200">{money(total)}</div>
     </div>
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Paid</div>
-      <div className="mt-2 text-2xl font-semibold text-green-700">{money(paid)}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Paid</div>
+      <div className="mt-2 text-3xl font-black font-mono text-emerald-300">{money(paid)}</div>
     </div>
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Unpaid</div>
-      <div className="mt-2 text-2xl font-semibold text-amber-700">{money(unpaid)}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Unpaid</div>
+      <div className="mt-2 text-3xl font-black font-mono text-amber-300">{money(unpaid)}</div>
     </div>
   </div>
 );

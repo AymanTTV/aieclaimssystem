@@ -526,17 +526,32 @@ const Invoices: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="rounded-full p-3 bg-blue-50"><PoundSterling className="h-6 w-6 text-blue-600" /></div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase">Gross Billing</h4><p className="text-2xl font-bold text-gray-900">{formatCurrency(totalInvoicesAmount)}</p></div>
+        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-blue-300 uppercase tracking-wider">Gross Billing</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-white mt-1">{formatCurrency(totalInvoicesAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="rounded-full p-3 bg-green-50"><PoundSterling className="h-6 w-6 text-green-600" /></div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase">Total Received</h4><p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidAmount)}</p></div>
+        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wider">Total Received</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-300 mt-1">{formatCurrency(totalPaidAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="rounded-full p-3 bg-red-50"><PoundSterling className="h-6 w-6 text-red-600" /></div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase">Total Outstanding</h4><p className="text-2xl font-bold text-red-600">{formatCurrency(totalLookingAmount)}</p></div>
+        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-rose-300 uppercase tracking-wider">Total Outstanding</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-rose-400 mt-1">{formatCurrency(totalLookingAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
         </div>
       </div>
 

@@ -122,52 +122,69 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
 
   if (!can('rentals', 'cards')) return null;
 
-  const SummaryCard = ({ label, icon, totals, colorClass, bgIconClass, textIconClass }: any) => {
+  const SummaryCard = ({ label, icon, totals, labelColor, iconWrapperClass }: any) => {
     const d = totals;
     return (
-      <div className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200/90 relative overflow-hidden group`}>
-        <div className={`absolute top-0 right-0 w-24 h-24 ${bgIconClass} opacity-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
-        
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200 p-6 border border-slate-800/90 relative overflow-hidden group text-white flex flex-col justify-between">
         <div className="flex items-center justify-between mb-4 relative z-10">
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</p>
-            <p className="mt-1 text-4xl font-black text-gray-900">{d.count}</p>
+            <p className={`text-xs font-bold uppercase tracking-wider ${labelColor}`}>{label}</p>
+            <p className="mt-1 text-4xl font-black text-white font-mono tracking-tight">{d.count}</p>
           </div>
-          <div className={`p-3 rounded-xl ${bgIconClass} ${textIconClass} shadow-sm`}>
+          <div className={`p-3 rounded-xl border shadow-xs ${iconWrapperClass}`}>
             {icon}
           </div>
         </div>
 
-        <div className="space-y-1.5 text-sm border-t pt-4 border-gray-100 relative z-10">
-          {/* 1. Base Net (We add the discount back here just for display purposes so the math visually adds up) */}
-          <div className="flex justify-between">
-             <span className="text-gray-500 font-medium">Base Net:</span>
-             <span className="font-mono">{formatCurrency(d.net + d.discount)}</span>
+        <div className="space-y-1.5 text-sm border-t pt-4 border-slate-800/80 relative z-10">
+          {/* 1. Base Net */}
+          <div className="flex justify-between items-center">
+             <span className="text-slate-300 font-medium">Base Net:</span>
+             <span className="font-mono text-white">{formatCurrency(d.net + d.discount)}</span>
           </div>
 
-          {/* 2. Discount is subtracted from the Base Net */}
+          {/* 2. Discount */}
           {d.discount > 0 && (
-             <div className="flex justify-between">
-                <span className="text-purple-500 font-medium">Discount:</span>
-                <span className="font-mono text-purple-600">-{formatCurrency(d.discount)}</span>
+             <div className="flex justify-between items-center">
+                <span className="text-purple-400 font-medium">Discount:</span>
+                <span className="font-mono text-purple-300">-{formatCurrency(d.discount)}</span>
              </div>
           )}
 
-          {/* 3. VAT is calculated ON the discounted net */}
-          <div className="flex justify-between">
-             <span className="text-blue-500 font-medium">VAT (Post-Discount):</span>
-             <span className="font-mono text-blue-600">{formatCurrency(d.vat)}</span>
+          {/* 3. VAT */}
+          <div className="flex justify-between items-center">
+             <span className="text-blue-400 font-medium">VAT:</span>
+             <span className="font-mono text-blue-300">{formatCurrency(d.vat)}</span>
           </div>
 
           {/* Extras */}
-          {d.ongoing > 0 && <div className="flex justify-between"><span className="text-red-500 font-medium">Overdue:</span><span className="font-mono text-red-600">{formatCurrency(d.ongoing)}</span></div>}
-          {d.returnCharges > 0 && <div className="flex justify-between"><span className="text-orange-500 font-medium">Penalties:</span><span className="font-mono text-orange-600">{formatCurrency(d.returnCharges)}</span></div>}
+          {d.ongoing > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-rose-400 font-medium">Overdue:</span>
+              <span className="font-mono text-rose-300">{formatCurrency(d.ongoing)}</span>
+            </div>
+          )}
+          {d.returnCharges > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-amber-400 font-medium">Penalties:</span>
+              <span className="font-mono text-amber-300">{formatCurrency(d.returnCharges)}</span>
+            </div>
+          )}
           
           {/* Totals */}
-          <div className="border-t my-2 border-gray-100" />
-          <div className="flex justify-between font-bold text-gray-900"><span>Gross Total:</span><span className="font-mono">{formatCurrency(d.total)}</span></div>
-          <div className="flex justify-between text-green-600 font-medium"><span>Paid:</span><span className="font-mono">{formatCurrency(d.paid)}</span></div>
-          <div className="flex justify-between text-amber-600 font-bold"><span>Owing:</span><span className="font-mono">{formatCurrency(d.owing)}</span></div>
+          <div className="border-t my-2 border-slate-800/80" />
+          <div className="flex justify-between items-center font-bold text-slate-100">
+            <span>Gross Total:</span>
+            <span className="font-mono text-white text-base">{formatCurrency(d.total)}</span>
+          </div>
+          <div className="flex justify-between items-center text-emerald-400 font-medium">
+            <span>Paid:</span>
+            <span className="font-mono text-emerald-300">{formatCurrency(d.paid)}</span>
+          </div>
+          <div className="flex justify-between items-center text-amber-400 font-bold">
+            <span>Owing:</span>
+            <span className="font-mono text-amber-300">{formatCurrency(d.owing)}</span>
+          </div>
         </div>
       </div>
     );
@@ -179,19 +196,22 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
         label="Daily Rentals" 
         icon={<Calendar className="h-6 w-6" />} 
         totals={summary.byType.daily}
-        colorClass="border-blue-500" bgIconClass="bg-blue-50" textIconClass="text-blue-600"
+        labelColor="text-blue-300"
+        iconWrapperClass="bg-blue-500/15 border-blue-500/30 text-blue-400"
       />
       <SummaryCard 
         label="Weekly Rentals" 
         icon={<TrendingUp className="h-6 w-6" />} 
         totals={summary.byType.weekly}
-        colorClass="border-emerald-500" bgIconClass="bg-emerald-50" textIconClass="text-emerald-600"
+        labelColor="text-emerald-300"
+        iconWrapperClass="bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
       />
       <SummaryCard 
         label="Claim Rentals" 
         icon={<FileText className="h-6 w-6" />} 
         totals={summary.byType.claim}
-        colorClass="border-purple-500" bgIconClass="bg-purple-50" textIconClass="text-purple-600"
+        labelColor="text-purple-300"
+        iconWrapperClass="bg-purple-500/15 border-purple-500/30 text-purple-400"
       />
 
       {/* Status Dashboard - Dynamic Standout Fleet Status Card */}

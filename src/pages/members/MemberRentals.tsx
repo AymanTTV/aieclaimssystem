@@ -36,17 +36,17 @@ const money = (n = 0) => new Intl.NumberFormat('en-GB', { style: 'currency', cur
 
 const SummaryCards: React.FC<{ active: number; completed: number; outstanding: number }> = ({ active, completed, outstanding }) => (
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Active Rentals</div>
-      <div className="mt-2 text-2xl font-semibold text-green-700">{active}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Active Rentals</div>
+      <div className="mt-2 text-3xl font-black font-mono text-emerald-300">{active}</div>
     </div>
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Completed Rentals</div>
-      <div className="mt-2 text-2xl font-semibold">{completed}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Completed Rentals</div>
+      <div className="mt-2 text-3xl font-black font-mono text-white">{completed}</div>
     </div>
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-gray-500">Outstanding Balance</div>
-      <div className="mt-2 text-2xl font-semibold text-amber-700">{money(outstanding)}</div>
+    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Outstanding Balance</div>
+      <div className="mt-2 text-3xl font-black font-mono text-amber-300">{money(outstanding)}</div>
     </div>
   </div>
 );

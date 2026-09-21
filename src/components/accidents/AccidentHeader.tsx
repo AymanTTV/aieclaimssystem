@@ -88,109 +88,109 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
         <div className="space-y-3">
           {/* Main Financial & Type Overview */}
           <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
-            <div className="bg-white rounded-lg shadow-sm p-4 border-t-2 border-blue-500">
-              <div className="flex items-center">
-                <AlertTriangle className="w-6 h-6 text-blue-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Total Claims</p>
-                  <p className="text-lg font-semibold text-gray-900">{totalCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-blue-300 uppercase tracking-wider">Total Claims</p>
+                <p className="text-2xl font-black font-mono text-white mt-1">{totalCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+                <AlertTriangle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-t-2 border-red-500">
-              <div className="flex items-center">
-                <XCircle className="w-6 h-6 text-red-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Fault</p>
-                  <p className="text-lg font-semibold text-gray-900">{faultCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Fault</p>
+                <p className="text-2xl font-black font-mono text-rose-300 mt-1">{faultCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+                <XCircle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-t-2 border-green-500">
-              <div className="flex items-center">
-                <CheckCircle className="w-6 h-6 text-green-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Non-Fault</p>
-                  <p className="text-lg font-semibold text-gray-900">{nonFaultCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Non-Fault</p>
+                <p className="text-2xl font-black font-mono text-emerald-300 mt-1">{nonFaultCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+                <CheckCircle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-t-2 border-red-500">
-              <div className="flex items-center">
-                <DollarSign className="w-6 h-6 text-red-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Fault Cost</p>
-                  <p className="text-lg font-semibold text-gray-900">{gb(faultTotal)}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Fault Cost</p>
+                <p className="text-xl font-black font-mono text-rose-300 mt-1">{gb(faultTotal)}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+                <DollarSign className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-t-2 border-green-500">
-              <div className="flex items-center">
-                <DollarSign className="w-6 h-6 text-green-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Non-Fault Cost</p>
-                  <p className="text-lg font-semibold text-gray-900">{gb(nonFaultTotal)}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Non-Fault Cost</p>
+                <p className="text-xl font-black font-mono text-emerald-300 mt-1">{gb(nonFaultTotal)}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+                <DollarSign className="w-5 h-5" />
               </div>
             </div>
           </div>
 
           {/* Insurer Financial Metrics (Live synced from Post-Report Insurance Data) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white rounded-lg shadow-sm p-3.5 border-l-4 border-purple-500">
-              <p className="text-xs font-medium text-gray-500">Total Incurred (AD+TP)</p>
-              <p className="text-base sm:text-lg font-bold text-purple-900 mt-0.5">{gb(totalIncurred)}</p>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+              <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">Total Incurred (AD+TP)</p>
+              <p className="text-base sm:text-xl font-black font-mono text-purple-200 mt-1">{gb(totalIncurred)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-3.5 border-l-4 border-indigo-500">
-              <p className="text-xs font-medium text-gray-500">Total TP Est</p>
-              <p className="text-base sm:text-lg font-bold text-indigo-900 mt-0.5">{gb(totalTpEst)}</p>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+              <p className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Total TP Est</p>
+              <p className="text-base sm:text-xl font-black font-mono text-indigo-200 mt-1">{gb(totalTpEst)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-3.5 border-l-4 border-emerald-500">
-              <p className="text-xs font-medium text-gray-500">Act Recovery</p>
-              <p className="text-base sm:text-lg font-bold text-emerald-700 mt-0.5">{gb(totalActRecovery)}</p>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+              <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Act Recovery</p>
+              <p className="text-base sm:text-xl font-black font-mono text-emerald-300 mt-1">{gb(totalActRecovery)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-3.5 border-l-4 border-amber-500">
-              <p className="text-xs font-medium text-gray-500">Outstanding Recovery</p>
-              <p className="text-base sm:text-lg font-bold text-amber-800 mt-0.5">{gb(totalOutstanding)}</p>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+              <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Outstanding Recovery</p>
+              <p className="text-base sm:text-xl font-black font-mono text-amber-300 mt-1">{gb(totalOutstanding)}</p>
             </div>
           </div>
 
           {/* Operational Status Counts */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-400">
-              <div className="flex items-center">
-                <FileCheck className="w-6 h-6 text-blue-400" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Reported (Yes)</p>
-                  <p className="text-lg font-semibold text-gray-900">{reportedCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-blue-300 uppercase tracking-wider">Reported (Yes)</p>
+                <p className="text-2xl font-black font-mono text-white mt-1">{reportedCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+                <FileCheck className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-l-4 border-red-400">
-              <div className="flex items-center">
-                <ShieldAlert className="w-6 h-6 text-red-400" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Investigating</p>
-                  <p className="text-lg font-semibold text-gray-900">{investigatingCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Investigating</p>
+                <p className="text-2xl font-black font-mono text-rose-300 mt-1">{investigatingCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+                <ShieldAlert className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-l-4 border-yellow-400">
-              <div className="flex items-center">
-                <Activity className="w-6 h-6 text-yellow-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Processing</p>
-                  <p className="text-lg font-semibold text-gray-900">{processingCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Processing</p>
+                <p className="text-2xl font-black font-mono text-amber-200 mt-1">{processingCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-xs">
+                <Activity className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4 border-l-4 border-green-400">
-              <div className="flex items-center">
-                <ClipboardList className="w-6 h-6 text-green-500" />
-                <div className="ml-3">
-                  <p className="text-xs font-medium text-gray-500">Resolved</p>
-                  <p className="text-lg font-semibold text-gray-900">{resolvedCount}</p>
-                </div>
+            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Resolved</p>
+                <p className="text-2xl font-black font-mono text-emerald-300 mt-1">{resolvedCount}</p>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+                <ClipboardList className="w-5 h-5" />
               </div>
             </div>
           </div>

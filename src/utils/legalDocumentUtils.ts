@@ -178,41 +178,49 @@ export const parseAddressForFooter = (rawAddress?: string): { addrLine1: string;
 };
 
 /**
- * Formats company legal details into a clean 2-line footer string:
- * Line 1: "AIE Skyline Limited, registered in England and Wales (Company No: 14592207) | Registered Office: United House."
- * Line 2: "39-41 North Road, London, N7 9DP. | VAT No: 453448875"
+ * Formats company legal details into a clean, balanced 2-row footer:
+ * Row 1: "AIE Skyline Limited, registered in England and Wales (Company No: 14592207)"
+ * Row 2: "Registered Office: United House, 39-41 North Road, London, N7 9DP. | VAT No: 453448875"
  */
 export const formatInlineCompanyFooter = (companyDetails?: any): string => {
   const name = companyDetails?.fullName || companyDetails?.name || 'AIE Skyline Limited';
   const regNo = companyDetails?.registrationNumber || '14592207';
   const vat = companyDetails?.vatNumber || '453448875';
 
-  const { addrLine1, addrLine2 } = parseAddressForFooter(companyDetails?.officialAddress);
-
-  const line1Parts: string[] = [];
-  line1Parts.push(`${name}, registered in England and Wales (Company No: ${regNo})`);
-  if (addrLine1) {
-    line1Parts.push(`Registered Office: ${addrLine1}`);
+  let rawAddress = companyDetails?.officialAddress;
+  let fullAddress = 'United House, 39-41 North Road, London, N7 9DP.';
+  if (rawAddress && typeof rawAddress === 'string' && rawAddress.trim()) {
+    const cleaned = rawAddress
+      .trim()
+      .split(/\r?\n/)
+      .map(p => p.trim())
+      .filter(Boolean)
+      .join(', ')
+      .replace(/,\s*,/g, ', ')
+      .replace(/[,.]+$/, '') + '.';
+    fullAddress = cleaned;
   }
 
-  const line2Parts: string[] = [];
-  if (addrLine2) {
-    line2Parts.push(addrLine2);
+  // Row 1: Company entity and registration number
+  const row1 = `${name}, registered in England and Wales (Company No: ${regNo})`;
+
+  // Row 2: Registered office and VAT number
+  const row2Parts: string[] = [];
+  if (fullAddress) {
+    row2Parts.push(`Registered Office: ${fullAddress}`);
   }
   if (vat) {
-    line2Parts.push(`VAT No: ${vat}`);
+    row2Parts.push(`VAT No: ${vat}`);
   }
+  const row2 = row2Parts.join(' | ');
 
-  const line1 = line1Parts.join(' | ');
-  const line2 = line2Parts.join(' | ');
-
-  if (line1 && line2) {
-    return `${line1}\n${line2}`;
+  if (row1 && row2) {
+    return `${row1}\n${row2}`;
   }
-  return line1 || line2;
+  return row1 || row2;
 };
 
 export const DEFAULT_INLINE_COMPANY_FOOTER =
-  'AIE Skyline Limited, registered in England and Wales (Company No: 14592207) | Registered Office: United House.\n39-41 North Road, London, N7 9DP. | VAT No: 453448875';
+  'AIE Skyline Limited, registered in England and Wales (Company No: 14592207)\nRegistered Office: United House, 39-41 North Road, London, N7 9DP. | VAT No: 453448875';
 
 

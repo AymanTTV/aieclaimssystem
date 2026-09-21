@@ -32,20 +32,20 @@ const MemberSummaryCards: React.FC<{
   totalIncome: number; totalExpenses: number; net: number; progressPct: number;
 }> = ({ totalIncome, totalExpenses, net, progressPct }) => {
   const cards = [
-    { key: 'paid', label: 'Total Paid', value: formatCurrency(totalIncome), tone: 'text-green-600', icon: <TrendingUp className="w-7 h-7" /> },
-    { key: 'charges', label: 'Total Charges', value: formatCurrency(totalExpenses), tone: 'text-red-600', icon: <TrendingDown className="w-7 h-7" /> },
-    { key: 'balance', label: 'Balance (Paid - Charges)', value: formatCurrency(net), tone: net >= 0 ? 'text-green-700' : 'text-amber-700', icon: <DollarSign className="w-7 h-7" /> },
-    { key: 'progress', label: 'Payment Progress', value: new Intl.NumberFormat('en-GB', { style: 'percent', maximumFractionDigits: 0 }).format(progressPct / 100), tone: 'text-gray-900', icon: <Percent className="w-7 h-7" /> },
+    { key: 'paid', label: 'Total Paid', value: formatCurrency(totalIncome), labelColor: 'text-emerald-300', tone: 'text-emerald-300', iconBg: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', icon: <TrendingUp className="w-5 h-5" /> },
+    { key: 'charges', label: 'Total Charges', value: formatCurrency(totalExpenses), labelColor: 'text-rose-300', tone: 'text-rose-400', iconBg: 'bg-rose-500/15 border-rose-500/30 text-rose-400', icon: <TrendingDown className="w-5 h-5" /> },
+    { key: 'balance', label: 'Balance (Paid - Charges)', value: formatCurrency(net), labelColor: 'text-blue-300', tone: net >= 0 ? 'text-emerald-300' : 'text-amber-300', iconBg: 'bg-blue-500/15 border-blue-500/30 text-blue-400', icon: <DollarSign className="w-5 h-5" /> },
+    { key: 'progress', label: 'Payment Progress', value: new Intl.NumberFormat('en-GB', { style: 'percent', maximumFractionDigits: 0 }).format(progressPct / 100), labelColor: 'text-purple-300', tone: 'text-purple-200', iconBg: 'bg-purple-500/15 border-purple-500/30 text-purple-400', icon: <Percent className="w-5 h-5" /> },
   ];
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map(c => (
-        <div key={c.key} className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div key={c.key} className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">{c.label}</div>
-            <div className="opacity-60">{c.icon}</div>
+            <div className={`text-xs font-bold uppercase tracking-wider ${c.labelColor}`}>{c.label}</div>
+            <div className={`p-2 rounded-xl border ${c.iconBg} shadow-xs`}>{c.icon}</div>
           </div>
-          <div className={`mt-2 text-2xl font-semibold ${c.tone}`}>{c.value}</div>
+          <div className={`mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight ${c.tone}`}>{c.value}</div>
         </div>
       ))}
     </div>

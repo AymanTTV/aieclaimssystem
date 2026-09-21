@@ -216,7 +216,7 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
 
         {/* Footer */}
         <View style={localStyles.footerContainer}>
-          <Text style={[localStyles.footerText, { fontSize: 7.2, lineHeight: 1.28, marginBottom: 4 }]}>
+          <Text style={[localStyles.footerText, { fontSize: 8, lineHeight: 1.35, marginBottom: 4 }]}>
             {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <View style={localStyles.footerBarGreen} />

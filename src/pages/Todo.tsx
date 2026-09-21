@@ -388,4 +388,18 @@ function TodoDetailsModal({ todo, allUsers, onClose }: { todo: Todo; allUsers: U
 function DataManager({ collectionName, items, onClose }: { collectionName: string; items: {id: string, name: string}[], onClose: () => void }) { const [name, setName] = useState(''); const [editing, setEditing] = useState<{id: string, name: string} | null>(null); const handleAdd = async (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; await addDoc(collection(db, collectionName), { name: name.trim() }); setName(''); }; const handleUpdate = async (e: React.FormEvent) => { e.preventDefault(); if (!editing || !editing.name.trim()) return; await updateDoc(doc(db, collectionName, editing.id), { name: editing.name.trim() }); setEditing(null); }; const handleDelete = async (id: string) => { if (window.confirm('Are you sure you want to delete this item? This cannot be undone.')) { await deleteDoc(doc(db, collectionName, id)); } }; return ( <div className="space-y-4"> <form onSubmit={editing ? handleUpdate : handleAdd} className="flex items-center gap-2"> <input className="input flex-grow" placeholder={editing ? 'Edit item name' : 'New item name'} value={editing ? editing.name : name} onChange={(e) => editing ? setEditing({...editing, name: e.target.value}) : setName(e.target.value)} /> <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Add'}</button> {editing && <button type="button" className="btn" onClick={() => setEditing(null)}>Cancel</button>} </form> <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2"> {items.map(item => ( <div key={item.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-50"> <span>{item.name}</span> <div className="flex items-center gap-2"> <button onClick={() => setEditing(item)}><Pencil className="w-4 h-4 text-gray-500 hover:text-black"/></button> <button onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-gray-500 hover:text-red-600"/></button> </div> </div> ))} </div> <div className="flex justify-end pt-2"><button className="btn" onClick={onClose}>Done</button></div> </div> );}
 function StatusBadge({ status }: { status: TodoStatus }) { const Meta = STATUS_META[status]; return <span className={clsx('inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium', Meta.color)}><Meta.icon className="w-3 h-3" />{Meta.label}</span>;}
 function PriorityBadge({ priority }: { priority: TodoPriority }) { const Meta = PRIORITY_META[priority]; return <span className={clsx('inline-flex items-center gap-1.5 text-xs font-medium', Meta.color)}><span className={clsx('w-2 h-2 rounded-full', Meta.dot)} />{Meta.label}</span>;}
-const SummaryCard = ({ title, value, isWarning = false }: { title: string; value: number | string, isWarning?: boolean }) => (<div className="bg-white rounded-lg shadow-sm p-4"><p className="text-sm font-medium text-gray-500">{title}</p><p className={clsx("text-2xl font-semibold text-gray-900", isWarning && 'text-red-600')}>{value}</p></div>);
+const SummaryCard = ({ title, value, isWarning = false }: { title: string; value: number | string, isWarning?: boolean }) => {
+  const getTitleColor = (t: string) => {
+    if (t.includes('Total')) return 'text-blue-300';
+    if (t.includes('Not Started')) return 'text-indigo-300';
+    if (t.includes('Progress')) return 'text-amber-300';
+    if (t.includes('Overdue')) return 'text-rose-300';
+    return 'text-slate-300';
+  };
+  return (
+    <div className={`bg-[#0c101c] rounded-2xl shadow-xl p-5 border ${isWarning ? 'border-rose-500/60 bg-[#241014]' : 'border-slate-800/90'} hover:border-slate-700/80 transition-all text-white`}>
+      <p className={`text-xs font-bold uppercase tracking-wider ${isWarning ? 'text-rose-300' : getTitleColor(title)}`}>{title}</p>
+      <p className={clsx("text-3xl sm:text-4xl font-black font-mono mt-1", isWarning ? 'text-rose-400' : 'text-white')}>{value}</p>
+    </div>
+  );
+};

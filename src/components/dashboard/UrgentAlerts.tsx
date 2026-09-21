@@ -55,7 +55,14 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
         isValid(new Date(m.date))
     );
     vLogs.forEach((m) => {
-      docs.push({ label: 'Maint', date: new Date(m.date) });
+      const mDate = new Date(m.date);
+      // Deduplicate if already present with same date
+      const alreadyHas = docs.some(
+        (d) => d.label === 'Maint' && Math.abs(d.date.getTime() - mDate.getTime()) < 86400000
+      );
+      if (!alreadyHas) {
+        docs.push({ label: 'Maint', date: mDate });
+      }
     });
 
     // 2. Filter SPECIFIC documents by timeframe
@@ -96,8 +103,8 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
           </div>
           <div className="text-right space-y-1 mt-0.5">
             {/* Render ONLY the filtered docs */}
-            {docs.map((r) => (
-              <div key={r.label} className="flex items-center justify-end space-x-2.5">
+            {docs.map((r, idx) => (
+              <div key={`${r.label}-${r.date.getTime()}-${idx}`} className="flex items-center justify-end space-x-2.5">
                 
                 {/* INCREASED FONT SIZE FOR DOCUMENT NAME */}
                 <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wide">

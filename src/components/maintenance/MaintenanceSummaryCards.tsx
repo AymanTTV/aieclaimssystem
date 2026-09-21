@@ -42,31 +42,37 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
   return (
     <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
       {/* Total Maintenance */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
         <div className="flex items-center">
-          <Calendar className="w-7 h-7 sm:w-8 sm:h-8 text-blue-500" />
+          <div className="p-2.5 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+            <Calendar className="w-6 h-6 sm:w-7 sm:h-7" />
+          </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-medium text-gray-500">Total Maintenance</p>
-            <p className="text-lg sm:text-2xl font-bold text-gray-900">{totalLogs}</p>
+            <p className="text-xs sm:text-sm font-bold text-blue-300 uppercase tracking-wider">Total</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">{totalLogs}</p>
           </div>
         </div>
       </div>
 
       {/* Scheduled - Red if due within 7 days */}
-      <div className={`bg-white rounded-xl shadow-sm border ${dueWithin7Days > 0 ? 'border-red-300 border-l-4 border-l-red-500 bg-red-50/20' : 'border-gray-200/80'} p-4 sm:p-5`}>
+      <div className={`bg-[#0c101c] rounded-2xl shadow-xl border ${dueWithin7Days > 0 ? 'border-red-500/80 border-l-4 !border-l-red-500 bg-[#160c13]' : 'border-slate-800/90'} p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group`}>
         <div className="flex items-start">
-          {dueWithin7Days > 0 ? (
-            <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-red-500 animate-pulse mt-0.5" />
-          ) : (
-            <Calendar className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-500 mt-0.5" />
-          )}
+          <div className={`p-2.5 rounded-xl border shadow-xs ${dueWithin7Days > 0 ? 'bg-red-500/20 border-red-500/40 text-red-400 animate-pulse' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+            {dueWithin7Days > 0 ? (
+              <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
+            ) : (
+              <Calendar className="w-6 h-6 sm:w-7 sm:h-7" />
+            )}
+          </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-medium text-gray-500">Scheduled</p>
-            <p className={`text-lg sm:text-2xl font-bold ${dueWithin7Days > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+            <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${dueWithin7Days > 0 ? 'text-red-300' : 'text-amber-300'}`}>
+              Scheduled
+            </p>
+            <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${dueWithin7Days > 0 ? 'text-red-400' : 'text-amber-200'}`}>
               {scheduled}
             </p>
             {dueWithin7Days > 0 && (
-              <span className="inline-flex items-center text-[10px] font-black text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full mt-1">
+              <span className="inline-flex items-center text-[10px] font-black text-red-200 bg-red-500/30 border border-red-500/50 px-2 py-0.5 rounded-full mt-1">
                 {dueWithin7Days} due ≤7d
               </span>
             )}
@@ -75,69 +81,77 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
       </div>
 
       {/* In-Progress */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-orange-500/50 transition-all duration-200 relative overflow-hidden group">
         <div className="flex items-center">
-          <Wrench className="w-7 h-7 sm:w-8 sm:h-8 text-blue-500" />
+          <div className="p-2.5 rounded-xl border bg-orange-500/15 border-orange-500/30 text-orange-400 shadow-xs">
+            <Wrench className="w-6 h-6 sm:w-7 sm:h-7" />
+          </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-medium text-gray-500">In Progress</p>
-            <p className="text-lg sm:text-2xl font-bold text-gray-900">{inProgress}</p>
+            <p className="text-xs sm:text-sm font-bold text-orange-300 uppercase tracking-wider">In Progress</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-orange-200 tracking-tight">{inProgress}</p>
           </div>
         </div>
       </div>
 
       {/* Completed */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
         <div className="flex items-center">
-          <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-green-500" />
+          <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+            <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+          </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-medium text-gray-500">Completed</p>
-            <p className="text-lg sm:text-2xl font-bold text-gray-900">{completed}</p>
+            <p className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wider">Completed</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-300 tracking-tight">{completed}</p>
           </div>
         </div>
       </div>
 
       {/* Cancelled */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
         <div className="flex items-center">
-          <XCircle className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
+          <div className="p-2.5 rounded-xl border bg-slate-800/80 border-slate-700/60 text-slate-400 shadow-xs">
+            <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+          </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-medium text-gray-500">Cancelled</p>
-            <p className="text-lg sm:text-2xl font-bold text-gray-900">{cancelled}</p>
+            <p className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Cancelled</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-slate-300 tracking-tight">{cancelled}</p>
           </div>
         </div>
       </div>
 
       {/* Financial Breakdown - Hidden for Company role */}
       {!isCompany && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
+        <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200">
           <div className="flex items-start">
-            <DollarSign className="w-7 h-7 sm:w-8 sm:h-8 text-purple-500" />
-            <div className="ml-3 sm:ml-4 space-y-1 text-sm w-full">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-500">NET:</span>
-                <span className="font-medium">{formatCurrency(totalNet)}</span>
+            <div className="p-2 rounded-xl border bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-xs shrink-0">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div className="ml-3 space-y-1 text-xs sm:text-sm w-full">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400 font-medium">NET:</span>
+                <span className="font-mono text-white">{formatCurrency(totalNet)}</span>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-500">VAT:</span>
-                <span className="font-medium">{formatCurrency(totalVat)}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-blue-300 font-medium">VAT:</span>
+                <span className="font-mono text-blue-300">{formatCurrency(totalVat)}</span>
               </div>
               {totalDiscount > 0 && (
-                <div className="flex items-center justify-between gap-3 text-red-600">
-                  <span className="text-gray-500">Discount:</span>
-                  <span className="font-medium">–{formatCurrency(totalDiscount)}</span>
+                <div className="flex items-center justify-between gap-2 text-purple-300">
+                  <span className="font-medium">Discount:</span>
+                  <span className="font-mono">-{formatCurrency(totalDiscount)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 font-semibold">
-                <span className="text-gray-700">Total:</span>
-                <span>{formatCurrency(totalCost)}</span>
+              <div className="flex items-center justify-between gap-2 font-bold text-slate-100 border-t border-slate-800/80 pt-1">
+                <span>Total:</span>
+                <span className="font-mono text-white">{formatCurrency(totalCost)}</span>
               </div>
-              <div className="flex items-center justify-between gap-3 text-green-600">
-                <span className="text-gray-500">Paid:</span>
-                <span className="font-semibold">{formatCurrency(totalPaid)}</span>
+              <div className="flex items-center justify-between gap-2 text-emerald-400">
+                <span className="font-medium">Paid:</span>
+                <span className="font-mono font-semibold text-emerald-300">{formatCurrency(totalPaid)}</span>
               </div>
-              <div className="flex items-center justify-between gap-3 text-amber-600">
-                <span className="text-gray-500">Owing:</span>
-                <span className="font-semibold">{formatCurrency(totalOwing)}</span>
+              <div className="flex items-center justify-between gap-2 text-amber-400">
+                <span className="font-bold">Owing:</span>
+                <span className="font-mono font-bold text-amber-300">{formatCurrency(totalOwing)}</span>
               </div>
             </div>
           </div>

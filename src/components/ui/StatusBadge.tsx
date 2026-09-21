@@ -14,40 +14,43 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
     const statusLower = String(status).toLowerCase();
 
     switch (statusLower) {
-      // Vehicle statuses
+      // Vehicle & Maintenance statuses
       case 'available':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-100 text-emerald-900 border border-emerald-300';
       case 'hired':
       case 'active':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-900 border border-blue-300';
       case 'scheduled for hire':
       case 'scheduled-rental':
       case 'scheduled':
-        return 'bg-sky-100 text-sky-800';
-      case 'maintenance':
-      case 'in-progress':
-        return 'bg-red-100 text-red-800';
+        return 'bg-amber-100 text-amber-900 border border-amber-300';
       case 'scheduled-maintenance':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-amber-100 text-amber-900 border border-amber-300';
+      case 'in-progress':
+      case 'maintenance':
+        return 'bg-orange-100 text-orange-950 border border-orange-300 font-semibold';
+      case 'completed':
+        return 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-semibold';
       case 'claim':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 text-purple-900 border border-purple-300';
       case 'unavailable':
       case 'cancelled':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border border-gray-300';
       case 'sold':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-900 border border-yellow-300';
       
       // Payment statuses
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
       case 'paid':
-      case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-semibold';
+      case 'unpaid':
+        return 'bg-purple-100 text-purple-950 border border-purple-300 font-bold';
       case 'partially_paid':
       case 'partially paid':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-950 border border-blue-300 font-semibold';
+      case 'pending':
+        return 'bg-amber-100 text-amber-950 border border-amber-300 font-medium';
       case 'overdue':
-        return 'bg-red-100 text-red-800';
+        return 'bg-rose-100 text-rose-950 border border-rose-300 font-bold';
 
       // Claim statuses
       case 'your claim has started':

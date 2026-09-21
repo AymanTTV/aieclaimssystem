@@ -156,19 +156,19 @@ const VehicleReport: React.FC<VehicleReportProps> = ({ vehicles: vehiclesFromPro
       {/* Status Overview */}
       <div>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-green-50/50 border border-green-100 p-4 rounded-xl text-center hover:bg-green-50 transition-colors">
-            <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Active Hires</p>
-            <p className="text-3xl font-bold text-green-700 mt-1">{activeCount}</p>
+          <div className="bg-[#0c101c] border border-slate-800/90 shadow-xl p-4 rounded-2xl text-center hover:border-slate-700/80 transition-all text-white">
+            <p className="text-xs font-bold text-emerald-300 uppercase tracking-wide">Active Hires</p>
+            <p className="text-3xl font-black font-mono text-emerald-300 mt-1">{activeCount}</p>
           </div>
-          <div className="bg-yellow-50/50 border border-yellow-100 p-4 rounded-xl text-center hover:bg-yellow-50 transition-colors">
-            <p className="text-xs font-semibold text-yellow-600 uppercase tracking-wide">In Workshop</p>
-            <p className="text-3xl font-bold text-yellow-700 mt-1">{maintenanceCount}</p>
+          <div className="bg-[#0c101c] border border-slate-800/90 shadow-xl p-4 rounded-2xl text-center hover:border-slate-700/80 transition-all text-white">
+            <p className="text-xs font-bold text-amber-300 uppercase tracking-wide">In Workshop</p>
+            <p className="text-3xl font-black font-mono text-amber-300 mt-1">{maintenanceCount}</p>
           </div>
-          <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl text-center hover:bg-red-50 transition-colors relative group">
-            <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Unavailable</p>
-            <p className="text-3xl font-bold text-red-700 mt-1">{unavailableCount}</p>
+          <div className="bg-[#0c101c] border border-slate-800/90 shadow-xl p-4 rounded-2xl text-center hover:border-slate-700/80 transition-all text-white relative group">
+            <p className="text-xs font-bold text-rose-300 uppercase tracking-wide">Unavailable</p>
+            <p className="text-3xl font-black font-mono text-rose-400 mt-1">{unavailableCount}</p>
             {/* Tooltip for unavailable details */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-900 border border-slate-700 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-20">
               Unavailable + Claims + Sold
             </div>
           </div>

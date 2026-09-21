@@ -495,29 +495,35 @@ const Vehicles: React.FC = () => {
       {/* Summary Cards */}
       {can('vehicles', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-green-50 border-l-4 border-green-400 p-4 flex items-center">
-          <CheckCircle className="h-6 w-6 text-green-500 mr-3" />
+        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
           <div>
-            <p className="text-sm font-medium text-green-700">All Vehicles</p>
-            <p className="mt-1 text-xl font-semibold">{filteredVehicles.length}</p>
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-300">All Vehicles</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-white tracking-tight">{filteredVehicles.length}</p>
+          </div>
+          <div className="p-3 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+            <CheckCircle className="h-7 w-7" />
           </div>
         </div>
 
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 flex items-center">
-          <AlertTriangle className="h-6 w-6 text-yellow-500 mr-3" />
+        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
           <div>
-            <p className="text-sm font-medium text-yellow-700">
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-300">
               Due within {SERVICE_THRESHOLD.toLocaleString()} mi
             </p>
-            <p className="mt-1 text-xl font-semibold">{dueSoonArr.length}</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-amber-200 tracking-tight">{dueSoonArr.length}</p>
+          </div>
+          <div className="p-3 rounded-xl border bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-xs">
+            <AlertTriangle className="h-7 w-7" />
           </div>
         </div>
 
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 flex items-center">
-          <AlertCircle className="h-6 w-6 text-red-500 mr-3" />
+        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
           <div>
-            <p className="text-sm font-medium text-red-700">Overdue</p>
-            <p className="mt-1 text-xl font-semibold">{overdue.length}</p>
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-300">Overdue</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-rose-400 tracking-tight">{overdue.length}</p>
+          </div>
+          <div className="p-3 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+            <AlertCircle className="h-7 w-7" />
           </div>
         </div>
       </div>
