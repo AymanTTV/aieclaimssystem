@@ -1459,15 +1459,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         )}
 
         {/* Document Attachment Selection (Optional) */}
-        <div className="bg-[#1E1E2D] rounded-xl p-3.5 border border-[#2B2B40] shadow-sm attachment-container" data-attachment-box="true">
+        <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200 shadow-xs attachment-container" data-attachment-box="true">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
               <Paperclip className="w-4 h-4 text-primary" />
-              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider attachment-title">
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider attachment-title">
                 Select Attachments (Optional)
               </label>
               {selectedDocIds.length > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary/20 text-primary-300 border border-primary/30 rounded-full">
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full">
                   {selectedDocIds.length} selected
                 </span>
               )}
@@ -1476,15 +1476,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSelectAllDocs}
-                className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
+                className="text-primary hover:text-primary-dark font-medium transition-colors"
               >
                 Select All
               </button>
-              <span className="text-[#3E3E5B]">|</span>
+              <span className="text-gray-300">|</span>
               <button
                 type="button"
                 onClick={handleClearAllDocs}
-                className="text-gray-400 hover:text-gray-200 font-medium transition-colors"
+                className="text-gray-500 hover:text-gray-700 font-medium transition-colors"
               >
                 Clear
               </button>
@@ -1503,22 +1503,22 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   data-attachment-item="true"
                   className={`flex items-center space-x-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all select-none attachment-item ${
                     isSelected
-                      ? 'is-selected bg-primary/20 border-primary text-white shadow-xs ring-1 ring-primary/30'
-                      : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:bg-[#1A1A26] hover:border-[#3E3E5B]'
+                      ? 'is-selected bg-primary/10 border-primary text-primary-dark shadow-xs ring-1 ring-primary/20'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleDoc(docItem.id)}
-                    className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-primary focus:ring-primary shrink-0"
+                    className="h-4 w-4 rounded border-gray-300 bg-white text-primary focus:ring-primary shrink-0"
                   />
-                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary-400' : 'text-gray-400'}`} />
-                  <span className={`truncate attachment-label ${isSelected ? 'font-semibold text-white' : 'text-gray-200 font-medium'}`}>
+                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
+                  <span className={`truncate attachment-label ${isSelected ? 'font-semibold text-gray-900' : 'text-gray-700 font-medium'}`}>
                     {docItem.label}
                   </span>
                   {isGen && (
-                    <span className="ml-auto text-[10px] text-amber-400 animate-pulse shrink-0">
+                    <span className="ml-auto text-[10px] text-amber-600 animate-pulse shrink-0">
                       Generating...
                     </span>
                   )}
@@ -1527,7 +1527,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             })}
           </div>
           
-          <p className="text-[11px] text-gray-400 mt-2">
+          <p className="text-[11px] text-gray-500 mt-2">
             {mode === 'whatsapp'
               ? 'Selected documents will have secure download links attached to the WhatsApp message.'
               : 'Selected documents will be attached as PDF files to the email dispatch.'}

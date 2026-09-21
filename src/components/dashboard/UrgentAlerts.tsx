@@ -14,7 +14,7 @@ interface UrgentAlertsProps {
   maintenanceLogs: MaintenanceLog[];
 }
 
-const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles }) => {
+const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs = [] }) => {
   const today = startOfDay(new Date());
 
   // Enhanced label logic to clearly show if something is already expired
@@ -37,13 +37,26 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles }) => {
   vehicles.forEach((v) => {
     if (v.status === 'sold') return;
 
-    // 1. Gather all valid documents for the vehicle
+    // 1. Gather all valid documents and maintenance dates for the vehicle
     const docs = [
       { label: 'MOT', date: v.motExpiry },
       { label: 'Ins', date: v.insuranceExpiry },
       { label: 'NSL', date: v.nslExpiry },
       { label: 'Tax', date: v.roadTaxExpiry },
+      ...(v.nextMaintenance ? [{ label: 'Maint', date: v.nextMaintenance }] : []),
     ].filter((d) => d.date && isValid(d.date)) as { label: string; date: Date }[];
+
+    // Add any upcoming scheduled maintenance logs for this vehicle
+    const vLogs = (maintenanceLogs || []).filter(
+      (m) =>
+        (m.vehicleId === v.id || m.vehicleDetails?.registrationNumber === v.registrationNumber) &&
+        m.status === 'scheduled' &&
+        m.date &&
+        isValid(new Date(m.date))
+    );
+    vLogs.forEach((m) => {
+      docs.push({ label: 'Maint', date: new Date(m.date) });
+    });
 
     // 2. Filter SPECIFIC documents by timeframe
     // Critical: Expired or <= 7 days

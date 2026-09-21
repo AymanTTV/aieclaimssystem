@@ -5,6 +5,7 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { ProfitShare } from '../../../types/incomeExpense';
 import { styles } from '../styles';
 import { format } from 'date-fns';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface Props {
   shares: ProfitShare[];
@@ -72,12 +73,15 @@ const ProfitSharesDocument: React.FC<Props> = ({
         )}
 
         {/* Footer */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName} | Generated on {format(new Date(), 'dd/MM/yyyy HH:mm')}
-        </Text>
-
-        {/* Page Number */}
-        <Text style={styles.pageNumber}>Page 1 of 1</Text>
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            {formatInlineCompanyFooter(companyDetails)}
+          </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
       </Page>
     </Document>
   );

@@ -8,6 +8,7 @@ import { styles } from '../styles'
 import { format } from 'date-fns' // Used for formatDate, keeping
 import { formatDate } from '../../../utils/dateHelpers'
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface ClaimBulkDocumentProps {
   records: Claim[]
@@ -116,7 +117,13 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
             {/* FOOTER */}
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>
-                AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP
+                {formatInlineCompanyFooter({
+                  fullName: 'AIE Skyline Limited',
+                  registrationNumber: '14592207',
+                  officialAddress: 'United House.\n39-41 North Road, London, N7 9DP.',
+                  vatNumber: '453448875',
+                  ...companyDetails,
+                })}
               </Text>
               {/* Page number positioned on the right */}
               <Text

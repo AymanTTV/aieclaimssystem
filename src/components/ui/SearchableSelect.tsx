@@ -345,7 +345,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 width: dropdownPosition.width,
                 zIndex: 99999,
               }}
-              className="bg-[#15172b] shadow-2xl max-h-60 rounded-xl py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-white/15 custom-scrollbar text-white"
+              className="bg-white shadow-xl max-h-60 rounded-xl py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-gray-200 custom-scrollbar text-gray-900"
             >
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((option) => {
@@ -354,20 +354,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     <div
                       key={option.id}
                       className={`cursor-pointer px-3 py-2 flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-indigo-600/30 text-indigo-300 font-semibold' : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                        isSelected ? 'bg-primary/10 text-primary font-semibold' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                       onClick={(e) => handleSelect(option.id, e)}
                     >
                       <div>
                         <div>{option.label}</div>
-                        {option.subLabel && <div className="text-xs text-slate-400">{option.subLabel}</div>}
+                        {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
                       </div>
-                      {isSelected && <Check className="h-4 w-4 text-indigo-400" />}
+                      {isSelected && <Check className="h-4 w-4 text-primary" />}
                     </div>
                   );
                 })
               ) : (
-                <div className="text-sm text-slate-400 px-3 py-2">No results found</div>
+                <div className="text-sm text-gray-500 px-3 py-2">No results found</div>
               )}
             </div>,
             document.body

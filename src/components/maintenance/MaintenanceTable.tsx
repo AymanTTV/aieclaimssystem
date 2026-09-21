@@ -327,20 +327,20 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         if (isScheduled) {
           if (days < 0) {
             badge = (
-              <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
-                {`${Math.abs(days)}d O/D`}
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs">
+                {`${Math.abs(days)}d Overdue`}
               </span>
             );
           } else if (days === 0) {
             badge = (
-              <span className="inline-flex items-center rounded-full bg-orange-100 text-orange-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
-                Today
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs animate-pulse">
+                Due Today!
               </span>
             );
           } else if (days <= 7) {
             badge = (
-              <span className="inline-flex items-center rounded-full bg-yellow-100 text-yellow-800 px-1.5 py-0.5 text-[10px] font-medium ml-1">
-                {days === 1 ? 'Tmrw' : `${days}d`}
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs">
+                {days === 1 ? 'Due Tmrw' : `Due in ${days}d`}
               </span>
             );
           }
@@ -348,8 +348,10 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
         return (
           <div className="flex flex-col w-32">
-            {/* ✅ Added HH:mm format for time */}
-            <span className="text-sm text-gray-700">{format(d, 'dd/MM/yyyy HH:mm')}</span>
+            {/* Red text if due within next 7 days */}
+            <span className={`text-sm ${isScheduled && days <= 7 ? 'text-red-700 font-bold' : 'text-gray-700'}`}>
+              {format(d, 'dd/MM/yyyy HH:mm')}
+            </span>
             <div className="h-4">{badge}</div>
           </div>
         );
@@ -551,7 +553,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     const { date, status } = row.original;
     if (status === 'scheduled') {
       const days = differenceInCalendarDays(date, new Date());
-      if (days <= 7) return '!bg-red-50 hover:!bg-red-100 transition-colors duration-200';
+      if (days <= 7) return '!bg-red-50/80 hover:!bg-red-100 border-l-4 !border-l-red-500 transition-colors duration-200';
     }
     return '';
   };

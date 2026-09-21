@@ -215,47 +215,47 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
               width: `${dropdownPosition.width}px`,
               zIndex: 99999,
             }}
-            className="bg-[#171836] border border-white/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[380px] animate-in fade-in zoom-in-95 duration-100 text-white"
+            className="bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[380px] animate-in fade-in zoom-in-95 duration-100 text-gray-900"
           >
             {/* Search Input Box */}
-            <div className="p-2.5 border-b border-white/10 bg-[#121326]">
+            <div className="p-2.5 border-b border-gray-200 bg-gray-50">
               <div className="relative flex items-center">
-                <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 absolute left-3 text-gray-400 pointer-events-none" />
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search template by name or subject..."
-                  className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-[#0b0c1a] border border-white/20 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 font-medium placeholder-slate-400"
+                  className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-white border border-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-medium placeholder-gray-400"
                 />
                 {searchTerm && (
                   <button
                     type="button"
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-2.5 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                    className="absolute right-2.5 text-gray-400 hover:text-gray-700 p-0.5 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
               <div className="flex items-center justify-between mt-1.5 px-1">
-                <span className="text-[10px] text-slate-400 font-medium">
+                <span className="text-[10px] text-gray-500 font-medium">
                   Showing {filteredTemplates.length} of {templates.length} Bulk Email templates
                 </span>
-                <span className="text-[10px] text-indigo-300 font-bold flex items-center gap-1">
+                <span className="text-[10px] text-primary font-bold flex items-center gap-1">
                   <Sparkles className="w-2.5 h-2.5" /> Search-as-you-type
                 </span>
               </div>
             </div>
 
             {/* List of Templates */}
-            <div className="overflow-y-auto flex-1 p-1 divide-y divide-white/5">
+            <div className="overflow-y-auto flex-1 p-1 divide-y divide-gray-100">
               {filteredTemplates.length === 0 ? (
                 <div className="p-6 text-center">
-                  <FileText className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-xs font-bold text-slate-200">No templates found</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-gray-800">No templates found</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
                     No Bulk Email templates match &ldquo;{searchTerm}&rdquo;
                   </p>
                 </div>
@@ -271,16 +271,16 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
                       }}
                       className={`group p-2.5 rounded-xl cursor-pointer transition flex items-start justify-between gap-3 ${
                         isSelected
-                          ? 'bg-indigo-600/30 border border-indigo-500/50 text-white'
-                          : 'hover:bg-white/5 text-slate-200'
+                          ? 'bg-primary/10 border border-primary/30 text-gray-900'
+                          : 'hover:bg-gray-50 text-gray-800'
                       }`}
                     >
                       <div className="flex items-start gap-2.5 min-w-0 flex-1">
                         <div
                           className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
                             isSelected
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white/10 text-slate-300 group-hover:bg-indigo-600 group-hover:text-white'
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 group-hover:bg-primary group-hover:text-white'
                           }`}
                         >
                           <Mail className="w-3.5 h-3.5" />
@@ -290,22 +290,22 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
                           <div className="flex items-center gap-2">
                             <span
                               className={`text-xs font-bold truncate ${
-                                isSelected ? 'text-white' : 'text-slate-100'
+                                isSelected ? 'text-gray-900' : 'text-gray-800'
                               }`}
                             >
                               {t.name}
                             </span>
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
                               Bulk Email
                             </span>
                           </div>
 
-                          <p className="text-[11px] text-slate-300 truncate mt-0.5">
-                            <span className="font-semibold text-indigo-300">Subject:</span>{' '}
+                          <p className="text-[11px] text-gray-600 truncate mt-0.5">
+                            <span className="font-semibold text-primary">Subject:</span>{' '}
                             {t.subjectTemplate || '(No subject)'}
                           </p>
 
-                          <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
+                          <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">
                             {t.bodyTemplate ? t.bodyTemplate.slice(0, 100) : '(Empty body)'}
                           </p>
                         </div>
@@ -313,7 +313,7 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
 
                       <div className="flex items-center gap-1 shrink-0 self-center">
                         {isSelected && (
-                          <div className="p-1 bg-indigo-600 text-white rounded-full">
+                          <div className="p-1 bg-primary text-white rounded-full">
                             <Check className="w-3 h-3" />
                           </div>
                         )}
@@ -325,7 +325,7 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
                               onEditTemplate(t);
                               setIsOpen(false);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer"
                             title="Edit this template"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -340,14 +340,14 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
 
             {/* Footer / Create New Option */}
             {onCreateNewTemplate && (
-              <div className="p-2 border-t border-white/10 bg-[#121326] flex items-center justify-between">
+              <div className="p-2 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => {
                     onCreateNewTemplate();
                     setIsOpen(false);
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-primary hover:bg-primary-dark text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Create New Bulk Email Template

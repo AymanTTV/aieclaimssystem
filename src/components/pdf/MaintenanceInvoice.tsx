@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { MaintenanceLog, Vehicle } from '../../types';
 import { format } from 'date-fns';
 import { styles } from './styles';
+import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 
 interface MaintenanceInvoiceProps {
   data: MaintenanceLog & { vehicle: Vehicle };
@@ -257,8 +258,8 @@ const MaintenanceInvoice: React.FC<MaintenanceInvoiceProps> = ({
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={[styles.footerText, { textAlign: 'center', width: '100%' }]}>
-            {companyDetails.fullName}, {companyDetails.officialAddress}. Tel: {companyDetails.phone}. Email: {companyDetails.email}
+          <Text style={styles.footerText}>
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>

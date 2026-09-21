@@ -31,21 +31,21 @@ const EditModal: React.FC<EditModalProps> = ({
       <div className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity cursor-pointer" onClick={onClose} />
 
       <div 
-        className="relative z-10 bg-[#15172b] border border-white/15 rounded-2xl max-w-lg w-full text-white shadow-2xl flex flex-col max-h-[90vh] my-auto overflow-hidden text-left"
+        className="relative z-10 bg-white border border-gray-200 rounded-2xl max-w-lg w-full text-gray-900 shadow-2xl flex flex-col max-h-[90vh] my-auto overflow-hidden text-left"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/10 bg-[#121327] shrink-0">
-          <h3 className="text-lg font-bold text-white tracking-wide">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-200 bg-gray-50 shrink-0">
+          <h3 className="text-lg font-bold text-gray-900 tracking-wide">{title}</h3>
           <button
             type="button"
-            className="text-slate-400 hover:text-white hover:bg-white/10 p-1.5 rounded-xl transition cursor-pointer"
+            className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-1.5 rounded-xl transition cursor-pointer"
             onClick={onClose}
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 bg-[#15172b] text-slate-200">
+        <div className="p-6 overflow-y-auto flex-1 bg-white text-gray-800">
           {children}
         </div>
       </div>

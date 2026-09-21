@@ -3,6 +3,7 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { MaintenanceLog, Vehicle, Customer } from '../../../types';
 import { styles } from '../styles'; // Ensure this path is correct
 import { formatDate } from '../../../utils/dateHelpers';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface MaintenanceBulkDocumentProps {
   records: MaintenanceLog[];
@@ -212,7 +213,7 @@ if (vehicle?.registrationNumber) {
           {/* Footer - Consistent with Vehicle Documents */}
           <View style={styles.footer} fixed>
             <Text style={styles.footerText}>
-              AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+              {formatInlineCompanyFooter(companyDetails)}
             </Text>
             <Text
               style={styles.pageNumber}

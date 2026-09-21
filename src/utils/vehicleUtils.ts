@@ -142,3 +142,35 @@ export const getServiceMileageStatus = (vehicle: Vehicle): 'overdue' | 'due-soon
 export const canDeleteVehicle = (vehicle: Vehicle): boolean => {
   return vehicle.status === 'sold';
 };
+
+/**
+ * Checks if a date is due within the next seven days (or already overdue).
+ * @param date The date to evaluate.
+ * @returns True if due within 7 days or overdue, false otherwise.
+ */
+export const isDueWithinSevenDays = (date: Date | string | null | undefined): boolean => {
+  if (!date) return false;
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  const diff = differenceInDays(d, now);
+  // Return true if due within next 7 days or overdue
+  return diff <= 7;
+};
+
+/**
+ * Checks if a vehicle's scheduled maintenance or next service is due within the next 7 days.
+ * @param vehicle The vehicle object.
+ * @returns True if maintenance is due within 7 days or overdue.
+ */
+export const isVehicleMaintenanceDueWithinSevenDays = (vehicle: Vehicle): boolean => {
+  if (!vehicle || vehicle.status === 'sold') return false;
+  if (vehicle.nextMaintenance && isDueWithinSevenDays(vehicle.nextMaintenance)) {
+    return true;
+  }
+  if (isServiceOverdue(vehicle)) {
+    return true;
+  }
+  return false;
+};
+

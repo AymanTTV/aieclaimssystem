@@ -5,6 +5,7 @@ import { MaintenanceLog, Vehicle } from '../../../types';
 import { formatDate } from '../../../utils/dateHelpers';
 import { format } from 'date-fns'; // ADD: Import format
 import { styles } from '../styles';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface EnrichedPart {
   name: string;
@@ -276,7 +277,7 @@ const MaintenanceDocument: React.FC<MaintenanceDocumentProps> = ({ data, company
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={styles.pageNumber}

@@ -4,8 +4,8 @@ import { StyleSheet } from '@react-pdf/renderer';
 export const styles = StyleSheet.create({
   // --- Page & Layout Styles ---
   page: {
-    paddingTop: 50,
-    paddingBottom: 90, // Keep this increased padding to ensure content doesn't collide with the fixed footer
+    paddingTop: 45,
+    paddingBottom: 65, // Ensures ample clearance so document body never collides with the fixed footer
     paddingHorizontal: 40,
     fontSize: 10,
     fontFamily: 'Helvetica',
@@ -254,25 +254,26 @@ export const styles = StyleSheet.create({
   // --- Footer Styles ---
   footer: {
     position: 'absolute',
-    bottom: 20,
-    left: 40,
-    right: 40,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    fontSize: 8,
-    color: '#6B7280',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 5,
+    bottom: 16,
+    left: 24,
+    right: 24,
+    borderTopWidth: 0.75,
+    borderTopColor: '#CBD5E1',
+    paddingTop: 3.5,
   },
   footerText: {
-    fontSize: 8,
-    flexGrow: 1,
+    fontSize: 7.2,
+    color: '#64748B',
+    lineHeight: 1.28,
+    paddingRight: 60,
   },
   pageNumber: {
-    fontSize: 8,
-    color: '#6B7280',
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    fontSize: 7.2,
+    color: '#64748B',
+    textAlign: 'right',
   },
 
   // --- General Text Style ---

@@ -1282,12 +1282,12 @@ export default function WhatsappCommunication() {
         >
           <option value="" className="bg-[#0f1022] text-white">– Select Message… (manual) –</option>
           {templates.map(tpl => (
-            <option key={tpl.id} value={tpl.id} className="bg-[#0f1022] text-white">{tpl.name}</option>
+            <option key={tpl.id} value={tpl.id} className="bg-white text-gray-900">{tpl.name}</option>
           ))}
         </select>
       </div>
 
-      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md space-y-3 border border-white/10">
+      <div className="bg-white p-5 rounded-2xl shadow-sm space-y-3 border border-gray-200">
         
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
             <div className="flex gap-2 mb-2 flex-wrap">
@@ -1474,12 +1474,12 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      <div className="bg-[#15172b] p-6 rounded-2xl shadow-xl space-y-4 border border-white/10">
+      <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4 border border-gray-200">
         <div>
-          <label className="block text-sm font-semibold text-emerald-400 mb-1.5">Subject</label>
+          <label className="block text-sm font-semibold text-emerald-700 mb-1.5">Subject</label>
           <input
             type="text"
-            className="w-full px-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans shadow-inner transition-colors"
+            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans transition-colors"
             value={subject}
             onChange={e => {
               setSubject(e.target.value); 
@@ -1669,9 +1669,9 @@ export default function WhatsappCommunication() {
         )}
       </Modal>
 
-      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md border border-white/10 space-y-4">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
-          <h2 className="font-bold text-emerald-400 text-base">WhatsApp History</h2>
+          <h2 className="font-bold text-emerald-700 text-base">WhatsApp History</h2>
           <div className="flex flex-wrap items-center gap-2">
             <select
               className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"

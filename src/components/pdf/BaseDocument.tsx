@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { styles } from './styles';
 import { format } from 'date-fns';
+import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 
 interface BaseDocumentProps {
   title: string;
@@ -53,10 +54,10 @@ const BaseDocument: React.FC<BaseDocumentProps> = ({
       {showFooter && (
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
-            style={styles.footerText}
+            style={styles.pageNumber}
             render={({ pageNumber, totalPages }) =>
               `Page ${pageNumber} of ${totalPages}`
             }

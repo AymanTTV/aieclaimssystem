@@ -195,7 +195,7 @@ export const BulkEmailTemplateEditorModal: React.FC<BulkEmailTemplateEditorModal
 
   return (
     <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-[#15172b] rounded-2xl shadow-2xl border border-white/15 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="p-5 bg-gradient-to-r from-indigo-950 via-[#1a1c3d] to-slate-900 text-white flex items-center justify-between border-b border-white/10">

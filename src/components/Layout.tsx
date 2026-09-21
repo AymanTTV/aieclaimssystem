@@ -385,7 +385,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-transparent">
-      <nav className="bg-[#171836] border-b border-white/10 shadow-md sticky top-0 z-30">
+      <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
         <div className="px-1 sm:px-2 lg:px-3 2xl:px-4">
           <div className="flex items-center justify-between h-16">
             <Link to={isMemberArea ? '/members/dashboard' : ROUTES.DASHBOARD} className="flex-shrink-0">
@@ -552,7 +552,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </main>
 
       {bottomNavItems.length > 0 && (
-        <nav className="fixed bottom-0 inset-x-0 z-30 bg-[#171836] border-t border-white/10 lg:hidden">
+        <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 lg:hidden shadow-lg">
           <div className={`grid ${bottomNavItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
             {bottomNavItems.map(item => {
               const Icon = item.icon;

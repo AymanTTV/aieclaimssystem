@@ -1,7 +1,6 @@
 import React from 'react';
 import { Rental } from '../../types';
-import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import Card from '../Card';
+import { Clock, Receipt } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
@@ -26,43 +25,51 @@ const RentalOverview: React.FC<RentalOverviewProps> = ({ rentals }) => {
   const totalIncome = rentals.reduce((sum, rental) => sum + rental.cost, 0);
 
   return (
-    <Card title="Rental Overview">
-      <div className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <span className="ml-2 text-xl font-semibold text-gray-900">{completedCount}</span>
-            </div>
-            <p className="mt-1 text-sm text-gray-600">Completed</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center">
-              <Clock className="w-5 h-5 text-yellow-500" />
-              <span className="ml-2 text-xl font-semibold text-gray-900">{activeCount}</span>
-            </div>
-            <p className="mt-1 text-sm text-gray-600">Active</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-blue-500" />
-              <span className="ml-2 text-xl font-semibold text-gray-900">{scheduledCount}</span>
-            </div>
-            <p className="mt-1 text-sm text-gray-600">Scheduled</p>
+    <div className="bg-[#0c101c] rounded-2xl shadow-xl p-5 sm:p-6 text-white relative overflow-hidden border border-slate-800/90 flex flex-col justify-between h-full">
+      <Receipt className="absolute -right-3 -bottom-5 w-36 h-36 text-white/[0.04] pointer-events-none select-none" />
+      <div>
+        <div className="flex items-center justify-between mb-5 relative z-10">
+          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+            Fleet Status
+          </p>
+          <div className="p-2 bg-slate-800/80 border border-slate-700/60 rounded-xl shadow-xs">
+            <Clock className="h-5 w-5 text-slate-100" />
           </div>
         </div>
-        {user?.role === 'manager' && (
-        <div className="pt-4 border-t">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Total Rental Income</span>
-            <span className="text-lg font-semibold text-gray-900">
-              {formatCurrency(totalIncome)}
+
+        <div className="space-y-3 relative z-10">
+          <div className="flex justify-between items-center bg-[#101e38] border border-blue-500/40 hover:border-blue-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-blue-300 font-bold text-sm tracking-wide">Active on Hire</span>
+            <span className="font-mono font-black text-white text-2xl tracking-tight">
+              {activeCount}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center bg-[#28220e] border border-amber-500/40 hover:border-amber-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-amber-300 font-bold text-sm tracking-wide">Scheduled</span>
+            <span className="font-mono font-black text-amber-100 text-2xl tracking-tight">
+              {scheduledCount}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center bg-[#0d261b] border border-emerald-500/40 hover:border-emerald-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-emerald-300 font-bold text-sm tracking-wide">Completed</span>
+            <span className="font-mono font-black text-emerald-100 text-2xl tracking-tight">
+              {completedCount}
             </span>
           </div>
         </div>
-        )}
       </div>
-    </Card>
+
+      {user?.role === 'manager' && (
+        <div className="pt-4 mt-4 border-t border-slate-800/80 relative z-10 flex justify-between items-center">
+          <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Income</span>
+          <span className="text-base font-bold text-white font-mono">
+            {formatCurrency(totalIncome)}
+          </span>
+        </div>
+      )}
+    </div>
   );
 };
 

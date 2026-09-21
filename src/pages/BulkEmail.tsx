@@ -1417,30 +1417,30 @@ export default function BulkEmail() {
           value={selectedTemplateId}
           onChange={e => setSelectedTemplateId(e.target.value)}
         >
-          <option value="" className="bg-[#0f1022] text-white">– Select Message… (manual) –</option>
-          {templates.map(tpl => (<option key={tpl.id} value={tpl.id} className="bg-[#0f1022] text-white">{tpl.name}</option>))}
+          <option value="" className="bg-white text-gray-900">– Select Message… (manual) –</option>
+          {templates.map(tpl => (<option key={tpl.id} value={tpl.id} className="bg-white text-gray-900">{tpl.name}</option>))}
         </select>
       </div>
 
       {/* Monday Auto-Email Bulk Test Action Banner for Rental tab */}
       {emailType === 'rental' && (
-        <div className="bg-gradient-to-r from-indigo-950/60 via-[#15172b] to-blue-950/50 border border-indigo-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md">
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 border border-indigo-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs mt-0.5 shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h4 className="text-sm font-bold text-white">Monday Automated Bulk Email Scheduler</h4>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-900/60 text-indigo-300 border border-indigo-500/30">
+                <h4 className="text-sm font-bold text-gray-900">Monday Automated Bulk Email Scheduler</h4>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
                   0 9 * * 1 (Mondays 09:00 AM)
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 border border-emerald-500/30">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                   Strict Claim Exclusion
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                Targets active rentals with an outstanding balance (<span className="font-semibold text-white">owing &gt; £0</span>) and sends weekly statement breakdown without attachments. Automatically ignores and excludes all Claim/Claims rentals.
+              <p className="text-xs text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                Targets active rentals with an outstanding balance (<span className="font-semibold text-gray-900">owing &gt; £0</span>) and sends weekly statement breakdown without attachments. Automatically ignores and excludes all Claim/Claims rentals.
               </p>
             </div>
           </div>
@@ -1462,7 +1462,7 @@ export default function BulkEmail() {
       )}
 
       {/* Recipients */}
-      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md border border-white/10 space-y-3">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-3">
         
         {/* Recipient Filter UI */}
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
@@ -1655,12 +1655,12 @@ export default function BulkEmail() {
       </div>
 
       {/* Composer */}
-      <div className="bg-[#15172b] p-6 rounded-2xl shadow-xl space-y-4 border border-white/10">
+      <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4 border border-gray-200">
         <div>
-          <label className="block text-sm font-semibold text-indigo-300 mb-1.5">Subject</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Subject</label>
           <input
             type="text"
-            className="w-full px-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans shadow-inner transition-colors"
+            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-sans transition-colors"
             value={subject}
             onChange={e => {
               setSubject(e.target.value);
@@ -1670,9 +1670,9 @@ export default function BulkEmail() {
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-indigo-300 mb-1.5">Message</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Message</label>
           <textarea
-            className="w-full px-4 py-3 bg-[#0f1022] border border-white/20 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans leading-relaxed shadow-inner min-h-[400px] sm:min-h-[550px] transition-colors"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-sans leading-relaxed min-h-[400px] sm:min-h-[550px] transition-colors"
             value={message}
             onChange={e => {
               setMessage(e.target.value);
@@ -1683,8 +1683,8 @@ export default function BulkEmail() {
         </div>
 
         {/* --- ATTACHMENTS SECTION --- */}
-        <div className="border border-[#2B2B40] rounded-xl p-4 bg-[#1E1E2D] my-4 attachment-container shadow-sm" data-attachment-box="true">
-          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-3 attachment-title">
+        <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 my-4 attachment-container shadow-xs" data-attachment-box="true">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3 attachment-title">
             <Paperclip className="w-4 h-4 text-primary" /> Attachments
           </h3>
 
@@ -1810,22 +1810,22 @@ export default function BulkEmail() {
       </div>
 
       {/* History */}
-      <div className="bg-[#15172b] p-5 rounded-2xl shadow-md border border-white/10 space-y-4">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
-          <h2 className="font-bold text-indigo-300 text-base">Email History</h2>
+          <h2 className="font-bold text-gray-900 text-base">Email History</h2>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="px-3 py-1.5 bg-white border border-gray-300 text-gray-900 rounded-xl text-xs focus:ring-2 focus:ring-primary focus:outline-none"
               value={historyTypeFilter}
               onChange={e=>setHistoryTypeFilter(e.target.value as any)}
             >
-              <option value="all" className="bg-[#0f1022] text-white">All Types</option>
+              <option value="all" className="bg-white text-gray-900">All Types</option>
               {availableTabs.map(t => (
-                <option key={t} value={t} className="bg-[#0f1022] text-white">{t}</option>
+                <option key={t} value={t} className="bg-white text-gray-900">{t}</option>
               ))}
             </select>
             <input
-              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white placeholder-slate-400 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="px-3 py-1.5 bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl text-xs focus:ring-2 focus:ring-primary focus:outline-none"
               placeholder="Recipient…"
               value={historyRecipientFilter}
               onChange={e=>setHistoryRecipientFilter(e.target.value)}

@@ -11,6 +11,7 @@ import {
 import { Invoice, Vehicle, Customer } from '../../../types';
 import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 // Extended interface to accept the full customer object for the address
 interface InvoiceWithVehicleAndCustomer extends Invoice {
@@ -286,7 +287,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         {/* FOOTER */}
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={globalStyles.pageNumber}
@@ -323,7 +324,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
 
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={globalStyles.pageNumber}

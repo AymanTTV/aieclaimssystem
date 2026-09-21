@@ -10,8 +10,14 @@ import {
 } from '@react-pdf/renderer';
 import { Claim } from '../../../types';
 import { styles } from '../styles';
-import { format } from 'date-fns';
 import logo from '../../../assets/logo.png';
+import {
+  formatHireCommencementDate,
+  parseLegalVariables,
+  splitParagraphs,
+  getVehicleDetails,
+  formatInlineCompanyFooter
+} from '../../../utils/legalDocumentUtils';
 
 interface NoticeOfRightToCancelProps {
   claim?: Claim | any;
@@ -186,11 +192,11 @@ const NoticeOfRightToCancel: React.FC<NoticeOfRightToCancelProps> = ({
     claim?.rental?.customerAddress ||
     'N/A';
 
-  const vehicleReg =
-    claim?.hireDetails?.vehicle?.registration ||
-    claim?.clientVehicle?.registration ||
-    claim?.rental?.vehicleRegistration ||
-    'N/A';
+  const vehicleDetails = getVehicleDetails(claim);
+  const vehicleReg = vehicleDetails.registration;
+  const vehicleMake = vehicleDetails.make;
+  const vehicleModel = vehicleDetails.model;
+  const vehicleMakeModel = vehicleDetails.makeModel;
 
   const agreementRef =
     claim?.rental?.rentalAgreementNumber
@@ -199,21 +205,7 @@ const NoticeOfRightToCancel: React.FC<NoticeOfRightToCancelProps> = ({
       ? `#${claim.rentalAgreementNumber}`
       : claim?.claimNumber || (claim?.id ? claim.id.slice(-8) : 'N/A');
 
-  const dateIssued = (() => {
-    try {
-      const rawDate =
-        claim?.hireDetails?.startDate ||
-        claim?.rental?.startDate ||
-        claim?.createdAt;
-      if (!rawDate) return format(new Date(), 'dd/MM/yyyy');
-      const d = new Date(rawDate);
-      return isNaN(d.getTime())
-        ? format(new Date(), 'dd/MM/yyyy')
-        : format(d, 'dd/MM/yyyy');
-    } catch {
-      return format(new Date(), 'dd/MM/yyyy');
-    }
-  })();
+  const dateIssued = formatHireCommencementDate(claim);
 
   const companyName = companyDetails?.fullName || 'AIE SKYLINE LIMITED';
   const companyAddress =
@@ -247,12 +239,31 @@ Upon cancellation of this agreement, you must immediately make available and ret
     companyDetails?.noticeOfRightToCancelText &&
     companyDetails.noticeOfRightToCancelText.trim().length > 0
       ? companyDetails.noticeOfRightToCancelText.trim()
-      : defaultNotice;
+      : (companyDetails?.termsAndConditions || defaultNotice);
 
-  const paragraphs = rawNoticeText
-    .split(/\r?\n+/)
-    .map((p: string) => p.trim())
-    .filter(Boolean);
+  const processedNotice = parseLegalVariables(rawNoticeText, {
+    companyName,
+    companyAddress,
+    companyPhone,
+    companyEmail,
+    companyVat: companyDetails?.vatNumber || '',
+    companyRegistration: companyDetails?.registrationNumber || '',
+    hirerName,
+    customerName: hirerName,
+    hirerAddress,
+    customerAddress: hirerAddress,
+    vehicleReg,
+    vehicleMake,
+    vehicleModel,
+    vehicleMakeModel,
+    agreementRef,
+    agreementNumber: agreementRef,
+    dateIssued,
+    startDate: dateIssued,
+    hireStartDate: dateIssued,
+  });
+
+  const paragraphs = splitParagraphs(processedNotice);
 
   const isHeading = (text: string) =>
     /^[0-9]+\.\s+/.test(text) ||
@@ -297,6 +308,10 @@ Upon cancellation of this agreement, you must immediately make available and ret
           <View style={localStyles.refCol}>
             <Text style={localStyles.refLabel}>Vehicle Reg:</Text>
             <Text style={localStyles.refValue}>{vehicleReg}</Text>
+          </View>
+          <View style={localStyles.refCol}>
+            <Text style={localStyles.refLabel}>Vehicle Make / Model:</Text>
+            <Text style={localStyles.refValue}>{vehicleMakeModel || '-'}</Text>
           </View>
           <View style={localStyles.refCol}>
             <Text style={localStyles.refLabel}>Agreement Ref:</Text>
@@ -359,6 +374,10 @@ Upon cancellation of this agreement, you must immediately make available and ret
                 <Text style={localStyles.slipFieldValue}>{vehicleReg}</Text>
               </View>
               <View style={localStyles.slipRow}>
+                <Text style={localStyles.slipFieldLabel}>Vehicle Make / Model:</Text>
+                <Text style={localStyles.slipFieldValue}>{vehicleMakeModel || '-'}</Text>
+              </View>
+              <View style={localStyles.slipRow}>
                 <Text style={localStyles.slipFieldLabel}>Hirer Name:</Text>
                 <Text style={localStyles.slipFieldValue}>{hirerName}</Text>
               </View>
@@ -376,7 +395,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
               </View>
               <View style={localStyles.slipSigCol}>
                 <Text style={localStyles.slipSigLabel}>
-                  Date: ____ / ____ / ________
+                  Date: {dateIssued}
                 </Text>
               </View>
             </View>
@@ -386,9 +405,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
         {/* Fixed Footer across all pages */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the
-            company registration number 15616639, registered office address:
-            United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={styles.pageNumber}

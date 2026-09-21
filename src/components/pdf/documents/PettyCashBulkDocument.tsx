@@ -3,6 +3,7 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { PettyCashTransaction } from '../../../types/pettyCash';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface PettyCashBulkDocumentProps {
   records: PettyCashTransaction[];
@@ -103,14 +104,15 @@ const PettyCashBulkDocument: React.FC<PettyCashBulkDocumentProps> = ({
           </View>
 
           {/* Footer */}
-          <Text style={styles.footer}>
-            {companyDetails.fullName} | Generated on {formatDate(new Date())}
-          </Text>
-
-          {/* Page Number */}
-          <Text style={styles.pageNumber}>
-            Page {pageIndex + 1} of {pages}
-          </Text>
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>
+              {formatInlineCompanyFooter(companyDetails)}
+            </Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
         </Page>
       ))}
     </Document>

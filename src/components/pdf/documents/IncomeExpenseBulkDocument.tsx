@@ -3,6 +3,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { IncomeExpenseEntry, ProfitShare } from '../../../types/incomeExpense';
 import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface Props {
   records: IncomeExpenseEntry[];
@@ -199,7 +200,7 @@ const IncomeExpenseBulkDocument: React.FC<Props> = ({
             {/* FOOTER */}
             <View style={globalStyles.footer} fixed>
               <Text style={globalStyles.footerText}>
-                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+                {formatInlineCompanyFooter(companyDetails)}
               </Text>
               <Text
                 style={globalStyles.pageNumber}

@@ -11,6 +11,13 @@ import { format } from 'date-fns';
 import { resolveNameFields, resolveAddressFields, combineFullName } from '../../../utils/nameAddressUtils';
 import logo from '../../../assets/logo.png';
 import { styles } from '../styles';
+import {
+  getHireCommencementDate,
+  parseLegalVariables,
+  splitParagraphs,
+  getVehicleDetails,
+  formatInlineCompanyFooter
+} from '../../../utils/legalDocumentUtils';
 
 const isValidPdfImageSrc = (v: any): v is string => {
   if (typeof v !== 'string') return false;
@@ -33,8 +40,8 @@ const formatDate = (date: any) => {
 const localStyles = StyleSheet.create({
   page: {
     paddingTop: 35,
-    paddingBottom: 40,
-    paddingHorizontal: 40,
+    paddingBottom: 65,
+    paddingHorizontal: 36,
   },
   signatureSection: {
     marginTop: 15,
@@ -246,7 +253,15 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
   const hirerName = isCompany
     ? (claim.clientInfo?.name || claim.rental?.customerName || 'N/A')
     : (combineFullName(hirerNameFields.firstName, hirerNameFields.middleName, hirerNameFields.lastName) || claim.clientInfo?.name || claim.rental?.customerName || 'N/A');
-  const signatureDate = claim.hireDetails?.startDate || claim.createdAt || new Date();
+  const signatureDate = getHireCommencementDate(claim);
+
+  const vehicleDetails = getVehicleDetails(claim);
+  const vehRegistration = vehicleDetails.registration;
+  const vehMake = vehicleDetails.make;
+  const vehModel = vehicleDetails.model;
+  const vehMakeModel = vehicleDetails.makeModel;
+
+  const hireStartDate = d.startDate || signatureDate;
 
   const rentalAgreementNumber =
     claim.rental?.rentalAgreementNumber ||
@@ -264,7 +279,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
   const rows = [
     {
       desc: 'Hire Charges',
-      details: `£${rate.toFixed(2)} per day`,
+      details: `£${rate.toFixed(2)} per day${vehMakeModel ? ` (${vehMakeModel})` : ''}`,
       rate: rate.toFixed(2),
       units: String(days),
       total: hireTotal.toFixed(2),
@@ -292,6 +307,12 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
     2
   )}/day applies for up to 3 months. Payment is due in full within eleven months from this date.`;
 
+  const companyName = companyDetails?.fullName || companyDetails?.name || 'AIE SKYLINE LIMITED';
+  const companyReg = companyDetails?.registrationNumber || '14592207';
+  const companyAddress = companyDetails?.officialAddress || 'United House, 39-41 North Road, London, N7 9DP';
+  const companyVat = companyDetails?.vatNumber || '453448875';
+  const footerText = formatInlineCompanyFooter(companyDetails);
+
   const renderHeader = () => (
     <View style={styles.header} fixed>
       <View style={styles.headerLeft}>
@@ -302,9 +323,9 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
         )}
       </View>
       <View style={styles.headerRight}>
-        <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+        <Text style={styles.companyName}>{companyName}</Text>
         <Text style={styles.companyDetail}>
-          {companyDetails?.officialAddress}
+          {companyAddress}
         </Text>
         <Text style={styles.companyDetail}>
           Tel: {companyDetails?.phone}
@@ -318,11 +339,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
 
   const renderFooter = () => (
     <View style={styles.footer} fixed>
-      <Text style={styles.footerText}>
-        AIE SKYLINE LIMITED, registered in England and Wales with the
-        company registration number 15616639, registered office address:
-        United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-      </Text>
+      <Text style={styles.footerText}>{footerText}</Text>
       <Text
         style={styles.pageNumber}
         render={({ pageNumber, totalPages }) =>
@@ -383,7 +400,9 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
             <View style={[styles.card, { width: '48%', marginBottom: 0, padding: 8 }]}>
               <Text style={styles.cardTitle}>Vehicle &amp; Hire Details</Text>
               {[
-                ['Registration', d.vehicle?.registration || 'N/A'],
+                ['Registration', vehRegistration],
+                ['Vehicle Make', vehMake || '-'],
+                ['Vehicle Model', vehModel || '-'],
                 ['Start Date', formatDate(d.startDate)],
                 ['End Date', formatDate(d.endDate)],
                 ['Days of Hire', String(days)],
@@ -485,9 +504,33 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
         {/* TERMS */}
         <View style={[styles.card, { marginBottom: 15 }]}>
           <Text style={styles.cardTitle}>TERMS &amp; CONDITIONS</Text>
-          <Text style={styles.text}>
-            {companyDetails?.hireAgreementText || defaultTerms}
-          </Text>
+          {splitParagraphs(
+            parseLegalVariables(
+              companyDetails?.hireAgreementText || companyDetails?.termsAndConditions || defaultTerms,
+              {
+                companyName: companyDetails?.fullName || 'AIE SKYLINE LIMITED',
+                companyAddress: companyDetails?.officialAddress || '',
+                companyPhone: companyDetails?.phone || '',
+                companyEmail: companyDetails?.email || '',
+                companyVat: companyDetails?.vatNumber || '',
+                companyRegistration: companyDetails?.registrationNumber || '',
+                hirerName,
+                customerName: hirerName,
+                vehicleReg: vehRegistration,
+                vehicleMake: vehMake,
+                vehicleModel: vehModel,
+                startDate: formatDate(hireStartDate),
+                hireStartDate: formatDate(hireStartDate),
+                dailyRate: `£${rate.toFixed(2)}`,
+                agreementNumber: displayAgreementNumber,
+                agreementRef: displayAgreementNumber,
+              }
+            )
+          ).map((p, idx) => (
+            <Text key={idx} style={[styles.text, { marginBottom: 6 }]}>
+              {p}
+            </Text>
+          ))}
         </View>
 
         {/* SIGNATURES - Matches Rental Agreement signature design */}

@@ -5,6 +5,7 @@ import { VDFinanceRecord } from '../../../types/vdFinance';
 // import BaseDocument from '../BaseDocument'; // Removing BaseDocument as per previous updates
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface VDFinanceDocumentProps {
   data: VDFinanceRecord;
@@ -185,7 +186,7 @@ const VDFinanceDocument: React.FC<VDFinanceDocumentProps> = ({ data, companyDeta
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={styles.pageNumber}

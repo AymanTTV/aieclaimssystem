@@ -1,18 +1,21 @@
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'; 
 import { styles } from '../styles';
-import { format } from 'date-fns';
 import logo from '../../../assets/logo.png';
+import {
+  formatHireCommencementDate,
+  parseLegalVariables,
+  splitParagraphs,
+  getVehicleDetails,
+  formatInlineCompanyFooter
+} from '../../../utils/legalDocumentUtils';
 
-// Local styles for specific positioning, similar to ConditionOfHire
 const localStyles = StyleSheet.create({
   signatureSectionPositioning: {
-    position: 'absolute',
-    bottom: 50, // Position above the footer (which is at bottom 30)
-    left: 40,
-    right: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 20,
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
   },
@@ -39,14 +42,21 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   infoLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 'bold',
     color: '#1E40AF',         
     marginBottom: 2,
   },
   infoValue: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#1F2937',         
+  },
+  paragraph: {
+    fontSize: 9,
+    color: '#374151',
+    lineHeight: 1.4,
+    marginBottom: 8,
+    textAlign: 'justify',
   },
 });
 
@@ -59,28 +69,60 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
   claim,
   companyDetails,
 }) => {
-  // --- FIXED: Safely extract the rental end date from hireDetails ---
-  const getSignatureDate = () => {
-    // Look inside hireDetails first, fallback to top-level endDate if it exists
-    const rawDate = claim?.hireDetails?.endDate || claim?.endDate;
-    
-    if (!rawDate) return new Date();
-    
-    // Handle Firestore Timestamps
-    if (typeof rawDate.toDate === 'function') return rawDate.toDate();
-    
-    const parsedDate = new Date(rawDate);
-    return isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-  };
+  // STRICT RULE: Explicitly record and display the Hire Start Date (the date the agreement commenced)
+  const hireStartDateFormatted = formatHireCommencementDate(claim);
 
-  const signatureDate = getSignatureDate();
-  // ------------------------------------------------------------------
+  const clientName =
+    claim?.clientInfo?.name ||
+    [claim?.clientInfo?.firstName, claim?.clientInfo?.lastName].filter(Boolean).join(' ') ||
+    claim?.customer?.name ||
+    claim?.rental?.customerName ||
+    'N/A';
 
-  const defaultSatisfactionText = `
-  I, ${claim.clientInfo?.name || '____________________'}, hereby certify that I am fully satisfied with the services rendered for my vehicle, registration number ${claim.clientVehicle?.registration || '____________________'}.
+  const vehicleDetails = getVehicleDetails(claim);
+  const vehicleReg = vehicleDetails.registration;
+  const vehicleMake = vehicleDetails.make;
+  const vehicleModel = vehicleDetails.model;
+  const vehicleMakeModel = vehicleDetails.makeModel;
 
-  The work performed has met my expectations, and I acknowledge the completion of all agreed-upon repairs/services to my satisfaction.
-  `;
+  const agreementRef =
+    claim?.rentalAgreementNumber ||
+    claim?.clientRef ||
+    claim?.claimNumber ||
+    (claim?.id ? String(claim.id).slice(-8).toUpperCase() : 'N/A');
+
+  const defaultSatisfactionText = `I, ${clientName}, hereby certify that I am fully satisfied with the services rendered for my vehicle, registration number ${vehicleReg}${vehicleMakeModel ? ` (${vehicleMakeModel})` : ''}.
+
+The work performed has met my expectations, and I acknowledge the completion of all agreed-upon repairs/services to my satisfaction. All hire and service obligations commenced under agreement ${agreementRef} on ${hireStartDateFormatted} have been discharged with complete satisfaction.`;
+
+  const rawNotice =
+    companyDetails?.satisfactionNoticeText ||
+    companyDetails?.termsAndConditions ||
+    defaultSatisfactionText;
+
+  const processedNotice = parseLegalVariables(rawNotice, {
+    companyName: companyDetails?.fullName || 'AIE SKYLINE LIMITED',
+    companyAddress: companyDetails?.officialAddress || '',
+    companyPhone: companyDetails?.phone || '',
+    companyEmail: companyDetails?.email || '',
+    companyVat: companyDetails?.vatNumber || '',
+    companyRegistration: companyDetails?.registrationNumber || '',
+    hirerName: clientName,
+    customerName: clientName,
+    vehicleReg,
+    vehicleMake,
+    vehicleModel,
+    vehicleMakeModel,
+    agreementRef,
+    agreementNumber: agreementRef,
+    claimRef: agreementRef,
+    startDate: hireStartDateFormatted,
+    hireStartDate: hireStartDateFormatted,
+  });
+
+  const paragraphs = splitParagraphs(processedNotice);
+
+  const footerText = formatInlineCompanyFooter(companyDetails);
 
   return (
     <Document>
@@ -91,10 +133,10 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
             <Image src={logo} style={styles.logo} />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || ''}</Text>
+            <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || ''}</Text>
+            <Text style={styles.companyDetail}>Email: {companyDetails?.email || ''}</Text>
           </View>
         </View>
 
@@ -106,54 +148,62 @@ const SatisfactionNotice: React.FC<SatisfactionNoticeProps> = ({
         {/* Horizontal Card for Key Details */}
         <View style={localStyles.infoCard} wrap={false}>
           <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Date</Text>
-            <Text style={localStyles.infoValue}>{format(signatureDate, 'dd/MM/yyyy')}</Text>
+            <Text style={localStyles.infoLabel}>Commencement Date</Text>
+            <Text style={localStyles.infoValue}>{hireStartDateFormatted}</Text>
           </View>
           <View style={localStyles.infoItem}>
             <Text style={localStyles.infoLabel}>Customer Name</Text>
-            <Text style={localStyles.infoValue}>{claim.clientInfo?.name || 'N/A'}</Text>
+            <Text style={localStyles.infoValue}>{clientName}</Text>
           </View>
           <View style={localStyles.infoItem}>
-            <Text style={localStyles.infoLabel}>Vehicle Registration</Text>
-            <Text style={localStyles.infoValue}>{claim.clientVehicle?.registration || 'N/A'}</Text>
+            <Text style={localStyles.infoLabel}>Vehicle Reg</Text>
+            <Text style={localStyles.infoValue}>{vehicleReg}</Text>
+          </View>
+          <View style={localStyles.infoItem}>
+            <Text style={localStyles.infoLabel}>Make &amp; Model</Text>
+            <Text style={localStyles.infoValue}>{vehicleMakeModel || '-'}</Text>
           </View>
         </View>
 
         {/* Body Text */}
-        <View style={localStyles.bodyTextContainer}>
-          <Text style={styles.text}>
-            {companyDetails.satisfactionNoticeText || defaultSatisfactionText}
-          </Text>
+        <View style={localStyles.bodyTextContainer} wrap>
+          {paragraphs.map((p, idx) => (
+            <Text key={idx} style={localStyles.paragraph}>
+              {p}
+            </Text>
+          ))}
         </View>
 
-        {/* Signatures */}
+        {/* Signatures - strictly stamped with Hire Start Date */}
         <View style={localStyles.signatureSectionPositioning} wrap={false}>
           {/* Customer Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Customer Signature</Text>
-            {claim.clientInfo?.signature && (
+            {claim?.clientInfo?.signature && (
               <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
-            <Text>{claim.clientInfo?.name}</Text>
-            <Text>Date: {format(signatureDate, 'dd/MM/yyyy')}</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>{clientName}</Text>
+            <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
+              Date: {hireStartDateFormatted}
+            </Text>
           </View>
 
           {/* Company Representative Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Company Representative Signature</Text>
-            {companyDetails.signature && (
+            {companyDetails?.signature && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text>{companyDetails.fullName}</Text>
-            <Text>Date: {format(signatureDate, 'dd/MM/yyyy')}</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
+              Date: {hireStartDateFormatted}
+            </Text>
           </View>
         </View>
 
         {/* FOOTER */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
+          <Text style={styles.footerText}>{footerText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

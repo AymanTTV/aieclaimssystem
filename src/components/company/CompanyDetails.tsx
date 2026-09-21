@@ -163,11 +163,11 @@ const CompanyDetails = () => {
     try {
       const docRef = doc(db, 'companySettings', 'details');
 
-      await updateDoc(docRef, {
+      await setDoc(docRef, {
         ...formData,
         updatedAt: new Date(),
         updatedBy: user.id
-      });
+      }, { merge: true });
 
       toast.success('Company details updated successfully');
       setEditing(false);

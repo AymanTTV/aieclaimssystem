@@ -2,7 +2,9 @@ import { StyleSheet } from '@react-pdf/renderer';
 
 export const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    paddingTop: 45,
+    paddingBottom: 65,
+    paddingHorizontal: 40,
     fontSize: 10,
     fontFamily: 'Helvetica',
   },
@@ -93,11 +95,25 @@ export const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    fontSize: 8,
-    textAlign: 'center',
-    color: '#666',
+    bottom: 16,
+    left: 24,
+    right: 24,
+    borderTopWidth: 0.75,
+    borderTopColor: '#CBD5E1',
+    paddingTop: 3.5,
+  },
+  footerText: {
+    fontSize: 7.2,
+    color: '#64748B',
+    lineHeight: 1.28,
+    paddingRight: 60,
+  },
+  pageNumber: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    fontSize: 7.2,
+    color: '#64748B',
+    textAlign: 'right',
   },
 });

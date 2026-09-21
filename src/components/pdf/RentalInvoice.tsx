@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { Rental, Vehicle, Customer } from '../../types';
 import { format, differenceInHours, isAfter } from 'date-fns';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
+import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 import { styles } from './styles';
 import {
   calculateOverdueCost,
@@ -235,6 +236,8 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
 
+  const footerText = formatInlineCompanyFooter(companyDetails);
+
   return (
     <Document>
       {/* --- PAGE 1: Invoice Details, Breakdown, and Compact Summary --- */}
@@ -454,11 +457,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         </View>
 
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company
-            registration number 15616639, registered office address: United
-            House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
+          <Text style={styles.footerText}>{footerText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
@@ -487,11 +486,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
             ))}
           </View>
           <View style={styles.footer} fixed>
-            <Text style={styles.footerText}>
-              AIE SKYLINE LIMITED, registered in England and Wales with the company
-              registration number 15616639, registered office address: United
-              House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-            </Text>
+            <Text style={styles.footerText}>{footerText}</Text>
             <Text 
               style={styles.pageNumber} 
               render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} 
@@ -526,11 +521,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         </View>
 
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company
-            registration number 15616639, registered office address: United
-            House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
+          <Text style={styles.footerText}>{footerText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

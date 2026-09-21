@@ -153,11 +153,24 @@ export const generateRentalDocuments = async (
           signature: rental.signature || customer.signature || '',
         },
         clientVehicle: {
+          make: vehicle.make,
+          model: vehicle.model,
           registration: vehicle.registrationNumber,
+          registrationNumber: vehicle.registrationNumber,
           documents: {},
           motExpiry: (vehicle as any).motExpiry,
           roadTaxExpiry: (vehicle as any).roadTaxExpiry,
         },
+        vehicle: {
+          make: vehicle.make,
+          model: vehicle.model,
+          registration: vehicle.registrationNumber,
+          registrationNumber: vehicle.registrationNumber,
+          isClaimantVehicle: false,
+        },
+        vehicleMake: vehicle.make,
+        vehicleModel: vehicle.model,
+        vehicleRegistration: vehicle.registrationNumber,
         incidentDetails: {
           date: new Date(),
           time: '00:00',
@@ -226,7 +239,12 @@ export const generateRentalDocuments = async (
         submittedAt: rental.createdAt,
         updatedAt: rental.updatedAt,
         completionStatus: rental.status === 'completed' ? 'completed' : 'in-progress',
-        rental,
+        rental: {
+          ...rental,
+          vehicleMake: vehicle.make,
+          vehicleModel: vehicle.model,
+          vehicleRegistration: vehicle.registrationNumber,
+        },
         rentalAgreementNumber: rental.rentalAgreementNumber,
         paidAmount: rental.paidAmount || 0,
         includeVAT: rental.includeVAT,
@@ -253,12 +271,10 @@ export const generateRentalDocuments = async (
           companyDetails
         })).toBlob();
 
-        if (rental.storageCost) {
-          claimDocuments.creditStorageAndRecovery = await pdf(createElement(CreditStorageAndRecovery, {
-            claim: claimData,
-            companyDetails
-          })).toBlob();
-        }
+        claimDocuments.creditStorageAndRecovery = await pdf(createElement(CreditStorageAndRecovery, {
+          claim: claimData,
+          companyDetails
+        })).toBlob();
 
         // Always generate mitigation
         claimDocuments.creditHireMitigation = await pdf(createElement(CreditHireMitigation, {

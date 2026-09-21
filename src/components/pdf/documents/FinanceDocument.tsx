@@ -11,6 +11,7 @@ import {
 import { Transaction, Vehicle, Account, Customer } from '../../../types';
 import { format } from 'date-fns';
 import { styles as globalStyles } from '../styles';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface FinanceDocumentProps {
   data:
@@ -342,7 +343,7 @@ const FinanceDocument: React.FC<FinanceDocumentProps> = ({
 
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
-            AIE SKYLINE LIMITED, reg. in England & Wales no. 15616639, United House, 39-41 North Road, London N7 9DP. VAT 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text style={globalStyles.pageNumber} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>
@@ -440,7 +441,7 @@ const FinanceDocument: React.FC<FinanceDocumentProps> = ({
 
       <View style={globalStyles.footer} fixed>
         <Text style={globalStyles.footerText}>
-          AIE SKYLINE LIMITED, reg. in England & Wales no. 15616639, United House, 39-41 North Road, London N7 9DP. VAT 453448875
+          {formatInlineCompanyFooter(companyDetails)}
         </Text>
         <Text style={globalStyles.pageNumber} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
       </View>

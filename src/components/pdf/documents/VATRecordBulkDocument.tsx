@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { VATRecord } from '../../../types/vatRecord';
 import { styles as globalStyles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface VATRecordBulkDocumentProps {
   records: VATRecord[];
@@ -110,7 +111,9 @@ const VATRecordBulkDocument: React.FC<VATRecordBulkDocumentProps> = ({
             </View>
 
             <View style={globalStyles.footer} fixed>
-              <Text style={globalStyles.footerText}>AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875</Text>
+              <Text style={globalStyles.footerText}>
+                {formatInlineCompanyFooter(companyDetails)}
+              </Text>
               <Text style={globalStyles.pageNumber} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
             </View>
           </Page>

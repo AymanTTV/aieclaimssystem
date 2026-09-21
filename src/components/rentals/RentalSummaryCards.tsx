@@ -125,7 +125,7 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
   const SummaryCard = ({ label, icon, totals, colorClass, bgIconClass, textIconClass }: any) => {
     const d = totals;
     return (
-      <div className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-100 relative overflow-hidden group`}>
+      <div className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200/90 relative overflow-hidden group`}>
         <div className={`absolute top-0 right-0 w-24 h-24 ${bgIconClass} opacity-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
         
         <div className="flex items-center justify-between mb-4 relative z-10">
@@ -194,30 +194,37 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
         colorClass="border-purple-500" bgIconClass="bg-purple-50" textIconClass="text-purple-600"
       />
 
-      {/* Status Dashboard */}
-      <div className="bg-gray-900 rounded-2xl shadow-xl p-6 text-white relative overflow-hidden">
-        <Receipt className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5" />
-        <div className="flex items-center justify-between mb-6 relative z-10">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Fleet Status</p>
-          <div className="p-2 bg-white/10 rounded-xl">
-            <Clock className="h-6 w-6 text-white" />
+      {/* Status Dashboard - Dynamic Standout Fleet Status Card */}
+      <div className="bg-[#0c101c] rounded-2xl shadow-xl p-5 sm:p-6 text-white relative overflow-hidden border border-slate-800/90 flex flex-col justify-between">
+        <Receipt className="absolute -right-3 -bottom-5 w-36 h-36 text-white/[0.04] pointer-events-none select-none" />
+        <div className="flex items-center justify-between mb-5 relative z-10">
+          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+            Fleet Status
+          </p>
+          <div className="p-2 bg-slate-800/80 border border-slate-700/60 rounded-xl shadow-xs">
+            <Clock className="h-5 w-5 text-slate-100" />
           </div>
         </div>
-        <div className="space-y-4 relative z-10">
-          <div className="flex justify-between items-center bg-blue-500/20 border border-blue-500/30 p-3 rounded-xl">
-            <span className="text-blue-200 font-bold text-sm">Active on Hire</span>
-            <span className="font-black text-blue-100 text-xl">{summary.status.active}</span>
+        <div className="space-y-3 relative z-10">
+          <div className="flex justify-between items-center bg-[#101e38] border border-blue-500/40 hover:border-blue-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-blue-300 font-bold text-sm tracking-wide">Active on Hire</span>
+            <span className="font-mono font-black text-white text-2xl tracking-tight">
+              {summary.status.active}
+            </span>
           </div>
-          <div className="flex justify-between items-center bg-yellow-500/20 border border-yellow-500/30 p-3 rounded-xl">
-            <span className="text-yellow-200 font-bold text-sm">Scheduled</span>
-            <span className="font-black text-yellow-100 text-xl">{summary.status.scheduled}</span>
+          <div className="flex justify-between items-center bg-[#28220e] border border-amber-500/40 hover:border-amber-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-amber-300 font-bold text-sm tracking-wide">Scheduled</span>
+            <span className="font-mono font-black text-amber-100 text-2xl tracking-tight">
+              {summary.status.scheduled}
+            </span>
           </div>
-          <div className="flex justify-between items-center bg-green-500/20 border border-green-500/30 p-3 rounded-xl">
-            <span className="text-green-200 font-bold text-sm">Completed</span>
-            <span className="font-black text-green-100 text-xl">{summary.status.completed}</span>
+          <div className="flex justify-between items-center bg-[#0d261b] border border-emerald-500/40 hover:border-emerald-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
+            <span className="text-emerald-300 font-bold text-sm tracking-wide">Completed</span>
+            <span className="font-mono font-black text-emerald-100 text-2xl tracking-tight">
+              {summary.status.completed}
+            </span>
           </div>
         </div>
-          
       </div>
     </div>
   );

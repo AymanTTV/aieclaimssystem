@@ -395,7 +395,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
 
         {/* Tab 1: Template Selection & Editing View */}
         {activeTab === 'templates' && (
-          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-[#15172b] min-h-[550px] sm:min-h-[650px] max-h-[75vh]">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-white min-h-[550px] sm:min-h-[650px] max-h-[75vh]">
             <RentalReminderTemplateSelector onSaved={() => onRefresh?.()} />
           </div>
         )}
@@ -517,7 +517,7 @@ export const MondayAutoEmailBulkModal: React.FC<MondayAutoEmailBulkModalProps> =
             </div>
 
             {/* Action Controls & Batch Bar */}
-            <div className="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#15172b]">
+            <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => handleBulkSetAll(true)}

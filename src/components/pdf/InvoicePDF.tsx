@@ -4,6 +4,7 @@ import { Invoice, Vehicle } from '../../types';
 import { format } from 'date-fns';
 import logo from '../../assets/logo.png';
 import { styles } from './styles';
+import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 
 interface InvoicePDFProps {
   invoice: Invoice;
@@ -101,9 +102,11 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, vehicle, compan
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName} | Registered in England and Wales | Company No: {companyDetails.registrationNumber}
-        </Text>
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            {formatInlineCompanyFooter(companyDetails)}
+          </Text>
+        </View>
       </Page>
     </Document>
   );

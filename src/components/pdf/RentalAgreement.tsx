@@ -6,6 +6,7 @@ import { RENTAL_RATES } from '../../utils/rentalCalculations';
 import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
+import { getHireCommencementDate, formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 import { styles } from './styles';
 
 const localStyles = StyleSheet.create({
@@ -205,7 +206,7 @@ const RentalAgreement: React.FC<{
   };
 
   const activeSub = getActiveSubstitute();
-  const signatureDate = rental.startDate;
+  const signatureDate = getHireCommencementDate(rental);
 
   const getUsageHistory = () => {
     const history: Array<{ vehicle: string; reg: string; start: Date; end: Date }> = [];
@@ -357,6 +358,8 @@ const RentalAgreement: React.FC<{
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
 
+  const footerText = formatInlineCompanyFooter(companyDetails);
+
   return (
     <Document>
       <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
@@ -476,10 +479,12 @@ const RentalAgreement: React.FC<{
             <View style={[styles.card, { width: '48%' }]}>
               <Text style={styles.sectionTitle}>{displayVehicle.title}</Text>
               <View style={styles.row}>
-                <Text style={styles.label}>Make & Model:</Text>
-                <Text style={styles.value}>
-                  {displayVehicle.make} {displayVehicle.model}
-                </Text>
+                <Text style={styles.label}>Vehicle Make:</Text>
+                <Text style={styles.value}>{displayVehicle.make || '-'}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Vehicle Model:</Text>
+                <Text style={styles.value}>{displayVehicle.model || '-'}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>Registration:</Text>
@@ -508,10 +513,12 @@ const RentalAgreement: React.FC<{
                     Active Substitute Vehicle
                   </Text>
                   <View style={styles.row}>
-                    <Text style={styles.label}>Make & Model:</Text>
-                    <Text style={styles.value}>
-                      {activeSub.make} {activeSub.model}
-                    </Text>
+                    <Text style={styles.label}>Vehicle Make:</Text>
+                    <Text style={styles.value}>{activeSub.make || '-'}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Vehicle Model:</Text>
+                    <Text style={styles.value}>{activeSub.model || '-'}</Text>
                   </View>
                   <View style={styles.row}>
                     <Text style={styles.label}>Registration:</Text>
@@ -782,10 +789,7 @@ const RentalAgreement: React.FC<{
 
         {/* FOOTER */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639,
-            registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
-          </Text>
+          <Text style={styles.footerText}>{footerText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

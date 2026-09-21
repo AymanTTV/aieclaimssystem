@@ -13,6 +13,7 @@ import logo from '../../assets/logo.png';
 import logoBlur from '../../assets/logo.png'; // blurred logo for watermark
 import signatureImg from '../../assets/signiture.png';
 import { Rental, Vehicle, Customer } from '../../types';
+import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 
 interface ParkingPermitLetterProps {
   rental: Rental;
@@ -215,11 +216,8 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
 
         {/* Footer */}
         <View style={localStyles.footerContainer}>
-          <Text style={localStyles.footerText}>
-            {companyDetails.fullName} Registered in England and Wales with company registration no {companyDetails.registrationNumber}.
-          </Text>
-          <Text style={localStyles.footerText}>
-            Registered office: {companyDetails.officialAddress} • VAT no {companyDetails.vatNumber}
+          <Text style={[localStyles.footerText, { fontSize: 7.2, lineHeight: 1.28, marginBottom: 4 }]}>
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <View style={localStyles.footerBarGreen} />
           <View style={localStyles.footerBarBlue} />

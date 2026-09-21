@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { DriverPay } from '../../../types/driverPay';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles as globalStyles } from '../styles'; // Renamed to avoid conflict
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface DriverPayDocumentProps {
   data: DriverPay;
@@ -242,7 +243,7 @@ const DriverPayDocument: React.FC<DriverPayDocumentProps> = ({ data, companyDeta
             {/* Footer - on every page */}
             <View style={globalStyles.footer} fixed>
               <Text style={globalStyles.footerText}>
-                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+                {formatInlineCompanyFooter(companyDetails)}
               </Text>
               <Text
                 style={globalStyles.pageNumber}

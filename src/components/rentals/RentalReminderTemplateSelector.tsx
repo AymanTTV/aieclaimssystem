@@ -385,7 +385,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
   }
 
   return (
-    <div className={`bg-[#15172b] rounded-2xl border border-white/10 shadow-xl overflow-hidden text-white ${className}`}>
+    <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-gray-900 ${className}`}>
       {/* --- SCHEDULE DISPATCH HEADER BANNER --- */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-950 via-[#1a1c3d] to-slate-900 border-b border-white/10 flex flex-col gap-4">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -873,8 +873,8 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
       {/* --- LIVE RENDERED SAMPLE PREVIEW DRAWER --- */}
       {previewTab && (
-        <div className="px-5 pb-5 pt-3 border-t border-white/10 bg-[#111224] animate-in fade-in duration-150">
-          <div className="p-5 bg-[#171836] rounded-2xl border border-white/15 shadow-2xl">
+        <div className="px-5 pb-5 pt-3 border-t border-gray-200 bg-gray-50 animate-in fade-in duration-150">
+          <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-200">

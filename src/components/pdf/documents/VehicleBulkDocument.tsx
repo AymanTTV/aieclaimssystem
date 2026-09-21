@@ -5,6 +5,7 @@ import { Vehicle } from '../../../types';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../../utils/vehicleUtils';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface VehicleBulkDocumentProps {
   records: Vehicle[];
@@ -56,10 +57,10 @@ const VehicleBulkDocument: React.FC<VehicleBulkDocumentProps> = ({
              <Text style={styles.title}>{title}</Text>
           </View>
           <Text style={styles.text}>No vehicle records were found for the selected filters.</Text>
-          {/* Footer for empty state - Now using flex for horizontal distribution */}
+          {/* Footer for empty state */}
           <View style={styles.footer} fixed>
             <Text style={styles.footerText}>
-              AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+              {formatInlineCompanyFooter(companyDetails)}
             </Text>
             <Text
               style={styles.pageNumber}
@@ -184,10 +185,10 @@ const VehicleBulkDocument: React.FC<VehicleBulkDocumentProps> = ({
               })}
             </View>
 
-            {/* FOOTER (fixed to repeat on every page) - Now using flex for horizontal distribution */}
+            {/* FOOTER (fixed to repeat on every page) */}
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>
-                AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+                {formatInlineCompanyFooter(companyDetails)}
               </Text>
               <Text
                 style={styles.pageNumber}

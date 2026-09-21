@@ -124,7 +124,7 @@ export function DataTable<T extends AnyRow>({
             return (
               <div
                 key={row.id}
-                className={`rounded-xl border border-white/10 bg-[#171836] p-4 shadow-sm transition-colors ${rowCls ? rowCls : 'hover:bg-[#23254e]'}`}
+                className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-colors ${rowCls ? rowCls : 'hover:bg-gray-50'}`}
                 onClick={() => {
                   if (onRowClick && (!module || can(module as any, 'view'))) {
                     onRowClick(row.original as T);
@@ -241,13 +241,13 @@ export function DataTable<T extends AnyRow>({
   // -------- Desktop table renderer (>= lg) --------
   const renderDesktopTable = () => (
     <div className="hidden lg:block space-y-4">
-      <div className="overflow-x-auto rounded-xl border border-white/10 shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
         <table className="min-w-full">
-          <thead className="bg-[#1a1b3a] border-b border-white/15">
+          <thead className="bg-gray-50 border-b border-gray-200">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
-                  <th key={header.id} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider border-b border-white/15">
+                  <th key={header.id} className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
                     {header.isPlaceholder ? null : (
                       <div
                         className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
@@ -261,23 +261,23 @@ export function DataTable<T extends AnyRow>({
               </tr>
             ))}
           </thead>
-          <tbody className="bg-[#171836]">
+          <tbody className="bg-white">
             {table.getRowModel().rows.map(row => {
               // Get custom row classes (e.g., bg-red-100 from warnings)
               const customCls = rowClassName ? rowClassName({ original: row.original }) : '';
               
               // Only apply hover styling if there is NO custom color assigned to this row
-              const rowCls = customCls ? customCls : 'hover:bg-[#23254e]';
+              const rowCls = customCls ? customCls : 'hover:bg-gray-50';
 
               return (
                 <tr
                   key={row.id}
                   onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as T)}
-                  className={`transition-colors group border-b border-white/10 ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''} ${rowCls}`}
+                  className={`transition-colors group border-b border-gray-200 ${onRowClick && (!module || can(module as any, 'view')) ? 'cursor-pointer' : ''} ${rowCls}`}
                 >
                   {row.getVisibleCells().map(cell => (
                     // Explicit border-b on cell guarantees a clear, visible line between rows across all columns
-                    <td key={cell.id} className="px-6 py-4 bg-transparent border-b border-white/10 text-white">
+                    <td key={cell.id} className="px-6 py-4 bg-transparent border-b border-gray-200 text-gray-900">
                       {flexRender(cell.column.columnDef.cell ?? cell.column.columnDef.header, cell.getContext())}
                     </td>
                   ))}

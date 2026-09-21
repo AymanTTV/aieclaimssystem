@@ -3,6 +3,7 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer, VehicleCondition } from '../../../types';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface RentalDocumentProps {
   data: Rental & {
@@ -213,9 +214,15 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>
-          {companyDetails.fullName} | Generated on {formatDate(new Date())}
-        </Text>
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>
+            {formatInlineCompanyFooter(companyDetails)}
+          </Text>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
       </Page>
     </Document>
   );

@@ -5,6 +5,7 @@ import { PettyCashTransaction } from '../../../types/pettyCash';
 // import BaseDocument from '../BaseDocument'; // Removed BaseDocument import
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles'; // Assuming 'styles.ts' contains the shared styles
+import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface PettyCashDocumentProps {
   data: PettyCashTransaction;
@@ -124,7 +125,7 @@ const PettyCashDocument: React.FC<PettyCashDocumentProps> = ({ data, companyDeta
         {/* Footer - Updated to match the consistent design */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            AIE SKYLINE LIMITED, registered in England and Wales with the company registration number 15616639, registered office address: United House, 39-41 North Road, London, N7 9DP. VAT. NO. 453448875
+            {formatInlineCompanyFooter(companyDetails)}
           </Text>
           <Text
             style={styles.pageNumber}
