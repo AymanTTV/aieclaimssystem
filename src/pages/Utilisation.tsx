@@ -4,6 +4,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useCustomers } from '../hooks/useCustomers';
+import { useAuth } from '../context/AuthContext';
 import { DataTable } from '../components/DataTable/DataTable';
 import FormField from '../components/ui/FormField';
 import Modal from '../components/ui/Modal';
@@ -63,6 +64,7 @@ const parseLocal = (dStr: string) => {
 };
 
 const Utilisation = () => {
+  const { can } = useAuth();
   const { vehicles, loading: vLoad } = useVehicles();
   const { rentals, loading: rLoad } = useRentals();
   const { logs, loading: mLoad } = useMaintenanceLogs();
@@ -530,9 +532,11 @@ const Utilisation = () => {
           <button onClick={() => setSelectedRecord(row.original)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
-          <button onClick={() => handleDownloadSingleRecord(row.original)} className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Download Document">
-            <FileText className="w-4 h-4" />
-          </button>
+          {can('utilisation', 'singleDoc') && (
+            <button onClick={() => handleDownloadSingleRecord(row.original)} className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Download Document">
+              <FileText className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )
     }
@@ -551,12 +555,16 @@ const Utilisation = () => {
           Fleet Utilisation
         </h1>
         <div className="flex gap-2">
-          <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all">
-            <FileSpreadsheet className="w-4 h-4 text-green-600" /> Export Excel
-          </button>
-          <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:bg-primary-600 transition-all">
-            <Download className="w-4 h-4" /> Export Report
-          </button>
+          {can('utilisation', 'export') && (
+            <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all">
+              <FileSpreadsheet className="w-4 h-4 text-green-600" /> Export Excel
+            </button>
+          )}
+          {can('utilisation', 'export') && (
+            <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:bg-primary-600 transition-all">
+              <Download className="w-4 h-4" /> Export Report
+            </button>
+          )}
         </div>
       </div>
 
@@ -611,7 +619,12 @@ const Utilisation = () => {
              <label className="block text-sm font-medium text-gray-700 mb-1">Search Keyword</label>
              <div className="relative">
                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
-               <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary" placeholder="Reg, Model, Driver..." />
+               <input 
+                 value={searchQuery} 
+                 onChange={(e) => setSearchQuery(e.target.value)} 
+                 className="w-full pl-9 py-2 bg-white text-gray-900 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary placeholder-gray-400" 
+                 placeholder="Reg, Model, Driver..." 
+               />
              </div>
            </div>
            

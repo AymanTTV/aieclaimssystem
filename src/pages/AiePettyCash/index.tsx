@@ -140,7 +140,7 @@ const AiePettyCash = () => {
       />
       
       <div className="flex flex-wrap gap-2 justify-end">
-        {can('aiePettyCash', 'groups') && (
+        {can('aiePettyCash', 'categories') && (
         <button
           onClick={() => setShowManageCategories(true)}
           className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"

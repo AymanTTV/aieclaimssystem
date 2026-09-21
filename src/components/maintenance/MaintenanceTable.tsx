@@ -569,37 +569,37 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       if (date) {
         const days = differenceInCalendarDays(new Date(date), new Date());
         if (days <= 7) {
-          return '!bg-rose-50/90 hover:!bg-rose-100/90 border-l-4 !border-l-rose-500 transition-colors duration-200';
+          return '!bg-red-50 hover:!bg-red-100/90 border-l-4 !border-l-red-500 text-slate-900 transition-colors duration-200';
         }
       }
-      return 'hover:!bg-gray-50/80 transition-colors duration-200';
+      return 'hover:!bg-gray-50/80 transition-colors duration-200 text-slate-900';
     }
 
     // 2. In Progress -> Orange highlight
     if (status === 'in-progress') {
-      return '!bg-orange-50/90 hover:!bg-orange-100/90 border-l-4 !border-l-orange-500 transition-colors duration-200';
+      return '!bg-amber-50 hover:!bg-amber-100/90 border-l-4 !border-l-amber-500 text-slate-900 transition-colors duration-200';
     }
 
-    // 3. Completed but Unpaid -> Distinct Unpaid highlight (Soft Purple / Violet)
+    // 3. Completed but Unpaid -> Distinct Unpaid highlight (Soft Violet / Purple)
     if (status === 'completed' && isUnpaid) {
-      return '!bg-purple-50/85 hover:!bg-purple-100/90 border-l-4 !border-l-purple-500 transition-colors duration-200';
+      return '!bg-purple-50 hover:!bg-purple-100/90 border-l-4 !border-l-purple-600 text-slate-900 transition-colors duration-200';
     }
 
     // 4. Completed & Paid -> Distinct Completed highlight (Soft Emerald / Green)
     if (status === 'completed') {
-      return '!bg-emerald-50/65 hover:!bg-emerald-100/80 border-l-4 !border-l-emerald-500 transition-colors duration-200';
+      return '!bg-emerald-50 hover:!bg-emerald-100/90 border-l-4 !border-l-emerald-600 text-slate-900 transition-colors duration-200';
     }
 
     // 5. Any other Unpaid item (not cancelled) -> Distinct Unpaid highlight
     if (isUnpaid && status !== 'cancelled') {
-      return '!bg-purple-50/60 hover:!bg-purple-100/75 border-l-4 !border-l-purple-400 transition-colors duration-200';
+      return '!bg-purple-50/90 hover:!bg-purple-100/90 border-l-4 !border-l-purple-500 text-slate-900 transition-colors duration-200';
     }
 
     if (status === 'cancelled') {
-      return '!bg-gray-50/60 text-gray-500 border-l-4 !border-l-gray-300 transition-colors duration-200';
+      return '!bg-gray-100/80 text-gray-500 border-l-4 !border-l-gray-400 transition-colors duration-200';
     }
 
-    return 'hover:!bg-gray-50/80 transition-colors duration-200';
+    return 'hover:!bg-gray-50/80 transition-colors duration-200 text-slate-900';
   };
 
   return (
@@ -648,11 +648,11 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       <div className="flex flex-wrap items-center gap-2 sm:gap-4 py-2.5 px-3.5 bg-white border border-gray-200 rounded-xl shadow-xs text-xs mb-3">
         <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">Row Indicators:</span>
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-rose-500 border border-rose-600 inline-block shadow-2xs"></span>
+          <span className="w-3 h-3 rounded-full bg-red-500 border border-red-600 inline-block shadow-2xs"></span>
           <span className="text-gray-800 font-medium">Due in ≤7d (Light Red)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-orange-500 border border-orange-600 inline-block shadow-2xs"></span>
+          <span className="w-3 h-3 rounded-full bg-amber-500 border border-amber-600 inline-block shadow-2xs"></span>
           <span className="text-gray-800 font-medium">In Progress (Orange)</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -660,7 +660,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           <span className="text-gray-800 font-medium">Completed (Soft Green)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-purple-500 border border-purple-600 inline-block shadow-2xs"></span>
+          <span className="w-3 h-3 rounded-full bg-purple-600 border border-purple-700 inline-block shadow-2xs"></span>
           <span className="text-gray-800 font-medium">Unpaid (Soft Purple)</span>
         </div>
       </div>

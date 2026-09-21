@@ -49,7 +49,7 @@ const Dashboard = () => {
         {can('vehicles', 'cards') && <VehicleMetrics />}
         
         {user?.role === 'manager' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl overflow-hidden">
             <FinancialSummary transactions={transactions} period="month" />
           </div>
         )}

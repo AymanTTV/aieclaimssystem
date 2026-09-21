@@ -569,28 +569,34 @@ const Invoices: React.FC = () => {
             showCompleted={showCompleted} onShowCompletedChange={setShowCompleted}
           />
 
-          {selectedInvoiceIds.size > 0 && user?.role === 'manager' && (
+          {selectedInvoiceIds.size > 0 && (user?.role === 'manager' || can('invoices', 'assign') || can('invoices', 'delete')) && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex items-center justify-between shadow-sm">
               <span className="font-medium text-sm text-red-800">{selectedInvoiceIds.size} invoice(s) selected</span>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setShowAssignGroupModal(true)}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
-                >
-                  Assign Group
-                </button>
-                <button 
-                  onClick={() => setShowAssignDepartmentModal(true)}
-                  className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
-                >
-                  Assign Dept
-                </button>
-                <button 
-                  onClick={handleBulkDeleteClick}
-                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
-                >
-                  Delete {selectedInvoiceIds.size} Records
-                </button>
+              <div className="flex flex-wrap gap-3">
+                {(user?.role === 'manager' || can('invoices', 'assign')) && (
+                  <>
+                    <button 
+                      onClick={() => setShowAssignGroupModal(true)}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
+                    >
+                      Assign Group
+                    </button>
+                    <button 
+                      onClick={() => setShowAssignDepartmentModal(true)}
+                      className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+                    >
+                      Assign Dept
+                    </button>
+                  </>
+                )}
+                {(user?.role === 'manager' || can('invoices', 'delete')) && (
+                  <button 
+                    onClick={handleBulkDeleteClick}
+                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
+                  >
+                    Delete {selectedInvoiceIds.size} Records
+                  </button>
+                )}
               </div>
             </div>
           )}

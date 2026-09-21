@@ -1012,35 +1012,41 @@ const Finance: React.FC = () => {
           recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
       />
 
-      {selectedTransactionIds.size > 0 && user?.role === 'manager' && (
+      {selectedTransactionIds.size > 0 && (user?.role === 'manager' || can('finance', 'assign') || can('finance', 'delete')) && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
           <span className="font-medium text-sm text-indigo-800">{selectedTransactionIds.size} transaction(s) selected</span>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setShowAssignGroupModal(true)}
-              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
-            >
-              Assign Group
-            </button>
-            <button 
-              onClick={() => setShowAssignDepartmentModal(true)}
-              className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
-            >
-              Assign Dept
-            </button>
-            <button 
-              onClick={() => setShowTransferModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
-            >
-              <FileUp className="h-4 w-4 inline-block mr-1.5" />
-              Transfer to Invoice
-            </button>
-            <button 
-              onClick={handleBulkDeleteClick}
-              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
-            >
-              Delete {selectedTransactionIds.size} Records
-            </button>
+          <div className="flex flex-wrap gap-2">
+            {(user?.role === 'manager' || can('finance', 'assign')) && (
+              <>
+                <button 
+                  onClick={() => setShowAssignGroupModal(true)}
+                  className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
+                >
+                  Assign Group
+                </button>
+                <button 
+                  onClick={() => setShowAssignDepartmentModal(true)}
+                  className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+                >
+                  Assign Dept
+                </button>
+                <button 
+                  onClick={() => setShowTransferModal(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
+                >
+                  <FileUp className="h-4 w-4 inline-block mr-1.5" />
+                  Transfer to Invoice
+                </button>
+              </>
+            )}
+            {(user?.role === 'manager' || can('finance', 'delete')) && (
+              <button 
+                onClick={handleBulkDeleteClick}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
+              >
+                Delete {selectedTransactionIds.size} Records
+              </button>
+            )}
           </div>
         </div>
       )}

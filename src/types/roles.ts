@@ -75,6 +75,14 @@ export interface Permission {
 
   quickContact?: boolean;
   reminder?: boolean;
+  mondayAutoEmail?: boolean; // NEW: Rental Monday auto email toggle
+  whatsapp?: boolean;        // NEW: WhatsApp sender/action
+  email?: boolean;           // NEW: Email sender/action
+  template?: boolean;        // NEW: Template change/management
+  driverRisk?: boolean;      // NEW: Driver Risk analysis
+  renewalAnalysis?: boolean; // NEW: Renewal Underwriter Dossier
+  showCompletedPaid?: boolean; // NEW: Show Completed/Paid toggle
+  groupMessaging?: boolean;  // NEW: Group Messaging / News Flash
 
   // Trash specific
   restore?: boolean;
@@ -125,20 +133,20 @@ const BASE_DASHBOARD = { view: false };
 const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false, mileageHistoryView: false, mileageHistoryEdit: false, mileageHistoryDelete: false, groups: false, departments: false, assign: false, recordsPermission: false };
 const BASE_UTILISATION = { view: false, export: true, singleDoc: true };
 const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, tableStatus: false, complete: false, completed: false, singleDoc: false, categories: false };
-const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false };
-const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false };
-const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false, progressview: false, progressedit: false, groups: false, departments: false, assign: false, recordsPermission: false }; 
+const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false, reminder: false, mondayAutoEmail: false, whatsapp: false, email: false };
+const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false, driverRisk: false, renewalAnalysis: false };
+const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false, progressview: false, progressedit: false, groups: false, departments: false, assign: false, recordsPermission: false, email: false, whatsapp: false, template: false }; 
 const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false, recordPayment: false };
-const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false };
-const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false };
+const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false, whatsapp: false, email: false };
+const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false, whatsapp: false };
 const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false };
 const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, share: false, categories: false, reoccurring: false, singleDoc: false };
 const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, accounts: false, categories: false, groups: false, departments: false, recordsPermission: false, reoccurring: false, assign: false, singleDoc: false };
-const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false };
+const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false, showCompletedPaid: false, whatsapp: false, email: false };
 const BASE_VAT_RECORD = { view: false, create: false, update: false, delete: false, cards: false, export: false, groups: false, categories: false, reoccurring: false, state: false, singleDoc: false };
 const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, share: false, export: false, import: false, categories: false, reoccurring: false, singleDoc: false };
-const BASE_MEMBERS = { view: false, create: false, update: false, delete: false, cards: false, assign: false, signatureReq: false, singleDoc: false };
-const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false };
+const BASE_MEMBERS = { view: false, create: false, update: false, delete: false, cards: false, assign: false, signatureReq: false, singleDoc: false, groupMessaging: false };
+const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false, groupMessaging: false };
 const BASE_PRODUCTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false };
 const BASE_COMMUNICATION = { view: false, send: false, clearHistory: false, targetFinance: false, targetRental: false, targetMaintenance: false, targetInvoice: false, targetClaim: false, targetCustom: false };
 const BASE_WAITING = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false, quickContact: false, reminder: false };
@@ -157,24 +165,24 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   manager: {
     dashboard: { ...BASE_DASHBOARD, view: true },
     vehicles: { ...BASE_VEHICLES, view: true, create: true, update: true, delete: true, cards: true, mileage: true, export: true, owner: true, syncStatus: true, sale: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true, groups: true, departments: true, assign: true, recordsPermission: true },
-    utilisation: { ...BASE_UTILISATION, view: true },
+    utilisation: { ...BASE_UTILISATION, view: true, export: true, singleDoc: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, tableStatus: true, complete: true, completed: true, singleDoc: true, categories: true },
-    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
-    accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true },
-    claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true },
+    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, whatsapp: true, email: true },
+    accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true, driverRisk: true, renewalAnalysis: true },
+    claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true, email: true, whatsapp: true, template: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, recordPayment: true },
-    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, update: true, delete: true, cards: true, singleDoc: true },
-    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
+    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, update: true, delete: true, cards: true, singleDoc: true, whatsapp: true, email: true },
+    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true, whatsapp: true },
     pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
     aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true },
     finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true },
-    invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true },
+    invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, showCompletedPaid: true, whatsapp: true, email: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, delete: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
     share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, share: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true },
-    members: { ...BASE_MEMBERS, view: true, update: true, cards: true, assign: true, signatureReq: true, singleDoc: true },
-    customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true },
+    members: { ...BASE_MEMBERS, view: true, update: true, cards: true, assign: true, signatureReq: true, singleDoc: true, groupMessaging: true },
+    customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true, groupMessaging: true },
     products: { ...BASE_PRODUCTS, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true },
     whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
     bulkEmail: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
@@ -196,23 +204,23 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     dashboard: { ...BASE_DASHBOARD, view: true },
     vehicles: { ...BASE_VEHICLES, view: true, cards: true, mileage: true, export: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true, groups: true, departments: true, assign: true, recordsPermission: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, cards: true, export: true, tableStatus: true, completed: true, singleDoc: true },
-    utilisation: { ...BASE_UTILISATION, view: true },
-    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true },
-    accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true },
-    claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true },
+    utilisation: { ...BASE_UTILISATION, view: true, export: true, singleDoc: true },
+    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, whatsapp: true, email: true },
+    accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true, driverRisk: true, renewalAnalysis: true },
+    claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true, email: true, whatsapp: true, template: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, import: true, singleDoc: true, recordPayment: true, groups: true, departments: true, assign: true, recordsPermission: true },
-    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, cards: true, singleDoc: true },
-    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true },
+    vdInvoice: { ...BASE_VD_INVOICE, view: true, create: true, cards: true, singleDoc: true, whatsapp: true, email: true },
+    driverPay: { ...BASE_DRIVER_PAY, view: true, create: true, update: true, delete: true, recordPayment: true, cards: true, export: true, lock: true, unlock: true, singleDoc: true, period: true, whatsapp: true },
     pettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
     aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, cards: true, singleDoc: true },
     finance: { ...BASE_FINANCE, view: true, cards: true, export: true, singleDoc: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true },
-    invoices: { ...BASE_INVOICES, view: true, create: true, cards: true, export: true, singleDoc: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true },
+    invoices: { ...BASE_INVOICES, view: true, create: true, cards: true, export: true, singleDoc: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, showCompletedPaid: true, whatsapp: true, email: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, cards: true, export: true, singleDoc: true },
     share: { ...BASE_SHARE, view: true, create: true, cards: true, share: true, export: true, import: true, singleDoc: true },
-    members: { ...BASE_MEMBERS, view: true, create: true, cards: true, singleDoc: true },
-    customers: { ...BASE_CUSTOMERS, view: true, cards: true, export: true },
+    members: { ...BASE_MEMBERS, view: true, create: true, cards: true, singleDoc: true, groupMessaging: true },
+    customers: { ...BASE_CUSTOMERS, view: true, cards: true, export: true, groupMessaging: true },
     products: { ...BASE_PRODUCTS, view: true, cards: true, export: true },
     whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
     bulkEmail: { ...BASE_COMMUNICATION },

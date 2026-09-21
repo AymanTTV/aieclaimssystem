@@ -564,11 +564,15 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
 
             {/* ROW 3: Documents Generation & Communications */}
-            {can('rentals', 'singleDoc') && (
+            {(can('rentals', 'whatsapp') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'singleDoc')) && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
-                <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
-                <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
-                {r.status === 'active' && (() => {
+                {can('rentals', 'whatsapp') && (
+                  <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
+                )}
+                {can('rentals', 'email') && (
+                  <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
+                )}
+                {can('rentals', 'mondayAutoEmail') && r.status === 'active' && (() => {
                   const isClaim = ['claim', 'claims'].includes(String(r.type || r.reason || r.category || '').trim().toLowerCase());
                   if (isClaim) {
                     return (
@@ -604,28 +608,34 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 })()}
 
                 {/* Send Test Email (Single test bypassing Monday cron & toggle restrictions) */}
-                <ActionBtn 
-                  onClick={async () => {
-                    const recipientLabel = r.customerName || 'driver';
-                    const toastId = toast.loading(`Sending test email to ${recipientLabel}...`);
-                    try {
-                      const matchingVehicle = vehicles.find(v => v.id === r.vehicleId || (v.registration && v.registration === r.vehicleId));
-                      const matchingCustomer = customers.find(c => c.id === r.customerId);
-                      const res = await sendSingleRentalTestEmail(r, matchingVehicle, matchingCustomer);
-                      toast.success(res.message, { id: toastId, duration: 6000 });
-                    } catch (err: any) {
-                      toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });
-                    }
-                  }} 
-                  icon={Send} 
-                  colorClass="text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 shadow-xs" 
-                  title="Send Test Email (Immediately sends active Rental Bulk Email template to this driver, bypassing cron & toggles)" 
-                />
+                {can('rentals', 'email') && (
+                  <ActionBtn 
+                    onClick={async () => {
+                      const recipientLabel = r.customerName || 'driver';
+                      const toastId = toast.loading(`Sending test email to ${recipientLabel}...`);
+                      try {
+                        const matchingVehicle = vehicles.find(v => v.id === r.vehicleId || (v.registration && v.registration === r.vehicleId));
+                        const matchingCustomer = customers.find(c => c.id === r.customerId);
+                        const res = await sendSingleRentalTestEmail(r, matchingVehicle, matchingCustomer);
+                        toast.success(res.message, { id: toastId, duration: 6000 });
+                      } catch (err: any) {
+                        toast.error(err?.message || 'Failed to send test email', { id: toastId, duration: 6000 });
+                      }
+                    }} 
+                    icon={Send} 
+                    colorClass="text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 shadow-xs" 
+                    title="Send Test Email (Immediately sends active Rental Bulk Email template to this driver, bypassing cron & toggles)" 
+                  />
+                )}
 
-                <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
-                <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
-                <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />
-                <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700 hover:bg-purple-50" title="Parking Permit" />
+                {can('rentals', 'singleDoc') && (
+                  <>
+                    <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
+                    <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
+                    <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />
+                    <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700 hover:bg-purple-50" title="Parking Permit" />
+                  </>
+                )}
               </div>
             )}
 

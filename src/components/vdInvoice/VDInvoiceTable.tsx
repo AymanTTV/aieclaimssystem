@@ -156,26 +156,30 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
             <Edit className="h-4 w-4" />
           </button>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleWhatsApp(row.original);
-            }}
-            className="text-green-600 hover:text-green-800"
-            title="Share via WhatsApp"
-          >
-            <MessageCircle className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEmail(row.original);
-            }}
-            className="text-sky-600 hover:text-sky-800"
-            title="Send Email"
-          >
-            <Mail className="h-4 w-4" />
-          </button>
+          {can('vdInvoice', 'whatsapp') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleWhatsApp(row.original);
+              }}
+              className="text-green-600 hover:text-green-800"
+              title="Share via WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </button>
+          )}
+          {can('vdInvoice', 'email') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEmail(row.original);
+              }}
+              className="text-sky-600 hover:text-sky-800"
+              title="Send Email"
+            >
+              <Mail className="h-4 w-4" />
+            </button>
+          )}
           {can('vdInvoice', 'singleDoc') && (
           <button
             onClick={(e) => {

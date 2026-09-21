@@ -130,7 +130,7 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
       )}
 
       {/* Uploaded Document Quick-View if available */}
-      {accident.documentUrl && (
+      {can('accidents', 'singleDoc') && accident.documentUrl && (
         <button
           onClick={(e) => {
             e.stopPropagation();

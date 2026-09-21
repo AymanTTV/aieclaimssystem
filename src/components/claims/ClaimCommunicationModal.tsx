@@ -69,10 +69,18 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   overrideStage,
   onSuccess,
 }) => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+
+  const hasWhatsAppPermission = can('claims', 'whatsapp');
+  const hasEmailPermission = can('claims', 'email');
+  const canChangeTemplate = can('claims', 'template');
 
   // Primary selections
-  const [channel, setChannel] = useState<ClaimCommunicationChannel>(initialChannel);
+  const [channel, setChannel] = useState<ClaimCommunicationChannel>(() => {
+    if (initialChannel === 'whatsapp' && hasWhatsAppPermission) return 'whatsapp';
+    if (initialChannel === 'email' && hasEmailPermission) return 'email';
+    return hasWhatsAppPermission ? 'whatsapp' : hasEmailPermission ? 'email' : 'whatsapp';
+  });
   const [recipientType, setRecipientType] = useState<ClaimRecipientType>(initialRecipient);
   const [category, setCategory] = useState<ClaimTemplateCategory>(
     initialRecipient === 'legalHandler' ? 'legal_handler' : initialCategory
@@ -613,9 +621,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-lg">
               <button
                 type="button"
+                disabled={!hasWhatsAppPermission}
                 onClick={() => setChannel('whatsapp')}
                 className={`flex items-center justify-center space-x-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                  channel === 'whatsapp'
+                  !hasWhatsAppPermission
+                    ? 'opacity-40 cursor-not-allowed text-gray-400'
+                    : channel === 'whatsapp'
                     ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-semibold'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
@@ -625,9 +636,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               </button>
               <button
                 type="button"
+                disabled={!hasEmailPermission}
                 onClick={() => setChannel('email')}
                 className={`flex items-center justify-center space-x-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                  channel === 'email'
+                  !hasEmailPermission
+                    ? 'opacity-40 cursor-not-allowed text-gray-400'
+                    : channel === 'email'
                     ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200 font-semibold'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
@@ -675,15 +689,18 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
         {/* ROW 2: Template Category Tabs */}
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-            Template Category
+            Template Category {!canChangeTemplate && <span className="text-gray-400 font-normal lowercase">(locked by permissions)</span>}
           </label>
           <div className="flex flex-wrap gap-2">
             {recipientType === 'legalHandler' && (
               <button
                 type="button"
+                disabled={!canChangeTemplate}
                 onClick={() => handleCategoryChange('legal_handler')}
                 className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                  category === 'legal_handler'
+                  !canChangeTemplate
+                    ? 'opacity-60 cursor-not-allowed bg-gray-100 text-gray-500'
+                    : category === 'legal_handler'
                     ? 'bg-purple-600 text-white shadow-sm font-semibold'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
@@ -694,9 +711,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             )}
             <button
               type="button"
+              disabled={!canChangeTemplate}
               onClick={() => handleCategoryChange('general')}
               className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                category === 'general'
+                !canChangeTemplate
+                  ? 'opacity-60 cursor-not-allowed bg-gray-100 text-gray-500'
+                  : category === 'general'
                   ? 'bg-blue-600 text-white shadow-sm font-semibold'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -706,9 +726,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             </button>
             <button
               type="button"
+              disabled={!canChangeTemplate}
               onClick={() => handleCategoryChange('progress')}
               className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                category === 'progress'
+                !canChangeTemplate
+                  ? 'opacity-60 cursor-not-allowed bg-gray-100 text-gray-500'
+                  : category === 'progress'
                   ? 'bg-teal-600 text-white shadow-sm font-semibold'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -718,9 +741,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             </button>
             <button
               type="button"
+              disabled={!canChangeTemplate}
               onClick={() => handleCategoryChange('custom')}
               className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                category === 'custom'
+                !canChangeTemplate
+                  ? 'opacity-60 cursor-not-allowed bg-gray-100 text-gray-500'
+                  : category === 'custom'
                   ? 'bg-amber-600 text-white shadow-sm font-semibold'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -730,9 +756,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             </button>
             <button
               type="button"
+              disabled={!canChangeTemplate}
               onClick={() => handleCategoryChange('all')}
               className={`flex items-center space-x-1.5 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                category === 'all'
+                !canChangeTemplate
+                  ? 'opacity-60 cursor-not-allowed bg-gray-100 text-gray-500'
+                  : category === 'all'
                   ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -749,15 +778,17 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
               Select Template ({filteredTemplates.length} available)
             </label>
-            <button
-              type="button"
-              onClick={handleRefreshPlaceholders}
-              className="text-xs text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1 font-medium transition-colors"
-              title="Re-populate template with current field values"
-            >
-              <RefreshCw className="h-3 w-3" />
-              <span>Reset to template defaults</span>
-            </button>
+            {canChangeTemplate && (
+              <button
+                type="button"
+                onClick={handleRefreshPlaceholders}
+                className="text-xs text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1 font-medium transition-colors"
+                title="Re-populate template with current field values"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>Reset to template defaults</span>
+              </button>
+            )}
           </div>
 
           {loadingTemplates ? (
@@ -772,6 +803,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               onSelectTemplate={handleTemplateSelect}
               channel={channel}
               activeCategory={category}
+              disabled={!canChangeTemplate}
             />
           )}
         </div>

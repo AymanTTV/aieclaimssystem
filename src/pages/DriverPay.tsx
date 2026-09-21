@@ -351,7 +351,7 @@ const DriverPayPage = () => {
           )}
 
           {/* 🟢 Bulk WhatsApp Action Button */}
-          {selectedRecordIds.size > 0 && (
+          {selectedRecordIds.size > 0 && can('driverPay', 'whatsapp') && (
             <button
               onClick={handleBulkWhatsApp}
               className="inline-flex items-center px-4 py-2 border border-emerald-600 text-emerald-700 rounded-md shadow-sm text-sm font-medium bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"

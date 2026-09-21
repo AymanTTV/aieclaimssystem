@@ -39,56 +39,56 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
   }, [transactions, period]);
 
   return (
-    // Unified container with dividers instead of separate cards
-    <div className="flex flex-col sm:flex-row sm:divide-x divide-y sm:divide-y-0 divide-gray-100">
+    // Unified container with dark navy palette and dividers
+    <div className="bg-[#0c101c] flex flex-col sm:flex-row sm:divide-x divide-y sm:divide-y-0 divide-slate-800/80">
       
       {/* Total Income */}
-      <div className="flex-1 p-4 flex items-center">
-        <div className="rounded-full p-3 bg-green-50 text-green-600">
+      <div className="flex-1 p-5 flex items-center hover:bg-slate-900/40 transition-colors">
+        <div className="rounded-xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-xs">
           <TrendingUp className="w-5 h-5" />
         </div>
         <div className="ml-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Income</p>
-          <p className="text-xl font-bold text-gray-900">
+          <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Total Income</p>
+          <p className="text-2xl font-black font-mono text-emerald-400 mt-0.5">
             {formatCurrency(summary.totalIncome)}
           </p>
         </div>
       </div>
 
       {/* Total Expenses */}
-      <div className="flex-1 p-4 flex items-center">
-        <div className="rounded-full p-3 bg-red-50 text-red-600">
+      <div className="flex-1 p-5 flex items-center hover:bg-slate-900/40 transition-colors">
+        <div className="rounded-xl p-3 bg-rose-500/15 border border-rose-500/30 text-rose-400 shadow-xs">
           <TrendingDown className="w-5 h-5" />
         </div>
         <div className="ml-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expenses</p>
-          <p className="text-xl font-bold text-gray-900">
+          <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Total Expenses</p>
+          <p className="text-2xl font-black font-mono text-rose-400 mt-0.5">
             {formatCurrency(summary.totalExpenses)}
           </p>
         </div>
       </div>
 
       {/* Net Income */}
-      <div className="flex-1 p-4 flex items-center">
-        <div className="rounded-full p-3 bg-blue-50 text-blue-600">
+      <div className="flex-1 p-5 flex items-center hover:bg-slate-900/40 transition-colors">
+        <div className="rounded-xl p-3 bg-blue-500/15 border border-blue-500/30 text-blue-400 shadow-xs">
           <DollarSign className="w-5 h-5" />
         </div>
         <div className="ml-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net Income</p>
-          <p className={`text-xl font-bold ${summary.netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className="text-xs font-bold text-blue-300 uppercase tracking-wider">Net Income</p>
+          <p className={`text-2xl font-black font-mono mt-0.5 ${summary.netIncome >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {formatCurrency(summary.netIncome)}
           </p>
         </div>
       </div>
 
       {/* Profit Margin */}
-      <div className="flex-1 p-4 flex items-center">
-        <div className="rounded-full p-3 bg-purple-50 text-purple-600">
+      <div className="flex-1 p-5 flex items-center hover:bg-slate-900/40 transition-colors">
+        <div className="rounded-xl p-3 bg-purple-500/15 border border-purple-500/30 text-purple-400 shadow-xs">
           <Percent className="w-5 h-5" />
         </div>
         <div className="ml-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Profit Margin</p>
-          <p className={`text-xl font-bold ${summary.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">Profit Margin</p>
+          <p className={`text-2xl font-black font-mono mt-0.5 ${summary.profitMargin >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {formatPercentage(summary.profitMargin)}
           </p>
         </div>

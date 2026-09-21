@@ -239,7 +239,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       },
     ];
 
-    if (!isManager) {
+    const canSelect = isManager || can('finance', 'assign') || can('finance', 'delete');
+    if (!canSelect) {
       return cols.filter(c => c.id !== 'select');
     }
     return cols;

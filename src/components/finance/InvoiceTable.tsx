@@ -277,8 +277,8 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
               <div className="flex flex-wrap justify-center gap-1">
                 {can('invoices', 'view') && <ActionBtn onClick={() => onView(inv)} icon={Eye} colorClass="text-blue-600" title="View Details" />}
                 {can('invoices', 'update') && <ActionBtn onClick={() => onEdit(inv)} icon={Edit} colorClass="text-indigo-600" title="Edit Invoice" />}
-                <ActionBtn onClick={() => handleWhatsApp(inv)} icon={MessageCircle} colorClass="text-green-600 hover:text-green-700" title="Share via WhatsApp" />
-                <ActionBtn onClick={() => handleEmail(inv)} icon={Mail} colorClass="text-sky-600 hover:text-sky-700" title="Send Email" />
+                {can('invoices', 'whatsapp') && <ActionBtn onClick={() => handleWhatsApp(inv)} icon={MessageCircle} colorClass="text-green-600 hover:text-green-700" title="Share via WhatsApp" />}
+                {can('invoices', 'email') && <ActionBtn onClick={() => handleEmail(inv)} icon={Mail} colorClass="text-sky-600 hover:text-sky-700" title="Send Email" />}
                 {can('invoices', 'assign') && <ActionBtn onClick={() => onAssignDepartment(inv)} icon={Briefcase} colorClass="text-teal-600" title="Assign Department" />}
               </div>
 
@@ -307,7 +307,8 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
       },
     ];
 
-    if (!isManager) {
+    const canSelect = isManager || can('invoices', 'assign') || can('invoices', 'delete');
+    if (!canSelect) {
       return cols.filter(c => c.id !== 'select');
     }
     return cols;

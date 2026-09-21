@@ -280,7 +280,7 @@ const ClaimRowActions: React.FC<ClaimRowActionsProps> = ({
   return (
     <div className="flex items-center space-x-2 relative" ref={menuRef}>
       {/* WhatsApp Action with Recipient Selector */}
-      {onWhatsApp && (
+      {onWhatsApp && can('claims', 'whatsapp') && (
         <div className="relative inline-block text-left">
           <button
             type="button"
@@ -344,7 +344,7 @@ const ClaimRowActions: React.FC<ClaimRowActionsProps> = ({
       )}
 
       {/* Email Action with Recipient Selector */}
-      {onEmail && (
+      {onEmail && can('claims', 'email') && (
         <div className="relative inline-block text-left">
           <button
             type="button"

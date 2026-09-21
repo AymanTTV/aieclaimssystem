@@ -202,7 +202,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                     <Eye className="h-4 w-4" />
                   </button>
                 )}
-                {onWhatsApp && (
+                {can('driverPay', 'whatsapp') && onWhatsApp && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -243,7 +243,7 @@ const DriverPayTable: React.FC<DriverPayTableProps> = ({
                   </button>
                 )}
 
-                {onWhatsApp && (
+                {can('driverPay', 'whatsapp') && onWhatsApp && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

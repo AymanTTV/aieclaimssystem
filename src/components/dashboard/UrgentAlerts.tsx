@@ -83,13 +83,16 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
   const renderApproaching = (
     item: AlertVehicle,
     borderColorClass: string,
-    textAccentClass: string
+    textAccentClass: string,
+    keyPrefix: string,
+    vehicleIndex: number
   ) => {
     const { vehicle: v, docs } = item;
+    const vehicleKey = `${keyPrefix}-${v.id || v.registrationNumber || vehicleIndex}`;
 
     return (
       <div
-        key={v.id}
+        key={vehicleKey}
         className={`bg-white border border-gray-100 border-l-4 ${borderColorClass} p-3 mb-2 rounded-r-md shadow-sm hover:shadow transition-shadow`}
       >
         <div className="flex items-start justify-between">
@@ -103,29 +106,32 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
           </div>
           <div className="text-right space-y-1 mt-0.5">
             {/* Render ONLY the filtered docs */}
-            {docs.map((r, idx) => (
-              <div key={`${r.label}-${r.date.getTime()}-${idx}`} className="flex items-center justify-end space-x-2.5">
-                
-                {/* INCREASED FONT SIZE FOR DOCUMENT NAME */}
-                <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wide">
-                  {r.label}:
-                </span>
-                
-                <span className={`text-xs font-bold ${textAccentClass}`}>
-                  {format(r.date, 'dd/MM/yyyy')}
-                </span>
-                
-                <span
-                  className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
-                    differenceInCalendarDays(r.date, today) < 0
-                      ? 'bg-red-50 text-red-700 border-red-200' // Highlight if already expired
-                      : 'bg-gray-50 text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {daysLeftLabel(r.date)}
-                </span>
-              </div>
-            ))}
+            {docs.map((r, idx) => {
+              const timeVal = r.date instanceof Date && !isNaN(r.date.getTime()) ? r.date.getTime() : idx;
+              return (
+                <div key={`${vehicleKey}-${r.label}-${timeVal}-${idx}`} className="flex items-center justify-end space-x-2.5">
+                  
+                  {/* INCREASED FONT SIZE FOR DOCUMENT NAME */}
+                  <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wide">
+                    {r.label}:
+                  </span>
+                  
+                  <span className={`text-xs font-bold ${textAccentClass}`}>
+                    {format(r.date, 'dd/MM/yyyy')}
+                  </span>
+                  
+                  <span
+                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                      differenceInCalendarDays(r.date, today) < 0
+                        ? 'bg-red-50 text-red-700 border-red-200' // Highlight if already expired
+                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    {daysLeftLabel(r.date)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -148,7 +154,7 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
                 {criticalAlerts.length}
               </span>
             </div>
-            {criticalAlerts.map((item) => renderApproaching(item, 'border-red-500', 'text-red-700'))}
+            {criticalAlerts.map((item, idx) => renderApproaching(item, 'border-red-500', 'text-red-700', `critical-${idx}`, idx))}
           </div>
         )}
 
@@ -164,7 +170,7 @@ const UrgentAlerts: React.FC<UrgentAlertsProps> = ({ vehicles, maintenanceLogs =
                 {warningAlerts.length}
               </span>
             </div>
-            {warningAlerts.map((item) => renderApproaching(item, 'border-amber-400', 'text-amber-700'))}
+            {warningAlerts.map((item, idx) => renderApproaching(item, 'border-amber-400', 'text-amber-700', `warning-${idx}`, idx))}
           </div>
         )}
 

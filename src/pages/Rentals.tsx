@@ -485,28 +485,32 @@ const Rentals = () => {
               </button>
             </>
           )}
-          <button 
-            onClick={() => {
-              setMondayAutoEmailTab('templates');
-              setShowMondayAutoEmailModal(true);
-            }} 
-            className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-white hover:bg-indigo-50 hover:shadow transition-all"
-            title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
-          >
-            <Settings2 className="h-4 w-4 mr-2 text-indigo-600" />
-            <span className="truncate">Reminder Templates</span>
-          </button>
-          <button 
-            onClick={() => {
-              setMondayAutoEmailTab('list');
-              setShowMondayAutoEmailModal(true);
-            }} 
-            className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow transition-all"
-            title="Manage Monday Auto-Email for Active Rentals"
-          >
-            <Mail className="h-4 w-4 mr-2 text-indigo-600" />
-            <span className="truncate">Monday Auto-Email</span>
-          </button>
+          {can('rentals', 'reminder') && (
+            <button 
+              onClick={() => {
+                setMondayAutoEmailTab('templates');
+                setShowMondayAutoEmailModal(true);
+              }} 
+              className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-white hover:bg-indigo-50 hover:shadow transition-all"
+              title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
+            >
+              <Settings2 className="h-4 w-4 mr-2 text-indigo-600" />
+              <span className="truncate">Reminder Templates</span>
+            </button>
+          )}
+          {can('rentals', 'mondayAutoEmail') && (
+            <button 
+              onClick={() => {
+                setMondayAutoEmailTab('list');
+                setShowMondayAutoEmailModal(true);
+              }} 
+              className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow transition-all"
+              title="Manage Monday Auto-Email for Active Rentals"
+            >
+              <Mail className="h-4 w-4 mr-2 text-indigo-600" />
+              <span className="truncate">Monday Auto-Email</span>
+            </button>
+          )}
           {can('rentals', 'availableVehicles') && (
             <button 
               onClick={() => setShowAvailableVehicles(true)} 

@@ -18,22 +18,29 @@ const FRIENDLY_LABELS: Partial<Record<PermissionAction, string>> = {
   mileage: 'Mileage', daily: 'Daily rentals', weekly: 'Weekly rentals', claim: 'Claim rentals', export: 'Export', import: 'Import', send: 'Send/Communicate',
   owner: 'Owner Data', lock: 'Lock Records', unlock: 'Unlock Records', syncStatus: 'Sync Status', sale: 'Process Sales', copyId: 'Copy IDs', singleDoc: 'Single Document Gen',
   tableStatus: 'Edit Status in Table', complete: 'Complete Action', completed: 'View Completed Records', categories: 'Manage Categories', groups: 'Manage Groups',
+  departments: 'Departments', recordsPermission: 'Records Permission',
   availableVehicles: 'View Available Vehicles', completion: 'Log Completion', discount: 'Apply Discounts', note: 'Manage Notes', state: 'Change State',
   period: 'Manage Period', reoccurring: 'Manage Recurring', accounts: 'Manage Accounts', assign: 'Assign Records', signatureReq: 'Request Signatures',
   clearHistory: 'Clear History', targetFinance: 'Target Finance', targetRental: 'Target Rental', targetMaintenance: 'Target Maintenance', targetInvoice: 'Target Invoice',
-  targetClaim: 'Target Claim', targetCustom: 'Target Custom', quickContact: 'Quick Contact', reminder: 'Send Reminders', restore: 'Restore from Trash', deletePermanently: 'Delete Permanently',
+  targetClaim: 'Target Claim', targetCustom: 'Target Custom', quickContact: 'Quick Contact', reminder: 'Send Reminders',
+  mondayAutoEmail: 'Monday Auto Email', whatsapp: 'WhatsApp Sender', email: 'Email Sender', template: 'Message Templates',
+  driverRisk: 'Driver Risk Analysis', renewalAnalysis: 'Renewal Dossier Analysis', showCompletedPaid: 'Show Completed / Paid', groupMessaging: 'Group Messaging',
+  progressview: 'View Progress', progressedit: 'Edit Progress',
+  mileageHistoryView: 'View Mileage History', mileageHistoryEdit: 'Edit Mileage History', mileageHistoryDelete: 'Delete Mileage History',
+  viewPayment: 'View Payments', editPayment: 'Edit Payments', deletePayment: 'Delete Payments',
+  restore: 'Restore from Trash', deletePermanently: 'Delete Permanently',
 };
 
 const ACTION_ORDER: PermissionAction[] = [
-  'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'share', 'mileage', 'daily', 'weekly', 'claim', 'export', 'import', 'send', 'owner', 'lock', 'unlock', 'syncStatus', 'sale', 'copyId', 'singleDoc', 'tableStatus', 'complete', 'completed', 'categories', 'groups', 'availableVehicles', 'completion', 'discount', 'note', 'state', 'period', 'reoccurring', 'accounts', 'assign', 'signatureReq', 'clearHistory', 'targetFinance', 'targetRental', 'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom', 'quickContact', 'reminder', 'restore', 'deletePermanently'
+  'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'share', 'mileage', 'daily', 'weekly', 'claim', 'export', 'import', 'send', 'owner', 'lock', 'unlock', 'syncStatus', 'sale', 'copyId', 'singleDoc', 'tableStatus', 'complete', 'completed', 'categories', 'groups', 'departments', 'recordsPermission', 'availableVehicles', 'completion', 'discount', 'note', 'state', 'period', 'reoccurring', 'accounts', 'assign', 'signatureReq', 'clearHistory', 'targetFinance', 'targetRental', 'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom', 'quickContact', 'reminder', 'mondayAutoEmail', 'whatsapp', 'email', 'template', 'driverRisk', 'renewalAnalysis', 'showCompletedPaid', 'groupMessaging', 'progressview', 'progressedit', 'mileageHistoryView', 'mileageHistoryEdit', 'mileageHistoryDelete', 'viewPayment', 'editPayment', 'deletePayment', 'restore', 'deletePermanently'
 ];
 
 const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
-  dashboard: 'Dashboard', vehicles: 'Vehicles', maintenance: 'Maintenance', rentals: 'Rentals', accidents: 'Accidents', claims: 'Claims', finance: 'Finance', invoices: 'Invoices', pettyCash: 'AiePettyCash', aiePettyCash: 'SkylinePettyCash', share: 'Share', driverPay: 'Driver Pay', vdFinance: 'VD Finance', vdInvoice: 'VD Invoice', users: 'Users', vatRecord: 'VAT Record', customers: 'Customers', company: 'Company & Managers', products: 'Products', incomeExpense: 'Income & Expense', skylineIncomeExpense: 'Skyline Income & Expense', members: 'Members (Admin Actions)', waiting: 'Waiting List', whatsapp: 'WhatsApp', bulkEmail: 'Bulk Email', trash: 'Recycle Bin', todo: 'Todo List', settings: 'Settings', memberProfile: 'Member — Profile', memberRentals: 'Member — Rentals', memberTransactions: 'Member — Transactions', memberInvoices: 'Member — Invoices',
+  dashboard: 'Dashboard', vehicles: 'Vehicles', utilisation: 'Utilisation', maintenance: 'Maintenance', rentals: 'Rentals', accidents: 'Accidents', claims: 'Claims', finance: 'Finance', invoices: 'Invoices', pettyCash: 'AiePettyCash', aiePettyCash: 'SkylinePettyCash', share: 'Share', driverPay: 'Driver Pay', vdFinance: 'VD Finance', vdInvoice: 'VD Invoice', users: 'Users', vatRecord: 'VAT Record', customers: 'Customers', company: 'Company & Managers', products: 'Products', incomeExpense: 'Income & Expense', skylineIncomeExpense: 'Skyline Income & Expense', members: 'Members (Admin Actions)', waiting: 'Waiting List', whatsapp: 'WhatsApp', bulkEmail: 'Bulk Email', trash: 'Recycle Bin', todo: 'Todo List', settings: 'Settings', memberProfile: 'Member — Profile', memberRentals: 'Member — Rentals', memberTransactions: 'Member — Transactions', memberInvoices: 'Member — Invoices',
 };
 
 const MODULE_ORDER: Array<keyof RolePermissions> = [
-  'dashboard', 'vehicles', 'maintenance', 'rentals', 'customers', 'finance', 'invoices', 'claims', 'users', 'accidents', 'pettyCash', 'aiePettyCash', 'share', 'driverPay', 'vdFinance', 'vdInvoice', 'vatRecord', 'company', 'products', 'incomeExpense', 'skylineIncomeExpense', 'members', 'waiting', 'whatsapp', 'bulkEmail', 'todo', 'trash', 'settings', 'memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices',
+  'dashboard', 'vehicles', 'utilisation', 'maintenance', 'rentals', 'customers', 'finance', 'invoices', 'claims', 'users', 'accidents', 'pettyCash', 'aiePettyCash', 'share', 'driverPay', 'vdFinance', 'vdInvoice', 'vatRecord', 'company', 'products', 'incomeExpense', 'skylineIncomeExpense', 'members', 'waiting', 'whatsapp', 'bulkEmail', 'todo', 'trash', 'settings', 'memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices',
 ];
 
 const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = ['memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices'];
