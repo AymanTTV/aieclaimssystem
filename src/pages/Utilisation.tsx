@@ -4,7 +4,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useRentals } from '../hooks/useRentals';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useCustomers } from '../hooks/useCustomers';
-import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { DataTable } from '../components/DataTable/DataTable';
 import FormField from '../components/ui/FormField';
 import Modal from '../components/ui/Modal';
@@ -64,7 +64,7 @@ const parseLocal = (dStr: string) => {
 };
 
 const Utilisation = () => {
-  const { can } = useAuth();
+  const { can } = usePermissions();
   const { vehicles, loading: vLoad } = useVehicles();
   const { rentals, loading: rLoad } = useRentals();
   const { logs, loading: mLoad } = useMaintenanceLogs();

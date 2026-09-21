@@ -21,6 +21,7 @@ import {
 import { fetchLegalHandlers } from '../../utils/legalHandlers';
 import { LegalHandler } from '../../types/legalHandler';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import ClaimTemplateSearchableSelect from './ClaimTemplateSearchableSelect';
 import {
   MessageCircle,
@@ -69,7 +70,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   overrideStage,
   onSuccess,
 }) => {
-  const { user, can } = useAuth();
+  const { user } = useAuth();
+  const { can } = usePermissions();
 
   const hasWhatsAppPermission = can('claims', 'whatsapp');
   const hasEmailPermission = can('claims', 'email');

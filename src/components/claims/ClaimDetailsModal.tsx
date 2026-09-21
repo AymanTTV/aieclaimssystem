@@ -197,18 +197,18 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
       id={sectionId}
       className={`rounded-xl border border-gray-200 dark:border-[#2B2B40] bg-white dark:bg-[#1E1E2D] overflow-hidden shadow-xs ${className}`}
     >
-      <div className="px-5 py-3.5 bg-gray-50/90 dark:bg-[#161622] border-b border-gray-200 dark:border-[#2B2B40] flex flex-wrap items-center justify-between gap-2">
+      <div className="px-5 py-3.5 bg-[#212049] dark:bg-[#161622] border-b border-[#2e2d63] dark:border-[#2B2B40] flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-300">
-            <Icon className="w-4 h-4" />
+          <div className="p-1.5 rounded-lg bg-white/10 text-white dark:bg-white/15 dark:text-white">
+            <Icon className="w-4 h-4 text-white !text-white" />
           </div>
           <div className="flex items-center gap-2">
             {sectionNumber && (
-              <span className="text-xs font-bold uppercase tracking-wider text-primary dark:text-primary-400 bg-primary/10 dark:bg-primary/20 px-2 py-0.5 rounded-md">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 bg-white/10 px-2 py-0.5 rounded-md !text-cyan-300 font-semibold">
                 {sectionNumber}
               </span>
             )}
-            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+            <h3 className="text-base font-bold text-white dark:text-white !text-white tracking-wide">
               {title}
             </h3>
           </div>
@@ -216,7 +216,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         </div>
         {action && <div>{action}</div>}
       </div>
-      <div className="p-5 space-y-6">{children}</div>
+      <div className="p-5 space-y-6 text-gray-800 dark:text-gray-100">{children}</div>
     </div>
   );
 
@@ -232,8 +232,8 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   }) => (
     <div>
       <div className="flex items-center gap-2 mb-3 pb-1.5 border-b border-gray-100 dark:border-[#2B2B40]/70">
-        {SubIcon && <SubIcon className="w-4 h-4 text-gray-400 dark:text-gray-500" />}
-        <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+        {SubIcon && <SubIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />}
+        <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider">
           {title}
         </h4>
       </div>
@@ -249,8 +249,8 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     value: string | number | React.ReactNode | null | undefined;
   }) => (
     <div className="mb-2">
-      <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+      <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">{label}</dt>
+      <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white break-words">
         {value ?? 'N/A'}
       </dd>
     </div>
@@ -265,7 +265,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         title={`View ${label}`}
       >
         <FileText className="w-4 h-4 flex-shrink-0 text-primary group-hover:scale-110 transition-transform" />
-        <span className="text-xs font-semibold truncate capitalize text-gray-800 dark:text-gray-200">
+        <span className="text-xs font-semibold truncate capitalize text-gray-800 dark:text-white dark:!text-white">
           {label}
         </span>
       </button>
@@ -556,12 +556,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   value={formatDate((claim as any).clientInfo?.dateOfBirth)}
                 />
                 <div>
-                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Phone</dt>
-                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Phone</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                     {(claim as any).clientInfo?.phone ? (
                       <a
                         href={`tel:${(claim as any).clientInfo?.phone}`}
-                        className="text-primary hover:underline"
+                        className="text-primary dark:text-sky-300 hover:underline"
                       >
                         {(claim as any).clientInfo?.phone}
                       </a>
@@ -571,12 +571,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Email</dt>
-                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Email</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                     {(claim as any).clientInfo?.email ? (
                       <a
                         href={`mailto:${(claim as any).clientInfo?.email}`}
-                        className="text-primary hover:underline"
+                        className="text-primary dark:text-sky-300 hover:underline"
                       >
                         {(claim as any).clientInfo?.email}
                       </a>
@@ -610,10 +610,10 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                       />
                     </div>
                     <div className="col-span-2 md:col-span-3">
-                      <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">
                         Injury Details
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                      <dd className="mt-1 text-sm text-gray-900 dark:text-white dark:!text-white whitespace-pre-wrap">
                         {(claim as any).clientInfo?.injuryDetails ?? 'N/A'}
                       </dd>
                     </div>
@@ -629,56 +629,56 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           <SubSection title="Vehicle Details" icon={Car}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Registration</p>
-                <p className="font-semibold text-base text-gray-900 dark:text-gray-100 mt-1">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Registration</p>
+                <p className="font-semibold text-base text-gray-900 dark:text-white dark:!text-white mt-1">
                   {claim.clientVehicle?.registration ?? 'N/A'}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">MOT Expiry</p>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">MOT Expiry</p>
                 <p
                   className={`font-medium text-sm mt-1 ${
                     checkIsExpiring(claim.clientVehicle?.motExpiry)
                       ? 'text-red-600 dark:text-red-400 font-bold'
-                      : 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-900 dark:text-white dark:!text-white'
                   }`}
                 >
                   {formatDate(claim.clientVehicle?.motExpiry)}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Road Tax Expiry</p>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Road Tax Expiry</p>
                 <p
                   className={`font-medium text-sm mt-1 ${
                     checkIsExpiring(claim.clientVehicle?.roadTaxExpiry)
                       ? 'text-red-600 dark:text-red-400 font-bold'
-                      : 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-900 dark:text-white dark:!text-white'
                   }`}
                 >
                   {formatDate(claim.clientVehicle?.roadTaxExpiry)}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">
                   Vehicle License (NSL)
                 </p>
                 <p
                   className={`font-medium text-sm mt-1 ${
                     checkIsExpiring(claim.clientVehicle?.nslExpiry)
                       ? 'text-red-600 dark:text-red-400 font-bold'
-                      : 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-900 dark:text-white dark:!text-white'
                   }`}
                 >
                   {formatDate(claim.clientVehicle?.nslExpiry)}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Insurance Expiry</p>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Insurance Expiry</p>
                 <p
                   className={`font-medium text-sm mt-1 ${
                     checkIsExpiring(claim.clientVehicle?.insuranceExpiry)
                       ? 'text-red-600 dark:text-red-400 font-bold'
-                      : 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-900 dark:text-white dark:!text-white'
                   }`}
                 >
                   {formatDate(claim.clientVehicle?.insuranceExpiry)}
@@ -695,12 +695,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
               <Field label="Name" value={(claim as any).registerKeeper.name} />
               <Field label="Address" value={(claim as any).registerKeeper.address} />
               <div>
-                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Phone</dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Phone</dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white dark:!text-white">
                   {(claim as any).registerKeeper.phone ? (
                     <a
                       href={`tel:${(claim as any).registerKeeper.phone}`}
-                      className="text-primary hover:underline"
+                      className="text-primary dark:text-sky-300 hover:underline"
                     >
                       {(claim as any).registerKeeper.phone}
                     </a>
@@ -710,12 +710,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Email</dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Email</dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white dark:!text-white">
                   {(claim as any).registerKeeper.email ? (
                     <a
                       href={`mailto:${(claim as any).registerKeeper.email}`}
-                      className="text-primary hover:underline"
+                      className="text-primary dark:text-sky-300 hover:underline"
                     >
                       {(claim as any).registerKeeper.email}
                     </a>
@@ -916,10 +916,10 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-start gap-2.5">
-            <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
+            <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Date & Time</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-gray-100 mt-0.5">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Date & Time</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white dark:!text-white mt-0.5">
                 {formatDate(claim.incidentDetails?.date)}{' '}
                 {claim.incidentDetails?.time ? `at ${claim.incidentDetails?.time}` : ''}
               </p>
@@ -927,29 +927,29 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           </div>
 
           <div className="flex items-start gap-2.5">
-            <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
+            <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Location</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-gray-100 mt-0.5">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Location</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white dark:!text-white mt-0.5">
                 {claim.incidentDetails?.location ?? 'N/A'}
               </p>
             </div>
           </div>
 
           <div className="col-span-1 md:col-span-2 pt-2 border-t border-gray-100 dark:border-[#2B2B40]/60">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-1">
               Description
             </p>
-            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-[#13131A] p-3 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
+            <p className="text-sm text-gray-800 dark:text-gray-100 dark:!text-gray-100 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-[#13131A] p-3 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
               {claim.incidentDetails?.description ?? 'N/A'}
             </p>
           </div>
 
           <div className="col-span-1 md:col-span-2">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-1">
               Damage Details
             </p>
-            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-[#13131A] p-3 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
+            <p className="text-sm text-gray-800 dark:text-gray-100 dark:!text-gray-100 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-[#13131A] p-3 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
               {claim.incidentDetails?.damageDetails ?? 'N/A'}
             </p>
           </div>
@@ -1020,13 +1020,13 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                     )}
                     {claim.gpInformation.gpContactNumber && (
                       <div>
-                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">
                           Contact Number
                         </dt>
-                        <dd className="mt-1 text-sm font-medium">
+                        <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                           <a
                             href={`tel:${claim.gpInformation.gpContactNumber}`}
-                            className="text-primary hover:underline"
+                            className="text-primary dark:text-sky-300 hover:underline font-medium"
                           >
                             {claim.gpInformation.gpContactNumber}
                           </a>
@@ -1093,13 +1093,13 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                     )}
                     {claim.hospitalInformation.hospitalContactNumber && (
                       <div>
-                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">
                           Contact Number
                         </dt>
-                        <dd className="mt-1 text-sm font-medium">
+                        <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                           <a
                             href={`tel:${claim.hospitalInformation.hospitalContactNumber}`}
-                            className="text-primary hover:underline"
+                            className="text-primary dark:text-sky-300 hover:underline font-medium"
                           >
                             {claim.hospitalInformation.hospitalContactNumber}
                           </a>
@@ -1149,12 +1149,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                 <Field label="Middle Name" value={tpName.middleName || 'N/A'} />
                 <Field label="Last Name" value={tpName.lastName || 'N/A'} />
                 <div>
-                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Phone</dt>
-                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Phone</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                     {claim.thirdParty?.phone ? (
                       <a
                         href={`tel:${claim.thirdParty.phone}`}
-                        className="text-primary hover:underline"
+                        className="text-primary dark:text-sky-300 hover:underline font-medium"
                       >
                         {claim.thirdParty.phone}
                       </a>
@@ -1164,12 +1164,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Email</dt>
-                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Email</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white dark:!text-white">
                     {claim.thirdParty?.email ? (
                       <a
                         href={`mailto:${claim.thirdParty.email}`}
-                        className="text-primary hover:underline"
+                        className="text-primary dark:text-sky-300 hover:underline font-medium"
                       >
                         {claim.thirdParty.email}
                       </a>
@@ -1204,7 +1204,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   key={index}
                   className="bg-gray-50 dark:bg-[#13131A] p-4 rounded-xl border border-gray-200 dark:border-[#2B2B40]"
                 >
-                  <h4 className="font-semibold text-sm mb-2 text-gray-900 dark:text-gray-100">
+                  <h4 className="font-semibold text-sm mb-2 text-gray-900 dark:text-white dark:!text-white">
                     Passenger {index + 1}
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1232,7 +1232,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                     key={index}
                     className="bg-gray-50 dark:bg-[#13131A] p-4 rounded-xl border border-gray-200 dark:border-[#2B2B40]"
                   >
-                    <h4 className="font-semibold text-sm mb-2 text-gray-900 dark:text-gray-100">
+                    <h4 className="font-semibold text-sm mb-2 text-gray-900 dark:text-white dark:!text-white">
                       Witness {index + 1}
                     </h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1274,7 +1274,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         {/* Images */}
         {(claim as any).evidence?.images?.length > 0 && (
           <div>
-            <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+            <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-2">
               Images ({(claim as any).evidence.images.length})
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1301,7 +1301,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         {/* Videos */}
         {(claim as any).evidence?.videos?.length > 0 && (
           <div>
-            <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+            <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-2">
               Videos ({(claim as any).evidence.videos.length})
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1328,7 +1328,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
         {/* Vehicle Photos */}
         {(claim as any).evidence?.clientVehiclePhotos?.length > 0 && (
           <div>
-            <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+            <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-2">
               Vehicle Photos ({(claim as any).evidence.clientVehiclePhotos.length})
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1354,7 +1354,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
 
         {/* Uploaded Document Reports */}
         <div>
-          <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+          <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider mb-2">
             Document Reports & Certificates
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -1498,14 +1498,14 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           <div className="p-4 rounded-xl border border-gray-200 dark:border-[#2B2B40] bg-gray-50/70 dark:bg-[#13131A]">
             <div className="flex items-center gap-2 mb-2">
               <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider">
                 AIE File Handler
               </h4>
             </div>
-            <div className="font-semibold text-base text-gray-900 dark:text-gray-100">
+            <div className="font-semibold text-base text-gray-900 dark:text-white dark:!text-white">
               {claim.fileHandlers.aieHandler ?? 'Unassigned'}
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-300 dark:!text-gray-300 mt-1">
               Responsible internal claims officer
             </p>
           </div>
@@ -1514,21 +1514,21 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           <div className="p-4 rounded-xl border border-gray-200 dark:border-[#2B2B40] bg-gray-50/70 dark:bg-[#13131A]">
             <div className="flex items-center gap-2 mb-2">
               <Scale className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-gray-800 dark:text-white dark:!text-white uppercase tracking-wider">
                 Legal Handler
               </h4>
             </div>
             {claim.fileHandlers.legalHandler ? (
               <div className="space-y-1.5">
-                <div className="font-semibold text-base text-gray-900 dark:text-gray-100">
+                <div className="font-semibold text-base text-gray-900 dark:text-white dark:!text-white">
                   {claim.fileHandlers.legalHandler.name}
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  <span className="font-medium text-gray-500">Email: </span>
+                <div className="text-xs text-gray-600 dark:text-gray-200 dark:!text-gray-200">
+                  <span className="font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Email: </span>
                   {claim.fileHandlers.legalHandler.email ? (
                     <a
                       href={`mailto:${claim.fileHandlers.legalHandler.email}`}
-                      className="text-primary hover:underline"
+                      className="text-primary dark:text-sky-300 hover:underline font-medium"
                     >
                       {claim.fileHandlers.legalHandler.email}
                     </a>
@@ -1536,12 +1536,12 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                     'N/A'
                   )}
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  <span className="font-medium text-gray-500">Phone: </span>
+                <div className="text-xs text-gray-600 dark:text-gray-200 dark:!text-gray-200">
+                  <span className="font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Phone: </span>
                   {claim.fileHandlers.legalHandler.phone ? (
                     <a
                       href={`tel:${claim.fileHandlers.legalHandler.phone}`}
-                      className="text-primary hover:underline"
+                      className="text-primary dark:text-sky-300 hover:underline font-medium"
                     >
                       {claim.fileHandlers.legalHandler.phone}
                     </a>
@@ -1550,8 +1550,8 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                   )}
                 </div>
                 {claim.fileHandlers.legalHandler.address && (
-                  <div className="text-xs text-gray-600 dark:text-gray-300">
-                    <span className="font-medium text-gray-500">Address: </span>
+                  <div className="text-xs text-gray-600 dark:text-gray-200 dark:!text-gray-200">
+                    <span className="font-medium text-gray-500 dark:text-gray-300 dark:!text-gray-300">Address: </span>
                     {claim.fileHandlers.legalHandler.address}
                   </div>
                 )}
