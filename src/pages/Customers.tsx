@@ -222,8 +222,20 @@ const Customers = () => {
         <CustomerForm customer={editingCustomer || undefined} onClose={handleCloseForm} />
       </Modal>
 
-      <Modal isOpen={!!selectedCustomer} onClose={() => setSelectedCustomer(null)} title="Customer Details" size="lg">
-        {selectedCustomer && <CustomerDetails customer={selectedCustomer} />}
+      <Modal
+        isOpen={!!selectedCustomer}
+        onClose={() => setSelectedCustomer(null)}
+        title="Member Details"
+        subtitle={selectedCustomer ? `${selectedCustomer.name} • ${selectedCustomer.type?.toUpperCase() || 'MEMBER'}` : undefined}
+        size="2xl"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0 bg-white"
+      >
+        {selectedCustomer && (
+          <CustomerDetails
+            customer={selectedCustomer}
+            onClose={() => setSelectedCustomer(null)}
+          />
+        )}
       </Modal>
 
       <Modal isOpen={!!assigningCustomer} onClose={() => setAssigningCustomer(null)} title="Assign Customer Type">
