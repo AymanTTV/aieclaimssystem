@@ -18,13 +18,15 @@ import { uploadMaintenanceAttachments } from '../../utils/maintenanceUpload';
 import productService from '../../services/product.service';
 import maintenanceCategoryService from '../../services/maintenanceCategory.service';
 import ProductFormModal from '../products/ProductFormModal'; 
-import { PlusCircle } from 'lucide-react'; 
+import { PlusCircle, Car, Wrench, Layers, CreditCard, Paperclip, ArrowRight, ArrowLeft } from 'lucide-react'; 
 
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
   onClose: () => void;
   editLog?: MaintenanceLog;
 }
+
+type FormTab = 'vehicle_service' | 'parts_labor' | 'billing_payment' | 'attachments';
 
 interface PartSuggestion {
   id: string;
@@ -38,6 +40,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const { can, isCompany } = usePermissions(); 
   const [loading, setLoading] = useState(false);
   const [isGeneratingNumbers, setIsGeneratingNumbers] = useState(false);
+  const [activeTab, setActiveTab] = useState<FormTab>('vehicle_service');
 
   const [manualEntry, setManualEntry] = useState(
     !!(editLog?.vehicleDetails && !editLog.vehicleId)
@@ -100,7 +103,21 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   useEffect(() => {
     setLoadingTypes(true);
     maintenanceCategoryService.getAll()
-      .then(docs => setMaintenanceTypes(docs.map(d => d.name)))
+      .then(docs => {
+        const seen = new Set<string>();
+        const unique: string[] = [];
+        docs.forEach(d => {
+          const name = d.name?.trim();
+          if (name) {
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              unique.push(name);
+            }
+          }
+        });
+        setMaintenanceTypes(unique);
+      })
       .catch(err => {
         console.error('Failed to load maintenance categories:', err);
         toast.error('Could not load maintenance categories');
@@ -318,19 +335,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       return;
     }
 
-    if (formData.status === 'completed') {
-      if (!orderNumber.trim()) {
-        toast.error('Maintenance Order Number is required when setting status to Completed.');
-        return;
-      }
-      if (!isCompany && !invoiceNumber.trim()) {
-        toast.error('Maintenance Invoice Number is required when setting status to Completed.');
-        return;
-      }
-    }
-
     if (!manualEntry && !selectedVehicleId) {
       toast.error('Please select a vehicle');
+      setActiveTab('vehicle_service');
       return;
     }
     if (
@@ -338,7 +345,28 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       (!manualMake.trim() || !manualModel.trim() || !manualRegNumber.trim())
     ) {
       toast.error('Please fill in all vehicle fields');
+      setActiveTab('vehicle_service');
       return;
+    }
+
+    if (!formData.type) {
+      toast.error('Please select a maintenance type');
+      setActiveTab('vehicle_service');
+      return;
+    }
+
+    if (formData.status === 'completed') {
+      if (!orderNumber.trim()) {
+        toast.error('Maintenance Order Number is required when setting status to Completed.');
+        if (!isCompany) setActiveTab('billing_payment');
+        else setActiveTab('vehicle_service');
+        return;
+      }
+      if (!isCompany && !invoiceNumber.trim()) {
+        toast.error('Maintenance Invoice Number is required when setting status to Completed.');
+        setActiveTab('billing_payment');
+        return;
+      }
     }
   
     setLoading(true);
@@ -548,6 +576,17 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
     }
   };
 
+  const formTabs: { id: FormTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
+    { id: 'vehicle_service', label: 'Vehicle & Service', icon: Car },
+    ...(!isCompany ? [{ id: 'parts_labor' as FormTab, label: 'Parts & Labor', icon: Layers, count: parts.filter(p => p.name.trim()).length + (formData.laborHours ? 1 : 0) }] : []),
+    ...(!isCompany ? [{ id: 'billing_payment' as FormTab, label: 'Billing & Payment', icon: CreditCard }] : []),
+    { id: 'attachments', label: 'Attachments', icon: Paperclip, count: existingAttachments.length + newAttachments.length },
+  ];
+
+  const currentTabIndex = formTabs.findIndex(t => t.id === activeTab);
+  const prevTab = currentTabIndex > 0 ? formTabs[currentTabIndex - 1] : null;
+  const nextTab = currentTabIndex < formTabs.length - 1 ? formTabs[currentTabIndex + 1] : null;
+
   return (
     <>
       <ProductFormModal 
@@ -556,568 +595,712 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         onProductCreated={handleProductCreated}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* Order & Invoice Section */}
-        <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">Order & Invoice Details</h4>
-          
-          {!editLog && !formData.type && (
-            <p className="text-sm font-medium text-yellow-700 bg-yellow-50 p-3 rounded-md border border-yellow-200 mb-4">
-              Select the maintenance type below for the invoice number and order number to be autofilled.
-            </p>
-          )}
-
-          {isGeneratingNumbers && (
-            <p className="text-sm font-medium text-blue-600 animate-pulse mb-4">
-              Generating next sequence numbers...
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-              <FormField 
-                label="Maintenance Order Number" 
-                value={orderNumber} 
-                onChange={e => setOrderNumber(e.target.value)} 
-                placeholder="e.g. ORD-1234"
-                required={formData.status === 'completed'}
-              />
-
-              {!isCompany && (
-                <>
-                  <FormField 
-                    label="Maintenance Invoice Number" 
-                    value={invoiceNumber} 
-                    onChange={e => setInvoiceNumber(e.target.value)} 
-                    placeholder="e.g. INV-1234"
-                    required={formData.status === 'completed'}
-                  />
-                  <FormField 
-                    type="datetime-local"
-                    label="Invoice Date" 
-                    value={invoiceDate} 
-                    onChange={e => setInvoiceDate(e.target.value)} 
-                  />
-                  <FormField 
-                    type="datetime-local"
-                    label="Invoice Due Date" 
-                    value={invoiceDueDate} 
-                    onChange={e => setInvoiceDueDate(e.target.value)} 
-                  />
-                </>
-              )}
-          </div>
-        </div>
-
-        {/* Vehicle selector / manual entry toggle */}
-        <div className="flex items-center space-x-2">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={manualEntry}
-              onChange={e => setManualEntry(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            <span className="ml-2 text-sm text-gray-600">Enter vehicle manually</span>
-          </label>
-        </div>
-        
-        {/* Manual Entry or Searchable Select */}
-        {manualEntry ? (
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              type="text"
-              label="Make"
-              value={manualMake}
-              onChange={e => setManualMake(e.target.value)}
-              required
-            />
-            <FormField
-              type="text"
-              label="Model"
-              value={manualModel}
-              onChange={e => setManualModel(e.target.value)}
-              required
-            />
-            <FormField
-              type="text"
-              label="Registration Number"
-              value={manualRegNumber}
-              onChange={e => setManualRegNumber(e.target.value)}
-              required
-            />
-            {!editLog && (
-              <FormField
-                type="number"
-                label="Current Mileage"
-                value={manualMileage}
-                onChange={e => setManualMileage(parseInt(e.target.value) || 0)}
-                required
-                min={0}
-              />
-            )}
-          </div>
-        ) : (
-          <SearchableSelect
-            label="Vehicle"
-            options={vehicles.map(v => ({
-              id: v.id,
-              label: `${v.make} ${v.model}`,
-              subLabel: v.registrationNumber
-            }))}
-            value={selectedVehicleId}
-            onChange={setSelectedVehicleId}
-            placeholder="Search vehicles…"
-            required
-            disabled={false} 
-          />
-        )}
-
-        {/* Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Type</label>
-          {loadingTypes ? (
-            <div className="text-sm text-gray-500 mt-2">Loading types…</div>
-          ) : (
-            <select
-              value={formData.type}
-              onChange={e => setFormData(prev => ({ ...prev, type: e.target.value }))}
-              className="mt-1 block w-full rounded-md border-gray-300 focus:border-primary focus:ring-primary sm:text-sm"
-              required
-            >
-              <option value="" disabled>-- Select Type --</option>
-              {maintenanceTypes.map(t => (
-                <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1).replace(/-/g, ' ')}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Date, Service Center, Mileage, Next Service, Status */}
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            type="datetime-local"
-            label="Maintenance Booking Start Date"
-            value={formData.date}
-            onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-            required
-          />
-          
-          <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700">Completed Date</label>
-                <span className="text-xs text-blue-600">Can provide later via table actions</span>
-              </div>
-              <input
-                type="datetime-local"
-                value={completedDate}
-                onChange={e => setCompletedDate(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Service Center</label>
-            <ServiceCenterDropdown
-              value={formData.serviceProvider}
-              onChange={handleServiceCenterSelect}
-              onInputChange={value => setFormData(prev => ({ ...prev, serviceProvider: value }))}
-            />
-          </div>
-          <FormField
-            type="number"
-            label="Current Mileage"
-            value={formData.currentMileage}
-            onChange={e => setFormData(prev => ({ ...prev, currentMileage: parseInt(e.target.value) }))}
-            required
-            min={0}
-          />
-          <FormField
-            type="number"
-            label="Next Service Mileage"
-            value={formData.nextServiceMileage}
-            onChange={e => setFormData(prev => ({ ...prev, nextServiceMileage: parseInt(e.target.value) }))}
-            required
-            min={formData.currentMileage}
-          />
-          <FormField
-            type="datetime-local"
-            label="Next Service Date"
-            value={formData.nextServiceDate}
-            onChange={e => setFormData(prev => ({ ...prev, nextServiceDate: e.target.value }))}
-            required
-          />
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              value={formData.status}
-              onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-              className="mt-1 block w-full rounded-md border-gray-300 focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="scheduled">Scheduled</option>
-              <option value="in-progress">In Progress</option>
-              {can('maintenance', 'complete') && <option value="completed">Completed</option>}
-              {can('maintenance', 'completed') && !isCompany && <option value="cancelled">Cancelled</option>}
-            </select>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Description</label>
-          <textarea
-            rows={3}
-            value={formData.description}
-            onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            required
-          />
-        </div>
-
-        {/* Parts Section */}
-        {!isCompany && (
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-lg font-medium text-gray-900">Parts</label>
+      <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden text-white">
+        {/* Modal Navigation Tabs */}
+        <div className="flex border-b border-[#2B314E] px-4 sm:px-6 shrink-0 bg-[#121524] overflow-x-auto no-scrollbar">
+          {formTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() =>
-                  setParts([
-                    ...parts,
-                    { name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }
-                  ])
-                }
-                className="text-sm text-primary hover:text-primary-600"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
+                    : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+                }`}
               >
-                Add Part
+                <Icon className="w-4 h-4 pointer-events-none shrink-0" />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`ml-1.5 px-2 py-0.2 rounded-full text-xs font-bold ${
+                    isActive ? 'bg-blue-500 text-white' : 'bg-[#2B314E] text-slate-300'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
-            </div>
-            <div className="space-y-3">
-              {parts.map((part, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50"
-                >
-                  <div className="relative col-span-1 sm:col-span-2">
-                    <FormField
-                      label="Part Name"
-                      value={part.name}
-                      onChange={e => {
-                        const newParts = [...parts];
-                        newParts[index] = { ...newParts[index], name: e.target.value };
-                        setParts(newParts);
-                      }}
-                      onFocus={() => {
-                        const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                        }, 200); 
-                      }}
-                      placeholder="Type to search products (name or part number)…"
-                      inputClassName="w-full"
-                    />
+            );
+          })}
+        </div>
 
-                    {showPartSuggestions[index] && (
-                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-                        {partSuggestionsList
-                          .filter(s => {
-                            const q = part.name?.toLowerCase() || '';
-                            return s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q);
-                          })
-                          .map((s) => (
-                          <li
-                            key={s.id}
-                            className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                            onMouseDown={() => {
-                              const newParts = [...parts];
-                              newParts[index] = {
-                                ...newParts[index],
-                                name: s.name,
-                                cost: s.lastCost,
-                              };
-                              setParts(newParts);
-                              const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
-                            }}
-                            title={`${s.name} (${s.partNumber})`}
-                          >
-                            <span className="truncate">
-                              {s.name}
-                              {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-                            </span>
-                            <span className="text-gray-500 text-sm ml-3">
-                              {formatCurrency(s.lastCost)}
-                            </span>
-                          </li>
-                        ))}
-
-                        <li 
-                          className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
-                          onMouseDown={(e) => {
-                            e.preventDefault(); 
-                            setPendingPartIndex(index);
-                            setShowProductModal(true);
-                          }}
-                        >
-                          <PlusCircle className="w-4 h-4" />
-                          Create New Product
-                        </li>
-                      </ul>
-                    )}
-                  </div>
-
-                  <FormField
-                    type="number"
-                    label="Quantity"
-                    value={part.quantity}
-                    onChange={e => {
-                      const newParts = [...parts];
-                      newParts[index] = { ...newParts[index], quantity: parseInt(e.target.value) || 0 };
-                      setParts(newParts);
-                    }}
-                    min={1}
-                    inputClassName="w-full"
-                  />
-
-                  <FormField
-                    type="number"
-                    label="Unit Price (£)"
-                    value={part.cost}
-                    onChange={e => {
-                      const newParts = [...parts];
-                      newParts[index] = { ...newParts[index], cost: parseFloat(e.target.value) || 0 };
-                      setParts(newParts);
-                    }}
-                    min={0}
-                    step={0.01}
-                    inputClassName="w-full"
-                  />
-
-                  <FormField
-                    type="number"
-                    label="Discount (%)"
-                    value={part.discount}
-                    onChange={e => {
-                      const newParts = [...parts];
-                      newParts[index] = { ...newParts[index], discount: parseFloat(e.target.value) || 0 };
-                      setParts(newParts);
-                    }}
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    inputClassName="w-full"
-                  />
-
-                  <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
-                    <label className="flex items-center space-x-2">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Scrollable Tab Content Body */}
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 custom-scrollbar text-white">
+            
+            {/* TAB 1: VEHICLE & SERVICE */}
+            {activeTab === 'vehicle_service' && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Vehicle Selection Card */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-5 h-5 text-blue-400" />
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Vehicle Details</h4>
+                    </div>
+                    <label className="flex items-center cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        checked={part.includeVAT}
-                        onChange={e => {
-                          const newParts = [...parts];
-                          newParts[index] = { ...newParts[index], includeVAT: e.target.checked };
-                          setParts(newParts);
-                        }}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={manualEntry}
+                        onChange={e => setManualEntry(e.target.checked)}
+                        className="rounded border-gray-600 bg-[#16192B] text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="text-sm text-gray-600">+VAT</span>
+                      <span className="ml-2 text-xs font-semibold text-slate-300">Enter vehicle manually</span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setParts(parts.filter((_, i) => i !== index))}
-                      className="text-red-600 hover:text-red-800"
-                      title="Remove Part"
-                    >
-                      Remove
-                    </button>
+                  </div>
+
+                  {/* Manual Entry or Searchable Select */}
+                  {manualEntry ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        type="text"
+                        label="Make"
+                        value={manualMake}
+                        onChange={e => setManualMake(e.target.value)}
+                        required
+                        placeholder="e.g. Ford, Toyota"
+                      />
+                      <FormField
+                        type="text"
+                        label="Model"
+                        value={manualModel}
+                        onChange={e => setManualModel(e.target.value)}
+                        required
+                        placeholder="e.g. Transit, Corolla"
+                      />
+                      <FormField
+                        type="text"
+                        label="Registration Number"
+                        value={manualRegNumber}
+                        onChange={e => setManualRegNumber(e.target.value)}
+                        required
+                        placeholder="e.g. AB12 CDE"
+                      />
+                      {!editLog && (
+                        <FormField
+                          type="number"
+                          label="Current Mileage"
+                          value={manualMileage}
+                          onChange={e => setManualMileage(parseInt(e.target.value) || 0)}
+                          required
+                          min={0}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <SearchableSelect
+                      label="Vehicle"
+                      options={vehicles.map(v => ({
+                        id: v.id,
+                        label: `${v.make} ${v.model}`,
+                        subLabel: v.registrationNumber
+                      }))}
+                      value={selectedVehicleId}
+                      onChange={setSelectedVehicleId}
+                      placeholder="Search vehicles…"
+                      required
+                    />
+                  )}
+                </div>
+
+                {/* Service Scheduling Card */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-amber-400" />
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Service Scheduling & Parameters</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Type (Searchable) */}
+                    <div className="sm:col-span-2">
+                      {loadingTypes ? (
+                        <div className="text-sm text-slate-400 mt-2">Loading types…</div>
+                      ) : (
+                        <SearchableSelect
+                          label="Maintenance Type"
+                          options={maintenanceTypes.map(t => ({
+                            id: t,
+                            label: t.charAt(0).toUpperCase() + t.slice(1).replace(/-/g, ' ')
+                          }))}
+                          value={formData.type}
+                          onChange={val => setFormData(prev => ({ ...prev, type: Array.isArray(val) ? val[0] : (val || '') }))}
+                          placeholder="Search or select maintenance type…"
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <FormField
+                      type="datetime-local"
+                      label="Booking Start Date"
+                      value={formData.date}
+                      onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                      required
+                    />
+                    
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">Completed Date</label>
+                        <span className="text-xs text-blue-400 font-medium">Optional</span>
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={completedDate}
+                        onChange={e => setCompletedDate(e.target.value)}
+                        className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white px-3.5 py-2 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Service Center</label>
+                      <ServiceCenterDropdown
+                        value={formData.serviceProvider}
+                        onChange={handleServiceCenterSelect}
+                        onInputChange={value => setFormData(prev => ({ ...prev, serviceProvider: value }))}
+                      />
+                    </div>
+
+                    <div>
+                      <SearchableSelect
+                        label="Status"
+                        options={[
+                          { id: 'scheduled', label: 'Scheduled' },
+                          { id: 'in-progress', label: 'In Progress' },
+                          ...(can('maintenance', 'complete') ? [{ id: 'completed', label: 'Completed' }] : []),
+                          ...(can('maintenance', 'completed') && !isCompany ? [{ id: 'cancelled', label: 'Cancelled' }] : []),
+                        ]}
+                        value={formData.status}
+                        onChange={val => setFormData(prev => ({ ...prev, status: (Array.isArray(val) ? val[0] : val) as any }))}
+                        placeholder="Search or select status…"
+                      />
+                    </div>
+
+                    <FormField
+                      type="number"
+                      label="Current Mileage"
+                      value={formData.currentMileage}
+                      onChange={e => setFormData(prev => ({ ...prev, currentMileage: parseInt(e.target.value) || 0 }))}
+                      required
+                      min={0}
+                    />
+
+                    <FormField
+                      type="number"
+                      label="Next Service Mileage"
+                      value={formData.nextServiceMileage}
+                      onChange={e => setFormData(prev => ({ ...prev, nextServiceMileage: parseInt(e.target.value) || 0 }))}
+                      required
+                      min={formData.currentMileage}
+                    />
+
+                    <div className="sm:col-span-2">
+                      <FormField
+                        type="datetime-local"
+                        label="Next Service Date"
+                        value={formData.nextServiceDate}
+                        onChange={e => setFormData(prev => ({ ...prev, nextServiceDate: e.target.value }))}
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Labor Section */}
-        {!isCompany && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Labor</label>
-            <div className="flex items-center space-x-2 mt-1">
-              <input
-                type="number"
-                value={formData.laborHours}
-                onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
-                placeholder="Hours"
-                className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                min={0}
-                step="any"
-                inputMode="decimal"
-              />
+                {/* Description & Notes */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                      Service Description <span className="text-rose-400">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={formData.description}
+                      onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Enter description of maintenance work required or performed…"
+                      className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
+                      required
+                    />
+                  </div>
 
-              <span className="py-2">×</span>
-              <input
-                type="number"
-                value={formData.laborRate}
-                onChange={e => setFormData(prev => ({ ...prev, laborRate: parseFloat(e.target.value) || 0 }))}
-                placeholder="Rate/hour"
-                className="w-28 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                min={0}
-                step={0.01}
-              />
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={includeVATOnLabor}
-                  onChange={e => setIncludeVATOnLabor(e.target.checked)}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <span className="text-sm text-gray-600">+VAT</span>
-              </label>
-              <span className="py-2 font-medium text-gray-800">
-                = {formatCurrency(includeVATOnLabor
-                  ? formData.laborHours * formData.laborRate * 1.2
-                  : formData.laborHours * formData.laborRate
-                )}
-              </span>
-            </div>
-          </div>
-        )}
-        
-        <FileUpload
-          label="Add Attachments"
-          accept="image/*,.pdf,.doc,.docx"
-          multiple
-          value={newAttachments}
-          onChange={setNewAttachments}
-          showPreview
-        />
-
-        {existingAttachments.length > 0 && (
-          <div className="mb-4">
-            <h4 className="font-medium">Current Attachments</h4>
-            <ul className="space-y-2">
-              {existingAttachments.map((att, idx) => (
-                <li key={idx} className="flex items-center space-x-2">
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {att.name}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExistingAttachments(existingAttachments.filter((_, i) => i !== idx))
-                    }
-                    className="text-red-600 hover:text-red-800 text-sm"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Payment Section */}
-        {!isCompany && (
-          <div className="border-t pt-4 space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Payment Details</h3>
-            {editLog && (
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <div className="flex justify-between text-sm">
-                  <span>Previously Paid Amount:</span>
-                  <span className="font-medium text-green-600">{formatCurrency(existingPaidAmount)}</span>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                      Internal Notes
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.notes}
+                      onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Optional notes, technician observations, or special instructions…"
+                      className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
+                    />
+                  </div>
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                type="number"
-                step={0.01}
-                label={editLog ? "Additional Payment" : "Amount to Pay"}
-                value={additionalPayment}
-                onChange={handleAdditionalPaymentChange}
-                min={0}
-                max={maxAdditionalPayment}
-                placeholder={`Up to ${formatCurrency(maxAdditionalPayment)}`}
-              />
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-                <select
-                  value={paymentMethod}
-                  onChange={e => setPaymentMethod(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cheque">Cheque</option>
-                </select>
-              </div>
-              <div className="col-span-2">
-                <FormField
-                  label="Payment Reference"
-                  value={paymentReference}
-                  onChange={e => setPaymentReference(e.target.value)}
-                  placeholder="Enter payment reference or transaction ID"
-                />
-              </div>
-            </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm font-medium">
-                <span>NET:</span>
-                <span>{formatCurrency(netAmount)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>VAT:</span>
-                <span>{formatCurrency(vatAmount)}</span>
-              </div>
-              {totalDiscount > 0 && (
-                <div className="flex justify-between text-sm text-red-600">
-                  <span>Discount:</span>
-                  <span>–{formatCurrency(totalDiscount)}</span>
+            {/* TAB 2: PARTS & LABOR */}
+            {activeTab === 'parts_labor' && !isCompany && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Parts Section */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-400" />
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Parts & Materials ({parts.length})</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setParts([
+                          ...parts,
+                          { name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }
+                        ])
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <PlusCircle className="w-4 h-4" /> Add Part
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {parts.map((part, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end p-4 border border-[#2B314E] rounded-xl bg-[#16192B] text-white shadow-sm"
+                      >
+                        <div className="relative col-span-1 sm:col-span-2">
+                          <FormField
+                            label="Part Name / Search"
+                            value={part.name}
+                            onChange={e => {
+                              const newParts = [...parts];
+                              newParts[index] = { ...newParts[index], name: e.target.value };
+                              setParts(newParts);
+                            }}
+                            onFocus={() => {
+                              const arr = [...showPartSuggestions]; arr[index] = true; setShowPartSuggestions(arr);
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+                              }, 200); 
+                            }}
+                            placeholder="Type to search products…"
+                            inputClassName="w-full"
+                          />
+
+                          {showPartSuggestions[index] && (
+                            <ul className="absolute z-20 w-full bg-[#16192B] border border-[#2B314E] rounded-xl shadow-2xl mt-1 max-h-48 overflow-y-auto text-white">
+                              {partSuggestionsList
+                                .filter(s => {
+                                  const q = part.name?.toLowerCase() || '';
+                                  return s.name.toLowerCase().includes(q) || s.partNumber.toLowerCase().includes(q);
+                                })
+                                .map((s) => (
+                                <li
+                                  key={s.id}
+                                  className="px-4 py-2 cursor-pointer hover:bg-[#1E2238] flex items-center justify-between text-white transition-colors"
+                                  onMouseDown={() => {
+                                    const newParts = [...parts];
+                                    newParts[index] = {
+                                      ...newParts[index],
+                                      name: s.name,
+                                      cost: s.lastCost,
+                                    };
+                                    setParts(newParts);
+                                    const arr = [...showPartSuggestions]; arr[index] = false; setShowPartSuggestions(arr);
+                                  }}
+                                  title={`${s.name} (${s.partNumber})`}
+                                >
+                                  <span className="truncate text-white font-medium text-xs">
+                                    {s.name}
+                                    {s.partNumber ? <span className="text-slate-400"> — {s.partNumber}</span> : null}
+                                  </span>
+                                  <span className="text-slate-300 font-mono text-xs ml-2">
+                                    {formatCurrency(s.lastCost)}
+                                  </span>
+                                </li>
+                              ))}
+
+                              <li 
+                                className="px-4 py-2.5 text-blue-400 font-semibold cursor-pointer hover:bg-[#1E2238] border-t border-[#2B314E] flex items-center gap-2 sticky bottom-0 bg-[#16192B] text-xs"
+                                onMouseDown={(e) => {
+                                  e.preventDefault(); 
+                                  setPendingPartIndex(index);
+                                  setShowProductModal(true);
+                                }}
+                              >
+                                <PlusCircle className="w-4 h-4" />
+                                Create New Product
+                              </li>
+                            </ul>
+                          )}
+                        </div>
+
+                        <FormField
+                          type="number"
+                          label="Quantity"
+                          value={part.quantity}
+                          onChange={e => {
+                            const newParts = [...parts];
+                            newParts[index] = { ...newParts[index], quantity: parseInt(e.target.value) || 0 };
+                            setParts(newParts);
+                          }}
+                          min={1}
+                          inputClassName="w-full"
+                        />
+
+                        <FormField
+                          type="number"
+                          label="Unit Price (£)"
+                          value={part.cost}
+                          onChange={e => {
+                            const newParts = [...parts];
+                            newParts[index] = { ...newParts[index], cost: parseFloat(e.target.value) || 0 };
+                            setParts(newParts);
+                          }}
+                          min={0}
+                          step={0.01}
+                          inputClassName="w-full"
+                        />
+
+                        <FormField
+                          type="number"
+                          label="Discount (%)"
+                          value={part.discount}
+                          onChange={e => {
+                            const newParts = [...parts];
+                            newParts[index] = { ...newParts[index], discount: parseFloat(e.target.value) || 0 };
+                            setParts(newParts);
+                          }}
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          inputClassName="w-full"
+                        />
+
+                        <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0">
+                          <label className="flex items-center space-x-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={part.includeVAT}
+                              onChange={e => {
+                                const newParts = [...parts];
+                                newParts[index] = { ...newParts[index], includeVAT: e.target.checked };
+                                setParts(newParts);
+                              }}
+                              className="rounded border-gray-600 bg-[#0F111A] text-primary focus:ring-primary h-4 w-4"
+                            />
+                            <span className="text-xs font-bold text-slate-300">+VAT</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setParts(parts.filter((_, i) => i !== index))}
+                            className="px-2.5 py-1 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
+                            title="Remove Part"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-              <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                <span>Total:</span>
-                <span>{formatCurrency(totalAmount)}</span>
+
+                {/* Labor Section */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-blue-400" />
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Labor Charge</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end bg-[#16192B] p-4 rounded-xl border border-[#2B314E]">
+                    <div>
+                      <FormField
+                        type="number"
+                        label="Labor Hours"
+                        value={formData.laborHours}
+                        onChange={e => setFormData(prev => ({ ...prev, laborHours: parseFloat(e.target.value) || 0 }))}
+                        min={0}
+                        step="any"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <FormField
+                        type="number"
+                        label="Rate per Hour (£)"
+                        value={formData.laborRate}
+                        onChange={e => setFormData(prev => ({ ...prev, laborRate: parseFloat(e.target.value) || 0 }))}
+                        min={0}
+                        step={0.01}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="pb-2">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={includeVATOnLabor}
+                          onChange={e => setIncludeVATOnLabor(e.target.checked)}
+                          className="rounded border-gray-600 bg-[#0F111A] text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <span className="text-xs font-bold text-slate-300">+20% VAT on Labor</span>
+                      </label>
+                    </div>
+
+                    <div className="text-right pb-1">
+                      <span className="text-xs text-slate-400 block uppercase tracking-wider">Labor Total</span>
+                      <span className="text-lg font-mono font-bold text-emerald-400">
+                        {formatCurrency(includeVATOnLabor
+                          ? formData.laborHours * formData.laborRate * 1.2
+                          : formData.laborHours * formData.laborRate
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Paid:</span>
-                <span>{formatCurrency(totalPaidAmount)}</span>
+            )}
+
+            {/* TAB 3: BILLING & PAYMENT */}
+            {activeTab === 'billing_payment' && !isCompany && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Order & Invoice Details Card */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Order & Invoice Identifiers</h4>
+                  
+                  {!editLog && !formData.type && (
+                    <p className="text-xs font-medium text-amber-300 bg-amber-950/40 p-3 rounded-xl border border-amber-800/60">
+                      💡 Tip: Select the maintenance type on the Vehicle & Service tab to automatically generate the sequence numbers.
+                    </p>
+                  )}
+
+                  {isGeneratingNumbers && (
+                    <p className="text-xs font-semibold text-blue-400 animate-pulse">
+                      Generating next sequence numbers…
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField 
+                      label="Maintenance Order Number" 
+                      value={orderNumber} 
+                      onChange={e => setOrderNumber(e.target.value)} 
+                      placeholder="e.g. ORD-1234"
+                      required={formData.status === 'completed'}
+                    />
+
+                    <FormField 
+                      label="Maintenance Invoice Number" 
+                      value={invoiceNumber} 
+                      onChange={e => setInvoiceNumber(e.target.value)} 
+                      placeholder="e.g. INV-1234"
+                      required={formData.status === 'completed'}
+                    />
+
+                    <FormField 
+                      type="datetime-local"
+                      label="Invoice Date" 
+                      value={invoiceDate} 
+                      onChange={e => setInvoiceDate(e.target.value)} 
+                    />
+
+                    <FormField 
+                      type="datetime-local"
+                      label="Invoice Due Date" 
+                      value={invoiceDueDate} 
+                      onChange={e => setInvoiceDueDate(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Breakdown Card */}
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Payment Details</h4>
+                  
+                  {editLog && (
+                    <div className="bg-[#16192B] p-4 rounded-xl border border-[#2B314E]">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-300 font-semibold">Previously Paid Amount:</span>
+                        <span className="font-bold font-mono text-emerald-400">{formatCurrency(existingPaidAmount)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      type="number"
+                      step={0.01}
+                      label={editLog ? "Additional Payment" : "Amount to Pay Now"}
+                      value={additionalPayment}
+                      onChange={handleAdditionalPaymentChange}
+                      min={0}
+                      max={maxAdditionalPayment}
+                      placeholder={`Up to ${formatCurrency(maxAdditionalPayment)}`}
+                    />
+
+                    <div>
+                      <SearchableSelect
+                        label="Payment Method"
+                        options={[
+                          { id: 'cash', label: 'Cash' },
+                          { id: 'card', label: 'Card' },
+                          { id: 'bank_transfer', label: 'Bank Transfer' },
+                          { id: 'cheque', label: 'Cheque' },
+                        ]}
+                        value={paymentMethod}
+                        onChange={val => setPaymentMethod(Array.isArray(val) ? val[0] : (val || 'cash'))}
+                        placeholder="Select payment method…"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <FormField
+                        label="Payment Reference"
+                        value={paymentReference}
+                        onChange={e => setPaymentReference(e.target.value)}
+                        placeholder="Enter payment reference or transaction ID"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Complete Live Summary */}
+                  <div className="bg-[#16192B] p-4.5 rounded-xl border border-[#2B314E] space-y-2.5 text-slate-100 shadow-md">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-300 font-semibold">NET Total:</span>
+                      <span className="font-mono text-white font-bold">{formatCurrency(netAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-300 font-semibold">VAT:</span>
+                      <span className="font-mono text-white font-bold">{formatCurrency(vatAmount)}</span>
+                    </div>
+                    {totalDiscount > 0 && (
+                      <div className="flex justify-between text-sm text-rose-400 font-semibold">
+                        <span>Discount:</span>
+                        <span className="font-mono text-rose-400 font-bold">–{formatCurrency(totalDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-bold pt-2 border-t border-[#2B314E] text-white">
+                      <span>Total:</span>
+                      <span className="font-mono text-xl font-black text-white">{formatCurrency(totalAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-emerald-400 font-bold">
+                      <span>Paid:</span>
+                      <span className="font-mono font-bold text-emerald-400">{formatCurrency(totalPaidAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-amber-400 font-bold">
+                      <span>Owing:</span>
+                      <span className="font-mono font-bold text-amber-400">{formatCurrency(remainingAmount)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between text-sm text-amber-600">
-                <span>Owing:</span>
-                <span>{formatCurrency(remainingAmount)}</span>
+            )}
+
+            {/* TAB 4: ATTACHMENTS */}
+            {activeTab === 'attachments' && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="w-5 h-5 text-blue-400" />
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Attachments & Documents</h4>
+                  </div>
+
+                  <FileUpload
+                    label="Add Attachments"
+                    accept="image/*,.pdf,.doc,.docx"
+                    multiple
+                    value={newAttachments}
+                    onChange={setNewAttachments}
+                    showPreview
+                  />
+
+                  {existingAttachments.length > 0 && (
+                    <div className="pt-3 border-t border-[#2B314E]">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Existing Attachments</h4>
+                      <ul className="space-y-2">
+                        {existingAttachments.map((att, idx) => (
+                          <li key={idx} className="flex items-center justify-between bg-[#16192B] border border-[#2B314E] p-3 rounded-xl">
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 font-semibold text-sm truncate max-w-[80%]"
+                            >
+                              {att.name}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExistingAttachments(existingAttachments.filter((_, i) => i !== idx))
+                              }
+                              className="px-2.5 py-1 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
-        )}
 
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
-          >
-            {loading ? 'Saving…' : editLog ? 'Update Maintenance' : 'Schedule Maintenance'}
-          </button>
-        </div>
-      </form>
+          {/* Pinned Bottom Actions */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 shrink-0 bg-[#121524] border-t border-[#2B314E]">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-semibold text-slate-300 bg-[#1E2238] border border-[#2B314E] rounded-xl hover:bg-[#2B314E] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              {prevTab && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(prevTab.id)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-300 bg-[#1E2238] border border-[#2B314E] rounded-xl hover:bg-[#2B314E] hover:text-white flex items-center gap-1.5 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" /> {prevTab.label}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              {!isCompany && (
+                <div className="hidden sm:block mr-2 text-right">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Cost</span>
+                  <span className="text-sm font-mono font-black text-white">{formatCurrency(totalAmount)}</span>
+                </div>
+              )}
+              {nextTab && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(nextTab.id)}
+                  className="px-4 py-2 text-sm font-semibold text-blue-300 bg-blue-600/20 border border-blue-500/40 rounded-xl hover:bg-blue-600/30 flex items-center gap-1.5 transition-colors"
+                >
+                  {nextTab.label} <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-5 py-2 text-sm font-semibold text-white bg-primary border border-transparent rounded-xl hover:bg-primary-600 shadow-md transition-colors"
+              >
+                {loading ? 'Saving…' : editLog ? 'Update Maintenance' : 'Schedule Maintenance'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </>
   );
 };

@@ -88,68 +88,68 @@ const ShareFilters: React.FC<ShareFiltersProps> = ({
   ];
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-5">
+    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
       
       {/* Top Search & Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-2xl">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-slate-400" />
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search client, ref or vehicle..."
-            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 bg-gray-50 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+            className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] bg-[#0F111A] rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-inner"
           />
         </div>
 
-        <div className="flex items-center bg-gray-50 px-4 py-2.5 rounded-lg border border-gray-200">
+        <div className="flex items-center bg-[#0F111A] px-4 py-2.5 rounded-xl border border-[#2B314E]">
            <button
              onClick={() => onToggleHistory(!showHistory)}
              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-               showHistory ? 'bg-primary' : 'bg-gray-300'
+               showHistory ? 'bg-blue-600' : 'bg-slate-700'
              }`}
            >
              <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${ showHistory ? 'translate-x-5' : 'translate-x-0' }`} />
            </button>
-           <span className="ml-3 text-sm font-semibold text-gray-700 flex items-center gap-2">
-             <History className="w-4 h-4 text-gray-500" />
+           <span className="ml-3 text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+             <History className="w-4 h-4 text-slate-400" />
              Past Split History
            </span>
         </div>
       </div>
 
-      <hr className="border-gray-100" />
+      <hr className="border-[#2B314E]" />
 
       {/* Grid Filters using SearchableSelect */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">From Date</label>
-            <input type="date" value={dateRange.start} max={dateRange.end || undefined} onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })} className="w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary" />
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From Date</label>
+            <input type="date" value={dateRange.start} max={dateRange.end || undefined} onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })} className="w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">To Date</label>
-            <input type="date" value={dateRange.end} min={dateRange.start || undefined} onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })} className="w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary" />
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To Date</label>
+            <input type="date" value={dateRange.end} min={dateRange.start || undefined} onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })} className="w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
         </div>
 
         {/* Added isMulti to all multi-select fields */}
         <div className="mt-0.5">
-          <SearchableSelect label="Type" isMulti options={typeOptions} value={typeFilter} onChange={(val) => onTypeFilter(val as string[])} />
+          <SearchableSelect label="Type" labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5" isMulti options={typeOptions} value={typeFilter} onChange={(val) => onTypeFilter(val as string[])} />
         </div>
         <div className="mt-0.5">
-          <SearchableSelect label="Category" isMulti options={categoryOptions} value={category} onChange={(val) => onCategory(val as string[])} />
+          <SearchableSelect label="Category" labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5" isMulti options={categoryOptions} value={category} onChange={(val) => onCategory(val as string[])} />
         </div>
         <div className="mt-0.5">
-          <SearchableSelect label="Status" isMulti options={statusOptions} value={status} onChange={(val) => onStatus(val as string[])} />
+          <SearchableSelect label="Status" labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5" isMulti options={statusOptions} value={status} onChange={(val) => onStatus(val as string[])} />
         </div>
         <div className="space-y-4 mt-0.5">
-          <SearchableSelect label="Sort Order" options={sortOptions} value={sortOrder} onChange={(val) => onSortOrder(val as any)} />
-          <SearchableSelect label="Recurring" isMulti options={recurringOptions} value={recurringFilter} onChange={(val) => onRecurringFilter(val as string[])} />
+          <SearchableSelect label="Sort Order" labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5" options={sortOptions} value={sortOrder} onChange={(val) => onSortOrder(val as any)} />
+          <SearchableSelect label="Recurring" labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5" isMulti options={recurringOptions} value={recurringFilter} onChange={(val) => onRecurringFilter(val as string[])} />
         </div>
       </div>
     </div>

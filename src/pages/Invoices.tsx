@@ -526,7 +526,7 @@ const Invoices: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <h4 className="text-xs sm:text-sm font-bold text-blue-300 uppercase tracking-wider">Gross Billing</h4>
             <p className="text-2xl sm:text-3xl font-black font-mono text-white mt-1">{formatCurrency(totalInvoicesAmount)}</p>
@@ -535,7 +535,7 @@ const Invoices: React.FC = () => {
             <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
-        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <h4 className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wider">Total Received</h4>
             <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-300 mt-1">{formatCurrency(totalPaidAmount)}</p>
@@ -544,7 +544,7 @@ const Invoices: React.FC = () => {
             <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
-        <div className="bg-[#0c101c] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-800/90 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <h4 className="text-xs sm:text-sm font-bold text-rose-300 uppercase tracking-wider">Total Outstanding</h4>
             <p className="text-2xl sm:text-3xl font-black font-mono text-rose-400 mt-1">{formatCurrency(totalLookingAmount)}</p>

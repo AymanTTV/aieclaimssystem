@@ -294,76 +294,298 @@ const TodoPage: React.FC = () => {
           <SummaryCard title="Overdue" value={summary.overdue} isWarning={summary.overdue > 0} />
       </div>
 
-      <div className="p-3 bg-white border rounded space-y-4">
+      {/* FILTER & SEARCH BAR - DARK NAVY BACKGROUND & WHITE TEXT */}
+      <div className="p-4 sm:p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl space-y-4 text-white">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks..." className="w-full pl-9 pr-3 py-2 rounded-md border" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search tasks by title, category, group, notes..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+            />
           </div>
-          <button onClick={() => setShowFilters(s => !s)} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
-            <Filter className="w-4 h-4" /> Filters {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <button
+            onClick={() => setShowFilters(s => !s)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#2B314E] bg-[#1E2238] hover:bg-[#252A47] text-white font-bold text-sm transition-colors shadow-sm cursor-pointer"
+          >
+            <Filter className="w-4 h-4 text-blue-400" />
+            <span>Filters</span>
+            {showFilters ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
           </button>
         </div>
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-4 mt-4">
-            {isManager && ( <div> <label className="block text-sm font-medium mb-1">View Tasks For</label> <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className="w-full rounded-md border px-3 py-2 bg-white"> <option value={user?.id || ''}>My Tasks</option> <option value="all">All Users</option> {allUsers.filter(u => u.id !== user?.id).map(u => (<option key={u.id} value={u.id}>{u.name}</option>))} </select> </div> )}
-            <div> <label className="block text-sm font-medium mb-1">Status</label> <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="w-full rounded-md border px-3 py-2 bg-white"> <option value="all">All Statuses</option> {Object.entries(STATUS_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)} </select> </div>
-            <div> <label className="block text-sm font-medium mb-1">Category</label> <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full rounded-md border px-3 py-2 bg-white"> <option value="all">All Categories</option> {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)} </select> </div>
-            <div> <label className="block text-sm font-medium mb-1">Group</label> <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="w-full rounded-md border px-3 py-2 bg-white"> <option value="all">All Groups</option> {groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)} </select> </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 border-t border-[#2B314E] pt-4 mt-2">
+            {isManager && (
+              <div>
+                <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">View Tasks For</label>
+                <select
+                  value={selectedUserId}
+                  onChange={e => setSelectedUserId(e.target.value)}
+                  className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2.5 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value={user?.id || ''}>My Tasks</option>
+                  <option value="all">All Users</option>
+                  {allUsers.filter(u => u.id !== user?.id).map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
-              <label className="block text-sm font-medium mb-1">From Date</label>
-              <input type="date" onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))} className="w-full rounded-md border px-3 py-2 bg-white" />
+              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as any)}
+                className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2.5 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">All Statuses</option>
+                {Object.entries(STATUS_META).map(([key, meta]) => (
+                  <option key={key} value={key}>{meta.label}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">To Date</label>
-              <input type="date" onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))} className="w-full rounded-md border px-3 py-2 bg-white" />
+              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">Category</label>
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2.5 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
             </div>
-            <div className="flex items-end"> <label className="flex items-center space-x-2 cursor-pointer"> <input type="checkbox" checked={onlyOverdue} onChange={e => setOnlyOverdue(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" /> <span className="text-sm font-medium">Show overdue only</span> </label> </div>
-            <div className="flex items-end"> <label className="flex items-center space-x-2 cursor-pointer"> <input type="checkbox" checked={showCompleted} onChange={e => setShowCompleted(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" /> <span className="text-sm font-medium">Show completed</span> </label> </div>
+            <div>
+              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">Group</label>
+              <select
+                value={groupFilter}
+                onChange={e => setGroupFilter(e.target.value)}
+                className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2.5 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">All Groups</option>
+                {groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">From Date</label>
+              <input
+                type="date"
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
+                className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">To Date</label>
+              <input
+                type="date"
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
+                className="w-full rounded-xl border border-[#2B314E] px-3.5 py-2 bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div className="flex items-center pt-5">
+              <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyOverdue}
+                  onChange={e => setOnlyOverdue(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-500 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Show overdue only</span>
+              </label>
+            </div>
+            <div className="flex items-center pt-5">
+              <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showCompleted}
+                  onChange={e => setShowCompleted(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-500 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Show completed</span>
+              </label>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="rounded border overflow-x-auto bg-white">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 text-xs text-gray-700 uppercase">
-            <tr>
-              <th scope="col" className="px-4 py-3"><SortableHeader columnKey="title" label="Task Title" sortConfig={sortConfig} requestSort={requestSort} /></th>
-              <th scope="col" className="px-4 py-3">Category / Group</th>
-              <th scope="col" className="px-4 py-3"><SortableHeader columnKey="dueDate" label="Deadline" sortConfig={sortConfig} requestSort={requestSort} /></th>
-              <th scope="col" className="px-4 py-3"><SortableHeader columnKey="priority" label="Priority" sortConfig={sortConfig} requestSort={requestSort} /></th>
-              <th scope="col" className="px-4 py-3">Assigned To</th>
-              <th scope="col" className="px-4 py-3">Status</th>
-              <th scope="col" className="px-4 py-3">Notes</th>
-              <th scope="col" className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? ( <tr><td colSpan={8} className="text-center p-8 text-neutral-500">Loading tasks…</td></tr> ) 
-            : sortedAndFilteredTodos.length === 0 ? ( <tr><td colSpan={8} className="text-center p-8"><div className="text-neutral-500">No tasks found.</div></td></tr> ) 
-            : ( sortedAndFilteredTodos.map(t => (
-                  <tr key={t.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{t.title}</td>
-                    <td className="px-4 py-3"><div>{t.category || 'N/A'}</div><div className="text-xs text-gray-500">{t.group || 'N/A'}</div></td>
-                    <td className={clsx("px-4 py-3", isOverdue(t.dueDate, t.status) && 'text-red-600 font-bold')}>
-                      <div>{formatFullTS(t.dueDate).date}</div><div className="text-xs text-gray-500">{formatFullTS(t.dueDate).time}</div>
-                    </td>
-                    <td className="px-4 py-3"><PriorityBadge priority={t.priority} /></td>
-                    <td className="px-4 py-3">{allUsers.find(u => u.id === t.assignedTo)?.name || 'N/A'}</td>
-                    <td className="px-4 py-3"><StatusSelector currentStatus={t.status} onStatusChange={(newStatus) => handleStatusChange(t.id, newStatus)} /></td>
-                    <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">{t.description || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        {can('todo', 'view') && <button onClick={() => setViewing(t)} className="p-2 rounded-md hover:bg-gray-100" title="View"><Eye className="w-4 h-4" /></button>}
-                        {can('todo', 'update') && <button onClick={() => setEditing(t)} className="p-2 rounded-md hover:bg-gray-100" title="Edit"><Pencil className="w-4 h-4" /></button>}
-                        {can('todo', 'delete') && <button onClick={() => setDeleting(t)} className="p-2 rounded-md hover:bg-red-100 text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>}
-                      </div>
-                    </td>
-                  </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* TABLE CONTAINER - LIGHT & VERY VERY LIGHT BLUE ALTERNATING ROWS WITH DARK NAVY BARS */}
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left border-collapse min-w-[950px]">
+            {/* TABLE HEADER BAR - DARK NAVY & CRISP WHITE TEXT */}
+            <thead className="bg-[#16192B] text-white">
+              <tr>
+                <th scope="col" className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[210px]">
+                  <SortableHeader columnKey="title" label="Task Title" sortConfig={sortConfig} requestSort={requestSort} />
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[150px]">
+                  Category / Group
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[140px]">
+                  <SortableHeader columnKey="dueDate" label="Deadline" sortConfig={sortConfig} requestSort={requestSort} />
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[120px]">
+                  <SortableHeader columnKey="priority" label="Priority" sortConfig={sortConfig} requestSort={requestSort} />
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[140px]">
+                  Assigned To
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[150px]">
+                  Status
+                </th>
+                <th scope="col" className="px-4 py-4 font-bold text-xs uppercase tracking-wider text-white min-w-[180px]">
+                  Notes
+                </th>
+                <th scope="col" className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-white text-right min-w-[110px]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="text-center p-12 text-slate-500 font-medium">
+                    Loading tasks…
+                  </td>
+                </tr>
+              ) : sortedAndFilteredTodos.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center p-12">
+                    <div className="text-slate-500 font-medium text-base">No tasks found.</div>
+                    <p className="text-slate-400 text-xs mt-1">Try adjusting your filters or create a new task.</p>
+                  </td>
+                </tr>
+              ) : (
+                sortedAndFilteredTodos.map((t, idx) => {
+                  const isEven = idx % 2 === 1;
+                  return (
+                    <tr
+                      key={t.id}
+                      className={clsx(
+                        "transition-all duration-200 ease-in-out",
+                        isEven ? "bg-[#EEF5FD]" : "bg-white",
+                        "hover:bg-[#DCEBFA]"
+                      )}
+                    >
+                      {/* COLUMN 1: Task Title */}
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-slate-900 leading-snug">{t.title}</div>
+                      </td>
+
+                      {/* COLUMN 2: Category / Group */}
+                      <td className="px-4 py-3.5">
+                        <div className="space-y-1">
+                          {t.category ? (
+                            <span className="inline-block bg-white/90 text-indigo-700 border border-indigo-200/70 px-2.5 py-0.5 rounded-md text-xs font-semibold shadow-2xs">
+                              {t.category}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                          {t.group && (
+                            <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                              <span className="text-slate-400 font-normal">Grp:</span> {t.group}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* COLUMN 3: Deadline */}
+                      <td className="px-4 py-3.5">
+                        <div className={clsx("font-mono text-xs font-bold", isOverdue(t.dueDate, t.status) ? "text-rose-600 flex items-center gap-1" : "text-slate-800")}>
+                          {isOverdue(t.dueDate, t.status) && <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                          {formatFullTS(t.dueDate).date}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                          {formatFullTS(t.dueDate).time}
+                        </div>
+                        {isOverdue(t.dueDate, t.status) && (
+                          <span className="inline-block bg-rose-100 text-rose-800 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 border border-rose-200 shadow-2xs">
+                            Overdue
+                          </span>
+                        )}
+                      </td>
+
+                      {/* COLUMN 4: Priority */}
+                      <td className="px-4 py-3.5">
+                        <PriorityBadge priority={t.priority} />
+                      </td>
+
+                      {/* COLUMN 5: Assigned To */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-white text-slate-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300 shadow-2xs">
+                            {(allUsers.find(u => u.id === t.assignedTo)?.name || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs font-semibold text-slate-800 truncate max-w-[130px]">
+                            {allUsers.find(u => u.id === t.assignedTo)?.name || 'Unassigned'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* COLUMN 6: Status */}
+                      <td className="px-4 py-3.5">
+                        <StatusSelector currentStatus={t.status} onStatusChange={(newStatus) => handleStatusChange(t.id, newStatus)} />
+                      </td>
+
+                      {/* COLUMN 7: Notes */}
+                      <td className="px-4 py-3.5 text-xs text-slate-600 max-w-xs truncate" title={t.description || ''}>
+                        {t.description || <span className="text-slate-400 italic">No notes</span>}
+                      </td>
+
+                      {/* COLUMN 8: Actions */}
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {can('todo', 'view') && (
+                            <button
+                              onClick={() => setViewing(t)}
+                              className="p-1.5 rounded-lg hover:bg-white text-slate-500 hover:text-blue-600 transition-colors shadow-2xs"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+                          {can('todo', 'update') && (
+                            <button
+                              onClick={() => setEditing(t)}
+                              className="p-1.5 rounded-lg hover:bg-white text-slate-500 hover:text-amber-600 transition-colors shadow-2xs"
+                              title="Edit Task"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {can('todo', 'delete') && (
+                            <button
+                              onClick={() => setDeleting(t)}
+                              className="p-1.5 rounded-lg hover:bg-white text-slate-500 hover:text-rose-600 transition-colors shadow-2xs"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* TABLE FOOTER BAR - DARK NAVY BACKGROUND & WHITE TEXT */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{sortedAndFilteredTodos.length}</span> of <span className="font-bold text-white">{todos.length}</span> total tasks
+          </div>
+          {onlyOverdue && (
+            <span className="text-rose-300 font-bold flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Filtering overdue tasks only
+            </span>
+          )}
+        </div>
       </div>
 
       <Modal isOpen={creating} onClose={() => setCreating(false)} title="New Task" size="xl"><TodoForm onCancel={() => setCreating(false)} onSubmit={crudActions.create} allUsers={allUsers} categories={categories} groups={groups} defaultAssignedTo={user?.id} /></Modal>
@@ -380,14 +602,80 @@ export default TodoPage;
 // ────────────────────────────────────────────────────────────
 // In-file Child Components
 // ────────────────────────────────────────────────────────────
-const StatusSelector = ({ currentStatus, onStatusChange }: { currentStatus: TodoStatus, onStatusChange: (newStatus: TodoStatus) => void }) => (<select value={currentStatus} onChange={(e) => onStatusChange(e.target.value as TodoStatus)} onClick={(e) => e.stopPropagation()} className={clsx("w-full rounded border-none text-xs font-medium py-1 pl-2 pr-7", STATUS_META[currentStatus].selectColor, 'focus:ring-1 focus:ring-blue-500' )}>{Object.entries(STATUS_META).map(([key, meta]) => ( <option key={key} value={key}>{meta.label}</option> ))}</select>);
-const SortableHeader = ({ columnKey, label, sortConfig, requestSort }: { columnKey: keyof Todo; label: string; sortConfig: any; requestSort: (key: any) => void; }) => { const isSorting = sortConfig?.key === columnKey; return (<button className="flex items-center gap-2" onClick={() => requestSort(columnKey)}>{label}{isSorting ? ( sortConfig.direction === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" /> ) : ( <ArrowUpDown className="w-4 h-4 text-gray-400" /> )}</button>);};
+const StatusSelector = ({ currentStatus, onStatusChange }: { currentStatus: TodoStatus, onStatusChange: (newStatus: TodoStatus) => void }) => {
+  const getBadgeStyle = (status: TodoStatus) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200/90 hover:bg-emerald-100/80';
+      case 'in_progress':
+        return 'bg-blue-50 text-blue-700 border-blue-200/90 hover:bg-blue-100/80';
+      case 'on_hold':
+        return 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/80';
+      case 'not_started':
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+    }
+  };
+  return (
+    <select
+      value={currentStatus}
+      onChange={(e) => onStatusChange(e.target.value as TodoStatus)}
+      onClick={(e) => e.stopPropagation()}
+      className={clsx(
+        "w-full rounded-lg border text-xs font-semibold py-1.5 px-2.5 transition-colors cursor-pointer shadow-2xs focus:ring-2 focus:ring-blue-500 focus:outline-none",
+        getBadgeStyle(currentStatus)
+      )}
+    >
+      {Object.entries(STATUS_META).map(([key, meta]) => (
+        <option key={key} value={key} className="bg-white text-slate-900 font-medium">
+          {meta.label}
+        </option>
+      ))}
+    </select>
+  );
+};
+
+const SortableHeader = ({ columnKey, label, sortConfig, requestSort }: { columnKey: keyof Todo; label: string; sortConfig: any; requestSort: (key: any) => void; }) => {
+  const isSorting = sortConfig?.key === columnKey;
+  return (
+    <button
+      className="flex items-center gap-1.5 text-white font-bold hover:text-blue-300 transition-colors uppercase tracking-wider text-left group"
+      onClick={() => requestSort(columnKey)}
+    >
+      <span>{label}</span>
+      {isSorting ? (
+        sortConfig.direction === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-blue-400 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+      ) : (
+        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
+      )}
+    </button>
+  );
+};
 const FormField = ({ label, children }: { label: string; children: React.ReactNode }) => (<div><label className="block text-sm font-medium text-gray-700">{label}</label><div className="mt-1">{children}</div></div>);
 function TodoForm({ initial, onSubmit, onCancel, allUsers, categories, groups, defaultAssignedTo }: { initial?: Partial<Todo>; onSubmit: (v: Partial<Todo>) => void; onCancel: () => void; allUsers: User[]; categories: Category[]; groups: Group[]; defaultAssignedTo?: string | null }) { const [formState, setFormState] = useState({ title: initial?.title || '', description: initial?.description || '', status: (initial?.status || 'not_started') as TodoStatus, priority: (initial?.priority || 'medium') as TodoPriority, category: initial?.category || '', group: initial?.group || '', assignedTo: initial?.assignedTo || defaultAssignedTo || '', dueDate: initial?.dueDate ? new Date(initial.dueDate.toDate().getTime() - (initial.dueDate.toDate().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '', }); const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { const { name, value } = e.target; setFormState(prev => ({ ...prev, [name]: value })); }; const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSubmit({ ...formState, dueDate: formState.dueDate ? Timestamp.fromDate(new Date(formState.dueDate)) : null, }); }; const inputClass = "block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm px-3 py-2"; return ( <form onSubmit={handleSubmit} className="space-y-6 p-1"> <FormField label="Task Title"><input name="title" className={inputClass} placeholder="e.g., Renew fleet insurance" value={formState.title} onChange={handleChange} required /></FormField> <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> <FormField label="Assigned To"><select name="assignedTo" className={inputClass} value={formState.assignedTo} onChange={handleChange}><option value="">Unassigned</option>{allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></FormField> <FormField label="Deadline"><input name="dueDate" type="datetime-local" className={inputClass} value={formState.dueDate} onChange={handleChange} /></FormField> <FormField label="Status"><select name="status" className={inputClass} value={formState.status} onChange={handleChange}>{Object.entries(STATUS_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></FormField> <FormField label="Priority"><select name="priority" className={inputClass} value={formState.priority} onChange={handleChange}>{Object.entries(PRIORITY_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></FormField> <FormField label="Category"><select name="category" className={inputClass} value={formState.category} onChange={handleChange}><option value="">Select Category</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></FormField> <FormField label="Group"><select name="group" className={inputClass} value={formState.group} onChange={handleChange}><option value="">Select Group</option>{groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}</select></FormField> </div> <FormField label="Notes / Description"><textarea name="description" rows={4} className={inputClass} placeholder="Add extra details..." value={formState.description} onChange={handleChange} /></FormField> <div className="flex items-center justify-end gap-3 pt-4 border-t"><button type="button" className="btn" onClick={onCancel}>Cancel</button><button type="submit" className="btn btn-primary">{initial ? 'Save Changes' : 'Create Task'}</button></div> </form> );}
 function TodoDetailsModal({ todo, allUsers, onClose }: { todo: Todo; allUsers: User[]; onClose: () => void }) { const assignedUser = allUsers.find(u => u.id === todo.assignedTo)?.name || 'Unassigned'; const deadline = formatFullTS(todo.dueDate); return ( <div className="space-y-6"> <div className="pb-4 border-b"><h3 className="text-xl font-bold leading-6 text-gray-900">{todo.title}</h3></div> <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-4 text-sm"> <div><div className="font-medium text-gray-500">Status</div><StatusBadge status={todo.status} /></div> <div><div className="font-medium text-gray-500">Priority</div><PriorityBadge priority={todo.priority} /></div> <div className={clsx(isOverdue(todo.dueDate, todo.status) && 'text-red-600')}> <div className="font-medium text-gray-500">Deadline</div><div className="font-semibold">{deadline.date} at {deadline.time}</div> </div> <div><div className="font-medium text-gray-500">Category</div><div className="font-semibold">{todo.category || '—'}</div></div> <div><div className="font-medium text-gray-500">Group</div><div className="font-semibold">{todo.group || '—'}</div></div> <div><div className="font-medium text-gray-500">Assigned To</div><div className="font-semibold">{assignedUser}</div></div> </div> <div className="pt-4 border-t"> <h4 className="text-sm font-medium text-gray-500">Notes / Comments</h4> <p className="mt-1 p-3 bg-gray-50 rounded border whitespace-pre-wrap min-h-[100px] text-sm text-gray-800">{todo.description || 'No notes provided.'}</p> </div> <div className="flex justify-end pt-2"><button className="btn" onClick={onClose}>Close</button></div> </div> );}
 function DataManager({ collectionName, items, onClose }: { collectionName: string; items: {id: string, name: string}[], onClose: () => void }) { const [name, setName] = useState(''); const [editing, setEditing] = useState<{id: string, name: string} | null>(null); const handleAdd = async (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; await addDoc(collection(db, collectionName), { name: name.trim() }); setName(''); }; const handleUpdate = async (e: React.FormEvent) => { e.preventDefault(); if (!editing || !editing.name.trim()) return; await updateDoc(doc(db, collectionName, editing.id), { name: editing.name.trim() }); setEditing(null); }; const handleDelete = async (id: string) => { if (window.confirm('Are you sure you want to delete this item? This cannot be undone.')) { await deleteDoc(doc(db, collectionName, id)); } }; return ( <div className="space-y-4"> <form onSubmit={editing ? handleUpdate : handleAdd} className="flex items-center gap-2"> <input className="input flex-grow" placeholder={editing ? 'Edit item name' : 'New item name'} value={editing ? editing.name : name} onChange={(e) => editing ? setEditing({...editing, name: e.target.value}) : setName(e.target.value)} /> <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Add'}</button> {editing && <button type="button" className="btn" onClick={() => setEditing(null)}>Cancel</button>} </form> <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2"> {items.map(item => ( <div key={item.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-50"> <span>{item.name}</span> <div className="flex items-center gap-2"> <button onClick={() => setEditing(item)}><Pencil className="w-4 h-4 text-gray-500 hover:text-black"/></button> <button onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-gray-500 hover:text-red-600"/></button> </div> </div> ))} </div> <div className="flex justify-end pt-2"><button className="btn" onClick={onClose}>Done</button></div> </div> );}
 function StatusBadge({ status }: { status: TodoStatus }) { const Meta = STATUS_META[status]; return <span className={clsx('inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium', Meta.color)}><Meta.icon className="w-3 h-3" />{Meta.label}</span>;}
-function PriorityBadge({ priority }: { priority: TodoPriority }) { const Meta = PRIORITY_META[priority]; return <span className={clsx('inline-flex items-center gap-1.5 text-xs font-medium', Meta.color)}><span className={clsx('w-2 h-2 rounded-full', Meta.dot)} />{Meta.label}</span>;}
+function PriorityBadge({ priority }: { priority: TodoPriority }) {
+  const getStyle = (p: TodoPriority) => {
+    switch (p) {
+      case 'high':
+        return 'bg-rose-50 text-rose-700 border-rose-200/90';
+      case 'medium':
+        return 'bg-amber-50 text-amber-800 border-amber-200/90';
+      case 'low':
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200/90';
+    }
+  };
+  const Meta = PRIORITY_META[priority] || PRIORITY_META.medium;
+  return (
+    <span className={clsx('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border shadow-2xs', getStyle(priority))}>
+      <span className={clsx('w-2 h-2 rounded-full shrink-0', Meta.dot)} />
+      {Meta.label}
+    </span>
+  );
+}
 const SummaryCard = ({ title, value, isWarning = false }: { title: string; value: number | string, isWarning?: boolean }) => {
   const getTitleColor = (t: string) => {
     if (t.includes('Total')) return 'text-blue-300';
@@ -397,9 +685,9 @@ const SummaryCard = ({ title, value, isWarning = false }: { title: string; value
     return 'text-slate-300';
   };
   return (
-    <div className={`bg-[#0c101c] rounded-2xl shadow-xl p-5 border ${isWarning ? 'border-rose-500/60 bg-[#241014]' : 'border-slate-800/90'} hover:border-slate-700/80 transition-all text-white`}>
+    <div className={`bg-[#16192B] rounded-2xl shadow-xl p-5 border ${isWarning ? 'border-rose-500/80 bg-[#26151B]' : 'border-[#2B314E]'} hover:border-[#3D456E] transition-all text-white`}>
       <p className={`text-xs font-bold uppercase tracking-wider ${isWarning ? 'text-rose-300' : getTitleColor(title)}`}>{title}</p>
-      <p className={clsx("text-3xl sm:text-4xl font-black font-mono mt-1", isWarning ? 'text-rose-400' : 'text-white')}>{value}</p>
+      <p className={clsx("text-3xl sm:text-4xl font-black font-mono mt-1 tracking-tight", isWarning ? 'text-rose-400' : 'text-white')}>{value}</p>
     </div>
   );
 };

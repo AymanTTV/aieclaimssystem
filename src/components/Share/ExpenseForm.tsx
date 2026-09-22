@@ -245,21 +245,34 @@ export default function ExpenseForm({ onClose, record }: Props) {
       </div>
 
       <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Additional Expenses</h4>
-        <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full table-auto border-collapse">
-            <thead className="bg-gray-100 text-xs uppercase text-gray-500"><tr><th className="p-2 text-left">Type</th><th className="p-2 text-left w-1/3">Desc</th><th className="p-2 text-center">Qty</th><th className="p-2 text-center">Unit</th><th className="p-2 text-center">VAT</th><th className="p-2 text-center">Act</th></tr></thead>
+        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-2">Additional Expenses</h4>
+        <div className="overflow-x-auto border border-[#2B314E] rounded-xl bg-white shadow-sm overflow-hidden">
+            <table className="min-w-full table-auto border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
+              <tr>
+                <th className="px-3 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none">Type</th>
+                <th className="px-3 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none w-1/3">Desc</th>
+                <th className="px-3 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Qty</th>
+                <th className="px-3 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Unit</th>
+                <th className="px-3 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">VAT</th>
+                <th className="px-3 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Act</th>
+              </tr>
+            </thead>
             <tbody>
-                {items.map((it, i) => (
-                <tr key={i} className="border-b last:border-b-0 hover:bg-gray-50">
-                    <td className="p-2"><FormField value={it.type} onChange={e => updateItem(i, 'type', e.target.value)} required /></td>
-                    <td className="p-2"><FormField value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} required /></td>
-                    <td className="p-2 w-20"><FormField type="number" value={it.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} min={1} required /></td>
-                    <td className="p-2 w-24"><FormField type="number" value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', +e.target.value)} min={0} step="0.01" required /></td>
-                    <td className="p-2 text-center"><input type="checkbox" checked={it.vat} onChange={e => updateItem(i, 'vat', e.target.checked)} className="h-4 w-4 text-primary rounded" /></td>
-                    <td className="p-2 text-center"><button type="button" onClick={() => removeRow(i)} className="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button></td>
-                </tr>
-                ))}
+                {items.map((it, i) => {
+                  const isEven = i % 2 === 1;
+                  const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                  return (
+                  <tr key={i} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-colors`}>
+                    <td className="p-1.5"><FormField value={it.type} onChange={e => updateItem(i, 'type', e.target.value)} required /></td>
+                    <td className="p-1.5"><FormField value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} required /></td>
+                    <td className="p-1.5 w-20"><FormField type="number" value={it.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} min={1} required /></td>
+                    <td className="p-1.5 w-24"><FormField type="number" value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', +e.target.value)} min={0} step="0.01" required /></td>
+                    <td className="p-1.5 text-center"><input type="checkbox" checked={it.vat} onChange={e => updateItem(i, 'vat', e.target.checked)} className="h-4 w-4 text-blue-600 rounded cursor-pointer" /></td>
+                    <td className="p-1.5 text-center"><button type="button" onClick={() => removeRow(i)} className="text-rose-600 hover:text-rose-800 text-xs font-bold cursor-pointer">Remove</button></td>
+                  </tr>
+                  );
+                })}
             </tbody>
             </table>
         </div>

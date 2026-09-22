@@ -87,51 +87,55 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
       isOpen={true}
       onClose={onClose}
       title="Mark Vehicle as Sold"
+      theme="navy"
+      size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <FormField
-          type="date"
-          label="Sale Date"
-          value={formData.saleDate}
-          onChange={(e) => setFormData({ ...formData, saleDate: e.target.value })}
-          required
-          max={new Date().toISOString().split('T')[0]}
-        />
-
-        <FormField
-          type="number"
-          label="Sale Price (£)"
-          value={formData.salePrice}
-          onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
-          required
-          min="0.01"
-          step="0.01"
-          placeholder="Enter sale price"
-        />
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Notes (Optional)</label>
-          <textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            rows={3}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            placeholder="Add any notes about the sale"
+        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner space-y-4">
+          <FormField
+            type="date"
+            label="Sale Date"
+            value={formData.saleDate}
+            onChange={(e) => setFormData({ ...formData, saleDate: e.target.value })}
+            required
+            max={new Date().toISOString().split('T')[0]}
           />
+
+          <FormField
+            type="number"
+            label="Sale Price (£)"
+            value={formData.salePrice}
+            onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+            required
+            min="0.01"
+            step="0.01"
+            placeholder="Enter sale price"
+          />
+
+          <div>
+            <label className="block text-sm font-semibold text-white mb-1.5">Notes (Optional)</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              className="block w-full rounded-xl bg-[#16192B] border border-[#2B314E] text-white p-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Add any notes about the sale"
+            />
+          </div>
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+            className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
           >
             {loading ? 'Processing...' : 'Mark as Sold'}
           </button>

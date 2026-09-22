@@ -65,53 +65,67 @@ const ManagerGroups = () => {
         </div>
       </div>
 
-      <div className="overflow-hidden border border-gray-200 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
-                Role Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Base Module Access
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {systemRoles.map((role) => {
-              // The "member" role is heavily restricted to the customer portal side
-              // For the admin dashboard view, we can highlight that they don't have standard admin modules
-              const permissions = DEFAULT_PERMISSIONS[role];
-              const activeModules = getActiveModules(permissions);
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap w-1/4">
+                  Role Name
+                </th>
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                  Base Module Access
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {systemRoles.map((role, idx) => {
+                // The "member" role is heavily restricted to the customer portal side
+                // For the admin dashboard view, we can highlight that they don't have standard admin modules
+                const permissions = DEFAULT_PERMISSIONS[role];
+                const activeModules = getActiveModules(permissions);
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
 
-              return (
-                <tr key={role} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-bold text-gray-900 capitalize flex items-center gap-2">
-                      {role === 'admin' && <ShieldAlert className="w-4 h-4 text-red-500" />}
-                      {role}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-2">
-                      {activeModules.length > 0 ? (
-                        activeModules.map((mod, index) => (
-                          <Badge key={index} variant="primary">
-                            {mod}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm italic text-gray-400">
-                          Portal User Only / No Admin Modules
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                return (
+                  <tr key={role} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 text-sm whitespace-nowrap">
+                      <div className="font-bold text-slate-900 capitalize flex items-center gap-2">
+                        {role === 'admin' && <ShieldAlert className="w-4 h-4 text-rose-500" />}
+                        {role}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap gap-2">
+                        {activeModules.length > 0 ? (
+                          activeModules.map((mod, index) => (
+                            <Badge key={index} variant="primary">
+                              {mod}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm italic text-slate-400">
+                            Portal User Only / No Admin Modules
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{systemRoles.length}</span> system roles
+          </div>
+          <div className="text-slate-400">
+            Role Permission Presets
+          </div>
+        </div>
       </div>
     </div>
   );

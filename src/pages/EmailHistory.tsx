@@ -87,41 +87,55 @@ const EmailHistory: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-4 py-2 border">Date Sent</th>
-              <th className="px-4 py-2 border">Type</th>
-              <th className="px-4 py-2 border">Template</th>
-              <th className="px-4 py-2 border">Recipient</th>
-              <th className="px-4 py-2 border">Subject</th>
-              <th className="px-4 py-2 border">Sent By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(rec => {
-              const date = new Date(rec.dateSent.seconds * 1000);
-              return (
-                <tr key={rec.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 border">{format(date, 'dd/MM/yyyy HH:mm')}</td>
-                  <td className="px-4 py-2 border">{rec.emailType}</td>
-                  <td className="px-4 py-2 border">{rec.template}</td>
-                  <td className="px-4 py-2 border">{rec.toName} ({rec.toEmail})</td>
-                  <td className="px-4 py-2 border">{rec.subject}</td>
-                  <td className="px-4 py-2 border">{rec.sentBy}</td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="text-center py-4">
-                  No records found.
-                </td>
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Date Sent</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Type</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Template</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Recipient</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Subject</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Sent By</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((rec, idx) => {
+                const date = new Date(rec.dateSent.seconds * 1000);
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                  <tr key={rec.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">{format(date, 'dd/MM/yyyy HH:mm')}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">{rec.emailType}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">{rec.template}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">{rec.toName} ({rec.toEmail})</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">{rec.subject}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium">{rec.sentBy}</td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-sm text-slate-500 font-medium">
+                    No records found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{filtered.length}</span> log{filtered.length === 1 ? '' : 's'}
+          </div>
+          <div className="text-slate-400">
+            Email Delivery Log
+          </div>
+        </div>
       </div>
     </div>
   );

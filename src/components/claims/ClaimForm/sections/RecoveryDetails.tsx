@@ -8,13 +8,13 @@ const RecoveryDetails = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Recovery Details</h3>
-        <label className="flex items-center space-x-2">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Recovery Details</h3>
+        <label className="flex items-center space-x-2 cursor-pointer">
           <input
             type="checkbox"
             {...register('recovery.enabled')}
-            className="form-checkbox"
+            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
             onChange={(e) => {
               const checked = e.target.checked;
               setValue('recovery.enabled', checked);
@@ -23,11 +23,11 @@ const RecoveryDetails = () => {
                 setValue('recovery.date', '');
                 setValue('recovery.locationPickup', '');
                 setValue('recovery.locationDropoff', '');
-                setValue('recovery.cost', undefined); // CHANGE HERE
+                setValue('recovery.cost', undefined);
               }
             }}
           />
-          <span>Include Recovery</span>
+          <span className="text-sm font-bold text-gray-950">Include Recovery</span>
         </label>
       </div>
 

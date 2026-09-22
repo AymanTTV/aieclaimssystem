@@ -203,30 +203,33 @@ export default function ShareForm({ record, onClose }: Props) {
 
       {/* Expenses */}
       <div className="space-y-2">
-        <h3 className="text-lg font-medium">🧾 Expenses</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-auto border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2 text-left">Type</th>
-                <th className="p-2 text-left">Desc</th>
-                <th className="p-2">Qty</th>
-                <th className="p-2">Unit</th>
-                <th className="p-2">VAT</th>
-                <th className="p-2">Action</th>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">🧾 Expenses</h3>
+        <div className="overflow-x-auto border border-[#2B314E] rounded-xl bg-white shadow-sm overflow-hidden">
+          <table className="min-w-full table-auto border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
+              <tr>
+                <th className="px-3.5 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none">Type</th>
+                <th className="px-3.5 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none">Desc</th>
+                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Qty</th>
+                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Unit</th>
+                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">VAT</th>
+                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Action</th>
               </tr>
             </thead>
             <tbody>
-              {expenses.map((e,i)=>(
-                <tr key={i} className="border-b">
-                  <td className="p-1"><FormField value={e.type} onChange={v=>updateExp(i,'type',v.target.value)} /></td>
-                  <td className="p-1"><FormField value={e.description} onChange={v=>updateExp(i,'description',v.target.value)} /></td>
-                  <td className="p-1"><FormField type="number" value={e.quantity} onChange={v=>updateExp(i,'quantity',+v.target.value)} min={1} /></td>
-                  <td className="p-1"><FormField type="number" value={e.unitPrice} onChange={v=>updateExp(i,'unitPrice',+v.target.value)} min={0} step="0.01" /></td>
-                  <td className="p-1 text-center"><input type="checkbox" checked={e.vat} onChange={v=>updateExp(i,'vat',v.target.checked)} className="h-4 w-4"/></td>
-                  <td className="p-1 text-center"><button type="button" onClick={()=>removeExp(i)} className="text-red-600">Remove</button></td>
+              {expenses.map((e,i)=>{
+                const isEven = i % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                <tr key={i} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-colors`}>
+                  <td className="p-1.5"><FormField value={e.type} onChange={v=>updateExp(i,'type',v.target.value)} /></td>
+                  <td className="p-1.5"><FormField value={e.description} onChange={v=>updateExp(i,'description',v.target.value)} /></td>
+                  <td className="p-1.5 w-20"><FormField type="number" value={e.quantity} onChange={v=>updateExp(i,'quantity',+v.target.value)} min={1} /></td>
+                  <td className="p-1.5 w-24"><FormField type="number" value={e.unitPrice} onChange={v=>updateExp(i,'unitPrice',+v.target.value)} min={0} step="0.01" /></td>
+                  <td className="p-1.5 text-center"><input type="checkbox" checked={e.vat} onChange={v=>updateExp(i,'vat',v.target.checked)} className="h-4 w-4 cursor-pointer text-blue-600 rounded"/></td>
+                  <td className="p-1.5 text-center"><button type="button" onClick={()=>removeExp(i)} className="text-rose-600 hover:text-rose-800 font-bold cursor-pointer">Remove</button></td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>

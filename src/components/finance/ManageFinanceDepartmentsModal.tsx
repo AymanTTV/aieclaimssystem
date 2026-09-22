@@ -77,47 +77,93 @@ const ManageFinanceDepartmentsModal: React.FC<ManageFinanceDepartmentsModalProps
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Manage Departments" size="md">
-      <form onSubmit={handleAddDepartment} className="flex space-x-2 mb-6">
-        <input
-          type="text"
-          value={newDepartment}
-          onChange={(e) => setNewDepartment(e.target.value)}
-          placeholder="New department name..."
-          className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm"
-          disabled={loading}
-        />
-        <button type="submit" disabled={loading || !newDepartment.trim()} className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-600 disabled:opacity-50">
-          Add
-        </button>
-      </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Manage Departments" size="md" theme="navy">
+      <div className="space-y-5">
+        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Add New Department</label>
+          <form onSubmit={handleAddDepartment} className="flex gap-2">
+            <input
+              type="text"
+              value={newDepartment}
+              onChange={(e) => setNewDepartment(e.target.value)}
+              placeholder="e.g. Sales, Fleet, Maintenance..."
+              className="flex-1 bg-[#16192B] border border-[#2B314E] text-white placeholder-slate-400 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !newDepartment.trim()}
+              className="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 shadow-sm cursor-pointer"
+            >
+              Add
+            </button>
+          </form>
+        </div>
 
-      <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md">
-        {departments.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500 text-center">No departments found.</p>
-        ) : (
-          <ul className="divide-y divide-gray-200">
-            {departments.map((dept) => (
-              <li key={dept.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
-                {editingId === dept.id ? (
-                  <div className="flex-1 flex space-x-2">
-                    <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} className="flex-1 text-sm border-gray-300 rounded-md py-1" />
-                    <button type="button" onClick={handleSaveEdit} className="text-green-600 hover:text-green-800"><Check className="h-4 w-4" /></button>
-                    <button type="button" onClick={() => setEditingId(null)} className="text-gray-500 hover:text-gray-700"><X className="h-4 w-4" /></button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                    <div className="flex space-x-2">
-                      <button type="button" onClick={() => { setEditingId(dept.id); setEditingName(dept.name); }} className="text-blue-600 hover:text-blue-800"><Edit2 className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => handleDelete(dept.id, dept.name)} className="text-red-600 hover:text-red-800"><Trash2 className="h-4 w-4" /></button>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
+          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Existing Departments ({departments.length})</h4>
+          <div className="max-h-64 overflow-y-auto custom-scrollbar rounded-xl border border-[#2B314E] bg-[#121524]">
+            {departments.length === 0 ? (
+              <p className="p-4 text-sm text-slate-400 text-center">No departments created yet.</p>
+            ) : (
+              <ul className="divide-y divide-[#2B314E]">
+                {departments.map((dept) => (
+                  <li key={dept.id} className="p-3.5 flex justify-between items-center hover:bg-[#1C2038] transition-colors">
+                    {editingId === dept.id ? (
+                      <div className="flex-1 flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          className="flex-1 text-sm bg-[#16192B] border border-[#2B314E] text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveEdit}
+                          className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-950/40 transition-colors"
+                          title="Save"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:bg-[#2B314E] transition-colors"
+                          title="Cancel"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-white tracking-wide">{dept.name}</span>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingId(dept.id); setEditingName(dept.name); }}
+                            className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-950/40 hover:text-blue-300 transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(dept.id, dept.name)}
+                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </Modal>
   );

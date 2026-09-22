@@ -977,75 +977,79 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             </div>
 
             {/* Recipient List Table */}
-            <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden min-h-[350px] max-h-[600px] sm:max-h-[70vh] overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
-                <thead className="bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500 w-10">Select</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Name / Entity</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Group</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Email Address</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Mobile / WhatsApp</th>
-                    <th className="px-3 py-2 text-center font-semibold text-gray-500">Channel Status</th>
+            <div className="border border-[#2B314E] rounded-xl overflow-hidden min-h-[350px] max-h-[600px] sm:max-h-[70vh] overflow-y-auto bg-white shadow-sm">
+              <table className="min-w-full border-collapse text-xs">
+                <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-sm">
+                  <tr className="border-b border-[#2B314E]">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-10">Select</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Name / Entity</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Group</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Email Address</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Mobile / WhatsApp</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Channel Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                  {filteredRecipients.map((r) => {
+                <tbody>
+                  {filteredRecipients.map((r, idx) => {
                     const isSelected = selectedRecipientIds.has(r.id);
                     const hasEmail = !!r.email && r.email.includes('@');
                     const hasWhatsApp = !!formatWhatsAppNumber(r.phone);
                     const isEligible = channel === 'email' ? hasEmail : hasWhatsApp;
+                    const isEven = idx % 2 === 1;
+                    const rowBg = isSelected
+                      ? 'bg-blue-100/70 font-medium'
+                      : isEven
+                      ? 'bg-[#EEF5FD]'
+                      : 'bg-white';
 
                     return (
                       <tr
                         key={r.id}
                         onClick={() => toggleRecipient(r.id)}
-                        className={`cursor-pointer transition-colors hover:bg-purple-50/50 dark:hover:bg-purple-950/20 ${
-                          isSelected ? 'bg-purple-50/30 dark:bg-purple-950/10' : ''
-                        }`}
+                        className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] cursor-pointer transition-all duration-150 ease-in-out`}
                       >
-                        <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-3.5 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleRecipient(r.id)}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4"
+                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                           />
                         </td>
-                        <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">
+                        <td className="px-3.5 py-2.5 font-bold text-slate-900">
                           <div>{r.name}</div>
                           {r.companyName && r.companyName !== r.name && (
-                            <div className="text-[11px] text-gray-400">{r.companyName}</div>
+                            <div className="text-[11px] text-slate-500 font-normal">{r.companyName}</div>
                           )}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3.5 py-2.5">
                           <span
                             className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
                               r.category === 'companies'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                                ? 'bg-blue-100 text-blue-800'
                                 : r.category === 'claims'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
                             }`}
                           >
                             {r.category}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 font-mono">
-                          {r.email || <span className="text-gray-400 italic">No email</span>}
+                        <td className="px-3.5 py-2.5 text-slate-700 font-mono">
+                          {r.email || <span className="text-slate-400 italic">No email</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 font-mono">
-                          {r.phone || <span className="text-gray-400 italic">No phone</span>}
+                        <td className="px-3.5 py-2.5 text-slate-700 font-mono">
+                          {r.phone || <span className="text-slate-400 italic">No phone</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-center">
+                        <td className="px-3.5 py-2.5 text-center">
                           {isEligible ? (
-                            <span className="inline-flex items-center text-emerald-600 font-semibold text-[11px]">
+                            <span className="inline-flex items-center text-emerald-700 font-bold text-[11px]">
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                               Ready
                             </span>
                           ) : (
-                            <span className="inline-flex items-center text-gray-400 text-[11px]">
-                              <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-500" />
+                            <span className="inline-flex items-center text-slate-500 text-[11px] font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600" />
                               Missing {channel === 'email' ? 'Email' : 'Number'}
                             </span>
                           )}
@@ -1055,7 +1059,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   })}
                   {filteredRecipients.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-xs">
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500 text-xs font-medium">
                         No recipients match your search filter.
                       </td>
                     </tr>

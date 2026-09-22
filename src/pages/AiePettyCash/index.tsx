@@ -103,27 +103,27 @@ const AiePettyCash = () => {
 
       {can('aiePettyCash', 'cards') && (
         <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total In</h3>
-            <p className="mt-2 text-lg sm:text-3xl font-semibold text-green-600">
+          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total In</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
               {formatCurrency(totalIn)}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Total Out</h3>
-            <p className="mt-2 text-lg sm:text-3xl font-semibold text-red-600">
+          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total Out</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-rose-400">
               {formatCurrency(totalOut)}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Balance</h3>
-            <p className="mt-2 text-lg sm:text-3xl font-semibold text-blue-600">
+          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Balance</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-blue-400">
               {formatCurrency(netIncome)}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-500">Profit Margin</h3>
-            <p className="mt-2 text-lg sm:text-3xl font-semibold text-purple-600">
+          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Profit Margin</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-purple-400">
               {profitMargin.toFixed(1)}%
             </p>
           </div>

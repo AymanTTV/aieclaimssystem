@@ -5,7 +5,7 @@ import { formatDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { isExpiringOrExpired } from '../../utils/vehicleUtils';
 import {
-  Car, User, MapPin, Calendar, Wallet, Wrench, FileCheck, Pencil, Trash2
+  Car, User, MapPin, Calendar, Wallet, Wrench, FileCheck, Pencil, Trash2, Tag
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, deleteDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -148,8 +148,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
   const DetailItem = ({ label, value, isDate = false, isExpiring = false }: any) => (
     <div>
-      <h3 className="text-sm font-medium text-gray-500">{label}</h3>
-      <p className={`mt-1 ${isExpiring ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
+      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</h3>
+      <p className={`mt-1 font-semibold text-sm ${isExpiring ? 'text-rose-400 font-bold' : 'text-white'}`}>
         {isDate ? formatDate(value) : value}
       </p>
     </div>
@@ -192,64 +192,98 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
   return (
     <>
-      <Modal isOpen={true} onClose={onClose} title="Vehicle Details" size="xl">
-        <div className="flex flex-col h-full max-h-[85vh]">
+      <Modal
+        isOpen={true}
+        onClose={onClose}
+        title="Vehicle Details"
+        size="xl"
+        theme="navy"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
+      >
+        <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden">
           
-          <div className="flex border-b border-gray-200 px-4 shrink-0">
+          <div className="flex border-b border-[#2B314E] px-4 shrink-0 bg-[#121524]">
             <button
-              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors ${activeTab === 'vehicle' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              type="button"
+              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'vehicle'
+                  ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
+                  : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              }`}
               onClick={() => setActiveTab('vehicle')}
             >
-              <Car className="w-4 h-4" /><span>Vehicle Details</span>
+              <Car className="w-4 h-4 pointer-events-none" /><span>Vehicle Details</span>
             </button>
             <button
-              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors ${activeTab === 'service' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              type="button"
+              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'service'
+                  ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
+                  : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              }`}
               onClick={() => setActiveTab('service')}
             >
-              <Wrench className="w-4 h-4" /><span>Service Details</span>
+              <Wrench className="w-4 h-4 pointer-events-none" /><span>Service Details</span>
             </button>
             <button
-              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors ${activeTab === 'license' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              type="button"
+              className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'license'
+                  ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
+                  : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              }`}
               onClick={() => setActiveTab('license')}
             >
-              <FileCheck className="w-4 h-4" /><span>License / Compliance</span>
+              <FileCheck className="w-4 h-4 pointer-events-none" /><span>License / Compliance</span>
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 no-scrollbar">
             
             {/* TAB 1: VEHICLE */}
             {activeTab === 'vehicle' && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="flex justify-center mb-6">
                   {vehicle.image ? (
-                    <img src={vehicle.image} alt="Vehicle" className="h-48 w-auto object-cover rounded-lg shadow-md border border-gray-200" />
+                    <img src={vehicle.image} alt="Vehicle" className="h-48 w-auto object-cover rounded-2xl shadow-lg border border-[#2B314E]" />
                   ) : (
-                    <div className="h-48 w-96 bg-gray-100 rounded-lg flex items-center justify-center shadow-inner border border-gray-200">
-                      <Car className="h-16 w-16 text-gray-400" />
+                    <div className="h-48 w-96 bg-[#0F111A] rounded-2xl flex items-center justify-center shadow-inner border border-[#2B314E]">
+                      <Car className="h-16 w-16 text-slate-600" />
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-y-6 gap-x-4 border-b border-gray-200 pb-6">
-                  <DetailItem label="Registration Number" value={vehicle.registrationNumber} />
-                  <DetailItem label="VIN" value={vehicle.vin} />
-                  <DetailItem label="Make" value={vehicle.make} />
-                  <DetailItem label="Model" value={vehicle.model} />
-                  <DetailItem label="Year" value={vehicle.year} />
-                  <div><h3 className="text-sm font-medium text-gray-500">Status</h3><div className="mt-1"><StatusBadge status={vehicle.status} /></div></div>
-                  <div><h3 className="text-sm font-medium text-gray-500">Assignment Type</h3><div className="mt-1 font-medium text-gray-900">{vehicle.assignmentType || 'Unassigned'}</div></div>
-                  <DetailItem label="Purchased Date" value={purchasedDate} isDate />
-                  <DetailItem label="First Registration Date" value={firstRegistrationDate} isDate />
-                  <DetailItem label="Vehicle Age" value={vehicleAge !== null ? `${vehicleAge} Years` : 'N/A'} />
-                  <DetailItem label="Warranty Start Date" value={warrantyStartDate} isDate />
-                  <DetailItem label="Warranty End Date" value={warrantyEndDate} isDate isExpiring={isWarrantyRed} />
+                {/* Primary Specs Card */}
+                <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Core Specifications</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-4">
+                    <DetailItem label="Registration Number" value={vehicle.registrationNumber} />
+                    <DetailItem label="VIN" value={vehicle.vin} />
+                    <DetailItem label="Make" value={vehicle.make} />
+                    <DetailItem label="Model" value={vehicle.model} />
+                    <DetailItem label="Year" value={vehicle.year} />
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Status</h3>
+                      <div className="mt-1"><StatusBadge status={vehicle.status} /></div>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Assignment Type</h3>
+                      <div className="mt-1 font-semibold text-white text-sm">{vehicle.assignmentType || 'Unassigned'}</div>
+                    </div>
+                    <DetailItem label="Purchased Date" value={purchasedDate} isDate />
+                    <DetailItem label="First Registration Date" value={firstRegistrationDate} isDate />
+                    <DetailItem label="Vehicle Age" value={vehicleAge !== null ? `${vehicleAge} Years` : 'N/A'} />
+                    <DetailItem label="Warranty Start Date" value={warrantyStartDate} isDate />
+                    <DetailItem label="Warranty End Date" value={warrantyEndDate} isDate isExpiring={isWarrantyRed} />
+                  </div>
                 </div>
 
                 {!isCompany && (
-                  <div className="border-b border-gray-200 pb-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Pricing</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                  <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 mb-4 flex items-center gap-2">
+                      <Tag className="w-4 h-4" /> Rental Pricing
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-5 gap-x-4">
                       <DetailItem label="Weekly Rate" value={typeof vehicle.weeklyRentalPrice === 'number' ? `£${money3(vehicle.weeklyRentalPrice)}` : '-'} />
                       <DetailItem label="Daily Rate" value={typeof vehicle.dailyRentalPrice === 'number' ? `£${money3(vehicle.dailyRentalPrice)}` : '-'} />
                       <DetailItem label="Claim Rate" value={typeof vehicle.claimRentalPrice === 'number' ? `£${money3(vehicle.claimRentalPrice)}` : '-'} />
@@ -261,19 +295,21 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                 )}
 
                 {!isCompany && can('vehicles', 'owner') && (
-                  <div className="border-b border-gray-200 pb-6">
+                  <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
                     <div className="flex items-start space-x-3">
-                      <User className="w-5 h-5 text-gray-400 mt-1" />
+                      <User className="w-5 h-5 text-purple-400 mt-1" />
                       <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">Owner Information</h3>
-                        <p className="text-gray-900 font-medium mt-2">{vehicle.owner?.name || 'AIE Skyline'}</p>
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-purple-400 mb-2">Owner Information</h3>
+                        <p className="text-white font-bold text-base mt-1">{vehicle.owner?.name || 'AIE Skyline'}</p>
                         {vehicle.owner?.address && !vehicle.owner?.isDefault && (
-                          <div className="flex items-center mt-1 text-gray-500"><MapPin className="w-4 h-4 mr-1" />{vehicle.owner.address}</div>
+                          <div className="flex items-center mt-1 text-slate-300 text-sm">
+                            <MapPin className="w-4 h-4 mr-1 text-slate-400" />{vehicle.owner.address}
+                          </div>
                         )}
                         {vehicle.owner?.accountName && (
-                          <div className="flex items-center mt-2 text-indigo-600 bg-indigo-50 p-2 rounded-md w-fit border border-indigo-100">
-                            <Wallet className="w-4 h-4 mr-2" />
-                            <span className="text-sm font-medium">Linked Account: {vehicle.owner.accountName}</span>
+                          <div className="flex items-center mt-3 text-indigo-300 bg-indigo-950/60 p-2.5 rounded-xl w-fit border border-indigo-700/50">
+                            <Wallet className="w-4 h-4 mr-2 text-indigo-400" />
+                            <span className="text-sm font-semibold">Linked Account: {vehicle.owner.accountName}</span>
                           </div>
                         )}
                       </div>
@@ -282,8 +318,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                 )}
 
                 {!isCompany && vehicle.status === 'sold' && (
-                  <div className="border-b border-gray-200 pb-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Sale Information</h3>
+                  <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 mb-4">Sale Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <DetailItem label="Sale Date" value={soldDate} isDate />
                       <DetailItem label="Sale Price" value={typeof vehicle.salePrice === 'number' ? `£${vehicle.salePrice.toLocaleString()}` : vehicle.salePrice} />
@@ -291,9 +327,11 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
-                  <DetailItem label="Created At" value={createdAt} isDate />
-                  <DetailItem label="Created By" value={createdByName || vehicle.createdBy || 'Loading...'} />
+                <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <DetailItem label="Created At" value={createdAt} isDate />
+                    <DetailItem label="Created By" value={createdByName || vehicle.createdBy || 'Loading...'} />
+                  </div>
                 </div>
               </div>
             )}
@@ -301,12 +339,12 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             {/* TAB 2: SERVICE */}
             {activeTab === 'service' && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100/50 mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
-                    <Wrench className="w-5 h-5 text-blue-600 mr-2" />
+                <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 mb-4 flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-blue-400" />
                     Service Tracking
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-8">
                     <DetailItem label="Service Mileage Required" value={typeof (vehicle as any).serviceInterval === 'number' ? (vehicle as any).serviceInterval.toLocaleString() : '25,000'} />
                     <DetailItem label="Current Mileage" value={typeof vehicle.mileage === 'number' ? vehicle.mileage.toLocaleString() : (vehicle.mileage as any)} />
                     <div className="md:col-span-2">
@@ -315,81 +353,79 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-6">
-                  <DetailItem label="Last Maintenance Date" value={lastMaintenance} isDate />
-                  <DetailItem label="Next Maintenance Date" value={nextMaintenance} isDate isExpiring={isExpiringOrExpired(nextMaintenance)} />
+                <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailItem label="Last Maintenance Date" value={lastMaintenance} isDate />
+                    <DetailItem label="Next Maintenance Date" value={nextMaintenance} isDate isExpiring={isExpiringOrExpired(nextMaintenance)} />
+                  </div>
                 </div>
 
                 {can('vehicles', 'mileageHistoryView') && (
-                  <div className="pt-2">
+                  <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-2">
-                        <Calendar className="w-5 h-5 text-gray-500" />
-                        <h3 className="text-lg font-medium text-gray-900">Mileage Updates History</h3>
+                        <Calendar className="w-5 h-5 text-blue-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-white">Mileage Updates History</h3>
                       </div>
                     </div>
 
                     {isLoadingHistory ? (
-                      <p className="text-sm text-gray-500">Loading history...</p>
+                      <p className="text-sm text-slate-400">Loading history...</p>
                     ) : mileageHistory.length === 0 ? (
-                      <div className="bg-gray-50 p-6 rounded-lg text-center border border-gray-100">
-                        <p className="text-sm text-gray-500">No mileage updates recorded yet.</p>
+                      <div className="bg-[#16192B] p-6 rounded-xl text-center border border-[#2B314E]">
+                        <p className="text-sm text-slate-400">No mileage updates recorded yet.</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
+                      <div className="overflow-x-auto rounded-xl border border-[#2B314E] shadow-sm bg-white">
+                        <table className="min-w-full border-collapse text-xs">
+                          <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mileage</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diff</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Gap</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recorded By</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Mileage</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Diff</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Time Gap</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Recorded By</th>
+                              <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody>
                             {mileageHistory.map((m: any, index: number) => {
-                              // Since array is descending (newest first), the previous chronological record is index + 1
                               const prevRecord = mileageHistory[index + 1];
                               const timeGap = prevRecord ? formatTimeGap(m.date, prevRecord.date) : '-';
                               
-                              // UPDATED: Robust diff calculation handling positive, negative, and fallback field names
                               let mileageDiff = '-';
-                              let diffColorClass = 'text-blue-600'; // Default color for diff
+                              let diffColorClass = 'text-blue-600';
 
                               if (prevRecord) {
-                                // Check both newMileage and mileage in case of legacy records
                                 const currentMil = typeof m.newMileage === 'number' ? m.newMileage : Number(m.newMileage || m.mileage);
                                 const prevMil = typeof prevRecord.newMileage === 'number' ? prevRecord.newMileage : Number(prevRecord.newMileage || prevRecord.mileage);
                                 
                                 if (!isNaN(currentMil) && !isNaN(prevMil)) {
                                   const diff = currentMil - prevMil;
                                   mileageDiff = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
-                                  
-                                  // Make negative diffs red so they stand out as potential corrections/errors
-                                  diffColorClass = diff < 0 ? 'text-red-600' : 'text-blue-600'; 
+                                  diffColorClass = diff < 0 ? 'text-rose-600' : 'text-blue-600'; 
                                 }
                               }
 
+                              const isEven = index % 2 === 1;
+                              const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+
                               return (
-                                <tr key={m.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{formatDate(toDate(m.date))}</td>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
-                                    {/* UPDATED: Fallback to m.mileage for display if newMileage is missing */}
+                                <tr key={m.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-colors`}>
+                                  <td className="px-4 py-3 text-sm text-slate-800 font-medium whitespace-nowrap">{formatDate(toDate(m.date))}</td>
+                                  <td className="px-4 py-3 text-sm font-bold text-slate-900 whitespace-nowrap">
                                     {typeof m.newMileage === 'number' ? m.newMileage.toLocaleString() : (m.newMileage || m.mileage)?.toLocaleString()}
                                   </td>
-                                  {/* UPDATED: Apply dynamic color class so negative diffs are red */}
-                                  <td className={`px-4 py-3 text-sm font-bold whitespace-nowrap ${diffColorClass}`}>
+                                  <td className={`px-4 py-3 text-sm font-black whitespace-nowrap ${diffColorClass}`}>
                                     {mileageDiff}
                                   </td>
-                                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{timeGap}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{m.recordedBy || '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap font-medium">{timeGap}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{m.recordedBy || '-'}</td>
                                   <td className="px-4 py-3 text-right text-sm font-medium whitespace-nowrap">
                                     {can('vehicles', 'mileageHistoryEdit') && (
                                       <button 
                                         onClick={() => setEditingMileageRecord(m)} 
-                                        className="text-blue-600 hover:text-blue-900 hover:bg-blue-100 p-1.5 rounded-md transition-colors mr-2"
+                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-1.5 rounded-lg transition-colors mr-2 cursor-pointer"
                                         title="Edit Record"
                                       >
                                         <Pencil size={14} />
@@ -398,7 +434,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                                     {can('vehicles', 'mileageHistoryDelete') && (
                                       <button 
                                         onClick={() => handleDeleteMileage(m.id)} 
-                                        className="text-red-600 hover:text-red-900 hover:bg-red-100 p-1.5 rounded-md transition-colors"
+                                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-100 p-1.5 rounded-lg transition-colors cursor-pointer"
                                         title="Delete Record"
                                       >
                                         <Trash2 size={14} />
@@ -420,27 +456,33 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
             {/* TAB 3: LICENSE */}
             {activeTab === 'license' && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="grid grid-cols-2 gap-y-6 gap-x-4 border-b border-gray-200 pb-6">
-                  <DetailItem label="MOT Test Date" value={motTestDate} isDate />
-                  <DetailItem label="MOT Expiry" value={motExpiry} isDate isExpiring={isExpiringOrExpired(motExpiry)} />
-                  <DetailItem label="NSL Expiry" value={nslExpiry} isDate isExpiring={isExpiringOrExpired(nslExpiry)} />
-                  <DetailItem label="Road Tax Expiry" value={roadTaxExpiry} isDate isExpiring={isExpiringOrExpired(roadTaxExpiry)} />
-                  <DetailItem label="Insurance Expiry" value={insuranceExpiry} isDate isExpiring={isExpiringOrExpired(insuranceExpiry)} />
+                <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Compliance Dates</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-4">
+                    <DetailItem label="MOT Test Date" value={motTestDate} isDate />
+                    <DetailItem label="MOT Expiry" value={motExpiry} isDate isExpiring={isExpiringOrExpired(motExpiry)} />
+                    <DetailItem label="NSL Expiry" value={nslExpiry} isDate isExpiring={isExpiringOrExpired(nslExpiry)} />
+                    <DetailItem label="Road Tax Expiry" value={roadTaxExpiry} isDate isExpiring={isExpiringOrExpired(roadTaxExpiry)} />
+                    <DetailItem label="Insurance Expiry" value={insuranceExpiry} isDate isExpiring={isExpiringOrExpired(insuranceExpiry)} />
+                  </div>
                 </div>
+
                 {!isCompany && vehicle.documents && (
-                  <div className="pt-2">
-                    <h3 className="text-lg font-medium text-gray-900 mb-6">Document Images</h3>
+                  <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 mb-6">Document Images</h3>
                     {Object.entries(vehicle.documents).map(([key, images]) =>
                       images && images.length > 0 ? (
-                        <div className="mb-8" key={key}>
-                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                        <div className="mb-8 last:mb-0" key={key}>
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
                             {key.replace(/([A-Z])/g, ' $1').replace('Image', 'Documents').trim()}
                           </h4>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                             {images.map((image, index) => (
                               <div key={`${key}-${index}`} className="relative group cursor-pointer" onClick={() => setSelectedImage(image)}>
-                                <img src={image} className="h-32 w-full object-cover rounded-lg border border-gray-200 shadow-sm transition-transform group-hover:scale-[1.02]" />
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity rounded-lg" />
+                                <img src={image} className="h-32 w-full object-cover rounded-xl border border-[#2B314E] shadow-sm transition-transform group-hover:scale-[1.02]" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                                  <span className="text-xs font-bold text-white bg-black/60 px-2.5 py-1 rounded-lg">View</span>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -456,21 +498,22 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
         {selectedImage && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedImage(null)}>
-            <button className="absolute top-4 right-4 text-white hover:text-gray-300 p-2" onClick={() => setSelectedImage(null)}>
+            <button className="absolute top-4 right-4 text-white hover:text-gray-300 p-2 cursor-pointer" onClick={() => setSelectedImage(null)}>
               <span className="sr-only">Close</span>
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
+            <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl border border-[#2B314E]" onClick={(e) => e.stopPropagation()} />
           </div>
         )}
       </Modal>
 
-      {/* ✅ NEW: Edit Mileage Modal */}
+      {/* Edit Mileage Modal */}
       {editingMileageRecord && (
         <Modal
           isOpen={true}
           onClose={() => setEditingMileageRecord(null)}
           title="Edit Mileage Record"
+          theme="navy"
         >
           <MileageUpdateForm
             vehicle={vehicle}

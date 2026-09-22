@@ -68,33 +68,38 @@ const SetServiceMileageModal: React.FC<SetServiceMileageModalProps> = ({ vehicle
       isOpen
       onClose={onClose}
       title={`Update Mileage for ${vehicle.registrationNumber}`}
+      theme="navy"
+      size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-gray-500">
-          Current mileage: {vehicle.mileage.toLocaleString()}
-        </p>
-        <FormField
-          type="number"
-          label="New Mileage"
-          value={mileage}
-          onChange={e => setMileage(e.target.value)}
-          min={vehicle.mileage}
-          required
-        />
-        <div className="flex justify-end space-x-3">
+        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner space-y-3">
+          <p className="text-xs font-semibold text-slate-400">
+            Current recorded mileage: <span className="text-white font-bold">{vehicle.mileage.toLocaleString()} mi</span>
+          </p>
+          <FormField
+            type="number"
+            label="New Mileage"
+            value={mileage}
+            onChange={e => setMileage(e.target.value)}
+            min={vehicle.mileage}
+            required
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+            className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
           >
-            {loading ? 'Saving...' : 'Save'}
+            {loading ? 'Saving...' : 'Save Mileage'}
           </button>
         </div>
       </form>

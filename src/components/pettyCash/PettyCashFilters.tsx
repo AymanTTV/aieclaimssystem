@@ -37,10 +37,10 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
   const { groups } = usePettyCashGroups(moduleKey);
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
+    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">From</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
           <input
             type="date"
             value={startStr}
@@ -50,13 +50,13 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
                 start: e.target.value ? new Date(e.target.value) : null,
               })
             }
-            className="form-input mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             max={endStr || undefined}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">To</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
           <input
             type="date"
             value={endStr}
@@ -67,16 +67,16 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
               })
             }
             min={startStr || undefined}
-            className="form-input mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -86,7 +86,7 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Min Amount</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Min Amount</label>
           <input
             type="number"
             inputMode="decimal"
@@ -99,16 +99,16 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
                 min: e.target.value !== '' ? parseFloat(e.target.value) : null,
               })
             }
-            className="form-input mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Category</label>
           <select
             value={categoryIdFilter}
             onChange={(e) => onCategoryIdFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             <option value="all">All</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -116,11 +116,11 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Group</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Group</label>
           <select
             value={groupIdFilter}
             onChange={(e) => onGroupIdFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             <option value="all">All</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -128,9 +128,9 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
-        <div className="min-[380px]:col-start-2">
-          <label className="block text-sm font-medium text-gray-700">Max Amount</label>
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="lg:col-start-4">
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Max Amount</label>
           <input
             type="number"
             inputMode="decimal"
@@ -143,7 +143,7 @@ const PettyCashFilters: React.FC<PettyCashFiltersProps> = ({
                 max: e.target.value !== '' ? parseFloat(e.target.value) : null,
               })
             }
-            className="form-input mt-1 w-full"
+            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
       </div>

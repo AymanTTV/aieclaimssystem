@@ -26,7 +26,7 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
   const piCount = claims.filter((c) => c.claimType === 'PI').length;
 
   const Card = ({ icon, label, value, labelColor, iconWrapperClass }: CardProps) => (
-    <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl hover:shadow-2xl hover:border-slate-700/80 transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden group">
+    <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl hover:shadow-2xl hover:border-[#3D456E] transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden group">
       <div className="flex items-center justify-between z-10">
         <div>
           <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider mb-1 ${labelColor}`}>{label}</p>

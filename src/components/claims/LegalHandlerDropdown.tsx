@@ -147,8 +147,8 @@ const LegalHandlerDropdown: React.FC<LegalHandlerDropdownProps> = ({
           onFocus={() => setIsOpen(true)}
           placeholder="Select or search legal handler"
           className={clsx(
-            'block w-full pl-10 pr-10 py-2 border rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm',
-            { 'border-red-500': error, 'opacity-70 cursor-not-allowed': disabled }
+            'block w-full pl-10 pr-10 py-2.5 bg-white text-gray-950 font-semibold placeholder:text-gray-400 border border-gray-300 border-l-4 border-l-red-500 rounded-lg shadow-2xs focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm',
+            { 'border-red-500 border-l-red-600': error, 'opacity-70 cursor-not-allowed': disabled }
           )}
           disabled={disabled}
           aria-invalid={error ? 'true' : 'false'}

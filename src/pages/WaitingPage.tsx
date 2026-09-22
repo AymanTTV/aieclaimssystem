@@ -366,27 +366,27 @@ const WaitingPage: React.FC = () => {
       </div>
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-4 bg-white border rounded">
-          <div className="text-xs text-gray-500">Total</div>
-          <div className="text-2xl font-semibold">{summary.total}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Total</div>
+          <div className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.total}</div>
         </div>
-        <div className="p-4 bg-white border rounded">
-          <div className="text-xs text-gray-500">Expiring Offers (24h)</div>
-          <div className="text-2xl font-semibold">{summary.expiring}</div>
+        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Expiring Offers (24h)</div>
+          <div className="mt-1 text-3xl font-black font-mono text-amber-200 tracking-tight">{summary.expiring}</div>
         </div>
-        <div className="p-4 bg-white border rounded">
-          <div className="text-xs text-gray-500">Avg days in Waiting</div>
-          <div className="text-2xl font-semibold">{summary.avgWaiting}</div>
+        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-purple-300">Avg days in Waiting</div>
+          <div className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.avgWaiting}</div>
         </div>
-        <div className="p-4 bg-white border rounded">
-          <div className="text-xs text-gray-500">Booked</div>
-          <div className="text-2xl font-semibold">{summary.byStatus.booked || 0}</div>
+        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Booked</div>
+          <div className="mt-1 text-3xl font-black font-mono text-emerald-300 tracking-tight">{summary.byStatus.booked || 0}</div>
         </div>
       </div>
 
       {/* FILTERS BAR */}
-      <div className="p-4 bg-[#16192B] border border-white/10 rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 items-end shadow-md">
+      <div className="p-4 bg-[#16192B] border border-[#2B314E] rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 items-end shadow-md">
         <div>
           <label htmlFor="waiting-search-input" className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
             Search

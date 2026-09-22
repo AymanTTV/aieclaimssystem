@@ -6,11 +6,10 @@ import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useCustomers } from '../hooks/useCustomers';
 import { usePermissions } from '../hooks/usePermissions';
 import { DataTable } from '../components/DataTable/DataTable';
-import FormField from '../components/ui/FormField';
 import Modal from '../components/ui/Modal';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { differenceInDays, startOfMonth, endOfMonth, isValid, format } from 'date-fns';
-import { Activity, Car, Download, FileSpreadsheet, Search, Filter, TrendingUp, Clock, AlertTriangle, Eye, FileText } from 'lucide-react';
+import { Activity, Car, Download, FileSpreadsheet, Search, Filter, TrendingUp, Clock, AlertTriangle, Eye, FileText, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
 import UtilisationBulkDocument from '../components/pdf/UtilisationBulkDocument';
@@ -362,48 +361,49 @@ const Utilisation = () => {
         <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;">
           <thead>
             <tr>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Registration</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Make/Model</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Recent Driver</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Total Days</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Available Days</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Rented Days</th>
-              <th rowspan="2" style="background-color: #1E40AF; color: white; padding: 15px; font-size: 14px; text-align: center; vertical-align: middle;">Maint Days</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Registration</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Make/Model</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Recent Driver</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Total Days</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Available Days</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Rented Days</th>
+              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Maint Days</th>
               
-              <th colspan="5" style="background-color: #438BDC; color: white; padding: 10px; font-size: 16px; text-align: center; border-bottom: 2px solid white;">
+              <th colspan="5" style="background-color: #2B314E; color: #FFFFFF; padding: 10px; font-size: 14px; font-weight: bold; text-align: center; border-bottom: 2px solid #16192B; text-transform: uppercase;">
                 Analysis Period: ${formattedStart} to ${formattedEnd}
               </th>
             </tr>
-            <tr style="color: white; font-weight: bold; text-align: center;">
-              <th style="background-color: #3B82F6; padding: 10px;">Est Total Mileage</th>
-              <th style="background-color: #3B82F6; padding: 10px;">Est Mileage/Wk</th>
-              <th style="background-color: #3B82F6; padding: 10px;">Est Total Hours</th>
-              <th style="background-color: #3B82F6; padding: 10px;">Est Hours/Wk</th>
-              <th style="background-color: #3B82F6; padding: 10px;">Utilisation %</th>
+            <tr style="color: #FFFFFF; font-weight: bold; text-align: center;">
+              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Total Mileage</th>
+              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Mileage/Wk</th>
+              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Total Hours</th>
+              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Hours/Wk</th>
+              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Utilisation %</th>
             </tr>
           </thead>
           <tbody>
     `;
 
-    filteredData.forEach(r => {
+    filteredData.forEach((r, idx) => {
       const pct = r.utilisationPct;
-      const bgColor = pct >= 60 ? '#dcfce7' : pct >= 30 ? '#fef08a' : '#fee2e2'; 
-      const textColor = pct >= 60 ? '#166534' : pct >= 30 ? '#854d0e' : '#991b1b';
+      const rowBg = idx % 2 === 1 ? '#EEF5FD' : '#FFFFFF';
+      const badgeBg = pct >= 60 ? '#dcfce7' : pct >= 30 ? '#fef3c7' : '#fee2e2'; 
+      const textColor = pct >= 60 ? '#166534' : pct >= 30 ? '#92400e' : '#991b1b';
 
       tableHtml += `
-        <tr style="text-align: center;">
-          <td style="padding: 8px; font-weight: bold;">${r.registration}</td>
-          <td style="padding: 8px;">${r.makeModel}</td>
-          <td style="padding: 8px;">${r.recentDriver}</td>
-          <td style="padding: 8px;">${r.totalDaysInRange}</td>
-          <td style="padding: 8px;">${r.availableDays}</td>
-          <td style="padding: 8px;">${r.rentedDays}</td>
-          <td style="padding: 8px;">${r.maintenanceDays}</td>
-          <td style="padding: 8px;">${r.estMileageTotal.toLocaleString()}</td>
-          <td style="padding: 8px;">${r.estMileagePerWeek.toLocaleString()}</td>
-          <td style="padding: 8px;">${r.estHoursTotal.toLocaleString()}</td>
-          <td style="padding: 8px;">${r.estHoursPerWeek.toLocaleString()}</td>
-          <td style="padding: 8px; background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">
+        <tr style="text-align: center; background-color: ${rowBg};">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #CBD5E1;">${r.registration}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.makeModel}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.recentDriver}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.totalDaysInRange}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.availableDays}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.rentedDays}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.maintenanceDays}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estMileageTotal.toLocaleString()}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estMileagePerWeek.toLocaleString()}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estHoursTotal.toLocaleString()}</td>
+          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estHoursPerWeek.toLocaleString()}</td>
+          <td style="padding: 8px; background-color: ${badgeBg}; color: ${textColor}; font-weight: bold; border: 1px solid #CBD5E1;">
             ${pct.toFixed(1)}%
           </td>
         </tr>
@@ -472,54 +472,165 @@ const Utilisation = () => {
       accessorKey: 'registration',
       enableSorting: true,
       cell: ({ row }: any) => (
-        <div>
-          <div className="font-bold text-gray-900">{row.original.registration}</div>
-          <div className="text-xs text-gray-500">{row.original.makeModel}</div>
+        <div className="flex items-center gap-2 min-w-0">
+          {row.original.image ? (
+            <img
+              src={row.original.image}
+              alt={row.original.registration}
+              className="w-7 h-7 rounded-lg object-cover border border-[#2B314E]/30 shrink-0"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-lg bg-[#EEF5FD] border border-[#CBD5E1] flex items-center justify-center text-slate-500 shrink-0">
+              <Car className="w-3.5 h-3.5 text-blue-600" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="font-black text-slate-900 tracking-tight text-xs uppercase leading-tight truncate">
+              {row.original.registration}
+            </div>
+            <div className="text-[10px] text-slate-500 font-medium truncate max-w-[110px] leading-tight">
+              {row.original.makeModel}
+            </div>
+          </div>
         </div>
       )
     },
     {
-      header: 'Recent Driver',
-      accessorKey: 'recentDriver',
+      header: 'Status',
+      accessorKey: 'status',
       enableSorting: true,
-      cell: ({ getValue }: any) => <span className="text-sm font-medium text-gray-700">{getValue()}</span>
+      cell: ({ row }: any) => {
+        const s = (row.original.status || 'unknown').toLowerCase();
+        let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+        if (s === 'active' || s === 'rented') {
+          badgeStyle = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+        } else if (s === 'available') {
+          badgeStyle = 'bg-blue-50 text-blue-800 border-blue-200';
+        } else if (s === 'maintenance' || s === 'repair') {
+          badgeStyle = 'bg-amber-50 text-amber-800 border-amber-200';
+        } else if (s === 'sold') {
+          badgeStyle = 'bg-slate-100 text-slate-600 border-slate-300';
+        }
+        return (
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap ${badgeStyle}`}>
+            {row.original.status || 'Unknown'}
+          </span>
+        );
+      }
     },
     {
-      header: 'Est Mileage',
+      header: 'Driver',
+      accessorKey: 'recentDriver',
+      enableSorting: true,
+      cell: ({ getValue }: any) => {
+        const driver = getValue() || 'None';
+        return (
+          <div className="flex items-center gap-1 min-w-0" title={driver}>
+            <User className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="text-xs font-semibold text-slate-800 truncate max-w-[95px]">{driver}</span>
+          </div>
+        );
+      }
+    },
+    {
+      header: 'Period',
+      accessorKey: 'totalDaysInRange',
+      enableSorting: true,
+      cell: ({ row }: any) => (
+        <span className="text-xs font-bold text-slate-700 font-mono whitespace-nowrap">
+          {row.original.totalDaysInRange}d
+        </span>
+      )
+    },
+    {
+      header: 'Rented',
+      accessorKey: 'rentedDays',
+      enableSorting: true,
+      cell: ({ row }: any) => (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+          {row.original.rentedDays}d
+        </span>
+      )
+    },
+    {
+      header: 'Off-Road',
+      accessorKey: 'maintenanceDays',
+      enableSorting: true,
+      cell: ({ row }: any) => {
+        const m = row.original.maintenanceDays;
+        return (
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold border whitespace-nowrap ${m > 0 ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+            {m}d
+          </span>
+        );
+      }
+    },
+    {
+      header: 'Avail',
+      accessorKey: 'availableDays',
+      enableSorting: true,
+      cell: ({ row }: any) => (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
+          {row.original.availableDays}d
+        </span>
+      )
+    },
+    {
+      header: 'Mileage',
       accessorKey: 'estMileageTotal',
       enableSorting: true,
       cell: ({ row }: any) => (
-        <div className="flex flex-col">
-          <span className="font-bold text-gray-900">{row.original.estMileageTotal.toLocaleString()} mi</span>
-          <span className="text-xs text-gray-500">{row.original.estMileagePerWeek.toLocaleString()} mi/wk</span>
+        <div className="flex flex-col whitespace-nowrap leading-tight">
+          <span className="font-bold text-slate-900 font-mono text-xs">
+            {row.original.estMileageTotal.toLocaleString()} mi
+          </span>
+          <span className="text-[10px] text-slate-500 font-medium">
+            {row.original.estMileagePerWeek.toLocaleString()}/wk
+          </span>
         </div>
       )
     },
     {
-      header: 'Est Hours',
+      header: 'Hours',
       accessorKey: 'estHoursTotal',
       enableSorting: true,
       cell: ({ row }: any) => (
-        <div className="flex flex-col">
-          <span className="font-bold text-gray-900">{row.original.estHoursTotal.toLocaleString()} hrs</span>
-          <span className="text-xs text-gray-500">{row.original.estHoursPerWeek.toLocaleString()} hrs/wk</span>
+        <div className="flex flex-col whitespace-nowrap leading-tight">
+          <span className="font-bold text-slate-900 font-mono text-xs">
+            {row.original.estHoursTotal.toLocaleString()} h
+          </span>
+          <span className="text-[10px] text-slate-500 font-medium">
+            {row.original.estHoursPerWeek.toLocaleString()}/wk
+          </span>
         </div>
       )
     },
     {
-      header: 'Utilisation %',
+      header: 'Utilisation',
       accessorKey: 'utilisationPct',
       enableSorting: true,
       cell: ({ row }: any) => {
         const pct = row.original.utilisationPct;
-        let colorClass = 'text-red-700 bg-red-50 border-red-200';
-        let indicator = '閥';
-        if (pct >= 60) { colorClass = 'text-green-800 bg-green-50 border-green-200'; indicator = '泙'; } 
-        else if (pct >= 30) { colorClass = 'text-yellow-800 bg-yellow-50 border-yellow-200'; indicator = '泯'; }
+        let badgeStyle = 'text-rose-800 bg-rose-50 border-rose-200';
+        let barColor = 'bg-rose-500';
+        if (pct >= 60) {
+          badgeStyle = 'text-emerald-800 bg-emerald-50 border-emerald-200';
+          barColor = 'bg-emerald-500';
+        } else if (pct >= 30) {
+          badgeStyle = 'text-amber-800 bg-amber-50 border-amber-200';
+          barColor = 'bg-amber-500';
+        }
         return (
-          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-bold ${colorClass}`}>
-            <span className="text-xs">{indicator}</span>
-            <span className="font-mono text-sm">{pct.toFixed(1)}%</span>
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black border ${badgeStyle}`}>
+              {pct.toFixed(1)}%
+            </span>
+            <div className="w-10 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0 hidden sm:block">
+              <div
+                className={`h-full rounded-full transition-all ${barColor}`}
+                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+              />
+            </div>
           </div>
         );
       }
@@ -528,13 +639,21 @@ const Utilisation = () => {
       header: 'Actions',
       enableSorting: false,
       cell: ({ row }: any) => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => setSelectedRecord(row.original)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="View Details">
-            <Eye className="w-4 h-4" />
+        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+          <button
+            onClick={() => setSelectedRecord(row.original)}
+            className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors cursor-pointer"
+            title="View Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
           </button>
           {can('utilisation', 'singleDoc') && (
-            <button onClick={() => handleDownloadSingleRecord(row.original)} className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Download Document">
-              <FileText className="w-4 h-4" />
+            <button
+              onClick={() => handleDownloadSingleRecord(row.original)}
+              className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded transition-colors cursor-pointer"
+              title="Download Document"
+            >
+              <FileText className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -547,7 +666,7 @@ const Utilisation = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* HEADER & ACTIONS */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -570,59 +689,71 @@ const Utilisation = () => {
 
      {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4 hover:border-blue-200 transition-colors">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl mt-1"><TrendingUp className="w-6 h-6" /></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-blue-400/50 transition-colors">
+          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-blue-400 rounded-xl mt-1 shrink-0">
+            <TrendingUp className="w-6 h-6" />
+          </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Avg Utilisation</p>
-            <p className="text-2xl font-black text-gray-900">{avgUtilisation.toFixed(1)}%</p>
-            <p className="text-[10px] text-gray-400 mt-1 leading-tight">Average time rented vs available time across the fleet.</p>
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Avg Utilisation</p>
+            <p className="text-2xl font-black text-white">{avgUtilisation.toFixed(1)}%</p>
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Average time rented vs available time across the fleet.</p>
           </div>
         </div>
         
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4 hover:border-purple-200 transition-colors">
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-xl mt-1"><Car className="w-6 h-6" /></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-purple-400/50 transition-colors">
+          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-purple-400 rounded-xl mt-1 shrink-0">
+            <Car className="w-6 h-6" />
+          </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Vehicles</p>
-            <p className="text-2xl font-black text-gray-900">{filteredData.length}</p>
-            <p className="text-[10px] text-gray-400 mt-1 leading-tight">Vehicles matching your current search and parameters.</p>
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Vehicles</p>
+            <p className="text-2xl font-black text-white">{filteredData.length}</p>
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Vehicles matching your current search and parameters.</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4 hover:border-green-200 transition-colors">
-          <div className="p-3 bg-green-50 text-green-600 rounded-xl mt-1"><Clock className="w-6 h-6" /></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-emerald-400/50 transition-colors">
+          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-emerald-400 rounded-xl mt-1 shrink-0">
+            <Clock className="w-6 h-6" />
+          </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Days Rented</p>
-            <p className="text-2xl font-black text-gray-900">{totalRentedDays}</p>
-            <p className="text-[10px] text-gray-400 mt-1 leading-tight">Sum of all confirmed rental days in this specific period.</p>
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total Days Rented</p>
+            <p className="text-2xl font-black text-white">{totalRentedDays}</p>
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Sum of all confirmed rental days in this specific period.</p>
           </div>
         </div>
         
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4 hover:border-red-200 transition-colors">
-          <div className="p-3 bg-red-50 text-red-600 rounded-xl mt-1"><AlertTriangle className="w-6 h-6" /></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-rose-400/50 transition-colors">
+          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-rose-400 rounded-xl mt-1 shrink-0">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Underutilised (&lt;30%)</p>
-            <p className="text-2xl font-black text-gray-900">{underutilisedCount}</p>
-            <p className="text-[10px] text-gray-400 mt-1 leading-tight">Vehicles rented for less than 30% of their available time.</p>
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Underutilised (&lt;30%)</p>
+            <p className="text-2xl font-black text-white">{underutilisedCount}</p>
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Vehicles rented for less than 30% of their available time.</p>
           </div>
         </div>
       </div>
 
       {/* ADVANCED FILTERS */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <h3 className="font-bold text-gray-700">Analysis Parameters</h3>
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-[#16192B]">
+        <div className="bg-[#1E2238] text-white px-5 py-3.5 border-b border-[#2B314E] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-white">
+            <Filter className="w-4 h-4 text-blue-400" />
+            <span>Analysis Parameters</span>
+          </div>
+          <span className="text-xs text-slate-300 font-medium">Filter by keyword, vehicle, model, utilisation range & date range</span>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <div className="p-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
            <div className="lg:col-span-3">
-             <label className="block text-sm font-medium text-gray-700 mb-1">Search Keyword</label>
+             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Search Keyword</label>
              <div className="relative">
-               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
+               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/>
                <input 
                  value={searchQuery} 
                  onChange={(e) => setSearchQuery(e.target.value)} 
-                 className="w-full pl-9 py-2 bg-white text-gray-900 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary placeholder-gray-400" 
+                 className="w-full pl-9 py-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500" 
                  placeholder="Reg, Model, Driver..." 
                />
              </div>
@@ -631,6 +762,7 @@ const Utilisation = () => {
            <div className="lg:col-span-2 z-20">
              <SearchableSelect
                label="Registrations"
+               labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1"
                options={vehicleOptions}
                value={selectedVehicles}
                onChange={setSelectedVehicles}
@@ -642,6 +774,7 @@ const Utilisation = () => {
            <div className="lg:col-span-2 z-10">
              <SearchableSelect
                label="Models"
+               labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1"
                options={modelOptions}
                value={selectedModels}
                onChange={setSelectedModels}
@@ -651,36 +784,65 @@ const Utilisation = () => {
            </div>
 
            <div className="lg:col-span-2">
-             <label className="block text-sm font-medium text-gray-700 mb-1">Utilisation Range (%)</label>
+             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Utilisation Range (%)</label>
              <div className="flex items-center gap-2">
-               <input type="number" placeholder="Min" value={utilMin} onChange={e => setUtilMin(e.target.value === '' ? '' : Number(e.target.value))} className="w-full py-1.5 px-2 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary" />
-               <span className="text-gray-400">-</span>
-               <input type="number" placeholder="Max" value={utilMax} onChange={e => setUtilMax(e.target.value === '' ? '' : Number(e.target.value))} className="w-full py-1.5 px-2 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary" />
+               <input 
+                 type="number" 
+                 placeholder="Min" 
+                 value={utilMin} 
+                 onChange={e => setUtilMin(e.target.value === '' ? '' : Number(e.target.value))} 
+                 className="w-full py-2 px-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center placeholder-slate-500" 
+               />
+               <span className="text-slate-400 font-bold">-</span>
+               <input 
+                 type="number" 
+                 placeholder="Max" 
+                 value={utilMax} 
+                 onChange={e => setUtilMax(e.target.value === '' ? '' : Number(e.target.value))} 
+                 className="w-full py-2 px-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center placeholder-slate-500" 
+               />
              </div>
            </div>
 
            <div className="lg:col-span-3 grid grid-cols-2 gap-2">
-             <FormField type="date" label="Analysis Start Date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-             <FormField type="date" label="Analysis End Date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+             <div>
+               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Start Date</label>
+               <input
+                 type="date"
+                 value={startDate}
+                 onChange={e => setStartDate(e.target.value)}
+                 className="w-full py-2 px-3 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+               />
+             </div>
+             <div>
+               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">End Date</label>
+               <input
+                 type="date"
+                 value={endDate}
+                 onChange={e => setEndDate(e.target.value)}
+                 className="w-full py-2 px-3 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+               />
+             </div>
            </div>
 
-           <div className="lg:col-span-2 flex items-center mt-7">
-             <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700">
+           <div className="lg:col-span-12 flex items-center mt-4 pt-3 border-t border-[#2B314E]/60">
+             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300 uppercase tracking-wider hover:text-white transition-colors">
                <input 
                  type="checkbox" 
                  checked={showSold} 
                  onChange={e => setShowSold(e.target.checked)} 
-                 className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4" 
+                 className="rounded border-[#2B314E] bg-[#0F111A] text-blue-500 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
                />
                Include Sold Vehicles
              </label>
            </div>
+          </div>
         </div>
       </div>
 
       {/* DATA TABLE */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <DataTable data={filteredData} columns={columns} module="vehicles" tableId="utilisation-table" />
+      <div className="w-full max-w-full overflow-hidden">
+        <DataTable compact data={filteredData} columns={columns} module="vehicles" tableId="utilisation-table" onRowClick={record => setSelectedRecord(record)} />
       </div>
 
       {/* ENHANCED XL DETAILS MODAL */}
@@ -727,59 +889,59 @@ const Utilisation = () => {
             </div>
 
             {/* Time Metrics Table Row */}
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-               <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center gap-2">
-                 <Clock className="w-5 h-5 text-gray-500"/>
-                 <h4 className="font-bold text-gray-800">Time & Activity Metrics</h4>
+            <div className="bg-white border border-[#2B314E] rounded-2xl overflow-hidden shadow-sm">
+               <div className="bg-[#16192B] px-5 py-3 border-b border-[#2B314E] flex items-center gap-2">
+                 <Clock className="w-4 h-4 text-blue-400"/>
+                 <h4 className="font-bold text-xs uppercase tracking-wider text-white">Time & Activity Metrics</h4>
                </div>
-               <div className="grid grid-cols-4 divide-x divide-gray-100">
-                 <div className="p-5 text-center">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Analysis Period</p>
-                    <p className="text-2xl font-bold text-gray-900">{selectedRecord.totalDaysInRange} <span className="text-sm text-gray-500">Days</span></p>
+               <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+                 <div className="p-4 text-center bg-white">
+                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Analysis Period</p>
+                    <p className="text-2xl font-black text-slate-900">{selectedRecord.totalDaysInRange} <span className="text-xs text-slate-500 font-medium">Days</span></p>
                  </div>
-                 <div className="p-5 text-center bg-green-50/30">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Time Rented</p>
-                    <p className="text-2xl font-bold text-green-700">{selectedRecord.rentedDays} <span className="text-sm text-green-600/70">Days</span></p>
+                 <div className="p-4 text-center bg-[#EEF5FD]">
+                    <p className="text-xs font-bold text-emerald-800 uppercase mb-1">Time Rented</p>
+                    <p className="text-2xl font-black text-emerald-700">{selectedRecord.rentedDays} <span className="text-xs text-emerald-600/70 font-medium">Days</span></p>
                  </div>
-                 <div className="p-5 text-center bg-red-50/30">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Off-Road (Maint)</p>
-                    <p className="text-2xl font-bold text-red-700">{selectedRecord.maintenanceDays} <span className="text-sm text-red-600/70">Days</span></p>
+                 <div className="p-4 text-center bg-white">
+                    <p className="text-xs font-bold text-rose-800 uppercase mb-1">Off-Road (Maint)</p>
+                    <p className="text-2xl font-black text-rose-700">{selectedRecord.maintenanceDays} <span className="text-xs text-rose-600/70 font-medium">Days</span></p>
                  </div>
-                 <div className="p-5 text-center">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Available For Hire</p>
-                    <p className="text-2xl font-bold text-gray-900">{selectedRecord.availableDays} <span className="text-sm text-gray-500">Days</span></p>
+                 <div className="p-4 text-center bg-[#EEF5FD]">
+                    <p className="text-xs font-bold text-blue-800 uppercase mb-1">Available For Hire</p>
+                    <p className="text-2xl font-black text-blue-700">{selectedRecord.availableDays} <span className="text-xs text-blue-600/70 font-medium">Days</span></p>
                  </div>
                </div>
             </div>
 
             {/* Usage Estimates Table Row */}
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-               <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center gap-2">
-                 <TrendingUp className="w-5 h-5 text-gray-500"/>
-                 <h4 className="font-bold text-gray-800">Calculated Usage Estimates</h4>
+            <div className="bg-white border border-[#2B314E] rounded-2xl overflow-hidden shadow-sm">
+               <div className="bg-[#16192B] px-5 py-3 border-b border-[#2B314E] flex items-center gap-2">
+                 <TrendingUp className="w-4 h-4 text-emerald-400"/>
+                 <h4 className="font-bold text-xs uppercase tracking-wider text-white">Calculated Usage Estimates</h4>
                </div>
-               <div className="grid grid-cols-4 divide-x divide-gray-100">
-                 <div className="p-5 text-center">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Hours</p>
-                    <p className="text-2xl font-mono font-bold text-gray-900">{selectedRecord.estHoursTotal.toLocaleString()}</p>
+               <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+                 <div className="p-4 text-center bg-white">
+                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Total Hours</p>
+                    <p className="text-2xl font-mono font-black text-slate-900">{selectedRecord.estHoursTotal.toLocaleString()}</p>
                  </div>
-                 <div className="p-5 text-center">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Hours / Week</p>
-                    <p className="text-2xl font-mono font-bold text-gray-900">{selectedRecord.estHoursPerWeek.toLocaleString()}</p>
+                 <div className="p-4 text-center bg-[#EEF5FD]">
+                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Hours / Week</p>
+                    <p className="text-2xl font-mono font-black text-slate-900">{selectedRecord.estHoursPerWeek.toLocaleString()}</p>
                  </div>
-                 <div className="p-5 text-center bg-blue-50/30">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Mileage</p>
-                    <p className="text-2xl font-mono font-bold text-blue-700">{selectedRecord.estMileageTotal.toLocaleString()}</p>
+                 <div className="p-4 text-center bg-white">
+                    <p className="text-xs font-bold text-blue-800 uppercase mb-1">Total Mileage</p>
+                    <p className="text-2xl font-mono font-black text-blue-700">{selectedRecord.estMileageTotal.toLocaleString()}</p>
                  </div>
-                 <div className="p-5 text-center bg-blue-50/30">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1">Mileage / Week</p>
-                    <p className="text-2xl font-mono font-bold text-blue-700">{selectedRecord.estMileagePerWeek.toLocaleString()}</p>
+                 <div className="p-4 text-center bg-[#EEF5FD]">
+                    <p className="text-xs font-bold text-blue-800 uppercase mb-1">Mileage / Week</p>
+                    <p className="text-2xl font-mono font-black text-blue-700">{selectedRecord.estMileagePerWeek.toLocaleString()}</p>
                  </div>
                </div>
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">
-               <button onClick={() => setSelectedRecord(null)} className="px-6 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-200 transition-colors">Close Details</button>
+               <button onClick={() => setSelectedRecord(null)} className="px-6 py-2.5 bg-[#16192B] text-white rounded-xl text-sm font-bold hover:bg-[#2B314E] transition-colors cursor-pointer">Close Details</button>
             </div>
           </div>
         )}

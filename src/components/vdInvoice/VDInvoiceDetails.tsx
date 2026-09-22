@@ -94,29 +94,31 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
 
       {/* Labor & Paint/Materials Costs */}
       <div>
-        <h3 className="text-lg font-medium mb-2">Labor & Paint/Materials Costs</h3>
-        <table className="min-w-full divide-y divide-gray-200 mb-4">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Description</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Cost</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            <tr>
-              <td className="px-4 py-2 text-sm">
-                Labor ({invoice.laborHours}h @ £{invoice.laborRate}/h{invoice.laborVAT ? ' +VAT' : ''})
-              </td>
-              <td className="px-4 py-2 text-sm">£{invoice.laborCost.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td className="px-4 py-2 text-sm">
-                Paint/Materials{invoice.paintMaterialsVAT ? ' +VAT' : ''}
-              </td>
-              <td className="px-4 py-2 text-sm">£{invoice.paintMaterials.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-2">Labor & Paint/Materials Costs</h3>
+        <div className="border border-[#2B314E] rounded-xl overflow-hidden mb-4 shadow-sm bg-white">
+          <table className="min-w-full border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="group border-b border-[#E2E8F0] bg-white hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out">
+                <td className="px-4 py-3 text-sm text-slate-900 font-medium">
+                  Labor ({invoice.laborHours}h @ £{invoice.laborRate}/h{invoice.laborVAT ? ' +VAT' : ''})
+                </td>
+                <td className="px-4 py-3 text-sm text-right text-slate-900 font-black">£{invoice.laborCost.toFixed(2)}</td>
+              </tr>
+              <tr className="group border-b border-[#E2E8F0] bg-[#EEF5FD] hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out">
+                <td className="px-4 py-3 text-sm text-slate-900 font-medium">
+                  Paint/Materials{invoice.paintMaterialsVAT ? ' +VAT' : ''}
+                </td>
+                <td className="px-4 py-3 text-sm text-right text-slate-900 font-black">£{invoice.paintMaterials.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Totals */}

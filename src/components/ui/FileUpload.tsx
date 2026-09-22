@@ -174,13 +174,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
+      <label className="block text-sm font-bold text-gray-950">{label}</label>
 
-      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl border-gray-300 bg-gray-50 hover:bg-gray-100/80 transition-colors">
-        <div className="space-y-1 text-center">
-          <Upload className="mx-auto h-12 w-12 text-gray-400" />
-          <div className="flex text-sm text-gray-600 justify-center">
-            <label className="relative cursor-pointer bg-transparent rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl border-gray-300 bg-slate-50 hover:bg-slate-100/80 transition-colors">
+        <div className="space-y-1.5 text-center">
+          <Upload className="mx-auto h-10 w-10 text-gray-500" />
+          <div className="flex text-sm text-gray-900 justify-center">
+            <label className="relative cursor-pointer bg-transparent rounded-md font-bold text-primary hover:text-primary-dark focus-within:outline-none">
               <span>Upload {multiple ? 'files' : 'a file'}</span>
               <input
                 ref={fileInputRef}
@@ -192,9 +192,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 disabled={uploading}
               />
             </label>
-            <p className="pl-1 text-gray-500">or drag and drop</p>
+            <p className="pl-1.5 text-gray-700 font-medium">or drag and drop</p>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs font-semibold text-gray-600">
             {accept.split(',').join(', ')} up to {formatFileSize(maxSize)}
           </p>
         </div>

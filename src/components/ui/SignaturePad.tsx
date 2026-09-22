@@ -42,12 +42,14 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
   };
 
   const containerStyle: React.CSSProperties = {
-    width: `${width}px`,
-    height: `${height}px`,
+    width: '100%',
+    height: '100%',
+    minHeight: '140px',
     position: 'relative',
-    border: '1px solid #e5e7eb',
-    borderRadius: '0.375rem',
-    overflow: 'hidden'
+    border: '1px solid #d1d5db',
+    borderRadius: '0.5rem',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff'
   };
 
   const signaturePadStyle: React.CSSProperties = {
@@ -60,28 +62,30 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
   };
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative w-full ${className}`}>
       <div style={containerStyle}>
         <SignaturePad
           ref={padRef}
           canvasProps={{
-            className: 'signature-canvas',
+            className: 'signature-canvas w-full h-full',
             style: signaturePadStyle
           }}
           onEnd={handleEnd}
-          penColor="black"
+          penColor="#0f172a"
         />
       </div>
       <button
         type="button"
         onClick={handleClear}
-        className="absolute top-2 right-2 p-1 bg-white rounded-full shadow hover:bg-gray-100"
+        className="absolute top-2 right-2 flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-white border border-gray-300 rounded-md shadow-2xs text-gray-700 hover:text-red-600 hover:bg-gray-50 transition-colors z-10"
+        title="Clear signature"
       >
-        <X className="w-4 h-4 text-gray-500" />
+        <X className="w-3.5 h-3.5" />
+        <span>Clear</span>
       </button>
       {!value && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-gray-400">Sign here</span>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+          <span className="text-gray-400 font-medium text-xs sm:text-sm">Sign here using mouse, stylus, or touch</span>
         </div>
       )}
     </div>

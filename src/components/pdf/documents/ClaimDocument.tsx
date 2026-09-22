@@ -10,17 +10,18 @@ import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface ClaimDocumentProps {
   data: Claim;
+  companyDetails?: any;
 }
 
-const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
-  // Fixed header details - breaking address into separate lines
+const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails = {} }) => {
+  // Header details with dynamic companyDetails support and sensible fallbacks
   const headerDetails = {
-    logoUrl: aieClaimsLogo,
-    fullName: 'AIE Claims LTD',
-    addressLine1: 'United House, 39-41 North Road,', // Broken down
-    addressLine2: 'London, N7 9DP', // Broken down
-    phone: '+442080505337',
-    email: 'claims@aieclaims.co.uk',
+    logoUrl: companyDetails?.logoUrl || aieClaimsLogo,
+    fullName: companyDetails?.fullName || 'AIE Claims LTD',
+    addressLine1: companyDetails?.addressLine1 || (companyDetails?.officialAddress ? companyDetails.officialAddress.split('\n')[0] : 'United House, 39-41 North Road,'),
+    addressLine2: companyDetails?.addressLine2 || (companyDetails?.officialAddress ? companyDetails.officialAddress.split('\n')[1] || '' : 'London, N7 9DP'),
+    phone: companyDetails?.phone || '+442080505337',
+    email: companyDetails?.email || 'claims@aieclaims.co.uk',
   };
 
   const licenseNo = data.clientInfo.driverLicenseNumber || 'N/A';
@@ -290,7 +291,7 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
               registrationNumber: '14592207',
               officialAddress: 'United House.\n39-41 North Road, London, N7 9DP.',
               vatNumber: '453448875',
-              ...companyDetails,
+              ...(companyDetails || {}),
             })}
           </Text>
           {/* Page number positioned on the right */}

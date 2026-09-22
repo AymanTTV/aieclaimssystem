@@ -35,93 +35,99 @@ const MaintenanceList: React.FC<MaintenanceListProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-[#16192B] text-white">
+            <tr className="border-b border-[#2B314E]">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Registration
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Make/Model
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Service Due
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Type
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Location
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Cost
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {logs.map((log) => {
+          <tbody>
+            {logs.map((log, idx) => {
               const vehicle = vehicles[log.vehicleId];
               if (!vehicle) return null;
 
+              const isEven = idx % 2 === 1;
+              const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+
               return (
-                <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <tr
+                  key={log.id}
+                  className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}
+                >
+                  <td className="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900">
                     {vehicle.registrationNumber}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{vehicle.make}</div>
-                    <div className="text-sm text-gray-500">{vehicle.model}</div>
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    <div className="text-sm font-medium text-slate-800">{vehicle.make}</div>
+                    <div className="text-xs text-slate-500">{vehicle.model}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    <div className="text-sm text-slate-800">
                       {formatDate(log.nextServiceDate)}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-xs text-slate-500">
                       or {log.nextServiceMileage?.toLocaleString() || 'N/A'} miles
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-5 py-3.5 whitespace-nowrap">
                     <StatusBadge status={log.status} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900 capitalize">
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    <span className="text-sm text-slate-800 capitalize">
                       {log.type.replace('-', ' ')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{log.serviceProvider}</div>
-                    <div className="text-sm text-gray-500">{log.location}</div>
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    <div className="text-sm text-slate-800">{log.serviceProvider}</div>
+                    <div className="text-xs text-slate-500">{log.location}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900">
                     £{log.cost.toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => onView(log)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-white/80 transition-colors"
                         title="View Details"
                       >
                         <Eye className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => onEdit(log)}
-                        className="text-primary hover:text-primary-600"
+                        className="text-indigo-600 hover:text-indigo-800 p-1 rounded hover:bg-white/80 transition-colors"
                         title="Edit"
                       >
                         <Edit className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => onDelete(log.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-white/80 transition-colors"
                         title="Delete"
                       >
                         <Trash2 className="h-5 w-5" />
@@ -131,8 +137,25 @@ const MaintenanceList: React.FC<MaintenanceListProps> = ({
                 </tr>
               );
             })}
+            {logs.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-5 py-12 text-center text-slate-500 font-medium">
+                  No maintenance records available
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
+      </div>
+
+      {/* Consistent Dark Navy Footer */}
+      <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        <div>
+          Showing <span className="font-bold text-white">{logs.length}</span> total maintenance records
+        </div>
+        <div className="text-slate-400">
+          Fleet Maintenance Log
+        </div>
       </div>
     </div>
   );

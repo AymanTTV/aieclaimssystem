@@ -131,19 +131,21 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         header: (
           <input
             type="checkbox"
-            className="form-checkbox h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+            className="form-checkbox h-4 w-4 text-blue-600 rounded border-slate-400 focus:ring-blue-500 cursor-pointer accent-blue-600"
             checked={allSelected}
             ref={(input) => { if (input) input.indeterminate = someSelected; }}
             onChange={(e) => onToggleAll(e.target.checked)}
+            aria-label="Select all vehicles"
           />
         ),
         cell: ({ row }: any) => (
           <input
             type="checkbox"
-            className="form-checkbox h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+            className="form-checkbox h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer accent-blue-600"
             checked={selectedIds.has(row.original.id)}
             onChange={() => onToggleOne(row.original.id)}
             onClick={(e) => e.stopPropagation()}
+            aria-label={`Select vehicle ${row.original.registrationNumber}`}
           />
         ),
       } : null,
@@ -151,54 +153,78 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       {
         header: 'Vehicle',
         cell: ({ row }: any) => (
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3.5">
             {row.original.image ? (
-              <img src={row.original.image} alt={`${row.original.make} ${row.original.model}`} className="h-10 w-10 object-cover rounded-md" />
+              <img
+                src={row.original.image}
+                alt={`${row.original.make} ${row.original.model}`}
+                className="h-11 w-11 object-cover rounded-xl border border-slate-200/80 shadow-2xs shrink-0"
+              />
             ) : (
-              <div className="h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center"><span className="text-gray-400 text-xs">No img</span></div>
+              <div className="h-11 w-11 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center shrink-0">
+                <span className="text-slate-400 text-xs font-semibold">No img</span>
+              </div>
             )}
             <div>
               {!isCompany && (
-                <div className={`text-xs font-semibold mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-gray-400 italic'}`}>
-                    {row.original.owner?.accountName || 'No Account Assigned'}
+                <div className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-slate-400 italic'}`}>
+                  {row.original.owner?.accountName || 'No Account Assigned'}
                 </div>
               )}
-              <div className="font-medium">{row.original.make} {row.original.model}</div>
-              <div className="text-sm text-gray-500">{row.original.registrationNumber}</div>
+              <div className="font-bold text-slate-900 text-sm tracking-tight leading-snug">
+                {row.original.make} {row.original.model}
+              </div>
+              <div className="mt-0.5">
+                <span className="inline-block bg-[#FFD100] text-black font-extrabold font-mono text-[11px] px-2 py-0.5 rounded border border-amber-300 shadow-2xs tracking-wider uppercase">
+                  {row.original.registrationNumber}
+                </span>
+              </div>
               
-              <div className="flex flex-wrap gap-1 mt-1">
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {!isCompany && row.original.assignedGarageName && (
-                   <div className="text-xs font-semibold text-orange-600 flex items-center bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
-                     <Building2 className="h-3 w-3 mr-1" /> {row.original.assignedGarageName}
-                   </div>
+                  <div className="text-[11px] font-semibold text-orange-700 flex items-center bg-white border border-orange-200 px-2 py-0.5 rounded-md shadow-2xs">
+                    <Building2 className="h-3 w-3 mr-1 text-orange-500" /> {row.original.assignedGarageName}
+                  </div>
                 )}
                 {!isCompany && row.original.assignedGroupName && (
-                   <div className="text-xs font-semibold text-blue-600 flex items-center bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                     <Layers className="h-3 w-3 mr-1" /> {row.original.assignedGroupName}
-                   </div>
+                  <div className="text-[11px] font-semibold text-blue-700 flex items-center bg-white border border-blue-200 px-2 py-0.5 rounded-md shadow-2xs">
+                    <Layers className="h-3 w-3 mr-1 text-blue-500" /> {row.original.assignedGroupName}
+                  </div>
                 )}
                 {/* ✅ Added Department Badge */}
                 {!isCompany && row.original.assignedDepartmentName && (
-                   <div className="text-xs font-semibold text-teal-600 flex items-center bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
-                     <Briefcase className="h-3 w-3 mr-1" /> {row.original.assignedDepartmentName}
-                   </div>
+                  <div className="text-[11px] font-semibold text-teal-700 flex items-center bg-white border border-teal-200 px-2 py-0.5 rounded-md shadow-2xs">
+                    <Briefcase className="h-3 w-3 mr-1 text-teal-500" /> {row.original.assignedDepartmentName}
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-col gap-1 ml-2">
-                {!isCompany && can('vehicles', 'update') && (
-                   <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignType(row.original); }} className="p-1 rounded hover:bg-purple-50 text-purple-600" title="Assign Vehicle Type"><Tag className="h-4 w-4 pointer-events-none" /></button>
-                )}
+            <div className="flex flex-col gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+              {!isCompany && can('vehicles', 'update') && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignType(row.original); }}
+                  className="h-7 w-7 flex items-center justify-center rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  title="Assign Vehicle Type"
+                >
+                  <Tag className="h-3.5 w-3.5 pointer-events-none" />
+                </button>
+              )}
             </div>
-
           </div>
         ),
       },
 
       (!isCompany && can('vehicles', 'owner')) ? {
         header: 'Owner',
-        cell: ({ row }: any) => <div><div className="font-medium">{row.original.owner?.name || 'AIE Skyline'}</div></div>,
+        cell: ({ row }: any) => (
+          <div>
+            <div className="font-semibold text-slate-800 text-sm whitespace-nowrap">
+              {row.original.owner?.name || 'AIE Skyline'}
+            </div>
+          </div>
+        ),
       } : null,
 
       {
@@ -234,10 +260,10 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
         cell: ({ row }: any) => {
           const v = row.original;
           return (
-            <div className="space-y-1 text-sm">
-              <div>Weekly: £{money3(v.weeklyRentalPrice)}{typeof v.weeklyInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.weeklyInsuranceAmount)})</span>}</div>
-              <div>Daily: £{money3(v.dailyRentalPrice)}{typeof v.dailyInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.dailyInsuranceAmount)})</span>}</div>
-              <div>Claim: £{money3(v.claimRentalPrice)}{typeof v.claimInsuranceAmount === 'number' && <span className="text-gray-500">(Ins: £{money3(v.claimInsuranceAmount)})</span>}</div>
+            <div className="space-y-1 text-xs text-slate-700 whitespace-nowrap">
+              <div><span className="text-slate-500 font-normal">Wk:</span> <strong className="text-slate-900 font-semibold">£{money3(v.weeklyRentalPrice)}</strong>{typeof v.weeklyInsuranceAmount === 'number' && <span className="text-slate-400 text-[11px] ml-1">(Ins: £{money3(v.weeklyInsuranceAmount)})</span>}</div>
+              <div><span className="text-slate-500 font-normal">Day:</span> <strong className="text-slate-900 font-semibold">£{money3(v.dailyRentalPrice)}</strong>{typeof v.dailyInsuranceAmount === 'number' && <span className="text-slate-400 text-[11px] ml-1">(Ins: £{money3(v.dailyInsuranceAmount)})</span>}</div>
+              <div><span className="text-slate-500 font-normal">Claim:</span> <strong className="text-slate-900 font-semibold">£{money3(v.claimRentalPrice)}</strong>{typeof v.claimInsuranceAmount === 'number' && <span className="text-slate-400 text-[11px] ml-1">(Ins: £{money3(v.claimInsuranceAmount)})</span>}</div>
             </div>
           );
         },
@@ -251,13 +277,47 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           const warrantyDate = vehicle.warrantyEndDate instanceof Date ? vehicle.warrantyEndDate : vehicle.warrantyEndDate?.toDate?.() || (vehicle.warrantyEndDate ? new Date(vehicle.warrantyEndDate) : null);
 
           return (
-            <div className="space-y-2">
-              <div className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-red-600 font-medium' : ''}>MOT Test Date: {formatDate(vehicle.motTestDate)}</div>
-              <div className={isExpiringOrExpired(motExpiryDate) ? 'text-red-600 font-medium' : ''}>MOT Expiry: {formatDate(motExpiryDate)}</div>
-              <div className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-red-600 font-medium' : ''}>Insurance: {formatDate(vehicle.insuranceExpiry)}</div>
-              <div className={isExpiringOrExpired(vehicle.nslExpiry) ? 'text-red-600 font-medium' : ''}>NSL: {formatDate(vehicle.nslExpiry)}</div>
-              <div className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-red-600 font-medium' : ''}>Road Tax: {formatDate(vehicle.roadTaxExpiry)}</div>
-              {warrantyDate && <div className={checkWarrantyRed(vehicle) ? 'text-red-600 font-medium' : ''}>Warranty Exp: {formatDate(warrantyDate)}</div>}
+            <div className="space-y-1 text-xs whitespace-nowrap">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">MOT Date:</span>
+                <span className={isExpiringOrExpired(vehicle.motTestDate) ? 'text-rose-600 font-bold' : 'text-slate-800 font-medium'}>
+                  {formatDate(vehicle.motTestDate)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">MOT Exp:</span>
+                <span className={isExpiringOrExpired(motExpiryDate) ? 'text-rose-600 font-bold flex items-center gap-1' : 'text-slate-800 font-medium'}>
+                  {formatDate(motExpiryDate)}
+                  {isExpiringOrExpired(motExpiryDate) && <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Exp</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Insurance:</span>
+                <span className={isExpiringOrExpired(vehicle.insuranceExpiry) ? 'text-rose-600 font-bold flex items-center gap-1' : 'text-slate-800 font-medium'}>
+                  {formatDate(vehicle.insuranceExpiry)}
+                  {isExpiringOrExpired(vehicle.insuranceExpiry) && <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Exp</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">NSL:</span>
+                <span className={isExpiringOrExpired(vehicle.nslExpiry) ? 'text-rose-600 font-bold' : 'text-slate-800 font-medium'}>
+                  {formatDate(vehicle.nslExpiry)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Road Tax:</span>
+                <span className={isExpiringOrExpired(vehicle.roadTaxExpiry) ? 'text-rose-600 font-bold' : 'text-slate-800 font-medium'}>
+                  {formatDate(vehicle.roadTaxExpiry)}
+                </span>
+              </div>
+              {warrantyDate && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Warranty:</span>
+                  <span className={checkWarrantyRed(vehicle) ? 'text-rose-600 font-bold' : 'text-slate-800 font-medium'}>
+                    {formatDate(warrantyDate)}
+                  </span>
+                </div>
+              )}
             </div>
           );
         },
@@ -272,17 +332,40 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
           const needsUpdate = checkNeedsMonthlyUpdate(vehicle);
 
           return (
-            <div className="space-y-1">
-              <div className={isServiceOverdue(vehicle) ? 'text-red-600 font-medium' : ''}>Current: {currentMileage.toLocaleString()} Mi</div>
-              <div className="flex items-center font-medium">Next Service: {nextServiceMileageStored.toLocaleString()} Mi</div>
-              <div className="text-xs text-gray-500">Remaining: {milesToNext.toLocaleString()} Mi</div>
+            <div className="space-y-1 text-xs whitespace-nowrap">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Current:</span>
+                <span className={isServiceOverdue(vehicle) ? 'text-rose-600 font-bold font-mono' : 'text-slate-900 font-bold font-mono'}>
+                  {currentMileage.toLocaleString()} Mi
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Next Service:</span>
+                <span className="text-slate-700 font-mono font-medium">{nextServiceMileageStored.toLocaleString()} Mi</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-400 text-[11px]">Remaining:</span>
+                <span className={`font-mono text-[11px] ${milesToNext < 0 ? 'text-rose-600 font-bold' : milesToNext < 5000 ? 'text-amber-700 font-semibold' : 'text-slate-500'}`}>
+                  {milesToNext.toLocaleString()} Mi
+                </span>
+              </div>
               
-              {milesToNext >= 0 && milesToNext < 5000 && <div className="text-yellow-700 font-medium text-xs mt-2 flex items-center bg-yellow-100 p-1 rounded w-max"><AlertTriangle className="h-3 w-3 mr-1" />Service soon</div>}
-              {needsUpdate && <div className="text-blue-700 font-medium text-xs mt-2 flex items-center bg-blue-100 p-1 rounded w-max"><AlertCircle className="h-3 w-3 mr-1" />Check & Update</div>}
+              {milesToNext >= 0 && milesToNext < 5000 && (
+                <div className="text-amber-800 font-semibold text-[11px] mt-1.5 flex items-center bg-white border border-amber-300 px-2 py-0.5 rounded-md w-max shadow-2xs">
+                  <AlertTriangle className="h-3 w-3 mr-1 text-amber-600 shrink-0" /> Service soon
+                </div>
+              )}
+              {needsUpdate && (
+                <div className="text-blue-800 font-semibold text-[11px] mt-1 flex items-center bg-white border border-blue-300 px-2 py-0.5 rounded-md w-max shadow-2xs">
+                  <AlertCircle className="h-3 w-3 mr-1 text-blue-600 shrink-0" /> Check & Update
+                </div>
+              )}
 
-              <div className="pt-2 mt-1 border-t border-gray-100 text-xs">
-                 <div className="text-gray-600">Last Maint: {formatDate(vehicle.lastMaintenance)}</div>
-                 <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-red-600 font-medium' : 'text-gray-600'}>Next Maint: {formatDate(vehicle.nextMaintenance)}</div>
+              <div className="pt-1.5 mt-1 border-t border-slate-200/60 text-[11px] text-slate-500 space-y-0.5">
+                <div>Last Maint: <span className="text-slate-700 font-medium">{formatDate(vehicle.lastMaintenance)}</span></div>
+                <div className={isExpiringOrExpired(vehicle.nextMaintenance) ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                  Next Maint: <span className="font-medium">{formatDate(vehicle.nextMaintenance)}</span>
+                </div>
               </div>
             </div>
           );
@@ -291,22 +374,133 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
       {
         header: 'Actions',
         cell: ({ row }: any) => (
-          <div className="flex flex-wrap gap-2 items-center justify-end min-w-[120px]">
-            {can('vehicles', 'copyId') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(row.original.id); toast.success(`Copied DB ID: ${row.original.id}`, { duration: 4000, icon: '🔑' }); }} className="p-1.5 rounded hover:bg-purple-50 text-purple-600" title="Copy Firebase Document ID"><Key className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'view') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onView(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="View Details"><Eye className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'update') && row.original.status !== 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Edit"><Edit className="h-4 w-4 pointer-events-none" /></button>}
+          <div 
+            className="flex flex-wrap gap-1.5 items-center justify-end min-w-[140px]"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
+            {can('vehicles', 'copyId') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(row.original.id); toast.success(`Copied DB ID: ${row.original.id}`, { duration: 4000, icon: '🔑' }); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Copy Firebase Document ID"
+              >
+                <Key className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'view') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onView(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="View Details"
+              >
+                <Eye className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'update') && row.original.status !== 'sold' && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Edit Vehicle"
+              >
+                <Edit className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
 
-            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGarage(row.original); }} className="p-1.5 rounded hover:bg-orange-50 text-orange-600" title="Assign/Update Garage"><Building2 className="h-4 w-4 pointer-events-none" /></button>}
-            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGroup(row.original); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Assign Finance Group"><Layers className="h-4 w-4 pointer-events-none" /></button>}
+            {!isCompany && can('vehicles', 'update') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGarage(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Assign/Update Garage"
+              >
+                <Building2 className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {!isCompany && can('vehicles', 'update') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignGroup(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Assign Finance Group"
+              >
+                <Layers className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
             {/* ✅ Added Department Assignment Action */}
-            {!isCompany && can('vehicles', 'update') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignDepartment(row.original); }} className="p-1.5 rounded hover:bg-teal-50 text-teal-600" title="Assign Department"><Briefcase className="h-4 w-4 pointer-events-none" /></button>}
+            {!isCompany && can('vehicles', 'update') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignDepartment(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Assign Department"
+              >
+                <Briefcase className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
 
-            {can('vehicles', 'sale') && row.original.status !== 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkAsSold(row.original); }} className="p-1.5 rounded hover:bg-green-50 text-green-600" title="Mark as Sold"><DollarSign className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'mileage') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSetServiceMileage(row.original); }} className="p-1.5 rounded hover:bg-gray-100 text-gray-600" title="Set Next Service"><Wrench className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'sale') && row.original.status === 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUndoSale(row.original); }} className="p-1.5 rounded hover:bg-orange-50 text-orange-600" title="Undo Sale"><RotateCw className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'delete') && row.original.status === 'sold' && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(row.original); }} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Trash2 className="h-4 w-4 pointer-events-none" /></button>}
-            {can('vehicles', 'singleDoc') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateDocument(row.original); }} className="p-1.5 rounded hover:bg-green-50 text-green-600" title="Generate Document"><FileText className="h-4 w-4 pointer-events-none" /></button>}
-            {row.original.documentUrl && can('vehicles', 'singleDoc') && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewDocument(row.original.documentUrl!); }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="View Document"><Eye className="h-4 w-4 pointer-events-none" /></button>}
+            {can('vehicles', 'sale') && row.original.status !== 'sold' && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkAsSold(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Mark as Sold"
+              >
+                <DollarSign className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'mileage') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSetServiceMileage(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Set Next Service"
+              >
+                <Wrench className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'sale') && row.original.status === 'sold' && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUndoSale(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Undo Sale"
+              >
+                <RotateCw className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'delete') && row.original.status === 'sold' && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {can('vehicles', 'singleDoc') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateDocument(row.original); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="Generate Document"
+              >
+                <FileText className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
+            {row.original.documentUrl && can('vehicles', 'singleDoc') && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewDocument(row.original.documentUrl!); }}
+                className="h-8 w-8 min-w-[32px] flex items-center justify-center rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-90"
+                title="View Document"
+              >
+                <Eye className="h-4 w-4 pointer-events-none" />
+              </button>
+            )}
           </div>
         ),
       },
@@ -320,50 +514,10 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
   return (
     <DataTable
+      theme="navy"
       data={sortedVehicles}
       columns={columns as any}
       onRowClick={(vehicle) => can('vehicles', 'view') && onView(vehicle)}
-      rowClassName={(row) => {
-        const vehicle = row.original;
-        const now = new Date();
-        const thirtyDays = addDays(now, 30);
-
-        const currentMileage = vehicle.mileage || 0;
-        const nextService = vehicle.nextServiceMileage || (currentMileage + 25000);
-        const remaining = nextService - currentMileage;
-        
-        const needsUpdate = checkNeedsMonthlyUpdate(vehicle);
-
-        if (remaining < 0) return 'bg-red-100 hover:bg-red-100'; 
-        if (remaining < 5000) return 'bg-yellow-100 hover:bg-yellow-100'; 
-        if (needsUpdate) return 'bg-blue-50 hover:bg-blue-50'; 
-
-        if (isServiceOverdue(vehicle)) return 'bg-red-100 hover:bg-red-100';
-        if (isServiceDueSoon(vehicle)) return 'bg-yellow-100 hover:bg-yellow-100';
-
-        const checkExp = (d?: Date | null) => d && new Date(d) < now;
-        const checkSoon = (d?: Date | null) => d && new Date(d) <= thirtyDays && new Date(d) >= now;
-
-        if (
-          checkExp(vehicle.motExpiry) ||
-          checkExp(vehicle.insuranceExpiry) ||
-          checkExp(vehicle.nslExpiry) ||
-          checkExp(vehicle.roadTaxExpiry)
-        ) {
-          return 'bg-red-50 hover:bg-red-50';
-        }
-
-        if (
-          checkSoon(vehicle.motExpiry) ||
-          checkSoon(vehicle.insuranceExpiry) ||
-          checkSoon(vehicle.nslExpiry) ||
-          checkSoon(vehicle.roadTaxExpiry)
-        ) {
-          return 'bg-yellow-50 hover:bg-yellow-50';
-        }
-
-        return '';
-      }}
     />
   );
 };

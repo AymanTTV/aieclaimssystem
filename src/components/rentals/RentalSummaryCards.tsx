@@ -125,7 +125,7 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
   const SummaryCard = ({ label, icon, totals, labelColor, iconWrapperClass }: any) => {
     const d = totals;
     return (
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200 p-6 border border-slate-800/90 relative overflow-hidden group text-white flex flex-col justify-between">
+      <div className="bg-[#16192B] rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200 p-6 border border-[#2B314E] hover:border-[#3D456E] relative overflow-hidden group text-white flex flex-col justify-between">
         <div className="flex items-center justify-between mb-4 relative z-10">
           <div>
             <p className={`text-xs font-bold uppercase tracking-wider ${labelColor}`}>{label}</p>
@@ -215,7 +215,7 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
       />
 
       {/* Status Dashboard - Dynamic Standout Fleet Status Card */}
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl p-5 sm:p-6 text-white relative overflow-hidden border border-slate-800/90 flex flex-col justify-between">
+      <div className="bg-[#16192B] rounded-2xl shadow-xl p-5 sm:p-6 text-white relative overflow-hidden border border-[#2B314E] hover:border-[#3D456E] flex flex-col justify-between">
         <Receipt className="absolute -right-3 -bottom-5 w-36 h-36 text-white/[0.04] pointer-events-none select-none" />
         <div className="flex items-center justify-between mb-5 relative z-10">
           <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest font-mono">

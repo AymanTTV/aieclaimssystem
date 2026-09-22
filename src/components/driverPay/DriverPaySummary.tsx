@@ -34,14 +34,14 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
     iconColor: string; 
     valueColor?: string 
   }> = ({ icon, title, value, iconBg, iconColor, valueColor }) => (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 p-5">
+    <div className="bg-[#16192B] rounded-2xl shadow-xl hover:border-[#3D456E] border border-[#2B314E] p-5 text-white transition-all">
       <div className="flex items-center gap-4">
-        <div className={`shrink-0 p-3 rounded-xl ${iconBg} ${iconColor}`}>
+        <div className={`shrink-0 p-3 rounded-xl border ${iconBg} ${iconColor}`}>
           {icon}
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-          <p className={`text-xl sm:text-2xl font-bold ${valueColor ?? 'text-gray-900'}`}>
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">{title}</p>
+          <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${valueColor ?? 'text-white'}`}>
             {formatCurrency(value)}
           </p>
         </div>
@@ -55,45 +55,45 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
         icon={<DollarSign className="h-6 w-6" />} 
         title="TOTAL AMOUNT" 
         value={total} 
-        iconBg="bg-blue-50" 
-        iconColor="text-blue-600" 
+        iconBg="bg-blue-500/15 border-blue-500/30" 
+        iconColor="text-blue-400" 
       />
       <Card 
         icon={<PieChart className="h-6 w-6" />} 
         title="COMMISSION A" 
         value={commissionA} 
-        iconBg="bg-yellow-50" 
-        iconColor="text-yellow-600" 
+        iconBg="bg-amber-500/15 border-amber-500/30" 
+        iconColor="text-amber-400" 
       />
       <Card 
         icon={<Percent className="h-6 w-6" />} 
         title="COMMISSION B" 
         value={commissionB} 
-        iconBg="bg-orange-50" 
-        iconColor="text-orange-600" 
+        iconBg="bg-orange-500/15 border-orange-500/30" 
+        iconColor="text-orange-400" 
       />
       <Card 
         icon={<Wallet className="h-6 w-6" />} 
         title="NET PAY" 
         value={netPay} 
-        iconBg="bg-emerald-50" 
-        iconColor="text-emerald-600" 
+        iconBg="bg-emerald-500/15 border-emerald-500/30" 
+        iconColor="text-emerald-400" 
       />
       <Card 
         icon={<ArrowUpCircle className="h-6 w-6" />} 
         title="AMOUNT PAID" 
         value={totalPaid} 
-        iconBg="bg-green-50" 
-        iconColor="text-green-600" 
-        valueColor="text-green-600"
+        iconBg="bg-emerald-500/15 border-emerald-500/30" 
+        iconColor="text-emerald-400" 
+        valueColor="text-emerald-400"
       />
       <Card 
         icon={<ArrowDownCircle className="h-6 w-6" />} 
         title="REMAINING AMOUNT" 
         value={totalRemaining} 
-        iconBg="bg-red-50" 
-        iconColor="text-red-600" 
-        valueColor="text-red-600"
+        iconBg="bg-rose-500/15 border-rose-500/30" 
+        iconColor="text-rose-400" 
+        valueColor="text-rose-400"
       />
     </div>
   );

@@ -28,14 +28,17 @@ import {
   Image as ImageIcon, 
   FileText as FileTextIcon,
   Mail,
-  Settings2
+  Settings2,
+  MessageSquare
 } from 'lucide-react';
 import MondayAutoEmailBulkModal from '../components/rentals/MondayAutoEmailBulkModal';
+import RentalTemplatesModal from '../components/rentals/RentalTemplatesModal';
 
 
 import { exportRentals } from '../utils/RentalsExport';
 import { Rental, Vehicle, Customer } from '../types';
 import { deleteRentalPayment } from '../utils/paymentUtils';
+import { getRentalUnpaidWarningInfo } from '../utils/rentalCalculations';
 import toast from 'react-hot-toast';
 import { doc, updateDoc, getDoc, addDoc, collection, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -65,8 +68,10 @@ const Rentals = () => {
   const { rentals, loading } = useRentals();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { customers, loading: customersLoading } = useCustomers();
-  const { can } = usePermissions();
+  const { can, isAdmin } = usePermissions();
   const { user } = useAuth();
+  const [showRentalTemplatesModal, setShowRentalTemplatesModal] = useState(false);
+  const [rentalTemplatesInitialTab, setRentalTemplatesInitialTab] = useState<'whatsapp' | 'email'>('whatsapp');
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
   const [notingRental, setNotingRental] = useState<Rental | null>(null);
@@ -181,7 +186,13 @@ const Rentals = () => {
     else if (!showAllRecords) list = list.filter(r => r.reason !== 'o/d' && r.reason !== 'staff');
 
     if (!paymentStatusFilter.includes('all')) {
-      list = list.filter(r => paymentStatusFilter.includes(r.paymentStatus || 'pending'));
+      list = list.filter(r => {
+        const v = vehicles.find(veh => veh.id === r.vehicleId);
+        const remaining = (r.totalAmount || 0) - (r.paidAmount || 0);
+        const warningInfo = getRentalUnpaidWarningInfo(r, remaining, v);
+        const currentStatus = r.paymentStatus || 'pending';
+        return paymentStatusFilter.includes(currentStatus) || paymentStatusFilter.includes(warningInfo.effectivePaymentStatus);
+      });
     }
 
     if (startDateFilter || endDateFilter) {
@@ -485,6 +496,19 @@ const Rentals = () => {
               </button>
             </>
           )}
+          {(can('rentals', 'template') || can('rentals', 'templateEdit') || isAdmin) && (
+            <button 
+              onClick={() => {
+                setRentalTemplatesInitialTab('whatsapp');
+                setShowRentalTemplatesModal(true);
+              }} 
+              className="flex items-center px-4 py-2 border border-emerald-200 rounded-xl shadow-sm text-sm font-bold text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100 hover:shadow transition-all cursor-pointer"
+              title="Open WhatsApp & Email Template Navigation Tabs"
+            >
+              <MessageSquare className="h-4 w-4 mr-2 text-emerald-600" />
+              <span className="truncate">Message Templates</span>
+            </button>
+          )}
           {can('rentals', 'reminder') && (
             <button 
               onClick={() => {
@@ -498,7 +522,7 @@ const Rentals = () => {
               <span className="truncate">Reminder Templates</span>
             </button>
           )}
-          {can('rentals', 'mondayAutoEmail') && (
+          {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && (
             <button 
               onClick={() => {
                 setMondayAutoEmailTab('list');
@@ -542,35 +566,35 @@ const Rentals = () => {
       </div>
 
       {/* --- ENHANCED SEARCH & FILTERS BAR --- */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
+      <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] mb-6 text-white">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center mb-4">
           <div className="relative sm:col-span-2">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+              <Search className="h-5 w-5 text-slate-400" />
             </div>
             <input 
               type="text" 
               placeholder="Search rentals (Agreement #, Customer, Vehicle, Plate)..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
-              className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm font-medium transition-all" 
+              className="block w-full pl-11 pr-4 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm font-medium transition-all" 
             />
           </div>
           <div className="flex sm:justify-end">
-            <label htmlFor="allRecords" className="inline-flex items-center gap-3 select-none cursor-pointer bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors w-full sm:w-auto justify-center">
+            <label htmlFor="allRecords" className="inline-flex items-center gap-3 select-none cursor-pointer bg-[#0F111A] border border-[#2B314E] px-4 py-2.5 rounded-xl hover:bg-[#1E2338] transition-colors w-full sm:w-auto justify-center text-slate-200">
               <input 
                 type="checkbox" 
                 id="allRecords" 
                 checked={showAllRecords} 
                 onChange={(e) => setShowAllRecords(e.target.checked)} 
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" 
+                className="h-4 w-4 rounded border-[#2B314E] bg-[#16192B] text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
               />
-              <span className="text-sm font-bold text-gray-700">Show All Records</span>
+              <span className="text-sm font-bold text-slate-200">Show All Records</span>
             </label>
           </div>
         </div>
 
-        <div className="pt-4 border-t border-gray-100">
+        <div className="pt-4 border-t border-[#2B314E]">
           <RentalFilters
             statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} typeFilter={typeFilter} onTypeFilterChange={setTypeFilter} vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} reasonFilter={reasonFilter} onReasonFilterChange={setReasonFilter} paymentStatusFilter={paymentStatusFilter} onPaymentStatusFilterChange={setPaymentStatusFilter} startDateFilter={startDateFilter} onStartDateChange={setStartDateFilter} endDateFilter={endDateFilter} onEndDateChange={setEndDateFilter} vehicles={vehicles} rentals={rentals} isDisabled={false}
           />
@@ -594,8 +618,24 @@ const Rentals = () => {
         <RentalForm vehicles={vehicles} customers={customers} onClose={() => setShowForm(false)} />
       </Modal>
 
-      <Modal isOpen={!!selectedRental} onClose={() => setSelectedRental(null)} title="Rental Details" size="xl">
-        {selectedRental && <RentalDetails rental={selectedRental} vehicle={vehicles.find(v => v.id === selectedRental.vehicleId) || null} customer={customers.find(c => c.id === selectedRental.customerId) || null} onDownloadInvoice={() => handleDownloadInvoice(selectedRental)} onDownloadPermit={() => handleDownloadPermitTrigger(selectedRental)} />}
+      <Modal 
+        isOpen={!!selectedRental} 
+        onClose={() => setSelectedRental(null)} 
+        title="Rental Details" 
+        size="3xl"
+        className="max-h-[92vh] sm:max-h-[95vh] w-full"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
+      >
+        {selectedRental && (
+          <RentalDetails 
+            rental={selectedRental} 
+            vehicle={vehicles.find(v => v.id === selectedRental.vehicleId) || null} 
+            customer={customers.find(c => c.id === selectedRental.customerId) || null} 
+            onDownloadInvoice={() => handleDownloadInvoice(selectedRental)} 
+            onDownloadPermit={() => handleDownloadPermitTrigger(selectedRental)} 
+            onClose={() => setSelectedRental(null)}
+          />
+        )}
       </Modal>
 
       <Modal isOpen={!!editingRental} onClose={() => setEditingRental(null)} title="Edit Rental" size="xl">
@@ -773,6 +813,14 @@ const Rentals = () => {
         customers={customers}
         initialTab={mondayAutoEmailTab}
       />
+
+      {showRentalTemplatesModal && (
+        <RentalTemplatesModal
+          isOpen={showRentalTemplatesModal}
+          onClose={() => setShowRentalTemplatesModal(false)}
+          initialTab={rentalTemplatesInitialTab}
+        />
+      )}
     </div>
   );
 };

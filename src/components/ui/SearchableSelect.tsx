@@ -41,6 +41,9 @@ interface SearchableSelectProps {
    * Default: "all"
    */
   allId?: string;
+  labelClassName?: string;
+  variant?: 'dark' | 'light' | 'auto';
+  compulsoryNotice?: string;
 }
 
 interface DropdownPosition {
@@ -64,6 +67,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   multiEmptyMode = 'all',
   showAllChipInMulti = true,
   allId = 'all',
+  labelClassName,
+  variant = 'auto',
+  compulsoryNotice,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -137,7 +143,19 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     }
   }, [isOpen]);
 
-  const filteredOptions = options.filter(
+  // Deduplicate incoming options by option.id to prevent duplicate keys
+  const sanitizedOptions = React.useMemo(() => {
+    const seen = new Set<string>();
+    return options.filter((opt) => {
+      if (!opt || opt.id === undefined || opt.id === null) return false;
+      const key = String(opt.id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [options]);
+
+  const filteredOptions = sanitizedOptions.filter(
     (option) =>
       option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
       option.subLabel?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -146,7 +164,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   // Normalize value to array for rendering/logic
   const selectedIds = Array.isArray(value) ? value : value ? [value] : [];
 
-  const getOptionLabel = (id: string) => options.find((o) => o.id === id)?.label || id;
+  const getOptionLabel = (id: string) => sanitizedOptions.find((o) => o.id === id)?.label || id;
 
   const toEmptyValue = () => {
     if (isMulti) return multiEmptyMode === 'all' ? [allId] : [];
@@ -230,9 +248,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           </span>
         )}
 
-        {specific.map((id) => (
+        {specific.map((id, idx) => (
           <span
-            key={id}
+            key={`${id}-${idx}`}
             className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-500/30"
           >
             {getOptionLabel(id)}
@@ -262,27 +280,48 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     );
   };
 
+  const isLight = variant === 'light';
+
   return (
-    <div className="space-y-1" ref={wrapperRef}>
-      <label className="block text-sm font-medium text-slate-200">
-        {label} {required && <span className="text-red-400">*</span>}
-      </label>
+    <div className={`space-y-1 ${isLight ? 'searchable-select-light' : ''}`} ref={wrapperRef}>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <label className={labelClassName || (isLight ? "block text-sm font-bold text-gray-900" : "searchable-select-label block text-sm font-semibold text-[#1E2238] dark:text-white")}>
+          {label}
+        </label>
+        {required && (
+          <span
+            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
+            title="Compulsory field - Must fill in"
+          >
+            <span className="text-red-600 font-black text-xs leading-none">*</span>
+            {compulsoryNotice || 'Must fill in'}
+          </span>
+        )}
+      </div>
 
       <div className="relative">
         <div
           ref={controlRef}
-          className={`w-full min-h-[38px] border ${
-            error ? 'border-red-400/80' : 'border-white/20'
-          } rounded-xl bg-[#0f1022] text-white ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} relative shadow-inner`}
+          className={`w-full min-h-[38px] border transition-all ${
+            error
+              ? 'border-red-500'
+              : isLight
+              ? required
+                ? 'border-gray-300 border-l-4 border-l-red-500'
+                : 'border-gray-300'
+              : 'border-white/20'
+          } ${isLight ? 'rounded-lg bg-white text-gray-900 shadow-2xs' : 'rounded-xl bg-[#0f1022] text-white shadow-inner'} ${
+            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+          } relative`}
           onClick={() => !disabled && setIsOpen(true)}
         >
           <div className="flex flex-wrap items-center gap-1 p-1 pr-8">
             {!isMulti && !isOpen && (
-              <div className="px-2 py-1 text-white w-full truncate">
+              <div className={`px-2 py-1 w-full truncate text-sm font-medium ${isLight ? 'text-gray-900' : 'text-white'}`}>
                 {selectedIds.length > 0 && selectedIds[0] !== allId ? (
                   <span>{getOptionLabel(selectedIds[0])}</span>
                 ) : (
-                  <span className="text-slate-400">{placeholder}</span>
+                  <span className={isLight ? 'text-gray-400 font-normal' : 'text-slate-400'}>{placeholder}</span>
                 )}
               </div>
             )}
@@ -294,23 +333,23 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             {isClearable && !isValueEmpty && !disabled && (
               <button
                 type="button"
-                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 mr-1"
+                className={`p-1 rounded-full mr-1 ${isLight ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
                 onClick={clearAll}
                 aria-label="Clear selection"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
-            {!isOpen && !isMulti && <Search className="h-4 w-4 text-slate-400" />}
+            {!isOpen && !isMulti && <Search className={`h-4 w-4 ${isLight ? 'text-gray-400' : 'text-slate-400'}`} />}
           </div>
 
           {isOpen && !isMulti && (
-            <div className="absolute inset-0 z-10 bg-[#0f1022] rounded-xl flex items-center px-3 border border-indigo-500/50">
-              <Search className="h-4 w-4 text-slate-400 mr-2" />
+            <div className={`absolute inset-0 z-10 rounded-xl flex items-center px-3 border ${isLight ? 'bg-white border-primary shadow-xs' : 'bg-[#0f1022] border-indigo-500/50'}`}>
+              <Search className={`h-4 w-4 mr-2 ${isLight ? 'text-gray-400' : 'text-slate-400'}`} />
               <input
                 ref={inputRef}
                 type="text"
-                className="flex-1 bg-transparent border-0 p-0 text-sm text-white placeholder-slate-400 focus:ring-0 focus:outline-none"
+                className={`flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none ${isLight ? 'text-gray-900 placeholder-gray-400' : 'text-white placeholder-slate-400'}`}
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -321,7 +360,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   e.stopPropagation();
                   setIsOpen(false);
                 }}
-                className="ml-2 text-slate-400 hover:text-white p-1 rounded hover:bg-white/10"
+                className={`ml-2 p-1 rounded ${isLight ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -348,11 +387,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               className="bg-white shadow-xl max-h-60 rounded-xl py-1 text-base overflow-auto focus:outline-none sm:text-sm border border-gray-200 custom-scrollbar text-gray-900"
             >
               {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => {
+                filteredOptions.map((option, idx) => {
                   const isSelected = selectedIds.includes(option.id);
                   return (
                     <div
-                      key={option.id}
+                      key={`${option.id}-${idx}`}
                       className={`cursor-pointer px-3 py-2 flex items-center justify-between transition-colors ${
                         isSelected ? 'bg-primary/10 text-primary font-semibold' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}

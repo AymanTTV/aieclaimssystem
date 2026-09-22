@@ -235,27 +235,27 @@ export default function TrashPage() {
       </div>
 
       {/* --- Table --- */}
-      <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-100">
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Record Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Module</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deleted By</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deleted At</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          <table className="min-w-full border-collapse">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Record Name</th>
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Module</th>
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Deleted By</th>
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Deleted At</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
 
               {!selectedCollection && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-16 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
-                      <Database className="h-12 w-12 text-gray-300 mb-4" />
-                      <p className="text-lg font-medium text-gray-900">Select a Collection</p>
-                      <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+                      <Database className="h-12 w-12 text-slate-400 mb-4" />
+                      <p className="text-lg font-bold text-slate-800">Select a Collection</p>
+                      <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
                         Please select a specific module from the dropdown above to view and manage its deleted records.
                       </p>
                     </div>
@@ -263,63 +263,67 @@ export default function TrashPage() {
                 </tr>
               )}
 
-              {selectedCollection && filteredItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-bold text-gray-900">{item.displayName}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 capitalize">
-                      {item.originalCollection.replace(/([A-Z])/g, ' $1').trim()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center mr-2">
-                        <UserX className="h-3 w-3 text-gray-500" />
+              {selectedCollection && filteredItems.map((item, idx) => {
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                  <tr key={item.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="text-sm font-bold text-slate-900">{item.displayName}</div>
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-white text-blue-700 border border-blue-200 capitalize">
+                        {item.originalCollection.replace(/([A-Z])/g, ' $1').trim()}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center mr-2">
+                          <UserX className="h-3 w-3 text-slate-600" />
+                        </div>
+                        <div className="text-sm font-medium text-slate-800">
+                          {item.deletedBy === 'system' 
+                            ? 'System' 
+                            : (usersMap[item.deletedBy] || 'Unknown User')}
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-900">
-                        {item.deletedBy === 'system' 
-                          ? 'System' 
-                          : (usersMap[item.deletedBy] || 'Unknown User')}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {item.deletedAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {/* ✅ Wrapped with Restore Permission */}
-                    {can('trash', 'restore') && (
-                      <button 
-                        onClick={() => setItemToRestore(item)} 
-                        className="text-green-600 hover:text-green-800 mr-4 inline-flex items-center transition-colors"
-                        title="Restore Item"
-                      >
-                        <RefreshCw className="w-4 h-4 mr-1" /> Restore
-                      </button>
-                    )}
-                    {/* ✅ Wrapped with Delete Permanently Permission */}
-                    {can('trash', 'deletePermanently') && (
-                      <button 
-                        onClick={() => setItemToDelete(item)} 
-                        className="text-red-600 hover:text-red-800 inline-flex items-center transition-colors"
-                        title="Permanently Delete"
-                      >
-                        <AlertTriangle className="w-4 h-4 mr-1" /> Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-600 font-medium">
+                      {item.deletedAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                      {/* ✅ Wrapped with Restore Permission */}
+                      {can('trash', 'restore') && (
+                        <button 
+                          onClick={() => setItemToRestore(item)} 
+                          className="text-emerald-700 hover:text-emerald-900 mr-4 inline-flex items-center font-semibold transition-colors"
+                          title="Restore Item"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" /> Restore
+                        </button>
+                      )}
+                      {/* ✅ Wrapped with Delete Permanently Permission */}
+                      {can('trash', 'deletePermanently') && (
+                        <button 
+                          onClick={() => setItemToDelete(item)} 
+                          className="text-rose-700 hover:text-rose-900 inline-flex items-center font-semibold transition-colors"
+                          title="Permanently Delete"
+                        >
+                          <AlertTriangle className="w-4 h-4 mr-1" /> Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {selectedCollection && filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
-                      <Trash2 className="h-10 w-10 text-gray-300 mb-3" />
-                      <p className="text-base font-medium text-gray-900">Trash is empty</p>
-                      <p className="text-sm text-gray-500 mt-1">No items match your current search/filter.</p>
+                      <Trash2 className="h-10 w-10 text-slate-400 mb-3" />
+                      <p className="text-base font-bold text-slate-800">Trash is empty</p>
+                      <p className="text-sm text-slate-500 mt-1">No items match your current search/filter.</p>
                     </div>
                   </td>
                 </tr>
@@ -327,6 +331,16 @@ export default function TrashPage() {
 
             </tbody>
           </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{selectedCollection ? filteredItems.length : 0}</span> deleted record{(selectedCollection ? filteredItems.length : 0) === 1 ? '' : 's'}
+          </div>
+          <div className="text-slate-400">
+            Recycle Bin
+          </div>
         </div>
       </div>
 

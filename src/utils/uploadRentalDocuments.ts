@@ -41,25 +41,37 @@ export const uploadRentalDocuments = async (
     if (documents.agreements) {
       for (const [key, blob] of Object.entries(documents.agreements)) {
         if (blob) {
-          const url = await upload(key, blob); // key is 'agreement_12345'
-          agreementUrls[key] = url;
-          console.log(`Agreement "${key}" uploaded:`, url);
+          try {
+            const url = await upload(key, blob); // key is 'agreement_12345'
+            agreementUrls[key] = url;
+            console.log(`Agreement "${key}" uploaded:`, url);
+          } catch (e) {
+            console.error(`Failed to upload agreement "${key}":`, e);
+          }
         }
       }
     }
 
-    // Upload agreement & invoice
-    // const agreementUrl = await upload('agreement', documents.agreement); // REMOVED
-    // console.log("Agreement uploaded:", agreementUrl); // REMOVED
-
-    const invoiceUrl = await upload('invoice', documents.invoice);
-    console.log('Invoice uploaded:', invoiceUrl);
+    // Upload invoice safely if present
+    let invoiceUrl = '';
+    if (documents.invoice) {
+      try {
+        invoiceUrl = await upload('invoice', documents.invoice);
+        console.log('Invoice uploaded:', invoiceUrl);
+      } catch (e) {
+        console.error('Failed to upload invoice:', e);
+      }
+    }
 
     // Optionally upload permit
     let permitUrl: string | undefined;
     if (documents.permit) {
-      permitUrl = await upload('permit', documents.permit);
-      console.log('Permit uploaded:', permitUrl);
+      try {
+        permitUrl = await upload('permit', documents.permit);
+        console.log('Permit uploaded:', permitUrl);
+      } catch (e) {
+        console.error('Failed to upload permit:', e);
+      }
     }
 
     // Upload any claim documents
@@ -68,9 +80,13 @@ export const uploadRentalDocuments = async (
       claimDocumentUrls = {};
       for (const [key, blob] of Object.entries(documents.claimDocuments)) {
         if (blob) {
-          const url = await upload(key, blob);
-          claimDocumentUrls[key] = url;
-          console.log(`Claim document "${key}" uploaded:`, url);
+          try {
+            const url = await upload(key, blob);
+            claimDocumentUrls[key] = url;
+            console.log(`Claim document "${key}" uploaded:`, url);
+          } catch (e) {
+            console.error(`Failed to upload claim doc "${key}":`, e);
+          }
         }
       }
     }

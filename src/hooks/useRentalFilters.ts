@@ -1,6 +1,7 @@
 // src/hooks/useRentalFilters.ts
 import { useState, useMemo } from 'react';
 import { Rental, Vehicle, Customer } from '../types';
+import { getRentalUnpaidWarningInfo } from '../utils/rentalCalculations';
 
 export const useRentalFilters = (
   rentals: Rental[] = [],
@@ -102,7 +103,9 @@ export const useRentalFilters = (
       let matchesPaymentStatus = true;
       if (!paymentStatusFilter.includes('all')) {
         const currentStatus = rental.paymentStatus || 'pending';
-        matchesPaymentStatus = paymentStatusFilter.includes(currentStatus);
+        const remaining = (rental.totalAmount || 0) - (rental.paidAmount || 0);
+        const warningInfo = getRentalUnpaidWarningInfo(rental, remaining, vehicle);
+        matchesPaymentStatus = paymentStatusFilter.includes(currentStatus) || paymentStatusFilter.includes(warningInfo.effectivePaymentStatus);
       }
 
       // --- DATE RANGE LOGIC ---

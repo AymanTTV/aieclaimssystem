@@ -34,31 +34,31 @@ const VDFinanceSummary: React.FC<VDFinanceSummaryProps> = ({ records }) => {
   );
 
   const Card: React.FC<{ label: string; value: number; tone: string; iconBg: string; Icon: React.ElementType }> = ({ label, value, tone, iconBg, Icon }) => (
-    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all duration-200 flex items-center justify-between group">
+    <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] hover:border-[#3D456E] transition-all duration-200 flex items-center justify-between group text-white">
       <div>
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</p>
-        <p className={`mt-1.5 text-xl sm:text-2xl font-extrabold tracking-tight ${tone}`}>
+        <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">{label}</p>
+        <p className={`mt-1.5 text-xl sm:text-2xl font-black font-mono tracking-tight ${tone}`}>
           {formatCurrency(value)}
         </p>
       </div>
-      <div className={`p-3 rounded-xl transition-transform duration-300 group-hover:scale-110 ${iconBg}`}>
-        <Icon className={`w-6 h-6 ${tone}`} />
+      <div className={`p-2.5 sm:p-3 rounded-xl border transition-transform duration-300 group-hover:scale-110 ${iconBg}`}>
+        <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${tone}`} />
       </div>
     </div>
   );
 
   return (
     <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-      <Card label="TOTAL AMOUNT"        value={summary.total}             Icon={Wallet}         tone="text-gray-900"   iconBg="bg-gray-100" />
-      <Card label="NET AMOUNT"          value={summary.net}               Icon={Calculator}     tone="text-blue-700"   iconBg="bg-blue-50" />
-      <Card label="VAT IN"              value={summary.vatIn}             Icon={ArrowDownCircle}tone="text-indigo-600" iconBg="bg-indigo-50" />
-      <Card label="VAT OUT"             value={summary.vatOut}            Icon={ArrowUpCircle}  tone="text-rose-600"   iconBg="bg-rose-50" />
-      <Card label="PURCHASED ITEMS"     value={summary.expenses}          Icon={ShoppingCart}   tone="text-amber-600"  iconBg="bg-amber-50" />
-      <Card label="SOLICITOR FEE"       value={summary.solicitorFee}      Icon={Scale}          tone="text-purple-600" iconBg="bg-purple-50" />
-      <Card label="CLIENT REPAIR"       value={summary.clientRepair}      Icon={Wrench}         tone="text-orange-600" iconBg="bg-orange-50" />
-      <Card label="SALVAGE"             value={summary.salvage}           Icon={Recycle}        tone="text-teal-600"   iconBg="bg-teal-50" />
-      <Card label="CLIENT REFERRAL"     value={summary.clientReferralFee} Icon={Gift}           tone="text-pink-600"   iconBg="bg-pink-50" />
-      <Card label="PROFIT"              value={summary.profit}            Icon={TrendingUp}     tone="text-emerald-600"iconBg="bg-emerald-50" />
+      <Card label="TOTAL AMOUNT"        value={summary.total}             Icon={Wallet}         tone="text-white"        iconBg="bg-slate-800/80 border-slate-700/60" />
+      <Card label="NET AMOUNT"          value={summary.net}               Icon={Calculator}     tone="text-blue-400"     iconBg="bg-blue-500/15 border-blue-500/30" />
+      <Card label="VAT IN"              value={summary.vatIn}             Icon={ArrowDownCircle}tone="text-indigo-400"   iconBg="bg-indigo-500/15 border-indigo-500/30" />
+      <Card label="VAT OUT"             value={summary.vatOut}            Icon={ArrowUpCircle}  tone="text-rose-400"     iconBg="bg-rose-500/15 border-rose-500/30" />
+      <Card label="PURCHASED ITEMS"     value={summary.expenses}          Icon={ShoppingCart}   tone="text-amber-400"    iconBg="bg-amber-500/15 border-amber-500/30" />
+      <Card label="SOLICITOR FEE"       value={summary.solicitorFee}      Icon={Scale}          tone="text-purple-400"   iconBg="bg-purple-500/15 border-purple-500/30" />
+      <Card label="CLIENT REPAIR"       value={summary.clientRepair}      Icon={Wrench}         tone="text-orange-400"   iconBg="bg-orange-500/15 border-orange-500/30" />
+      <Card label="SALVAGE"             value={summary.salvage}           Icon={Recycle}        tone="text-teal-400"     iconBg="bg-teal-500/15 border-teal-500/30" />
+      <Card label="CLIENT REFERRAL"     value={summary.clientReferralFee} Icon={Gift}           tone="text-pink-400"     iconBg="bg-pink-500/15 border-pink-500/30" />
+      <Card label="PROFIT"              value={summary.profit}            Icon={TrendingUp}     tone="text-emerald-400"  iconBg="bg-emerald-500/15 border-emerald-500/30" />
     </div>
   );
 };

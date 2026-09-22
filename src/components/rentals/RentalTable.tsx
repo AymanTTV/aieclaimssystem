@@ -48,7 +48,9 @@ import {
   calculateRentalCostDetailed,
   calculateTotalSubstitutionCharges,
   getCalendarWeeks,
-  getWeeklyHybridUnits // 👈 ADD THIS
+  getWeeklyHybridUnits,
+  getRentalUnpaidWarningInfo,
+  getRentalBaseRate
 } from '../../utils/rentalCalculations';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
@@ -160,23 +162,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
     return { detailedCosts, ongoingCharges, returnCharges, totalAmountDue, paid, remaining, extraTotal };
   }, []);
 
-  const getUrgencyLevel = useCallback((r: Rental, remaining: number): UrgencyLevel => {
+  const getUrgencyLevel = useCallback((r: Rental, remaining: number, v?: Vehicle): UrgencyLevel => {
     if (r.status !== 'active' && r.status !== 'completed') return 'none';
     if (remaining <= 0.01) return 'none';
-
-    const refDate = r.payments && r.payments.length > 0
-      ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
-      : ensureValidDate(r.startDate);
-    
-    const today = new Date();
-    const diffMs = today.getTime() - refDate.getTime();
-    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-
-    if (r.type === 'weekly' && diffDays >= 7) return 'red';
-    if (r.type === 'daily' && diffDays >= 7) return 'red';
-    if (r.type === 'claim' && diffDays >= 180) return 'red';
-
-    return 'none'; 
+    const info = getRentalUnpaidWarningInfo(r, remaining, v);
+    return info.urgencyLevel;
   }, []);
 
   const sortedRentals = useMemo(() => {
@@ -191,8 +181,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
         return owingB - owingA;
       }
 
-      const scoreA = getUrgencyLevel(a, owingA) === 'red' ? 3 : getUrgencyLevel(a, owingA) === 'yellow' ? 2 : 1;
-      const scoreB = getUrgencyLevel(b, owingB) === 'red' ? 3 : getUrgencyLevel(b, owingB) === 'yellow' ? 2 : 1;
+      const scoreA = getUrgencyLevel(a, owingA, vA) === 'red' ? 3 : getUrgencyLevel(a, owingA, vA) === 'yellow' ? 2 : 1;
+      const scoreB = getUrgencyLevel(b, owingB, vB) === 'red' ? 3 : getUrgencyLevel(b, owingB, vB) === 'yellow' ? 2 : 1;
       
       if (scoreA !== scoreB) return scoreB - scoreA;
 
@@ -407,18 +397,28 @@ const RentalTable: React.FC<RentalTableProps> = ({
     },
     {
       header: 'Status',
-      cell: ({ row }: any) => (
-        <div className="flex flex-col items-start space-y-1.5">
-          <StatusBadge status={row.original.status} />
-          <StatusBadge status={row.original.paymentStatus} />
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const r = row.original as Rental;
+        const v = vehicles.find(veh => veh.id === r.vehicleId);
+        const { remaining } = getDetailedRentalTotals(r, v);
+        const warningInfo = getRentalUnpaidWarningInfo(r, remaining, v);
+
+        return (
+          <div className="flex flex-col items-start space-y-1.5">
+            <StatusBadge status={r.status} />
+            <StatusBadge 
+              status={warningInfo.effectivePaymentStatus}
+              className={warningInfo.effectivePaymentStatus === 'unpaid' ? '!bg-red-600 !text-white border border-red-700 font-extrabold animate-blink shadow-sm' : ''}
+            />
+          </div>
+        );
+      },
     },
     {
       header: 'Cost Summary',
       cell: ({ row }: any) => {
         const r = row.original as Rental;
-        const v = vehicles.find(v => v.id === r.vehicleId);
+        const v = vehicles.find(veh => veh.id === r.vehicleId);
         if (!v) return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
 
         const { detailedCosts, totalAmountDue, paid, remaining, extraTotal } = getDetailedRentalTotals(r, v);
@@ -429,7 +429,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
         const isNegotiated = r.negotiatedRate != null;
         const isCredit = remaining < 0;
 
-        const urgencyLevel = getUrgencyLevel(r, remaining);
+        const warningInfo = getRentalUnpaidWarningInfo(r, remaining, v);
+        const urgencyLevel = warningInfo.urgencyLevel;
 
         return (
           <div className="space-y-1.5 text-sm">
@@ -445,7 +446,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
               <span className="font-mono text-gray-700">{formatCurrency(detailedCosts.net)}</span>
             </div>
 
-            {/* ✅ Added Extras Display in the summary table */}
+            {/* Extras Display in the summary table */}
             {extraTotal > 0 && (
               <div className="flex justify-between text-indigo-600">
                 <span className="font-medium">Extras:</span>
@@ -477,44 +478,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
               <span className="font-black font-mono">{formatCurrency(Math.abs(remaining))}</span>
             </div>
             
-            {urgencyLevel === 'red' && (
-              <div className="mt-2 flex items-center justify-center gap-1 bg-red-50 text-red-700 text-[10px] font-bold px-2 py-1.5 rounded animate-pulse text-center border border-red-200">
-                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                <span>
-                  {(() => {
-                    let costText = '';
-                    if (r.type === 'weekly') {
-                      const weeks = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
-                      costText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
-                    } else if (r.type === 'daily') {
-                      const days = effectiveRate > 0 ? Math.floor(remaining / effectiveRate) : 0;
-                      costText = `${days} Day${days !== 1 ? 's' : ''}`;
-                    } else {
-                      const months = effectiveRate > 0 ? Math.floor(remaining / (effectiveRate * 30)) : 0;
-                      costText = `${months} Month${months !== 1 ? 's' : ''}`;
-                    }
-
-                    const refDate = r.payments && r.payments.length > 0
-                      ? new Date(Math.max(...r.payments.map((p: any) => new Date(p.date).getTime())))
-                      : ensureValidDate(r.startDate);
-                    
-                    const today = new Date();
-                    const diffMs = today.getTime() - refDate.getTime();
-                    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-
-                    let timeText = '';
-                    if (diffDays >= 30) {
-                      const months = Math.floor(diffDays / 30);
-                      timeText = `${months} Month${months !== 1 ? 's' : ''}`;
-                    } else if (diffDays >= 7) {
-                      const weeks = Math.floor(diffDays / 7);
-                      timeText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
-                    } else {
-                      timeText = `${diffDays} Day${diffDays !== 1 ? 's' : ''}`;
-                    }
-
-                    return `Urgent: Unpaid ${costText} for ${timeText} up to date`;
-                  })()}
+            {urgencyLevel === 'red' && warningInfo.warningMessage && (
+              <div className="mt-2 flex items-center justify-center gap-1.5 bg-red-600 text-white text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-red-700 text-center shadow-md animate-blink">
+                <AlertTriangle className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                <span className="tracking-tight text-white font-extrabold">
+                  {warningInfo.warningMessage}
                 </span>
               </div>
             )}
@@ -564,7 +532,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
 
             {/* ROW 3: Documents Generation & Communications */}
-            {(can('rentals', 'whatsapp') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'singleDoc')) && (
+            {(can('rentals', 'whatsapp') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler') || can('rentals', 'singleDoc')) && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
                 {can('rentals', 'whatsapp') && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
@@ -572,7 +540,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 {can('rentals', 'email') && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
                 )}
-                {can('rentals', 'mondayAutoEmail') && r.status === 'active' && (() => {
+                {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && r.status === 'active' && (() => {
                   const isClaim = ['claim', 'claims'].includes(String(r.type || r.reason || r.category || '').trim().toLowerCase());
                   if (isClaim) {
                     return (
@@ -661,11 +629,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
         rowClassName={r => {
           const v = vehicles.find(veh => veh.id === r.vehicleId);
           const { remaining } = getDetailedRentalTotals(r, v);
-          const level = getUrgencyLevel(r, remaining);
+          const level = getUrgencyLevel(r, remaining, v);
 
           // --- 1. URGENCY HIGHLIGHTS ---
           if (level === 'red') {
-              return 'bg-red-50/50 hover:bg-red-100 transition-colors border-l-4 border-l-red-500'; 
+              return 'bg-red-50/60 hover:bg-red-100/70 transition-colors border-l-4 border-l-red-500'; 
           }
           if (level === 'yellow') {
               return 'bg-yellow-50/50 hover:bg-yellow-100 transition-colors border-l-4 border-l-yellow-400';

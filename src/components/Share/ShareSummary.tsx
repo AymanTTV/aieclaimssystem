@@ -52,30 +52,30 @@ export default function ShareSummary({
       label: showHistory ? 'Total Income (History)' : 'Net Income (Unsplit)', 
       amount: totalIncome, 
       icon: TrendingUp,
-      colorClass: 'text-green-600', 
-      bgClass: 'bg-green-50'
+      colorClass: 'text-emerald-400', 
+      bgClass: 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
     },
     { 
       label: showHistory ? 'Total Expense (History)' : 'Net Expense (Unsplit)', 
       amount: totalExpense, 
       icon: TrendingDown,
-      colorClass: 'text-red-600', 
-      bgClass: 'bg-red-50'
+      colorClass: 'text-rose-400', 
+      bgClass: 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
     },
     ...(showHistory ? [{ 
       label: 'Shared Funds', 
       amount: totalShared, 
       icon: Users,
-      colorClass: 'text-blue-700', 
-      bgClass: 'bg-blue-50',
+      colorClass: 'text-blue-400', 
+      bgClass: 'bg-blue-500/15 border border-blue-500/30 text-blue-400',
       isShared: true 
     }] : []),
     { 
       label: 'Current Balance', 
       amount: balance, 
       icon: Wallet,
-      colorClass: 'text-gray-900', 
-      bgClass: 'bg-gray-100'
+      colorClass: 'text-white', 
+      bgClass: 'bg-slate-700/30 border border-slate-600/40 text-slate-200'
     }
   ]
 
@@ -86,26 +86,26 @@ export default function ShareSummary({
       {cards.map((card) => {
         const Icon = card.icon
         return (
-          <div key={card.label} className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all duration-200 flex flex-col justify-between group">
+          <div key={card.label} className="bg-[#16192B] rounded-2xl shadow-xl p-5 border border-[#2B314E] hover:border-[#3D456E] transition-all duration-200 flex flex-col justify-between group text-white">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                   {card.label}
                 </h3>
                 <div className={`p-3 rounded-xl transition-transform duration-300 group-hover:scale-110 ${card.bgClass}`}>
-                  <Icon className={`w-5 h-5 ${card.colorClass}`} />
+                  <Icon className="w-5 h-5" />
                 </div>
               </div>
               
-              <p className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${card.colorClass}`}>
+              <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${card.colorClass}`}>
                 {formatCurrency(card.amount)}
               </p>
             </div>
 
             {card.isShared && showHistory && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4 border-t border-[#2B314E]">
                 {startDate && endDate && (
-                  <div className="text-xs text-gray-400 mb-3 font-medium">
+                  <div className="text-xs text-slate-400 mb-3 font-medium">
                     {startDate} &rarr; {endDate}
                   </div>
                 )}
@@ -114,17 +114,17 @@ export default function ShareSummary({
                     const pct = totalShared > 0 ? Math.round((amt / totalShared) * 100) : 0
                     return (
                       <div key={name} className="flex justify-between items-center text-xs sm:text-sm">
-                        <span className="text-gray-600 font-medium truncate max-w-[65%]">
-                          {name} <span className="text-gray-400 text-[10px] ml-1">({pct}%)</span>
+                        <span className="text-slate-300 font-medium truncate max-w-[65%]">
+                          {name} <span className="text-slate-400 text-[10px] ml-1">({pct}%)</span>
                         </span>
-                        <span className="font-bold text-gray-900">
+                        <span className="font-bold text-white font-mono">
                           {formatCurrency(amt)}
                         </span>
                       </div>
                     )
                   })}
                   {Object.keys(breakdown).length === 0 && (
-                     <span className="text-sm text-gray-400 italic">No splits in this period</span>
+                     <span className="text-sm text-slate-400 italic">No splits in this period</span>
                   )}
                 </div>
               </div>

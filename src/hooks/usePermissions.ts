@@ -11,8 +11,18 @@ export const usePermissions = () => {
 
     // 1) Custom override saved on the user doc
     const customModulePerms = user.permissions?.[module];
-    if (customModulePerms && customModulePerms[action] !== undefined) {
-      return Boolean(customModulePerms[action]);
+    if (customModulePerms) {
+      if (customModulePerms[action] !== undefined) {
+        return Boolean(customModulePerms[action]);
+      }
+      if (module === 'rentals') {
+        if (action === 'bulkEmailScheduler' && customModulePerms.mondayAutoEmail !== undefined) {
+          return Boolean(customModulePerms.mondayAutoEmail);
+        }
+        if (action === 'mondayAutoEmail' && customModulePerms.bulkEmailScheduler !== undefined) {
+          return Boolean(customModulePerms.bulkEmailScheduler);
+        }
+      }
     }
 
     // 2) Fallback to defaults for the user’s role
@@ -20,7 +30,19 @@ export const usePermissions = () => {
     const defaultModulePerms = rolePerms?.[module];
     if (!defaultModulePerms) return false;
 
-    return Boolean(defaultModulePerms[action]);
+    if (defaultModulePerms[action] !== undefined) {
+      return Boolean(defaultModulePerms[action]);
+    }
+    if (module === 'rentals') {
+      if (action === 'bulkEmailScheduler' && defaultModulePerms.mondayAutoEmail !== undefined) {
+        return Boolean(defaultModulePerms.mondayAutoEmail);
+      }
+      if (action === 'mondayAutoEmail' && defaultModulePerms.bulkEmailScheduler !== undefined) {
+        return Boolean(defaultModulePerms.bulkEmailScheduler);
+      }
+    }
+
+    return false;
   };
 
   const canAny = (module: keyof RolePermissions, actions: Array<keyof Permission>): boolean =>

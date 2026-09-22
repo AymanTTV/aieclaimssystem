@@ -468,59 +468,59 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
 
         {/* The Ranking Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-xs">
-            <thead className="bg-gray-100/80 text-gray-700 font-bold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th scope="col" className="px-3 py-3 text-left w-12">
+          <table className="min-w-full border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th scope="col" className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-12">
                   Rank
                 </th>
-                <th scope="col" className="px-4 py-3 text-left">
+                <th scope="col" className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">
                   Driver Information
                 </th>
-                <th scope="col" className="px-3 py-3 text-center">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
                   Accidents Count
                 </th>
-                <th scope="col" className="px-3 py-3 text-center">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
                   Fault Split
                 </th>
-                <th scope="col" className="px-4 py-3 text-right">
+                <th scope="col" className="px-4 py-3.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">
                   Total Financial Incurred (£)
                 </th>
-                <th scope="col" className="px-3 py-3 text-center">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
                   Late Reports (&gt;24h)
                 </th>
-                <th scope="col" className="px-3 py-3 text-center">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
                   Risk Rating Badge
                 </th>
-                <th scope="col" className="px-3 py-3 text-center w-24">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none w-24">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {filteredProfiles.map((driver) => {
+            <tbody>
+              {filteredProfiles.map((driver, idx) => {
                 const isExpanded = expandedDriver === driver.driverName;
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
 
                 return (
                   <React.Fragment key={driver.driverName}>
                     <tr
                       onClick={() => toggleDriverExpand(driver.driverName)}
-                      className={`hover:bg-blue-50/40 cursor-pointer transition ${
-                        driver.riskRating === 'high' ? 'bg-rose-50/20' : ''
-                      }`}
+                      className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] cursor-pointer transition-all duration-150 ease-in-out`}
                     >
                       {/* Rank */}
-                      <td className="px-3 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black ${
                             driver.rank <= 3
                               ? 'bg-rose-600 text-white shadow-2xs'
                               : driver.rank <= 5
                               ? 'bg-amber-500 text-white'
-                              : 'bg-gray-200 text-gray-800'
+                              : 'bg-slate-200 text-slate-800'
                           }`}
                         >
-                          {driver.rank}
+                          #{driver.rank}
                         </span>
                       </td>
 
@@ -677,41 +677,43 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
                               </span>
                             </div>
 
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200 text-xs">
-                                <thead className="bg-gray-100 text-gray-600 font-semibold">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left">Date / Time</th>
-                                    <th className="px-3 py-2 text-left">Ref / Claim</th>
-                                    <th className="px-3 py-2 text-left">Vehicle VRN</th>
-                                    <th className="px-3 py-2 text-center">Fault</th>
-                                    <th className="px-3 py-2 text-center">Status</th>
-                                    <th className="px-3 py-2 text-right">Incurred (£)</th>
-                                    <th className="px-3 py-2 text-center">Reporting Window</th>
-                                    <th className="px-3 py-2 text-right">Action</th>
+                            <div className="overflow-x-auto rounded-xl border border-[#2B314E] overflow-hidden">
+                              <table className="min-w-full border-collapse text-xs">
+                                <thead className="bg-[#16192B] text-white">
+                                  <tr className="border-b border-[#2B314E]">
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date / Time</th>
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Ref / Claim</th>
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Vehicle VRN</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Status</th>
+                                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Reporting Window</th>
+                                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Action</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-200 bg-white">
-                                  {driver.accidents.map((claim) => {
+                                <tbody>
+                                  {driver.accidents.map((claim, subIdx) => {
                                     const rawAccident = driver.rawAccidents.find((r) => r.id === claim.id);
+                                    const isSubEven = subIdx % 2 === 1;
+                                    const subRowBg = isSubEven ? 'bg-[#EEF5FD]' : 'bg-white';
 
                                     return (
-                                      <tr key={claim.id} className="hover:bg-gray-50">
-                                        <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">
+                                      <tr key={claim.id} className={`group border-b border-[#E2E8F0] ${subRowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                                        <td className="px-3.5 py-2.5 font-medium text-slate-900 whitespace-nowrap">
                                           {claim.accidentDate} {claim.accidentTime ? `at ${claim.accidentTime}` : ''}
                                         </td>
-                                        <td className="px-3 py-2 whitespace-nowrap">
-                                          <span className="font-semibold text-gray-800">
+                                        <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                          <span className="font-bold text-slate-800">
                                             {claim.refNo ? `#${claim.refNo}` : '—'}
                                           </span>
                                           {claim.referenceName && (
-                                            <span className="text-gray-500 ml-1">({claim.referenceName})</span>
+                                            <span className="text-slate-500 ml-1">({claim.referenceName})</span>
                                           )}
                                         </td>
-                                        <td className="px-3 py-2 whitespace-nowrap font-mono font-bold text-gray-800">
+                                        <td className="px-3.5 py-2.5 whitespace-nowrap font-mono font-bold text-slate-800">
                                           {claim.vehicleVRN || '—'}
                                         </td>
-                                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
                                           <span
                                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
                                               claim.fault === 'Fault'
@@ -724,13 +726,13 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
                                             {claim.fault}
                                           </span>
                                         </td>
-                                        <td className="px-3 py-2 text-center whitespace-nowrap capitalize text-gray-700">
+                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap capitalize text-slate-700 font-medium">
                                           {claim.status}
                                         </td>
-                                        <td className="px-3 py-2 text-right whitespace-nowrap font-bold text-gray-900">
+                                        <td className="px-3.5 py-2.5 text-right whitespace-nowrap font-bold text-slate-900">
                                           {formatGBP(claim.incurred)}
                                         </td>
-                                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
                                           {claim.isLateReport ? (
                                             <span className="inline-flex items-center text-rose-700 font-bold text-[10px] bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
                                               &gt; 24h Late {claim.timeToReportDisplay ? `(${claim.timeToReportDisplay})` : ''}
@@ -741,7 +743,7 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
                                             </span>
                                           )}
                                         </td>
-                                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                                        <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
                                           {rawAccident && onViewAccident && (
                                             <button
                                               onClick={() => onViewAccident(rawAccident)}
@@ -768,11 +770,11 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
 
               {filteredProfiles.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500 bg-white">
                     <div className="flex flex-col items-center justify-center space-y-2">
-                      <ShieldAlert className="w-8 h-8 text-gray-300" />
-                      <p className="text-sm font-semibold text-gray-700">No driver records found</p>
-                      <p className="text-xs text-gray-500">
+                      <ShieldAlert className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm font-semibold text-slate-700">No driver records found</p>
+                      <p className="text-xs text-slate-500">
                         Try selecting another policy period or adjusting your search filters.
                       </p>
                     </div>
@@ -781,6 +783,16 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{filteredProfiles.length}</span> ranked driver{filteredProfiles.length === 1 ? '' : 's'}
+          </div>
+          <div className="text-slate-400">
+            Loss Run & Driver Risk Rankings
+          </div>
         </div>
       </div>
 

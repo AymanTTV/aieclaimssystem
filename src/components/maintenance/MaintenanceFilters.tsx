@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceFilters.tsx
 import React, { useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { Vehicle } from '../../types';
 import SearchableSelect from '../ui/SearchableSelect';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -70,8 +70,15 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
     { id: 'partially_paid', label: 'Partially Paid' }
   ], []);
 
+  const labelStyle = "block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1";
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+    <div className="bg-[#16192B] p-4 sm:p-5 rounded-2xl shadow-xl border border-[#2B314E]">
+      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-slate-300 mb-4 pb-2 border-b border-[#2B314E]/60">
+        <Filter className="w-4 h-4 text-blue-400" />
+        <span>Maintenance Filters</span>
+      </div>
+
       {/* Grid Setup: 
         Mobile: 1 column
         Tablet (sm): 2 columns
@@ -82,17 +89,17 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         
         {/* Search - Takes 2 columns to balance the first row */}
         <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-           <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+           <label className={labelStyle}>Search</label>
            <div className="relative">
              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-               <Search className="h-4 w-4 text-gray-400" />
+               <Search className="h-4 w-4 text-slate-400" />
              </div>
              <input
                type="text"
                value={searchQuery}
                onChange={(e) => onSearchChange(e.target.value)}
-               placeholder="Search records, reg, invoice..."
-               className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary sm:text-sm h-[42px]"
+               placeholder="Search type, vehicle, reg, invoice, notes..."
+               className="block w-full pl-9 pr-3 py-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500 h-[42px]"
              />
            </div>
         </div>
@@ -100,6 +107,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         <div className="col-span-1">
            <SearchableSelect
              label="Status"
+             labelClassName={labelStyle}
              options={statusOptions}
              value={statusFilter}
              onChange={(val) => onStatusFilterChange(val || 'all')}
@@ -109,7 +117,8 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
 
         <div className="col-span-1">
            <SearchableSelect
-             label="Category"
+             label="Type"
+             labelClassName={labelStyle}
              options={typeOptions}
              value={typeFilter}
              onChange={(val) => onTypeFilterChange(val || 'all')}
@@ -120,6 +129,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         <div className="col-span-1">
            <SearchableSelect
              label="Vehicle"
+             labelClassName={labelStyle}
              options={vehicleOptions}
              value={vehicleFilter}
              onChange={(val) => onVehicleFilterChange(val || 'all')}
@@ -131,6 +141,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
            <div className="col-span-1">
               <SearchableSelect
                 label="Payment Status"
+                labelClassName={labelStyle}
                 options={paymentStatusOptions}
                 value={paymentStatusFilter}
                 onChange={(val) => onPaymentStatusFilterChange(val || 'all')}
@@ -140,22 +151,22 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
         )}
 
         <div className="col-span-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+          <label className={labelStyle}>Date From</label>
           <input
             type="date"
             value={dateRange.from}
             onChange={(e) => onDateRangeChange({ ...dateRange, from: e.target.value })}
-            className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm px-3 h-[42px]"
+            className="block w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark] px-3 h-[42px]"
           />
         </div>
 
         <div className="col-span-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+          <label className={labelStyle}>Date To</label>
           <input
             type="date"
             value={dateRange.to}
             onChange={(e) => onDateRangeChange({ ...dateRange, to: e.target.value })}
-            className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm px-3 h-[42px]"
+            className="block w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark] px-3 h-[42px]"
           />
         </div>
       </div>

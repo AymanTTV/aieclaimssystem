@@ -176,18 +176,38 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
   const getStatusColor = (status: string, isScheduledUrgent?: boolean) => {
     if (status === 'scheduled' && isScheduledUrgent) {
-      return 'text-red-900 bg-red-50 border-red-300 ring-red-300 font-bold';
+      return 'text-red-900 bg-red-100 border-red-400 ring-red-400 font-bold';
     }
     switch (status) {
       case 'completed':
-        return 'text-emerald-900 bg-emerald-50 border-emerald-300 ring-emerald-300 font-bold';
+        return 'text-emerald-900 bg-emerald-100 border-emerald-400 ring-emerald-400 font-bold';
       case 'in-progress':
-        return 'text-orange-950 bg-orange-50 border-orange-300 ring-orange-300 font-bold';
+        return 'text-orange-950 bg-orange-100 border-orange-400 ring-orange-400 font-bold';
       case 'cancelled':
-        return 'text-gray-700 bg-gray-50 border-gray-200 ring-gray-200';
+        return 'text-slate-700 bg-slate-100 border-slate-300 ring-slate-300';
       default:
-        return 'text-amber-900 bg-amber-50 border-amber-200 ring-amber-200 font-semibold';
+        return 'text-blue-900 bg-blue-100 border-blue-300 ring-blue-300 font-bold';
     }
+  };
+
+  const getTypeBadgeColor = (type: string) => {
+    const t = String(type || '').toLowerCase();
+    if (t.includes('service') || t.includes('routine') || t.includes('oil')) {
+      return 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    }
+    if (t.includes('mot') || t.includes('tfl') || t.includes('test')) {
+      return 'bg-sky-50 text-sky-800 border-sky-300';
+    }
+    if (t.includes('repair') || t.includes('urgent') || t.includes('breakdown')) {
+      return 'bg-rose-50 text-rose-800 border-rose-300';
+    }
+    if (t.includes('tyre') || t.includes('tire') || t.includes('brake')) {
+      return 'bg-amber-50 text-amber-800 border-amber-300';
+    }
+    if (t.includes('inspection') || t.includes('check') || t.includes('safety')) {
+      return 'bg-purple-50 text-purple-800 border-purple-300';
+    }
+    return 'bg-slate-100 text-slate-800 border-slate-300';
   };
 
   const selectedLogsList = useMemo(() => {
@@ -239,11 +259,19 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     {
       id: 'orderNumber',
       header: <div className="w-16">Order #</div>,
-      cell: ({ row }: any) => (
-        <span className="font-mono text-xs font-medium text-gray-500 block truncate">
-          {row.original.orderNumber || '-'}
-        </span>
-      )
+      cell: ({ row }: any) => {
+        const orderNum = row.original.orderNumber;
+        return orderNum ? (
+          <span
+            className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded inline-block truncate max-w-[90px]"
+            title={orderNum}
+          >
+            {orderNum}
+          </span>
+        ) : (
+          <span className="font-mono text-xs text-slate-400 font-medium">-</span>
+        );
+      }
     },
     {
       id: 'vehicle',
@@ -255,13 +283,15 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           return (
             <div className="max-w-[180px]">
               <div
-                className="font-medium text-gray-900 truncate"
+                className="font-bold text-slate-900 truncate"
                 title={`${log.vehicleDetails.make} ${log.vehicleDetails.model}`}
               >
                 {log.vehicleDetails.make} {log.vehicleDetails.model}
               </div>
-              <div className="text-sm text-gray-500 truncate">
-                {log.vehicleDetails.registrationNumber}
+              <div className="mt-0.5">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black uppercase font-mono tracking-wider bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
+                  {log.vehicleDetails.registrationNumber}
+                </span>
               </div>
             </div>
           );
@@ -273,86 +303,120 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           return (
             <div className="max-w-[180px]">
               <div
-                className="font-medium text-gray-900 truncate"
+                className="font-bold text-slate-900 truncate"
                 title={`${vehicle.make} ${vehicle.model}`}
               >
                 {vehicle.make} {vehicle.model}
               </div>
-              <div className="text-sm text-gray-500 truncate">
-                {vehicle.registrationNumber}
+              <div className="mt-0.5">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black uppercase font-mono tracking-wider bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
+                  {vehicle.registrationNumber}
+                </span>
               </div>
             </div>
           );
         } else if (log.vehicleId) {
           return (
             <div className="max-w-[180px]">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 border border-red-200 mb-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 border border-red-200 mb-1">
                 Deleted Vehicle
               </span>
-              <div className="text-xs text-gray-500 truncate font-mono" title={log.vehicleId}>
+              <div className="text-xs text-slate-500 truncate font-mono" title={log.vehicleId}>
                 ID: {log.vehicleId.slice(0, 8)}...
               </div>
             </div>
           );
         } else {
-          return <span className="text-gray-400">N/A</span>;
+          return <span className="text-slate-400 font-medium">N/A</span>;
         }
       }
     },
     {
       id: 'type',
       header: <div className="w-24">Type</div>,
-      cell: ({ row }: any) => (
-        <div className="w-24">
-          <span
-            className="capitalize text-gray-700 font-medium block truncate"
-            title={row.original.type.replace('-', ' ')}
-          >
-            {row.original.type.replace('-', ' ')}
-          </span>
-          {(row.original.type === 'mot' || row.original.type === 'tfl') && (
-            <span className="ml-1 text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded border border-gray-200">
-              Test
+      cell: ({ row }: any) => {
+        const typeStr = row.original.type || '';
+        const badgeColor = getTypeBadgeColor(typeStr);
+        const isTest = typeStr === 'mot' || typeStr === 'tfl';
+        return (
+          <div className="w-24">
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold capitalize border truncate max-w-full ${badgeColor}`}
+              title={typeStr.replace(/-/g, ' ')}
+            >
+              {typeStr.replace(/-/g, ' ')}
             </span>
-          )}
-        </div>
-      )
+            {isTest && (
+              <span className="ml-1 text-[10px] bg-sky-100 text-sky-800 font-bold px-1 py-0.5 rounded border border-sky-200">
+                Test
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     {
       id: 'date',
       header: <div className="w-32">Date & Time</div>, // ✅ Increased width to accommodate time
       cell: ({ row }: any) => {
         const d = row.original.date;
-        const isScheduled = row.original.status === 'scheduled';
+        const status = row.original.status;
+        const isScheduled = status === 'scheduled';
+        const isInProgress = status === 'in-progress';
+        const isCompleted = status === 'completed';
+        const isCancelled = status === 'cancelled';
         const days = differenceInCalendarDays(d, new Date());
 
         let badge: React.ReactNode = null;
+        let dateTextColor = 'text-slate-700';
+
         if (isScheduled) {
           if (days < 0) {
+            dateTextColor = 'text-red-700 font-bold';
             badge = (
-              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs">
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs">
                 {`${Math.abs(days)}d Overdue`}
               </span>
             );
           } else if (days === 0) {
+            dateTextColor = 'text-red-700 font-bold';
             badge = (
-              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs animate-pulse">
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs animate-pulse">
                 Due Today!
               </span>
             );
           } else if (days <= 7) {
+            dateTextColor = 'text-red-700 font-bold';
             badge = (
-              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold ml-1 shadow-xs">
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs">
                 {days === 1 ? 'Due Tmrw' : `Due in ${days}d`}
               </span>
             );
+          } else {
+            dateTextColor = 'text-blue-800 font-semibold';
+            badge = (
+              <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 border border-blue-200 px-1.5 py-0.2 text-[10px] font-medium">
+                {`In ${days}d`}
+              </span>
+            );
           }
+        } else if (isInProgress) {
+          dateTextColor = 'text-orange-700 font-bold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-orange-500 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              In Progress
+            </span>
+          );
+        } else if (isCompleted) {
+          dateTextColor = 'text-emerald-700 font-semibold';
+        } else if (isCancelled) {
+          dateTextColor = 'text-slate-400 line-through';
         }
 
         return (
           <div className="flex flex-col w-32">
-            {/* Red text if due within next 7 days */}
-            <span className={`text-sm ${isScheduled && days <= 7 ? 'text-red-700 font-bold' : 'text-gray-700'}`}>
+            {/* Color-coded date text reflecting its schedule state */}
+            <span className={`text-sm ${dateTextColor}`}>
               {format(d, 'dd/MM/yyyy HH:mm')}
             </span>
             <div className="h-4">{badge}</div>
@@ -418,10 +482,10 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="w-32">Provider</div>,
       cell: ({ row }: any) => (
         <div className="max-w-[140px]">
-          <div className="font-medium text-gray-900 truncate" title={row.original.serviceProvider}>
+          <div className="font-bold text-slate-900 truncate" title={row.original.serviceProvider}>
             {row.original.serviceProvider}
           </div>
-          <div className="text-xs text-gray-500 truncate" title={row.original.location}>
+          <div className="text-xs text-slate-500 truncate" title={row.original.location}>
             {row.original.location}
           </div>
         </div>
@@ -434,21 +498,23 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const { cost, paidAmount = 0, remainingAmount } = row.original;
         return (
           <div className="space-y-0.5 text-xs w-28">
-            <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
+            <div className="flex justify-between font-bold text-slate-900 border-b border-slate-200/80 pb-0.5">
               <span>Total:</span>
-              <span>{formatCurrency(cost)}</span>
+              <span className="font-mono">{formatCurrency(cost)}</span>
             </div>
-            <div className="flex justify-between text-green-600">
+            <div className="flex justify-between font-bold text-emerald-600">
               <span>Paid:</span>
-              <span>{formatCurrency(paidAmount)}</span>
+              <span className="font-mono">{formatCurrency(paidAmount)}</span>
             </div>
             <div
               className={`flex justify-between font-bold ${
-                remainingAmount > 0 ? 'text-purple-700 bg-purple-50/60 px-1 py-0.5 rounded' : 'text-gray-400'
+                remainingAmount > 0
+                  ? 'text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.5 rounded'
+                  : 'text-slate-400'
               }`}
             >
               <span>Owing:</span>
-              <span>{formatCurrency(remainingAmount)}</span>
+              <span className="font-mono">{formatCurrency(remainingAmount)}</span>
             </div>
           </div>
         );
@@ -557,60 +623,66 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     }
   ].filter(Boolean), [vehicles, canEditStatusFromTable, isCompany, canSeeCompleted, onView, onEdit, onComplete, onPay, onDelete, onGenerateDocument, onViewDocument, onGenerateInvoice, onStatusChange, formatCurrency, can, selectedLogIds, logs, activeCustomersMap, serviceCenters]);
 
-  const rowClassName = (row: { original: MaintenanceLog }) => {
-    const { date, status, paymentStatus, remainingAmount, cost, paidAmount } = row.original;
-    const isUnpaid =
-      paymentStatus === 'unpaid' ||
-      (!isCompany && remainingAmount !== undefined && remainingAmount > 0 && paymentStatus !== 'paid') ||
-      (!isCompany && paymentStatus !== 'paid' && cost !== undefined && paidAmount !== undefined && cost > paidAmount);
+  const [activeHighlightFilter, setActiveHighlightFilter] = useState<'all' | 'due7d' | 'in-progress'>('all');
 
-    // 1. Scheduled within 7 days (or overdue) -> Light red highlight
+  const due7dCount = useMemo(() => {
+    return logs.filter(log => {
+      if (log.status !== 'scheduled' || !log.date) return false;
+      const days = differenceInCalendarDays(new Date(log.date), new Date());
+      return days <= 7;
+    }).length;
+  }, [logs]);
+
+  const inProgressCount = useMemo(() => {
+    return logs.filter(log => log.status === 'in-progress').length;
+  }, [logs]);
+
+  const displayedLogs = useMemo(() => {
+    if (activeHighlightFilter === 'due7d') {
+      return logs.filter(log => {
+        if (log.status !== 'scheduled' || !log.date) return false;
+        const days = differenceInCalendarDays(new Date(log.date), new Date());
+        return days <= 7;
+      });
+    }
+    if (activeHighlightFilter === 'in-progress') {
+      return logs.filter(log => log.status === 'in-progress');
+    }
+    return logs;
+  }, [logs, activeHighlightFilter]);
+
+  const rowClassName = (row: { original: MaintenanceLog }) => {
+    const { date, status } = row.original;
+
+    // 1. Due in ≤7d (highlight Red)
     if (status === 'scheduled') {
       if (date) {
         const days = differenceInCalendarDays(new Date(date), new Date());
         if (days <= 7) {
-          return '!bg-red-50 hover:!bg-red-100/90 border-l-4 !border-l-red-500 text-slate-900 transition-colors duration-200';
+          return '!bg-[#FEE2E2] hover:!bg-[#FECACA] text-slate-900 [&>td]:!bg-[#FEE2E2] hover:[&>td]:!bg-[#FECACA] [&>td]:!border-red-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-red-600 transition-colors duration-150';
         }
       }
-      return 'hover:!bg-gray-50/80 transition-colors duration-200 text-slate-900';
+      return '';
     }
 
-    // 2. In Progress -> Orange highlight
+    // 2. In Progress (highlight Orange)
     if (status === 'in-progress') {
-      return '!bg-amber-50 hover:!bg-amber-100/90 border-l-4 !border-l-amber-500 text-slate-900 transition-colors duration-200';
+      return '!bg-[#FFEDD5] hover:!bg-[#FED7AA] text-slate-900 [&>td]:!bg-[#FFEDD5] hover:[&>td]:!bg-[#FED7AA] [&>td]:!border-orange-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-orange-500 transition-colors duration-150';
     }
 
-    // 3. Completed but Unpaid -> Distinct Unpaid highlight (Soft Violet / Purple)
-    if (status === 'completed' && isUnpaid) {
-      return '!bg-purple-50 hover:!bg-purple-100/90 border-l-4 !border-l-purple-600 text-slate-900 transition-colors duration-200';
-    }
-
-    // 4. Completed & Paid -> Distinct Completed highlight (Soft Emerald / Green)
-    if (status === 'completed') {
-      return '!bg-emerald-50 hover:!bg-emerald-100/90 border-l-4 !border-l-emerald-600 text-slate-900 transition-colors duration-200';
-    }
-
-    // 5. Any other Unpaid item (not cancelled) -> Distinct Unpaid highlight
-    if (isUnpaid && status !== 'cancelled') {
-      return '!bg-purple-50/90 hover:!bg-purple-100/90 border-l-4 !border-l-purple-500 text-slate-900 transition-colors duration-200';
-    }
-
-    if (status === 'cancelled') {
-      return '!bg-gray-100/80 text-gray-500 border-l-4 !border-l-gray-400 transition-colors duration-200';
-    }
-
-    return 'hover:!bg-gray-50/80 transition-colors duration-200 text-slate-900';
+    // All other: no colour!
+    return '';
   };
 
   return (
     <>
       {selectedLogIds.size > 0 && (
-        <div className="bg-indigo-900 text-white px-4 py-3 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in slide-in-from-top-1">
+        <div className="bg-[#16192B] border border-[#2B314E] text-white px-4 py-3 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in slide-in-from-top-1">
           <div className="flex items-center gap-3">
-            <span className="bg-indigo-700 text-indigo-100 text-xs font-bold px-2.5 py-1 rounded-full">
+            <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-full">
               {selectedLogIds.size} {selectedLogIds.size === 1 ? 'record' : 'records'} selected
             </span>
-            <span className="text-xs text-indigo-200 hidden sm:inline">
+            <span className="text-xs text-slate-300 hidden sm:inline">
               Perform batch communications for selected maintenance jobs
             </span>
           </div>
@@ -618,7 +690,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             <button
               type="button"
               onClick={() => setBulkModal({ isOpen: true, mode: 'whatsapp' })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
               title="Send batch WhatsApp to drivers or garages"
             >
               <MessageCircle className="w-3.5 h-3.5" />
@@ -627,7 +699,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             <button
               type="button"
               onClick={() => setBulkModal({ isOpen: true, mode: 'email' })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
               title="Send batch Email to drivers or garages"
             >
               <Mail className="w-3.5 h-3.5" />
@@ -636,7 +708,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             <button
               type="button"
               onClick={() => setSelectedLogIds(new Set())}
-              className="px-2.5 py-1.5 bg-indigo-800 hover:bg-indigo-700 text-indigo-200 hover:text-white text-xs font-medium rounded-lg transition cursor-pointer"
+              className="px-2.5 py-1.5 bg-[#2B314E] hover:bg-[#3D456E] text-slate-200 hover:text-white text-xs font-semibold rounded-xl transition cursor-pointer"
             >
               Clear Selection
             </button>
@@ -644,33 +716,66 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         </div>
       )}
 
-      {/* Color Status Legend */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-4 py-2.5 px-3.5 bg-white border border-gray-200 rounded-xl shadow-xs text-xs mb-3">
-        <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">Row Indicators:</span>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-500 border border-red-600 inline-block shadow-2xs"></span>
-          <span className="text-gray-800 font-medium">Due in ≤7d (Light Red)</span>
+      {/* Color Status Legend with Interactive Dynamic Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3 px-4 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl text-xs mb-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px]">Row Indicators:</span>
+          <button
+            type="button"
+            onClick={() => setActiveHighlightFilter(prev => prev === 'due7d' ? 'all' : 'due7d')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeHighlightFilter === 'due7d'
+                ? 'bg-red-500/25 border border-red-500 ring-1 ring-red-400 text-white shadow-xs'
+                : 'bg-[#1F243B] hover:bg-[#282F4D] border border-red-500/30 text-red-300'
+            }`}
+            title="Click to filter: Show only jobs due in ≤7 days"
+          >
+            <span className="w-3.5 h-3.5 rounded-full bg-red-600 border border-red-400 inline-block shadow-xs animate-pulse"></span>
+            <span className="font-bold">Due in ≤7d (highlight Red)</span>
+            <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+              {due7dCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveHighlightFilter(prev => prev === 'in-progress' ? 'all' : 'in-progress')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeHighlightFilter === 'in-progress'
+                ? 'bg-orange-500/25 border border-orange-500 ring-1 ring-orange-400 text-white shadow-xs'
+                : 'bg-[#1F243B] hover:bg-[#282F4D] border border-orange-500/30 text-orange-300'
+            }`}
+            title="Click to filter: Show only jobs in progress"
+          >
+            <span className="w-3.5 h-3.5 rounded-full bg-orange-500 border border-orange-400 inline-block shadow-xs"></span>
+            <span className="font-bold">In Progress (highlight Orange)</span>
+            <span className="bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+              {inProgressCount}
+            </span>
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-amber-500 border border-amber-600 inline-block shadow-2xs"></span>
-          <span className="text-gray-800 font-medium">In Progress (Orange)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600 inline-block shadow-2xs"></span>
-          <span className="text-gray-800 font-medium">Completed (Soft Green)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-purple-600 border border-purple-700 inline-block shadow-2xs"></span>
-          <span className="text-gray-800 font-medium">Unpaid (Soft Purple)</span>
+
+        <div className="flex items-center gap-3">
+          {activeHighlightFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setActiveHighlightFilter('all')}
+              className="text-xs text-sky-400 hover:text-sky-300 font-bold underline cursor-pointer"
+            >
+              Reset Filter
+            </button>
+          )}
+          <span className="text-slate-400 text-xs">
+            Showing <strong className="text-white font-mono">{displayedLogs.length}</strong> of <span className="font-mono">{logs.length}</span> jobs
+          </span>
         </div>
       </div>
 
       <DataTable
-        // ✅ FIX: Use logs directly, as filtering is fully handled by useMaintenanceFilters now
-        data={logs} 
+        data={displayedLogs} 
         columns={columns as any}
         onRowClick={(log) => can('maintenance', 'view') && onView(log)}
         rowClassName={rowClassName as any}
+        separatedRows={true}
       />
 
       {/* Recipient Quick Selector Modal ("Send to Driver" OR "Send to Garage") */}

@@ -119,52 +119,54 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        type="date"
-        label="Record Date"
-        value={formData.date}
-        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-        required
-      />
-      <div>
-        {!editingRecord && (
-          <p className="text-sm text-gray-500 mb-2">
-            Current mileage: {(vehicle.mileage || 0).toLocaleString()}
-          </p>
-        )}
+      <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner space-y-4">
         <FormField
-          type="number"
-          label="Mileage Reading"
-          value={formData.newMileage}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              newMileage: e.target.value ? parseInt(e.target.value, 10) : 0,
-            })
-          }
+          type="date"
+          label="Record Date"
+          value={formData.date}
+          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
           required
+        />
+        <div>
+          {!editingRecord && (
+            <p className="text-xs font-semibold text-slate-400 mb-2">
+              Current mileage: <span className="text-white font-bold">{(vehicle.mileage || 0).toLocaleString()} mi</span>
+            </p>
+          )}
+          <FormField
+            type="number"
+            label="Mileage Reading"
+            value={formData.newMileage}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                newMileage: e.target.value ? parseInt(e.target.value, 10) : 0,
+              })
+            }
+            required
+          />
+        </div>
+
+        <TextArea
+          label="Notes (Optional)"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Add any relevant notes"
         />
       </div>
 
-      <TextArea
-        label="Notes (Optional)"
-        value={formData.notes}
-        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        placeholder="Add any relevant notes"
-      />
-
-      <div className="flex justify-end space-x-3">
+      <div className="flex justify-end space-x-3 pt-2">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-md hover:bg-primary-600 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+          className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
         >
           {loading ? 'Saving...' : editingRecord ? 'Save Changes' : 'Update Mileage'}
         </button>

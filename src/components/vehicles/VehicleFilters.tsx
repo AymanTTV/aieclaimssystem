@@ -107,112 +107,190 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   ], [owners]);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
-      {/* Search */}
-      <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
-         <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-        <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
+        {/* Search */}
+        <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
+          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Search</label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
             </div>
             <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search vehicles (reg, make, owner, account, garage, group, dept)..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search vehicles (reg, make, owner, account, garage, group, dept)..."
+              className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
             />
+          </div>
         </div>
-      </div>
 
-      {!isCompany && (
-        <div className="relative">
-           <SearchableSelect label="Account" options={accountOptions} value={accountFilter} onChange={onAccountFilterChange} placeholder="Select account..." isClearable={false} />
-        </div>
-      )}
-
-      {!isCompany && (
-        <div className="relative">
-           <SearchableSelect label="Garage / Company" options={garageOptions} value={garageFilter} onChange={onGarageFilterChange} placeholder="Select garage..." isClearable={false} />
-        </div>
-      )}
-
-      {!isCompany && (
-        <div className="relative">
-           <SearchableSelect label="Finance Group" options={groupOptions} value={groupFilter} onChange={onGroupFilterChange} placeholder="Select group..." isClearable={false} />
-        </div>
-      )}
-
-      {/* ✅ Department Filter */}
-      {!isCompany && (
-        <div className="relative">
-           <SearchableSelect label="Department" options={departmentOptions} value={departmentFilter} onChange={onDepartmentFilterChange} placeholder="Select department..." isClearable={false} />
-        </div>
-      )}
-
-      {!isCompany && (
-        <div className="relative">
-           <SearchableSelect label="Owner" options={ownerOptions} value={ownerFilter} onChange={onOwnerFilterChange} placeholder="Select owner..." isClearable={false} />
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-        <select value={statusFilter} onChange={(e) => onStatusFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
-            <option value="all">All Status</option>
-            <option value="available">Available</option>
-            <option value="hired">Hired</option>
-            <option value="scheduled-rental">Scheduled for Hire</option>
-            <option value="maintenance">Maintenance</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
-        <select value={makeFilter} onChange={(e) => onMakeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
-            <option value="all">All Makes</option>
-            {makes.map((make) => <option key={make} value={make}>{make}</option>)}
-        </select>
-      </div>
-      
-      <div className="relative">
-        <SearchableSelect label="Expiring or Expired" options={EXPIRY_OPTIONS} value={expiryFilter} onChange={onExpiryFilterChange} placeholder="Select expiry type..." isClearable={true} />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
-        <select value={typeFilter} onChange={(e) => onTypeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
-            <option value="all">All Types</option>
-            <option value="Claims">For Claims</option>
-            <option value="Hire">For Hire</option>
-            <option value="unassigned">Unassigned</option>
-        </select>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Age</label>
-        <select value={ageFilter} onChange={(e) => onAgeFilterChange(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
-            <option value="all">All Ages</option>
-            <option value="0-5">0 - 5 Years</option>
-            <option value="6-10">6 - 10 Years</option>
-            <option value="11-20">11 - 20 Years</option>
-            <option value="21-40">21 - 40 Years</option>
-            <option value="41+">41+ Years</option>
-        </select>
-      </div>
-
-      <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-3 pt-2">
         {!isCompany && (
-          <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={showSold} onChange={(e) => onShowSoldChange(e.target.checked)} className="rounded border-gray-300 text-primary focus:ring-primary" />
-            <span className="text-sm text-gray-700">Show Sold</span>
-          </label>
+          <div className="relative">
+            <SearchableSelect
+              label="Account"
+              options={accountOptions}
+              value={accountFilter}
+              onChange={onAccountFilterChange}
+              placeholder="Select account..."
+              isClearable={false}
+              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            />
+          </div>
         )}
 
-        <label className="flex items-center space-x-2">
-          <input type="checkbox" checked={showDueSoon} onChange={(e) => onShowDueSoonChange(e.target.checked)} className="rounded border-gray-300 text-primary focus:ring-primary" />
-          <span className="text-sm text-gray-700">Due Soon (Quick View)</span>
-        </label>
+        {!isCompany && (
+          <div className="relative">
+            <SearchableSelect
+              label="Garage / Company"
+              options={garageOptions}
+              value={garageFilter}
+              onChange={onGarageFilterChange}
+              placeholder="Select garage..."
+              isClearable={false}
+              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            />
+          </div>
+        )}
+
+        {!isCompany && (
+          <div className="relative">
+            <SearchableSelect
+              label="Finance Group"
+              options={groupOptions}
+              value={groupFilter}
+              onChange={onGroupFilterChange}
+              placeholder="Select group..."
+              isClearable={false}
+              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            />
+          </div>
+        )}
+
+        {/* ✅ Department Filter */}
+        {!isCompany && (
+          <div className="relative">
+            <SearchableSelect
+              label="Department"
+              options={departmentOptions}
+              value={departmentFilter}
+              onChange={onDepartmentFilterChange}
+              placeholder="Select department..."
+              isClearable={false}
+              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            />
+          </div>
+        )}
+
+        {!isCompany && (
+          <div className="relative">
+            <SearchableSelect
+              label="Owner"
+              options={ownerOptions}
+              value={ownerFilter}
+              onChange={onOwnerFilterChange}
+              placeholder="Select owner..."
+              isClearable={false}
+              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+          >
+            <option value="all" className="bg-[#16192B] text-white">All Status</option>
+            <option value="available" className="bg-[#16192B] text-white">Available</option>
+            <option value="hired" className="bg-[#16192B] text-white">Hired</option>
+            <option value="scheduled-rental" className="bg-[#16192B] text-white">Scheduled for Hire</option>
+            <option value="maintenance" className="bg-[#16192B] text-white">Maintenance</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Make</label>
+          <select
+            value={makeFilter}
+            onChange={(e) => onMakeFilterChange(e.target.value)}
+            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+          >
+            <option value="all" className="bg-[#16192B] text-white">All Makes</option>
+            {makes.map((make) => (
+              <option key={make} value={make} className="bg-[#16192B] text-white">{make}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="relative">
+          <SearchableSelect
+            label="Expiring or Expired"
+            options={EXPIRY_OPTIONS}
+            value={expiryFilter}
+            onChange={onExpiryFilterChange}
+            placeholder="Select expiry type..."
+            isClearable={true}
+            labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Vehicle Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => onTypeFilterChange(e.target.value)}
+            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+          >
+            <option value="all" className="bg-[#16192B] text-white">All Types</option>
+            <option value="Claims" className="bg-[#16192B] text-white">For Claims</option>
+            <option value="Hire" className="bg-[#16192B] text-white">For Hire</option>
+            <option value="unassigned" className="bg-[#16192B] text-white">Unassigned</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Vehicle Age</label>
+          <select
+            value={ageFilter}
+            onChange={(e) => onAgeFilterChange(e.target.value)}
+            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+          >
+            <option value="all" className="bg-[#16192B] text-white">All Ages</option>
+            <option value="0-5" className="bg-[#16192B] text-white">0 - 5 Years</option>
+            <option value="6-10" className="bg-[#16192B] text-white">6 - 10 Years</option>
+            <option value="11-20" className="bg-[#16192B] text-white">11 - 20 Years</option>
+            <option value="21-40" className="bg-[#16192B] text-white">21 - 40 Years</option>
+            <option value="41+" className="bg-[#16192B] text-white">41+ Years</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-5 sm:col-span-2 lg:col-span-3 pt-2">
+          {!isCompany && (
+            <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showSold}
+                onChange={(e) => onShowSoldChange(e.target.checked)}
+                className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Show Sold</span>
+            </label>
+          )}
+
+          <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showDueSoon}
+              onChange={(e) => onShowDueSoonChange(e.target.checked)}
+              className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+            />
+            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Due Soon (Quick View)</span>
+          </label>
+        </div>
       </div>
     </div>
   );

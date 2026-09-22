@@ -1,6 +1,7 @@
 // src/utils/rentalCalculations.ts
 import { differenceInHours, isAfter, isBefore } from 'date-fns';
 import { Vehicle, Rental, RentalDiscount } from '../types';
+import { ensureValidDate } from './dateHelpers';
 
 export const RENTAL_RATES = {
   daily: 60,
@@ -375,4 +376,109 @@ export const calculateOverdueCost = (rental: Rental, now: Date, vehicle?: Vehicl
 export const calculateDiscount = (totalAmount: number, discountPercentage: number): number => {
   if (!totalAmount || !discountPercentage) return 0;
   return (totalAmount * discountPercentage) / 100;
+};
+
+export interface RentalUnpaidWarningInfo {
+  isOverdueUnpaid: boolean;
+  effectivePaymentStatus: 'paid' | 'unpaid' | 'partially_paid' | 'pending';
+  urgencyLevel: 'red' | 'yellow' | 'none';
+  warningMessage: string | null;
+  costText: string;
+  timeText: string;
+  baseRate: number;
+}
+
+export const getRentalBaseRate = (rental: Rental, vehicle?: Vehicle): number => {
+  const vehicleRate = rental.type === 'daily' 
+    ? (vehicle?.dailyRentalPrice ?? 0) 
+    : rental.type === 'weekly' 
+    ? (vehicle?.weeklyRentalPrice ?? 0) 
+    : (vehicle?.claimRentalPrice ?? 0);
+  return (rental.negotiatedRate ?? vehicleRate ?? (RENTAL_RATES[rental.type] ?? 0)) || 0;
+};
+
+export const getRentalUnpaidWarningInfo = (
+  rental: Rental,
+  remaining: number,
+  vehicle?: Vehicle
+): RentalUnpaidWarningInfo => {
+  const baseRate = getRentalBaseRate(rental, vehicle);
+
+  // If fully paid or in credit
+  if (remaining <= 0.001) {
+    return {
+      isOverdueUnpaid: false,
+      effectivePaymentStatus: 'paid',
+      urgencyLevel: 'none',
+      warningMessage: null,
+      costText: '',
+      timeText: '',
+      baseRate,
+    };
+  }
+
+  // Calculate elapsed time from last payment or start date
+  const refDate = rental.payments && rental.payments.length > 0
+    ? new Date(Math.max(...rental.payments.map((p: any) => ensureValidDate(p.date).getTime())))
+    : ensureValidDate(rental.startDate);
+
+  const today = new Date();
+  const diffMs = today.getTime() - refDate.getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+  // "any rental more than the base rate outstanding should be make unpaid and warning for unpaid rent"
+  // Condition 1: remaining outstanding amount is more than or equal to the base rate
+  // Condition 2: or overdue by standard time threshold (>= 7 days for daily/weekly or >= 180 days for claim)
+  const isMoreThanBaseRate = baseRate > 0 ? (remaining >= baseRate) : (remaining > 0.01);
+  const isTimeOverdue = (rental.type === 'claim' ? diffDays >= 180 : diffDays >= 7);
+
+  const isOverdueUnpaid = isMoreThanBaseRate || isTimeOverdue;
+
+  // Cost text calculation: e.g. "2 Weeks", "1 Week", "3 Days", "1 Month"
+  let costText = '';
+  if (rental.type === 'weekly') {
+    const weeks = baseRate > 0 ? Math.max(1, Math.round(remaining / baseRate)) : 1;
+    costText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
+  } else if (rental.type === 'daily') {
+    const days = baseRate > 0 ? Math.max(1, Math.round(remaining / baseRate)) : 1;
+    costText = `${days} Day${days !== 1 ? 's' : ''}`;
+  } else {
+    const months = baseRate > 0 ? Math.max(1, Math.round(remaining / (baseRate * 30))) : 1;
+    costText = `${months} Month${months !== 1 ? 's' : ''}`;
+  }
+
+  // Time text calculation: e.g. "1 Week", "2 Weeks", "3 Days", "1 Month"
+  let timeText = '';
+  if (diffDays >= 30) {
+    const months = Math.floor(diffDays / 30);
+    timeText = `${months} Month${months !== 1 ? 's' : ''}`;
+  } else if (diffDays >= 7) {
+    const weeks = Math.floor(diffDays / 7);
+    timeText = `${weeks} Week${weeks !== 1 ? 's' : ''}`;
+  } else {
+    const d = Math.max(1, diffDays);
+    timeText = `${d} Day${d !== 1 ? 's' : ''}`;
+  }
+
+  if (isOverdueUnpaid) {
+    return {
+      isOverdueUnpaid: true,
+      effectivePaymentStatus: 'unpaid',
+      urgencyLevel: 'red',
+      warningMessage: `Urgent: Unpaid ${costText} for ${timeText} up to date`,
+      costText,
+      timeText,
+      baseRate,
+    };
+  }
+
+  return {
+    isOverdueUnpaid: false,
+    effectivePaymentStatus: (rental.paidAmount && rental.paidAmount > 0) ? 'partially_paid' : (rental.paymentStatus || 'pending'),
+    urgencyLevel: 'yellow',
+    warningMessage: 'Warning: Unpaid Balance',
+    costText,
+    timeText,
+    baseRate,
+  };
 };

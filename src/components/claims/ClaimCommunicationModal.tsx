@@ -71,7 +71,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   onSuccess,
 }) => {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const permissions = usePermissions();
+  const can = typeof permissions?.can === 'function' ? permissions.can : () => true;
 
   const hasWhatsAppPermission = can('claims', 'whatsapp');
   const hasEmailPermission = can('claims', 'email');

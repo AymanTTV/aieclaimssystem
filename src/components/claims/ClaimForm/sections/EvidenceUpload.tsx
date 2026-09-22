@@ -171,9 +171,14 @@ const EvidenceUpload: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-medium text-gray-900">
-        Evidence &amp; Documents
-      </h3>
+      <div className="pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">
+          Evidence &amp; Documents
+        </h3>
+        <p className="text-xs text-gray-600 font-medium mt-0.5">
+          Upload any supporting photos, reports, bank statements, or administrative documents.
+        </p>
+      </div>
 
       {/* Incident Images */}
       <FileUpload

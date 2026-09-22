@@ -43,7 +43,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'paid':
         return 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-semibold';
       case 'unpaid':
-        return 'bg-purple-100 text-purple-950 border border-purple-300 font-bold';
+        return 'bg-red-100 text-red-950 border border-red-300 font-bold';
       case 'partially_paid':
       case 'partially paid':
         return 'bg-blue-100 text-blue-950 border border-blue-300 font-semibold';
@@ -54,28 +54,44 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
 
       // Claim statuses
       case 'your claim has started':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold';
       case 'reported to legal team':
-        return 'bg-indigo-100 text-indigo-800';
+        return 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-semibold';
       case 'engineer report pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-950 border border-yellow-300 font-semibold';
       case 'awaiting tpi':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-orange-100 text-orange-950 border border-orange-300 font-semibold';
       case 'claim in progress':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold';
       case 'claim complete':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-950 border border-green-300 font-semibold';
+      
+      // Claim Types & Reasons (PI, VD, Hire, Recovery, Storage)
+      case 'pi':
+        return 'bg-white text-black border border-gray-300 font-bold';
+      case 'vd':
+        return 'bg-white text-black border border-gray-300 font-bold';
+      case 'credit hire':
+      case 'hire':
+        return 'bg-white text-black border border-gray-300 font-bold';
+      case 'recovery':
+        return 'bg-white text-black border border-gray-300 font-bold';
+      case 'storage':
+        return 'bg-white text-black border border-gray-300 font-bold';
       
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-white text-black border border-gray-300 font-bold';
     }
   };
+
+  const colorClass = getStatusColor(status);
+  const isWhite = colorClass.includes('bg-white') || colorClass.includes('bg-gray-100');
 
   return (
     <span
       className={clsx(
-        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
-        getStatusColor(status),
+        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs capitalize status-badge-pill',
+        isWhite ? 'bg-white text-black font-bold border border-gray-300' : colorClass,
         className
       )}
     >

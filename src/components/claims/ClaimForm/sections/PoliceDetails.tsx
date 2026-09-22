@@ -25,12 +25,14 @@ const PoliceDetails = () => {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Police Information</h3>
+      <div className="pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Police Information</h3>
+      </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Were the police involved?</label>
+        <label className="block text-sm font-bold text-gray-950 mb-1.5">Were the police involved?</label>
         <select
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          className="block w-full max-w-xs rounded-lg border-gray-300 bg-white text-gray-950 font-bold shadow-2xs focus:border-primary focus:ring-primary sm:text-sm py-2 px-3"
           // 4. Control the dropdown's value *with state*
           value={policeInvolved ? 'yes' : 'no'}
           // 5. When it changes, update both the local state and the form

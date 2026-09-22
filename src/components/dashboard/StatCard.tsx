@@ -61,7 +61,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, iconColor
   const palette = getPalette(iconColor);
 
   return (
-    <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 hover:border-slate-700/80 hover:shadow-2xl relative overflow-hidden group">
+    <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 hover:border-[#3D456E] hover:shadow-2xl relative overflow-hidden group">
       {/* Subtle watermark icon in corner */}
       <Icon className="absolute -right-3 -bottom-3 w-24 h-24 text-white/[0.04] pointer-events-none select-none transition-transform group-hover:scale-110" />
 

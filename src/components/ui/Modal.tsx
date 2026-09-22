@@ -12,6 +12,7 @@ interface ModalProps {
   contentClassName?: string;
   subtitle?: string;
   className?: string;
+  theme?: 'default' | 'navy';
 }
 
 export function Modal({
@@ -23,8 +24,10 @@ export function Modal({
   contentClassName,
   subtitle,
   className,
+  theme = 'navy',
 }: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const isNavy = theme === 'navy';
 
   // Prevent background scrolling while modal is open & reset modal scroll to top
   useEffect(() => {
@@ -82,26 +85,41 @@ export function Modal({
         aria-labelledby="modal-title"
         className={clsx(
           'relative z-10 w-full my-auto text-left transition-all',
-          'flex flex-col max-h-[90vh] rounded-2xl border border-gray-200',
-          'bg-white text-gray-900 shadow-2xl modal-content overflow-hidden',
+          'flex flex-col max-h-[90vh] rounded-2xl border',
+          isNavy
+            ? 'bg-[#16192B] border-[#2B314E] text-white shadow-2xl modal-navy overflow-hidden'
+            : 'bg-white border-gray-200 text-gray-900 shadow-2xl modal-content overflow-hidden',
           sizes[size],
           className
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - anchored and pinned at top */}
-        <div className="modal-header flex items-center justify-between px-6 py-4.5 border-b border-gray-200 bg-gray-50 shrink-0 rounded-t-2xl">
+        <div
+          className={clsx(
+            'modal-header flex items-center justify-between px-6 py-4.5 border-b shrink-0 rounded-t-2xl',
+            isNavy ? 'border-[#2B314E] bg-[#16192B] text-white' : 'border-gray-200 bg-gray-50'
+          )}
+        >
           <div>
-            <h3 id="modal-title" className="text-lg font-bold text-gray-900 tracking-wide">
+            <h3
+              id="modal-title"
+              className={clsx('text-lg font-bold tracking-wide', isNavy ? 'text-white' : 'text-gray-900')}
+            >
               {title}
             </h3>
             {subtitle && (
-              <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+              <p className={clsx('text-xs mt-0.5', isNavy ? 'text-slate-400' : 'text-gray-500')}>{subtitle}</p>
             )}
           </div>
           <button
             type="button"
-            className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-2 rounded-xl transition-colors cursor-pointer ml-4"
+            className={clsx(
+              'p-2 rounded-xl transition-colors cursor-pointer ml-4',
+              isNavy
+                ? 'text-slate-400 hover:text-white hover:bg-[#1C2038]'
+                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+            )}
             onClick={onClose}
             title="Close modal"
             aria-label="Close modal"
@@ -114,7 +132,9 @@ export function Modal({
         <div
           ref={contentRef}
           className={clsx(
-            'overflow-y-auto flex-1 bg-white text-gray-800 focus:outline-none custom-scrollbar',
+            'flex-1 focus:outline-none min-h-0',
+            contentClassName?.includes('overflow-') ? '' : 'overflow-y-auto custom-scrollbar',
+            isNavy ? 'bg-[#16192B] text-slate-100' : 'bg-white text-gray-800',
             contentClassName?.includes('p-') ? '' : 'p-6',
             contentClassName
           )}

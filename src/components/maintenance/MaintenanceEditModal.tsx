@@ -26,6 +26,48 @@ interface PartSuggestion {
   lastCost: number;
 }
 
+const MAINTENANCE_TYPE_OPTIONS = [
+  { id: 'yearly-service', label: 'Yearly Service' },
+  { id: 'mileage-service', label: 'Mileage Service' },
+  { id: 'repair', label: 'Repair' },
+  { id: 'emergency-repair', label: 'Emergency Repair' },
+  { id: 'mot', label: 'MOT' },
+  { id: 'nsl', label: 'NSL' },
+  { id: 'tfl', label: 'TFL' },
+  { id: 'service', label: 'Service' },
+  { id: 'maintenance', label: 'Maintenance' },
+  { id: 'bodywork', label: 'Bodywork' },
+  { id: 'accident-repair', label: 'Accident Repair' },
+  { id: 'oil-change', label: 'Oil Change' },
+  { id: 'brake-service', label: 'Brake Service' },
+  { id: 'tire-replacement', label: 'Tire Replacement' },
+  { id: 'battery-check', label: 'Battery Check' },
+  { id: 'engine-diagnostics', label: 'Engine Diagnostics' },
+  { id: 'air-conditioning-service', label: 'Air Conditioning Service' },
+  { id: 'wheel-alignment', label: 'Wheel Alignment' },
+  { id: 'transmission-service', label: 'Transmission Service' },
+  { id: 'exhaust-repair', label: 'Exhaust Repair' },
+  { id: 'suspension-check', label: 'Suspension Check' },
+  { id: 'coolant-flush', label: 'Coolant Flush' },
+  { id: 'filter-replacement', label: 'Filter Replacement' },
+  { id: 'windscreen-repair', label: 'Windscreen Repair' },
+  { id: 'software-update', label: 'Software Update' },
+  { id: 'recall-service', label: 'Recall Service' },
+  { id: 'erad', label: 'ERAD' },
+  { id: 'driveshaft', label: 'Driveshaft' },
+  { id: 'iem', label: 'IEM' },
+  { id: 'hv-battery', label: 'HV Battery' },
+  { id: 'lower-arms', label: 'Lower Arms' },
+  { id: 'steering-passiv', label: 'Steering Passive' },
+  { id: 'brake-vacuum-pump', label: 'Brake Vacuum Pump' },
+  { id: 'brake-servo', label: 'Brake Servo' },
+  { id: 'anti-rubber-bushes', label: 'Anti-Rubber Bushes' },
+  { id: 'auto-handbrake-failure', label: 'Auto Handbrake Failure' },
+  { id: 'taxi-meter', label: 'Taxi Meter' },
+  { id: 'car-wash', label: 'Car Wash' },
+  { id: 'full-valeting', label: 'Full Valeting' },
+];
+
 const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicles, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -302,52 +344,13 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Type</label>
-        <select
+        <SearchableSelect
+          label="Type"
+          options={MAINTENANCE_TYPE_OPTIONS}
           value={formData.type}
-          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-        >
-          <option value="yearly-service">Yearly Service</option>
-          <option value="mileage-service">Mileage Service</option>
-          <option value="repair">Repair</option>
-          <option value="emergency-repair">Emergency Repair</option>
-          <option value="mot">MOT</option>
-          <option value="nsl">NSL</option>
-          <option value="tfl">TFL</option>
-          <option value="service">Service</option>
-          <option value="maintenance">Maintenance</option>
-          <option value="bodywork">Bodywork</option>
-          <option value="accident-repair">Accident Repair</option>
-          <option value="oil-change">Oil Change</option>
-          <option value="brake-service">Brake Service</option>
-          <option value="tire-replacement">Tire Replacement</option>
-          <option value="battery-check">Battery Check</option>
-          <option value="engine-diagnostics">Engine Diagnostics</option>
-          <option value="air-conditioning-service">Air Conditioning Service</option>
-          <option value="wheel-alignment">Wheel Alignment</option>
-          <option value="transmission-service">Transmission Service</option>
-          <option value="exhaust-repair">Exhaust Repair</option>
-          <option value="suspension-check">Suspension Check</option>
-          <option value="coolant-flush">Coolant Flush</option>
-          <option value="filter-replacement">Filter Replacement</option>
-          <option value="windscreen-repair">Windscreen Repair</option>
-          <option value="software-update">Software Update</option>
-          <option value="recall-service">Recall Service</option>
-          <option value="erad">ERAD</option>
-          <option value="driveshaft">Driveshaft</option>
-          <option value="iem">IEM</option>
-          <option value="hv-battery">HV Battery</option>
-          <option value="lower-arms">Lower Arms</option>
-          <option value="steering-passiv">Steering Passive</option>
-          <option value="brake-vacuum-pump">Brake Vacuum Pump</option>
-          <option value="brake-servo">Brake Servo</option>
-          <option value="anti-rubber-bushes">Anti-Rubber Bushes</option>
-          <option value="auto-handbrake-failure">Auto Handbrake Failure</option>
-          <option value="taxi-meter">Taxi Meter</option>
-          <option value="car-wash">Car Wash</option>
-          <option value="full-valeting">Full Valeting</option>
-        </select>
+          onChange={(val) => setFormData({ ...formData, type: Array.isArray(val) ? val[0] : (val || '') })}
+          placeholder="Search and select type..."
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -402,27 +405,28 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
+          <SearchableSelect
+            label="Status"
+            options={[
+              { id: 'scheduled', label: 'Scheduled' },
+              { id: 'in-progress', label: 'In Progress' },
+              { id: 'completed', label: 'Completed' },
+              { id: 'cancelled', label: 'Cancelled' },
+            ]}
             value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          >
-            <option value="scheduled">Scheduled</option>
-            <option value="in-progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+            onChange={(val) => setFormData({ ...formData, status: (Array.isArray(val) ? val[0] : val) as any })}
+            placeholder="Select status..."
+          />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <label className="block text-sm font-medium text-slate-300">Description</label>
         <textarea
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           rows={3}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          className="mt-1 block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3"
           required
         />
       </div>
@@ -430,18 +434,18 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
       {/* Parts Section */}
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-gray-700">Parts</label>
+          <label className="block text-base font-bold text-white">Parts</label>
           <button
             type="button"
             onClick={() => setParts([...parts, { name: '', quantity: 1, cost: 0, includeVAT: false }])}
-            className="text-sm text-primary hover:text-primary-600 px-3 py-1 border border-primary rounded-md"
+            className="text-sm text-blue-400 hover:text-blue-300 font-semibold px-3 py-1 border border-blue-500/40 rounded-lg hover:bg-blue-500/10 transition-colors"
           >
-            Add Part
+            + Add Part
           </button>
         </div>
         <div className="space-y-3">
           {parts.map((part, index) => (
-            <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end p-3 border border-gray-200 rounded-md bg-gray-50">
+            <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end p-3 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white shadow-sm">
               <div className="relative col-span-1 sm:col-span-2"> {/* Part Name takes more space */}
                 <FormField
                   label="Part Name"
@@ -455,7 +459,7 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                 {showPartSuggestions[index] && part.name && partSuggestions.filter(
                   suggestion => suggestion.name.toLowerCase().includes(part.name.toLowerCase())
                 ).length > 0 && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+                    <ul className="absolute z-10 w-full bg-[#16192B] border border-[#2B314E] rounded-md shadow-xl mt-1 max-h-48 overflow-y-auto text-white">
                       {partSuggestions
                         .filter(suggestion =>
                           suggestion.name.toLowerCase().includes(part.name.toLowerCase())
@@ -463,10 +467,11 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                         .map((suggestion, i) => (
                           <li
                             key={i}
-                            className="px-4 py-2 cursor-pointer hover:bg-gray-100"
+                            className="px-4 py-2 cursor-pointer hover:bg-[#1E2238] text-white flex items-center justify-between transition-colors"
                             onMouseDown={() => handlePartNameSelect(suggestion, index)} // Use onMouseDown to prevent blur before click
                           >
-                            {suggestion.name} <span className="text-gray-500 text-sm">(Last cost: {formatCurrency(suggestion.lastCost)})</span>
+                            <span className="font-medium">{suggestion.name}</span>
+                            <span className="text-slate-400 text-sm ml-2 font-mono">({formatCurrency(suggestion.lastCost)})</span>
                           </li>
                         ))}
                     </ul>
@@ -507,14 +512,14 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                       newParts[index] = { ...part, includeVAT: e.target.checked };
                       setParts(newParts);
                     }}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    className="rounded border-[#2B314E] bg-[#0F111A] text-blue-500 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-600">VAT</span>
+                  <span className="text-sm text-slate-300 font-semibold">VAT</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setParts(parts.filter((_, i) => i !== index))}
-                  className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100"
+                  className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors text-sm font-semibold"
                   title="Remove Part"
                 >
                   Remove
@@ -613,17 +618,18 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
 
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-            <select
+            <SearchableSelect
+              label="Payment Method"
+              options={[
+                { id: 'cash', label: 'Cash' },
+                { id: 'card', label: 'Card' },
+                { id: 'bank_transfer', label: 'Bank Transfer' },
+                { id: 'cheque', label: 'Cheque' },
+              ]}
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
+              onChange={(val) => setPaymentMethod(Array.isArray(val) ? val[0] : (val || 'cash'))}
+              placeholder="Select payment method..."
+            />
           </div>
 
           <div className="col-span-2">
@@ -637,57 +643,57 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         </div>
 
         {/* Cost Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="bg-[#0F111A] p-4 rounded-xl border border-[#2B314E] space-y-2.5 text-slate-100 shadow-md">
           {/* NET Amount */}
           <div className="flex justify-between text-sm font-medium">
-            <span>NET Amount:</span>
-            <span>{formatCurrency(costs.netAmount)}</span>
+            <span className="text-slate-300 font-semibold">NET Amount:</span>
+            <span className="font-mono text-white font-bold">{formatCurrency(costs.netAmount)}</span>
           </div>
 
           {/* VAT Amount */}
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>VAT (20%):</span>
-            <span>{formatCurrency(costs.vatAmount)}</span>
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-300 font-semibold">VAT (20%):</span>
+            <span className="font-mono text-white font-bold">{formatCurrency(costs.vatAmount)}</span>
           </div>
 
           {/* Total Amount */}
-          <div className="flex justify-between text-lg font-bold pt-2 border-t">
+          <div className="flex justify-between text-base font-bold pt-2 border-t border-[#2B314E] text-white">
             <span>Total Amount:</span>
-            <span>{formatCurrency(costs.totalAmount)}</span>
+            <span className="font-mono text-lg font-black text-white">{formatCurrency(costs.totalAmount)}</span>
           </div>
 
           {/* Payment Status */}
-          <div className="pt-4 border-t space-y-2">
+          <div className="pt-3 border-t border-[#2B314E] space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Amount Paid:</span>
-              <span className="text-green-600">{formatCurrency(paidAmount)}</span>
+              <span className="text-emerald-400 font-semibold">Amount Paid:</span>
+              <span className="font-mono font-bold text-emerald-400">{formatCurrency(paidAmount)}</span>
             </div>
             {remainingAmount > 0 && (
               <div className="flex justify-between text-sm">
-                <span>Remaining Amount:</span>
-                <span className="text-amber-600">{formatCurrency(remainingAmount)}</span>
+                <span className="text-amber-400 font-semibold">Remaining Amount:</span>
+                <span className="font-mono font-bold text-amber-400">{formatCurrency(remainingAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm pt-2 border-t">
-              <span>Payment Status:</span>
-              <span className="font-medium capitalize">{paymentStatus.replace('_', ' ')}</span>
+            <div className="flex justify-between text-sm pt-2 border-t border-[#2B314E]/60">
+              <span className="text-slate-300 font-semibold">Payment Status:</span>
+              <span className="font-semibold capitalize text-white">{paymentStatus.replace('_', ' ')}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex justify-end space-x-3">
+      <div className="flex justify-end space-x-3 pt-4 border-t border-[#2B314E]/60">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 text-sm font-semibold text-slate-300 bg-[#1E2238] border border-[#2B314E] rounded-xl hover:bg-[#2B314E] hover:text-white transition-colors"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600"
+          className="px-5 py-2 text-sm font-semibold text-white bg-primary border border-transparent rounded-xl hover:bg-primary-600 shadow-md transition-colors"
         >
           {loading ? 'Updating...' : 'Update Maintenance'}
         </button>

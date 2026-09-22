@@ -126,16 +126,27 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
   const handleNext = async () => {
     setSubmitError(null);
     if (currentStep === 1) {
-      const isValid = await methods.trigger(['clientInfo', 'clientRef', 'submitterType', 'claimReason', 'registerKeeper'] as any);
+      const fieldsToValidate: any[] = ['clientInfo', 'clientRef', 'submitterType', 'claimReason', 'registerKeeper'];
+      if (showVehicleDetails) {
+        fieldsToValidate.push('clientVehicle');
+      }
+      const isValid = await methods.trigger(fieldsToValidate as any);
       if (!isValid) {
-        toast.error('Please complete all required client details.');
+        toast.error('Please complete all required client and vehicle details.');
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      const isValid = await methods.trigger(['incidentDetails'] as any);
+      const fieldsToValidate: any[] = ['incidentDetails'];
+      if (showGPInformation) {
+        fieldsToValidate.push('gpInformation');
+      }
+      if (showHospitalInformation) {
+        fieldsToValidate.push('hospitalInformation');
+      }
+      const isValid = await methods.trigger(fieldsToValidate as any);
       if (!isValid) {
         toast.error('Please complete all required incident details.');
         return;
@@ -165,11 +176,18 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
       return;
     }
     if (currentStep === 1) {
-      const isValid = await methods.trigger(['clientInfo', 'clientRef', 'submitterType', 'claimReason', 'registerKeeper'] as any);
+      const fieldsToValidate: any[] = ['clientInfo', 'clientRef', 'submitterType', 'claimReason', 'registerKeeper'];
+      if (showVehicleDetails) {
+        fieldsToValidate.push('clientVehicle');
+      }
+      const isValid = await methods.trigger(fieldsToValidate as any);
       if (!isValid) return;
     }
     if (stepId > 3 && currentStep <= 3) {
-      const isValid = await methods.trigger(['incidentDetails'] as any);
+      const fieldsToValidate: any[] = ['incidentDetails'];
+      if (showGPInformation) fieldsToValidate.push('gpInformation');
+      if (showHospitalInformation) fieldsToValidate.push('hospitalInformation');
+      const isValid = await methods.trigger(fieldsToValidate as any);
       if (!isValid) return;
     }
     if (stepId > 4 && currentStep <= 4) {
@@ -255,21 +273,57 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
     }
   };
 
+  const onValidationError = (formErrors: any) => {
+    console.error('ClaimForm validation errors:', formErrors);
+    const errorKeys = Object.keys(formErrors);
+    let stepWithError = 5;
+    if (errorKeys.some(k => ['clientInfo', 'clientRef', 'submitterType', 'claimReason', 'registerKeeper', 'clientVehicle', 'hireDetails', 'storage'].includes(k))) {
+      stepWithError = 1;
+    } else if (errorKeys.some(k => ['incidentDetails', 'gpInformation', 'hospitalInformation', 'policeOfficerName', 'paramedicNames'].includes(k))) {
+      stepWithError = 3;
+    } else if (errorKeys.some(k => ['thirdParty', 'passengers', 'witnesses'].includes(k))) {
+      stepWithError = 4;
+    }
+    setCurrentStep(stepWithError);
+    toast.error('Please complete all compulsory fields highlighted in red.');
+  };
+
   return (
     <FormProvider {...methods}>
-      <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Step-by-Step Progressive Stepper */}
-        <div className="bg-gray-50 dark:bg-[#13131A] p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
-          {/* Progress Bar */}
-          <div className="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-semibold text-gray-700 dark:text-gray-200">
-              Step {currentStep} of {STEPS.length}: {STEPS[currentStep - 1].title}
+      <form onSubmit={methods.handleSubmit(onSubmit, onValidationError)} className="space-y-6">
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{submitError}</span>
+          </div>
+        )}
+        {/* Compulsory Fields Guide Banner */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs">
+              <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
             </span>
-            <span className="font-mono text-primary font-bold">
-              {Math.round((currentStep / STEPS.length) * 100)}% Completed
+            <span className="font-bold text-gray-950">
+              All fields with the red <span className="text-red-600 font-extrabold">* Must fill in</span> badge and red indicator are compulsory.
             </span>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-[#2B2B40] h-1.5 rounded-full overflow-hidden mb-4">
+          <span className="text-gray-700 font-semibold">
+            Step {currentStep} of {STEPS.length}
+          </span>
+        </div>
+
+        {/* Step-by-Step Progressive Stepper */}
+        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-2xs">
+          {/* Progress Bar */}
+          <div className="mb-3 flex items-center justify-between text-xs">
+            <span className="font-bold text-gray-950 text-sm">
+              Step {currentStep} of {STEPS.length}: {STEPS[currentStep - 1].title}
+            </span>
+            <span className="font-mono text-primary font-extrabold bg-primary/10 px-2 py-0.5 rounded">
+              {Math.round((currentStep / STEPS.length) * 100)}% Complete
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mb-4">
             <div
               className="bg-primary h-full transition-all duration-300 ease-out"
               style={{ width: `${(currentStep / STEPS.length) * 100}%` }}
@@ -290,10 +344,10 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
                   onClick={() => handleStepClick(step.id)}
                   className={`flex flex-col items-center sm:items-start p-2 sm:p-2.5 rounded-lg border text-left transition-all ${
                     isCurrent
-                      ? 'bg-white dark:bg-[#1E1E2D] border-primary ring-2 ring-primary/20 shadow-xs'
+                      ? 'bg-primary/5 border-primary ring-2 ring-primary/20 shadow-xs'
                       : isPassed
-                      ? 'bg-white/60 dark:bg-[#1E1E2D]/60 border-emerald-300 dark:border-emerald-800/60 hover:border-emerald-400 text-gray-700 dark:text-gray-300'
-                      : 'bg-transparent border-transparent opacity-60 hover:opacity-80 text-gray-500 dark:text-gray-400'
+                      ? 'bg-emerald-50/50 border-emerald-300 text-gray-900'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100/80'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 w-full">
@@ -302,17 +356,17 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
                         isCurrent
                           ? 'bg-primary text-white shadow-xs'
                           : isPassed
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-gray-200 dark:bg-[#2B2B40] text-gray-600 dark:text-gray-300'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-gray-200 text-gray-800'
                       }`}
                     >
                       {isPassed ? <Check className="w-3.5 h-3.5" /> : step.id}
                     </span>
-                    <span className="hidden md:inline font-semibold text-xs truncate">
+                    <span className="hidden md:inline font-bold text-xs truncate text-gray-950">
                       {step.shortTitle}
                     </span>
                   </div>
-                  <span className="hidden lg:block text-[11px] text-gray-500 dark:text-gray-400 truncate mt-1 pl-7">
+                  <span className="hidden lg:block text-[11px] text-gray-600 font-medium truncate mt-1 pl-7">
                     {step.description}
                   </span>
                 </button>
@@ -330,35 +384,37 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         {/* STEP 1: Client & Vehicle Details */}
         {currentStep === 1 && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-                <ClaimProgress />
+                <div className="flex-1">
+                  <ClaimProgress />
+                </div>
                 <div className="w-full sm:w-64">
                   <ClientRefField />
                 </div>
               </div>
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <SubmitterDetails />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <DriverDetails />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <RegisterKeeperDetails />
             </div>
             {showVehicleDetails && (
-              <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
                 <VehicleDetails hideDocuments={true} />
               </div>
             )}
             {showHireDetails && (
-              <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
                 <HireDetails />
               </div>
             )}
             {showStorageDetails && (
-              <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
                 <StorageDetails />
               </div>
             )}
@@ -368,7 +424,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         {/* STEP 2: Vehicle Documents */}
         {currentStep === 2 && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <VehicleDocumentsUpload />
             </div>
           </div>
@@ -377,23 +433,23 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         {/* STEP 3: Incident Details */}
         {currentStep === 3 && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <AccidentDetails />
             </div>
             {showGPInformation && (
-              <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
                 <GPInformation />
               </div>
             )}
             {showHospitalInformation && (
-              <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
                 <Hospitalinformation />
               </div>
             )}
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <PoliceDetails />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <ParamedicDetails />
             </div>
           </div>
@@ -402,10 +458,10 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         {/* STEP 4: Third Party Details */}
         {currentStep === 4 && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <FaultPartyDetails />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <PassengerDetails
                 count={methods.watch('passengers')?.length || 0}
                 onCountChange={(count) => {
@@ -417,7 +473,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
                 }}
               />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <WitnessDetails
                 count={methods.watch('witnesses')?.length || 0}
                 onCountChange={(count) => {
@@ -435,22 +491,22 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         {/* STEP 5: Evidence & Initial Handlers */}
         {currentStep === 5 && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <EvidenceUpload />
             </div>
-            <div className="bg-white dark:bg-[#1E1E2D] rounded-xl p-5 sm:p-6 border border-gray-200 dark:border-[#2B2B40] shadow-xs">
+            <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
               <FileHandlers />
             </div>
           </div>
         )}
 
         {/* Bottom Navigation Buttons */}
-        <div className="flex items-center justify-between pt-5 border-t border-gray-200 dark:border-[#2B2B40]">
+        <div className="flex items-center justify-between pt-5 border-t border-gray-200 bg-white">
           {currentStep === 1 ? (
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1E1E2D] border border-gray-300 dark:border-[#2B2B40] rounded-lg hover:bg-gray-50 dark:hover:bg-[#2B2B40] transition-colors"
+              className="px-5 py-2.5 text-sm font-bold text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
@@ -458,7 +514,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
             <button
               type="button"
               onClick={handlePrevious}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1E1E2D] border border-gray-300 dark:border-[#2B2B40] rounded-lg hover:bg-gray-50 dark:hover:bg-[#2B2B40] transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Previous</span>
@@ -466,14 +522,14 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
           )}
 
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline-block">
+            <span className="text-xs text-gray-600 font-bold hidden sm:inline-block">
               Step {currentStep} of {STEPS.length}
             </span>
             {currentStep < 5 ? (
               <button
                 type="button"
                 onClick={handleNext}
-                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all focus:outline-hidden focus:ring-2 focus:ring-primary/50"
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-all focus:outline-hidden focus:ring-2 focus:ring-primary/50"
               >
                 <span>Next: {STEPS[currentStep].shortTitle}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -482,7 +538,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition-all focus:outline-hidden focus:ring-2 focus:ring-emerald-500/50"
+                className="inline-flex items-center gap-2 px-7 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition-all focus:outline-hidden focus:ring-2 focus:ring-emerald-500/50"
               >
                 {loading ? (
                   <>
@@ -492,7 +548,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Submit Claim</span>
+                    <span>Complete & Submit Claim</span>
                   </>
                 )}
               </button>

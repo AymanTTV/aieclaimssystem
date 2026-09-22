@@ -315,67 +315,67 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
           <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
             Selected Driver Records ({queue.length})
           </h4>
-          <div className="border border-gray-200 rounded-lg overflow-hidden max-h-56 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-xs">
-              <thead className="bg-gray-50 text-gray-500 font-semibold">
-                <tr>
-                  <th className="py-2 px-3 text-left">#</th>
-                  <th className="py-2 px-3 text-left">Driver Name</th>
-                  <th className="py-2 px-3 text-left">Phone</th>
-                  <th className="py-2 px-3 text-left">Paid</th>
-                  <th className="py-2 px-3 text-left">Status</th>
-                  <th className="py-2 px-3 text-right">Action</th>
+          <div className="border border-[#2B314E] rounded-xl overflow-hidden max-h-56 overflow-y-auto bg-white shadow-sm">
+            <table className="min-w-full border-collapse text-xs">
+              <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-sm">
+                <tr className="border-b border-[#2B314E]">
+                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">#</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Phone</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Paid</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Status</th>
+                  <th className="py-2.5 px-3.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody>
                 {queue.map((item, idx) => {
                   const isCurrent = idx === currentIndex && item.status === 'pending';
+                  const isEven = idx % 2 === 1;
+                  const rowBg = isCurrent
+                    ? 'bg-emerald-50 font-medium'
+                    : isEven
+                    ? 'bg-[#EEF5FD]'
+                    : 'bg-white';
                   return (
                     <tr
                       key={item.record.id}
-                      className={`${
-                        isCurrent
-                          ? 'bg-emerald-50 font-medium'
-                          : item.status === 'dispatched'
-                          ? 'bg-gray-50 text-gray-400'
-                          : 'hover:bg-gray-50'
-                      }`}
+                      className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}
                     >
-                      <td className="py-2 px-3 text-gray-500">{idx + 1}</td>
-                      <td className="py-2 px-3 text-gray-900">
+                      <td className="py-2 px-3.5 font-bold text-slate-500">{idx + 1}</td>
+                      <td className="py-2 px-3.5 text-slate-900 font-bold">
                         {item.record.name}
-                        <span className="text-[10px] text-gray-400 block">
+                        <span className="text-[10px] text-slate-500 block font-normal">
                           {item.record.driverNo || item.record.id}
                         </span>
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-3.5">
                         {item.record.phoneNumber ? (
-                          <span className="text-gray-700">{item.record.phoneNumber}</span>
+                          <span className="text-slate-800 font-mono font-medium">{item.record.phoneNumber}</span>
                         ) : (
-                          <span className="text-red-500">Missing</span>
+                          <span className="text-rose-600 font-semibold">Missing</span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-gray-900 font-medium">
+                      <td className="py-2 px-3.5 text-slate-900 font-black">
                         £{Number(item.record.paidAmount || 0).toFixed(2)}
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-3.5">
                         {item.status === 'dispatched' && (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
+                          <span className="inline-flex items-center gap-1 text-emerald-800 bg-emerald-100 font-semibold px-2 py-0.5 rounded text-[11px] border border-emerald-200">
                             <Check className="h-3 w-3" /> Dispatched
                           </span>
                         )}
                         {item.status === 'skipped' && (
-                          <span className="text-gray-500 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
+                          <span className="text-slate-600 bg-slate-100 font-medium px-2 py-0.5 rounded text-[11px] border border-slate-200">
                             Skipped
                           </span>
                         )}
                         {item.status === 'pending' && (
-                          <span className="text-amber-700 bg-amber-100 px-2 py-0.5 rounded text-[11px]">
+                          <span className="text-amber-800 bg-amber-100 font-semibold px-2 py-0.5 rounded text-[11px] border border-amber-200">
                             Pending
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-right">
+                      <td className="py-2 px-3.5 text-right">
                         <button
                           type="button"
                           onClick={() => {
@@ -383,7 +383,7 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
                             handleDispatchSpecific(idx);
                           }}
                           disabled={!item.isValidPhone}
-                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-medium disabled:opacity-30"
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-30 cursor-pointer"
                           title="Open WhatsApp chat for this driver"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />

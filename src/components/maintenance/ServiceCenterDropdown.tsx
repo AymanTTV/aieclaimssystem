@@ -130,23 +130,23 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
       />
 
       {isOpen && (
-        <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full bg-[#16192B] border border-[#2B314E] rounded-md shadow-xl mt-1 max-h-60 overflow-y-auto text-white">
           {loadingCenters ? (
-            <div className="p-2 text-sm text-gray-500">Loading service centers...</div>
+            <div className="p-2 text-sm text-slate-400">Loading service centers...</div>
           ) : serviceCentersError ? (
-            <div className="p-2 text-sm text-red-500">Error: {serviceCentersError}</div>
+            <div className="p-2 text-sm text-red-400">Error: {serviceCentersError}</div>
           ) : filteredServiceCenters.length === 0 && inputValue ? (
-            <div className="p-2 text-sm text-gray-500">No matching service centers found.</div>
+            <div className="p-2 text-sm text-slate-400">No matching service centers found.</div>
           ) : (
             <>
-              <div className="p-2 border-b border-gray-200">
+              <div className="p-2 border-b border-[#2B314E]">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCreateForm(true);
                     setIsOpen(false); // Close dropdown when opening modal
                   }}
-                  className="w-full text-left flex items-center p-2 text-sm text-primary-600 hover:bg-primary-50 rounded-md"
+                  className="w-full text-left flex items-center p-2 text-sm text-blue-400 hover:bg-[#1E2238] rounded-md font-semibold"
                 >
                   <Plus className="h-4 w-4 mr-2" /> Add New Service Center
                 </button>
@@ -154,10 +154,10 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
               {filteredServiceCenters.map((center) => (
                 <div
                   key={center.id}
-                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-100"
+                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-[#1E2238] transition-colors"
                   onClick={() => handleSelectCenter(center)}
                 >
-                  <span className="text-sm">{center.name}</span>
+                  <span className="text-sm font-medium text-white">{center.name}</span>
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
@@ -165,7 +165,7 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
                         e.stopPropagation(); // Prevent dropdown from closing
                         openEditForm(center);
                       }}
-                      className="text-blue-500 hover:text-blue-700"
+                      className="text-blue-400 hover:text-blue-300"
                       title="Edit"
                     >
                       <Edit className="h-4 w-4" />
@@ -176,7 +176,7 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
                         e.stopPropagation(); // Prevent dropdown from closing
                         handleDeleteClick(center);
                       }}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-rose-400 hover:text-rose-300"
                       title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />

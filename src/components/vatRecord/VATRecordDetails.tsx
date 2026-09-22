@@ -83,33 +83,37 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
       </Section>
 
       <Section title="Descriptions">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto border border-[#2B314E] rounded-xl overflow-hidden shadow-sm bg-white">
+          <table className="min-w-full border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">NET</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">V</th> 
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">GROSS</th>
+                <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
+                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">NET</th>
+                <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">V</th> 
+                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">VAT</th>
+                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">GROSS</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {record.descriptions.map((desc) => (
-                <tr key={desc.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{desc.description}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.net)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{desc.vType}</td> 
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.vat)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(desc.gross)}</td>
-                </tr>
-              ))}
-              <tr className="bg-gray-50 font-medium">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Totals</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.net)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"></td> 
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.vat)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(record.gross)}</td>
+            <tbody>
+              {record.descriptions.map((desc, idx) => {
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                  <tr key={desc.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-900 font-bold">{desc.description}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-800 font-semibold">{formatCurrency(desc.net)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium">{desc.vType}</td> 
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-800 font-semibold">{formatCurrency(desc.vat)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-900 font-black">{formatCurrency(desc.gross)}</td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-[#16192B] text-white font-bold border-t border-[#2B314E]">
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-white font-black uppercase tracking-wider">Totals</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.net)}</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-white"></td> 
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.vat)}</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.gross)}</td>
               </tr>
             </tbody>
           </table>

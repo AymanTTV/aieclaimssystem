@@ -75,11 +75,13 @@ export interface Permission {
 
   quickContact?: boolean;
   reminder?: boolean;
-  mondayAutoEmail?: boolean; // NEW: Rental Monday auto email toggle
-  whatsapp?: boolean;        // NEW: WhatsApp sender/action
-  email?: boolean;           // NEW: Email sender/action
-  template?: boolean;        // NEW: Template change/management
-  driverRisk?: boolean;      // NEW: Driver Risk analysis
+  mondayAutoEmail?: boolean; // Rental Monday auto email toggle
+  bulkEmailScheduler?: boolean; // Rental Bulk Email Scheduler access toggle
+  whatsapp?: boolean;        // WhatsApp sender/action
+  email?: boolean;           // Email sender/action
+  template?: boolean;        // Template change/management
+  templateEdit?: boolean;    // Template edit permission (Read-only if false)
+  driverRisk?: boolean;      // Driver Risk analysis
   renewalAnalysis?: boolean; // NEW: Renewal Underwriter Dossier
   showCompletedPaid?: boolean; // NEW: Show Completed/Paid toggle
   groupMessaging?: boolean;  // NEW: Group Messaging / News Flash
@@ -133,7 +135,7 @@ const BASE_DASHBOARD = { view: false };
 const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false, mileageHistoryView: false, mileageHistoryEdit: false, mileageHistoryDelete: false, groups: false, departments: false, assign: false, recordsPermission: false };
 const BASE_UTILISATION = { view: false, export: true, singleDoc: true };
 const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, tableStatus: false, complete: false, completed: false, singleDoc: false, categories: false };
-const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false, reminder: false, mondayAutoEmail: false, whatsapp: false, email: false };
+const BASE_RENTALS = { view: false, create: false, update: false, delete: false, cards: false, daily: false, weekly: false, claim: false, recordPayment: false, export: false, syncStatus: false, singleDoc: false, availableVehicles: false, completion: false, discount: false, note: false, viewPayment: false, editPayment: false, deletePayment: false, reminder: false, mondayAutoEmail: false, bulkEmailScheduler: false, whatsapp: false, email: false, template: false, templateEdit: false };
 const BASE_ACCIDENTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, singleDoc: false, state: false, driverRisk: false, renewalAnalysis: false };
 const BASE_CLAIMS = { view: false, create: false, update: false, delete: false, cards: false, export: false, state: false, note: false, singleDoc: false, progressview: false, progressedit: false, groups: false, departments: false, assign: false, recordsPermission: false, email: false, whatsapp: false, template: false }; 
 const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false, recordPayment: false };
@@ -167,7 +169,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     vehicles: { ...BASE_VEHICLES, view: true, create: true, update: true, delete: true, cards: true, mileage: true, export: true, owner: true, syncStatus: true, sale: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true, groups: true, departments: true, assign: true, recordsPermission: true },
     utilisation: { ...BASE_UTILISATION, view: true, export: true, singleDoc: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, tableStatus: true, complete: true, completed: true, singleDoc: true, categories: true },
-    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, whatsapp: true, email: true },
+    rentals: { ...BASE_RENTALS, view: true, create: true, update: true, delete: true, cards: true, daily: true, weekly: true, claim: true, export: true, syncStatus: true, singleDoc: true, availableVehicles: true, completion: true, discount: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, bulkEmailScheduler: true, whatsapp: true, email: true, template: true, templateEdit: true },
     accidents: { ...BASE_ACCIDENTS, view: true, create: true, update: true, delete: true, cards: true, export: true, singleDoc: true, state: true, driverRisk: true, renewalAnalysis: true },
     claims: { ...BASE_CLAIMS, view: true, create: true, update: true, delete: true, cards: true, export: true, state: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true, email: true, whatsapp: true, template: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, recordPayment: true },
@@ -205,7 +207,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     vehicles: { ...BASE_VEHICLES, view: true, cards: true, mileage: true, export: true, copyId: true, singleDoc: true, mileageHistoryView: true, mileageHistoryEdit: true, mileageHistoryDelete: true, groups: true, departments: true, assign: true, recordsPermission: true },
     maintenance: { ...BASE_MAINTENANCE, view: true, cards: true, export: true, tableStatus: true, completed: true, singleDoc: true },
     utilisation: { ...BASE_UTILISATION, view: true, export: true, singleDoc: true },
-    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, whatsapp: true, email: true },
+    rentals: { ...BASE_RENTALS, view: true, cards: true, daily: true, weekly: true, claim: true, export: true, singleDoc: true, availableVehicles: true, note: true, recordPayment: true, viewPayment: true, editPayment: true, deletePayment: true, reminder: true, mondayAutoEmail: true, bulkEmailScheduler: true, whatsapp: true, email: true, template: true, templateEdit: true },
     accidents: { ...BASE_ACCIDENTS, view: true, cards: true, export: true, singleDoc: true, driverRisk: true, renewalAnalysis: true },
     claims: { ...BASE_CLAIMS, view: true, cards: true, export: true, note: true, singleDoc: true, progressview: true, progressedit: true, groups: true, departments: true, assign: true, recordsPermission: true, email: true, whatsapp: true, template: true },
     vdFinance: { ...BASE_VD_FINANCE, view: true, create: true, cards: true, export: true, import: true, singleDoc: true, recordPayment: true, groups: true, departments: true, assign: true, recordsPermission: true },
@@ -390,6 +392,74 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
   },
 };
 
+export const BASE_PERMISSIONS_BY_MODULE: Record<keyof RolePermissions, Permission> = {
+  dashboard: BASE_DASHBOARD,
+  vehicles: BASE_VEHICLES,
+  utilisation: BASE_UTILISATION,
+  maintenance: BASE_MAINTENANCE,
+  rentals: BASE_RENTALS,
+  accidents: BASE_ACCIDENTS,
+  claims: BASE_CLAIMS,
+  vdFinance: BASE_VD_FINANCE,
+  vdInvoice: BASE_VD_INVOICE,
+  driverPay: BASE_DRIVER_PAY,
+  pettyCash: BASE_PETTY_CASH,
+  aiePettyCash: BASE_PETTY_CASH,
+  incomeExpense: BASE_INCOME_EXPENSE,
+  skylineIncomeExpense: BASE_INCOME_EXPENSE,
+  finance: BASE_FINANCE,
+  invoices: BASE_INVOICES,
+  vatRecord: BASE_VAT_RECORD,
+  share: BASE_SHARE,
+  members: BASE_MEMBERS,
+  customers: BASE_CUSTOMERS,
+  products: BASE_PRODUCTS,
+  whatsapp: BASE_COMMUNICATION,
+  bulkEmail: BASE_COMMUNICATION,
+  waiting: BASE_WAITING,
+  company: BASE_COMPANY,
+  trash: BASE_TRASH,
+  users: BASE_USERS,
+  todo: BASE_TODO,
+  settings: BASE_SETTINGS,
+  automation: BASE_AUTOMATION,
+  memberProfile: BASE_PORTAL,
+  memberRentals: BASE_PORTAL,
+  memberTransactions: BASE_PORTAL,
+  memberInvoices: BASE_PORTAL,
+};
+
 export function getDefaultPermissions(role: Role): RolePermissions {
   return DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['member'];
+}
+
+export function normalizePermissions(
+  role: Role,
+  savedPermissions?: Partial<RolePermissions> | null
+): RolePermissions {
+  const defaults = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.member;
+  const result = {} as RolePermissions;
+
+  (Object.keys(defaults) as Array<keyof RolePermissions>).forEach((moduleKey) => {
+    const baseModule = BASE_PERMISSIONS_BY_MODULE[moduleKey] || { view: false };
+    const roleDefaultModule = defaults[moduleKey] || {};
+    const userSavedModule = { ...(savedPermissions?.[moduleKey] || {}) };
+
+    // If rentals specifically: sync bulkEmailScheduler and mondayAutoEmail if one exists
+    if (moduleKey === 'rentals') {
+      if (userSavedModule.mondayAutoEmail !== undefined && userSavedModule.bulkEmailScheduler === undefined) {
+        userSavedModule.bulkEmailScheduler = userSavedModule.mondayAutoEmail;
+      } else if (userSavedModule.bulkEmailScheduler !== undefined && userSavedModule.mondayAutoEmail === undefined) {
+        userSavedModule.mondayAutoEmail = userSavedModule.bulkEmailScheduler;
+      }
+    }
+
+    result[moduleKey] = {
+      ...baseModule,
+      ...roleDefaultModule,
+      ...userSavedModule,
+    };
+  });
+
+  return result;
 }

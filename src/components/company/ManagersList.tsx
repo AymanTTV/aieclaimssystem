@@ -21,41 +21,53 @@ const ManagersList: React.FC<ManagersListProps> = ({ onAddManager, onSelectManag
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Username
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Groups
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last action
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contacts
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td className="px-6 py-8 text-center text-sm text-gray-500" colSpan={6}>
-                  <div className="text-center">
-                    <p className="font-medium text-gray-900 mb-1">All of your managers will be displayed here.</p>
-                    <p className="text-gray-500">Add your first manager.</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse">
+              <thead className="bg-[#16192B] text-white">
+                <tr className="border-b border-[#2B314E]">
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Username
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Groups
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Location
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Last action
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Contacts
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-5 py-12 text-center text-sm text-slate-500 bg-white" colSpan={6}>
+                    <div className="text-center">
+                      <p className="font-bold text-slate-800 mb-1">All of your managers will be displayed here.</p>
+                      <p className="text-slate-500">Add your first manager using the button above.</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Consistent Dark Navy Footer */}
+          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+            <div>
+              Showing <span className="font-bold text-white">0</span> managers
+            </div>
+            <div className="text-slate-400">
+              Manager Directory
+            </div>
+          </div>
         </div>
       </div>
     </div>

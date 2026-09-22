@@ -76,40 +76,40 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   };
 
   return (
-    <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-1/3">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-slate-400" />
           </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search invoices, clients, or vehicles..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-gray-50 placeholder-gray-500 focus:bg-white focus:ring-primary focus:border-primary sm:text-sm transition-colors"
+            className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
           />
         </div>
         
-        <label className="flex items-center space-x-2 cursor-pointer bg-gray-50 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
+        <label className="flex items-center space-x-2.5 cursor-pointer bg-[#0F111A] px-3.5 py-2 rounded-xl border border-[#2B314E] hover:bg-[#16192B] transition-colors">
           <input
             type="checkbox"
             checked={showCompleted}
             onChange={(e) => onShowCompletedChange(e.target.checked)}
-            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+            className="rounded border-[#2B314E] text-blue-600 focus:ring-blue-500 h-4 w-4 bg-[#16192B]"
           />
-          <span className="text-sm font-medium text-gray-700">Show Completed / Paid</span>
+          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Show Completed / Paid</span>
         </label>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Status</label>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
           <div className="relative">
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="w-full min-h-[38px] border border-gray-300 rounded-md bg-white text-sm focus:ring-primary focus:border-primary px-3"
+              className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
             >
               <option value="all">All Status</option>
               <option value="partially_paid">Partially Paid</option>
@@ -123,6 +123,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Account"
+          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
           value={accountFilter}
           onChange={createMultiHandler(onAccountFilterChange)}
           options={accountOptions}
@@ -135,6 +136,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Group"
+          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
           value={groupFilter}
           onChange={createMultiHandler(onGroupFilterChange)}
           options={groupOptions}
@@ -147,6 +149,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Department"
+          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
           value={departmentFilter}
           onChange={createMultiHandler(onDepartmentFilterChange)}
           options={deptOptions}
@@ -159,6 +162,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Category"
+          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
           value={categoryFilter}
           onChange={createMultiHandler(onCategoryFilterChange)}
           options={categoryOptions}
@@ -169,19 +173,19 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           allId="all"
         />
 
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">From</label>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
           <input
             type="date"
             value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
             onChange={(e) =>
               onDateRangeChange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })
             }
-            className="w-full min-h-[38px] border border-gray-300 rounded-md bg-white text-sm focus:ring-primary focus:border-primary px-3"
+            className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
           />
         </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">To</label>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
           <input
             type="date"
             value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
@@ -189,7 +193,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               onDateRangeChange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })
             }
             min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="w-full min-h-[38px] border border-gray-300 rounded-md bg-white text-sm focus:ring-primary focus:border-primary px-3"
+            className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
           />
         </div>
       </div>

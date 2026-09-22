@@ -83,13 +83,25 @@ export const useMaintenanceFilters = (
           ? `${vehicle.make} ${vehicle.model} ${vehicle.registrationNumber}`.toLowerCase() 
           : (log.vehicleId ? log.vehicleId.toLowerCase() : '');
 
+        const typeFormatted = (log.type || '').replace(/-/g, ' ').toLowerCase();
+        const partsText = (log.parts || [])
+          .map(p => `${p.name || ''} ${p.partNumber || ''}`)
+          .join(' ')
+          .toLowerCase();
+
         return (
           vehicleText.includes(searchLower) ||
+          typeFormatted.includes(searchLower) ||
+          (log.type || '').toLowerCase().includes(searchLower) ||
+          (log.status || '').toLowerCase().includes(searchLower) ||
+          (log.paymentStatus || '').toLowerCase().includes(searchLower) ||
           (log.serviceProvider || '').toLowerCase().includes(searchLower) ||
           (log.location || '').toLowerCase().includes(searchLower) ||
           (log.description || '').toLowerCase().includes(searchLower) ||
+          (log.notes || '').toLowerCase().includes(searchLower) ||
           (log.orderNumber || '').toLowerCase().includes(searchLower) ||
-          (log.invoiceNumber || '').toLowerCase().includes(searchLower)
+          (log.invoiceNumber || '').toLowerCase().includes(searchLower) ||
+          partsText.includes(searchLower)
         );
       })();
 

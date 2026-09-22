@@ -29,51 +29,73 @@ export default function Table<T extends { id: string }>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-      <table className="min-w-full">
-        <thead className="bg-gray-50 border-b border-gray-200">
-          <tr>
-            {columns.map((column, index) => (
-              <th
-                key={index}
-                scope="col"
-                className={clsx(
-                  'px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200',
-                  column.className
-                )}
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white">
-          {data.map((item) => (
-            <tr
-              key={item.id}
-              onClick={() => onRowClick?.(item)}
-              className={clsx(
-                'border-b border-gray-200 hover:bg-gray-50 transition-colors',
-                onRowClick && 'cursor-pointer'
-              )}
-            >
+    <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-[#16192B] text-white">
+            <tr className="border-b border-[#2B314E]">
               {columns.map((column, index) => (
-                <td
+                <th
                   key={index}
+                  scope="col"
                   className={clsx(
-                    'px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b border-gray-200',
+                    'px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap',
                     column.className
                   )}
                 >
-                  {typeof column.accessor === 'function'
-                    ? column.accessor(item)
-                    : item[column.accessor]}
-                </td>
+                  {column.header}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((item, idx) => {
+              const isEven = idx % 2 === 1;
+              const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+              return (
+                <tr
+                  key={item.id}
+                  onClick={() => onRowClick?.(item)}
+                  className={clsx(
+                    'group border-b border-[#E2E8F0] transition-all duration-150 ease-in-out',
+                    rowBg,
+                    'hover:bg-[#DCEBFA]',
+                    onRowClick && 'cursor-pointer'
+                  )}
+                >
+                  {columns.map((column, index) => (
+                    <td
+                      key={index}
+                      className={clsx(
+                        'px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium',
+                        column.className
+                      )}
+                    >
+                      {typeof column.accessor === 'function'
+                        ? column.accessor(item)
+                        : (item[column.accessor] as React.ReactNode)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+            {data.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-5 py-12 text-center text-sm text-slate-500 font-medium">
+                  No records found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Consistent Dark Navy Footer */}
+      <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        <div>
+          Showing <span className="font-bold text-white">{data.length}</span> record{data.length === 1 ? '' : 's'}
+        </div>
+      </div>
     </div>
   );
 }

@@ -85,50 +85,80 @@ const ClaimProgress = () => {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Claim Progress</h3>
+      <div className="pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Claim Type & Progress</h3>
+      </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Claim Type</label>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-sm font-bold text-gray-950">Claim Type</label>
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
+              title="Compulsory field - Must fill in"
+            >
+              <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
+            </span>
+          </div>
           <select
             {...register('claimType')}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            className="block w-full rounded-lg border border-gray-300 border-l-4 border-l-red-500 bg-white text-gray-950 font-semibold px-3 py-2.5 shadow-2xs focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
           >
             <option value="Domestic">Domestic</option>
             <option value="Taxi">Taxi</option>
-            <option value="PI">PI</option>
+            <option value="PI">PI (Personal Injury)</option>
             <option value="PCO">PCO</option>
           </select>
           {errors.claimType && (
-            <p className="mt-1 text-sm text-red-600">{errors.claimType.message as string}</p>
+            <p className="mt-1 text-xs font-semibold text-red-600">⚠️ {errors.claimType.message as string}</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Claim Reason</label>
-          <div className="mt-2 space-y-2">
-            {CLAIM_REASONS.map((reason) => (
-              <label key={reason.value} className="inline-flex items-center mr-4">
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(selectedReasons) ? selectedReasons.includes(reason.value) : false}
-                  onChange={() => handleReasonChange(reason.value)}
-                  className="form-checkbox text-primary rounded"
-                />
-                <span className="ml-2">{reason.label}</span>
-              </label>
-            ))}
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-sm font-bold text-gray-950">Claim Reason</label>
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
+              title="Compulsory - Select at least one"
+            >
+              <span className="text-red-600 font-black text-xs leading-none">*</span> Select min 1
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            {CLAIM_REASONS.map((reason) => {
+              const isChecked = Array.isArray(selectedReasons) ? selectedReasons.includes(reason.value) : false;
+              return (
+                <label
+                  key={reason.value}
+                  className={`inline-flex items-center px-3 py-2 rounded-lg border cursor-pointer select-none text-xs font-bold transition-all ${
+                    isChecked
+                      ? 'bg-primary/10 border-primary text-primary shadow-2xs'
+                      : 'bg-white border-gray-300 text-gray-800 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => handleReasonChange(reason.value)}
+                    className="rounded border-gray-300 text-primary focus:ring-primary mr-2 h-4 w-4"
+                  />
+                  <span>{reason.label}</span>
+                </label>
+              );
+            })}
           </div>
           {errors.claimReason && (
-            <p className="mt-1 text-sm text-red-600">{errors.claimReason.message as string}</p>
+            <p className="mt-1.5 text-xs font-semibold text-red-600">⚠️ {errors.claimReason.message as string}</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Case Progress</label>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-sm font-bold text-gray-950">Case Progress</label>
+          </div>
           <select
             {...register('caseProgress')}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+            className="block w-full rounded-lg border border-gray-300 bg-white text-gray-950 font-semibold px-3 py-2.5 shadow-2xs focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
           >
             <option value="Awaiting">Awaiting</option>
             <option value="Win">Win</option>
@@ -136,33 +166,9 @@ const ClaimProgress = () => {
             <option value="50/50">50/50</option>
           </select>
           {errors.caseProgress && (
-            <p className="mt-1 text-sm text-red-600">{errors.caseProgress.message as string}</p>
+            <p className="mt-1 text-xs font-semibold text-red-600">⚠️ {errors.caseProgress.message as string}</p>
           )}
         </div>
-
-        {/* <div>
-          <label className="block text-sm font-medium text-gray-700">Progress Status</label>
-          <select
-            {...register('progress')}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-          >
-            {PROGRESS_OPTIONS.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-          {errors.progress && (
-            <p className="mt-1 text-sm text-red-600">{errors.progress.message as string}</p>
-          )}
-        </div>
-
-        <div className="col-span-2">
-          <TextArea
-            label="Status Description"
-            {...register('statusDescription')}
-            error={errors.statusDescription?.message as string}
-            placeholder="Add notes about the current status..."
-          />
-        </div> */}
       </div>
     </div>
   );

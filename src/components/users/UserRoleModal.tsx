@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { DEFAULT_PERMISSIONS, type RolePermissions, type Permission } from '../../types/roles';
+import { DEFAULT_PERMISSIONS, normalizePermissions, type RolePermissions, type Permission } from '../../types/roles';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheck, Search, ChevronDown, ChevronUp, CheckCircle2, XCircle, Sparkles, CheckSquare, Square } from 'lucide-react';
@@ -23,7 +23,12 @@ const FRIENDLY_LABELS: Partial<Record<PermissionAction, string>> = {
   period: 'Manage Period', reoccurring: 'Manage Recurring', accounts: 'Manage Accounts', assign: 'Assign Records', signatureReq: 'Request Signatures',
   clearHistory: 'Clear History', targetFinance: 'Target Finance', targetRental: 'Target Rental', targetMaintenance: 'Target Maintenance', targetInvoice: 'Target Invoice',
   targetClaim: 'Target Claim', targetCustom: 'Target Custom', quickContact: 'Quick Contact', reminder: 'Send Reminders',
-  mondayAutoEmail: 'Monday Auto Email', whatsapp: 'WhatsApp Sender', email: 'Email Sender', template: 'Message Templates',
+  mondayAutoEmail: 'Bulk Email Scheduler Access',
+  bulkEmailScheduler: 'Bulk Email Scheduler Access',
+  whatsapp: 'WhatsApp Messaging (Send / Dispatch)',
+  email: 'Email Messaging (Send / Dispatch)',
+  template: 'Message Templates',
+  templateEdit: 'Edit Templates (Email & Reminder Template Management)',
   driverRisk: 'Driver Risk Analysis', renewalAnalysis: 'Renewal Dossier Analysis', showCompletedPaid: 'Show Completed / Paid', groupMessaging: 'Group Messaging',
   progressview: 'View Progress', progressedit: 'Edit Progress',
   mileageHistoryView: 'View Mileage History', mileageHistoryEdit: 'Edit Mileage History', mileageHistoryDelete: 'Delete Mileage History',
@@ -32,7 +37,7 @@ const FRIENDLY_LABELS: Partial<Record<PermissionAction, string>> = {
 };
 
 const ACTION_ORDER: PermissionAction[] = [
-  'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'share', 'mileage', 'daily', 'weekly', 'claim', 'export', 'import', 'send', 'owner', 'lock', 'unlock', 'syncStatus', 'sale', 'copyId', 'singleDoc', 'tableStatus', 'complete', 'completed', 'categories', 'groups', 'departments', 'recordsPermission', 'availableVehicles', 'completion', 'discount', 'note', 'state', 'period', 'reoccurring', 'accounts', 'assign', 'signatureReq', 'clearHistory', 'targetFinance', 'targetRental', 'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom', 'quickContact', 'reminder', 'mondayAutoEmail', 'whatsapp', 'email', 'template', 'driverRisk', 'renewalAnalysis', 'showCompletedPaid', 'groupMessaging', 'progressview', 'progressedit', 'mileageHistoryView', 'mileageHistoryEdit', 'mileageHistoryDelete', 'viewPayment', 'editPayment', 'deletePayment', 'restore', 'deletePermanently'
+  'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'share', 'mileage', 'daily', 'weekly', 'claim', 'export', 'import', 'send', 'owner', 'lock', 'unlock', 'syncStatus', 'sale', 'copyId', 'singleDoc', 'tableStatus', 'complete', 'completed', 'categories', 'groups', 'departments', 'recordsPermission', 'availableVehicles', 'completion', 'discount', 'note', 'state', 'period', 'reoccurring', 'accounts', 'assign', 'signatureReq', 'clearHistory', 'targetFinance', 'targetRental', 'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom', 'quickContact', 'reminder', 'bulkEmailScheduler', 'mondayAutoEmail', 'whatsapp', 'email', 'template', 'templateEdit', 'driverRisk', 'renewalAnalysis', 'showCompletedPaid', 'groupMessaging', 'progressview', 'progressedit', 'mileageHistoryView', 'mileageHistoryEdit', 'mileageHistoryDelete', 'viewPayment', 'editPayment', 'deletePayment', 'restore', 'deletePermanently'
 ];
 
 const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
@@ -48,13 +53,27 @@ const isMemberPortalKey = (k: keyof RolePermissions) => MEMBER_PORTAL_KEYS.inclu
 const labelFor = (k: keyof RolePermissions) => SECTION_TITLE_MAP[k] ?? String(k).replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim();
 const orderIndex = (k: PermissionAction) => { const i = ACTION_ORDER.indexOf(k); return i === -1 ? 999 : i; };
 
+const getActionLabel = (module: keyof RolePermissions, action: PermissionAction): string => {
+  if (module === 'rentals') {
+    if (action === 'whatsapp') return 'WhatsApp Messaging (Send / Dispatch)';
+    if (action === 'email') return 'Email Messaging (Send / Dispatch)';
+    if (action === 'templateEdit') return 'Edit Templates (Email & Reminder Template Management)';
+    if (action === 'bulkEmailScheduler' || action === 'mondayAutoEmail') return 'Bulk Email Scheduler Access';
+    if (action === 'template') return 'Message Templates';
+    if (action === 'reminder') return 'Send Reminders';
+  }
+  return FRIENDLY_LABELS[action] || action.charAt(0).toUpperCase() + action.slice(1);
+};
+
 const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   const { user: currentUser } = useAuth();
   const isManager = currentUser?.role === 'manager' || currentUser?.role === 'admin';
 
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<User['role']>(user.role);
-  const safeInitial: RolePermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS[user.role], [user.permissions, user.role]);
+  const safeInitial: RolePermissions = useMemo(() => {
+    return normalizePermissions(user.role, user.permissions);
+  }, [user.permissions, user.role]);
   
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(safeInitial);
   const [query, setQuery] = useState('');
@@ -94,18 +113,43 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
 
   const toggleAction = (module: keyof RolePermissions, action: PermissionAction) => {
     if (!isManager) return;
-    setCustomPermissions((prev) => ({ ...prev, [module]: { ...prev[module], [action]: !prev[module]?.[action] } }));
+    setCustomPermissions((prev) => {
+      const currentVal = Boolean(prev[module]?.[action]);
+      const newVal = !currentVal;
+      const updatedModule = { ...prev[module], [action]: newVal };
+
+      // Keep bulkEmailScheduler and mondayAutoEmail in sync for rentals
+      if (module === 'rentals') {
+        if (action === 'bulkEmailScheduler') {
+          updatedModule.mondayAutoEmail = newVal;
+        } else if (action === 'mondayAutoEmail') {
+          updatedModule.bulkEmailScheduler = newVal;
+        }
+      }
+
+      return { ...prev, [module]: updatedModule };
+    });
   };
 
   const handleGlobalBulkToggle = (value: boolean) => {
     if (!isManager) return;
     setCustomPermissions((prev) => {
       const next = { ...prev };
-      Object.keys(next).forEach((mk) => {
-        if (next[mk as keyof RolePermissions]) {
-            const mod = { ...next[mk as keyof RolePermissions] } as any;
-            Object.keys(mod).forEach((ak) => mod[ak] = value);
-            next[mk as keyof RolePermissions] = mod;
+      (Object.keys(next) as Array<keyof RolePermissions>).forEach((mk) => {
+        if (next[mk]) {
+          const mod = { ...next[mk] } as any;
+          Object.keys(mod).forEach((ak) => {
+            mod[ak] = value;
+          });
+          if (mk === 'rentals') {
+            mod.bulkEmailScheduler = value;
+            mod.mondayAutoEmail = value;
+            mod.whatsapp = value;
+            mod.email = value;
+            mod.templateEdit = value;
+            mod.template = value;
+          }
+          next[mk] = mod;
         }
       });
       return next;
@@ -117,18 +161,26 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
     if (!isManager) return;
     setCustomPermissions((prev) => {
       const next = { ...prev };
-      const mod = { ...next[moduleKey] } as any;
-      if (mod) {
-        Object.keys(mod).forEach((ak) => mod[ak] = value);
-        next[moduleKey] = mod;
+      const mod = { ...(next[moduleKey] || {}) } as any;
+      Object.keys(mod).forEach((ak) => {
+        mod[ak] = value;
+      });
+      if (moduleKey === 'rentals') {
+        mod.bulkEmailScheduler = value;
+        mod.mondayAutoEmail = value;
+        mod.whatsapp = value;
+        mod.email = value;
+        mod.templateEdit = value;
+        mod.template = value;
       }
+      next[moduleKey] = mod;
       return next;
     });
   };
 
   const resetToRole = (newRole: User['role']) => {
     setRole(newRole);
-    setCustomPermissions(DEFAULT_PERMISSIONS[newRole]);
+    setCustomPermissions(normalizePermissions(newRole));
   };
 
   return (
@@ -203,7 +255,8 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                     {ordered.map(([action, enabled]) => {
                       if (module !== 'rentals' && (action === 'daily' || action === 'weekly' || action === 'claim')) return null;
-                      const label = FRIENDLY_LABELS[action] || action.charAt(0).toUpperCase() + action.slice(1);
+                      if (module === 'rentals' && action === 'mondayAutoEmail') return null;
+                      const label = getActionLabel(module as keyof RolePermissions, action);
 
                       return (
                         <button

@@ -73,39 +73,37 @@ const VehicleUndoSaleModal: React.FC<VehicleUndoSaleModalProps> = ({ vehicle, on
       isOpen={!!vehicle}
       onClose={onClose}
       title="Undo Vehicle Sale"
+      theme="navy"
+      size="md"
     >
-      <div className="space-y-4">
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                This will revert the vehicle status to <strong>Active</strong>.
-              </p>
-              {vehicle.salePrice && vehicle.salePrice > 0 && (
-                 <p className="text-sm text-yellow-700 mt-2">
-                   A negative transaction (Expense) of <strong>£{vehicle.salePrice.toLocaleString()}</strong> will be created to reverse the original sale income.
-                 </p>
-              )}
-            </div>
-          </div>
+      <div className="space-y-5">
+        <div className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-5 text-amber-200 shadow-inner">
+          <p className="text-sm font-medium">
+            This will revert the vehicle status to <strong className="text-white font-bold">Active</strong>.
+          </p>
+          {vehicle.salePrice && vehicle.salePrice > 0 && (
+            <p className="text-sm text-amber-300/90 mt-2">
+              A reversal transaction (Expense) of <strong className="text-white font-bold">£{vehicle.salePrice.toLocaleString()}</strong> will be automatically created to reverse the original sale income.
+            </p>
+          )}
         </div>
 
-        <p className="text-sm text-gray-500">
-          Are you sure you want to proceed?
+        <p className="text-sm text-slate-300">
+          Are you sure you want to proceed with reversing the sold status for <strong className="text-white">{vehicle.registrationNumber}</strong>?
         </p>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleUndo}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700"
+            className="px-5 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-500 rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
           >
             {loading ? 'Processing...' : 'Undo Sold Status'}
           </button>

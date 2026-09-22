@@ -79,32 +79,54 @@ const EmailHistory = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full table-auto border">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border px-2 py-1">Date</th>
-              <th className="border px-2 py-1">Email Type</th>
-              <th className="border px-2 py-1">Recipient</th>
-              <th className="border px-2 py-1">Subject</th>
-              <th className="border px-2 py-1">Sent By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLogs.map(log => (
-              <tr key={log.id}>
-                <td className="border px-2 py-1">
-                  {format(log.sentAt?.toDate?.() || new Date(), 'yyyy-MM-dd HH:mm')}
-                </td>
-                <td className="border px-2 py-1 capitalize">{log.emailType}</td>
-                <td className="border px-2 py-1">{log.recipientEmail}</td>
-                <td className="border px-2 py-1">{log.subject}</td>
-                <td className="border px-2 py-1">{log.sentBy || 'system'}</td>
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Date</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Email Type</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Recipient</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
+                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Sent By</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {filteredLogs.length === 0 && <p className="mt-4 text-gray-600">No email logs found.</p>}
+            </thead>
+            <tbody>
+              {filteredLogs.map((log, idx) => {
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                  <tr key={log.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">
+                      {format(log.sentAt?.toDate?.() || new Date(), 'yyyy-MM-dd HH:mm')}
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium capitalize">{log.emailType}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-800 font-medium">{log.recipientEmail}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">{log.subject}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium">{log.sentBy || 'system'}</td>
+                  </tr>
+                );
+              })}
+              {filteredLogs.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 font-medium">
+                    No email logs found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{filteredLogs.length}</span> log{filteredLogs.length === 1 ? '' : 's'}
+          </div>
+          <div className="text-slate-400">
+            Email System Records
+          </div>
+        </div>
       </div>
     </div>
   );

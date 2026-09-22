@@ -88,7 +88,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
         <div className="space-y-3">
           {/* Main Financial & Type Overview */}
           <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-blue-300 uppercase tracking-wider">Total Claims</p>
                 <p className="text-2xl font-black font-mono text-white mt-1">{totalCount}</p>
@@ -97,7 +97,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <AlertTriangle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Fault</p>
                 <p className="text-2xl font-black font-mono text-rose-300 mt-1">{faultCount}</p>
@@ -106,7 +106,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <XCircle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Non-Fault</p>
                 <p className="text-2xl font-black font-mono text-emerald-300 mt-1">{nonFaultCount}</p>
@@ -115,7 +115,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <CheckCircle className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Fault Cost</p>
                 <p className="text-xl font-black font-mono text-rose-300 mt-1">{gb(faultTotal)}</p>
@@ -124,7 +124,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Non-Fault Cost</p>
                 <p className="text-xl font-black font-mono text-emerald-300 mt-1">{gb(nonFaultTotal)}</p>
@@ -137,19 +137,19 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
 
           {/* Insurer Financial Metrics (Live synced from Post-Report Insurance Data) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white">
               <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">Total Incurred (AD+TP)</p>
               <p className="text-base sm:text-xl font-black font-mono text-purple-200 mt-1">{gb(totalIncurred)}</p>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white">
               <p className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Total TP Est</p>
               <p className="text-base sm:text-xl font-black font-mono text-indigo-200 mt-1">{gb(totalTpEst)}</p>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white">
               <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Act Recovery</p>
               <p className="text-base sm:text-xl font-black font-mono text-emerald-300 mt-1">{gb(totalActRecovery)}</p>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white">
               <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Outstanding Recovery</p>
               <p className="text-base sm:text-xl font-black font-mono text-amber-300 mt-1">{gb(totalOutstanding)}</p>
             </div>
@@ -157,7 +157,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
 
           {/* Operational Status Counts */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-blue-300 uppercase tracking-wider">Reported (Yes)</p>
                 <p className="text-2xl font-black font-mono text-white mt-1">{reportedCount}</p>
@@ -166,7 +166,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <FileCheck className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-rose-300 uppercase tracking-wider">Investigating</p>
                 <p className="text-2xl font-black font-mono text-rose-300 mt-1">{investigatingCount}</p>
@@ -175,7 +175,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <ShieldAlert className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Processing</p>
                 <p className="text-2xl font-black font-mono text-amber-200 mt-1">{processingCount}</p>
@@ -184,7 +184,7 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
                 <Activity className="w-5 h-5" />
               </div>
             </div>
-            <div className="bg-[#0c101c] rounded-2xl shadow-xl p-4 border border-slate-800/90 hover:border-slate-700/80 transition-all text-white flex items-center justify-between">
+            <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 border border-[#2B314E] hover:border-[#3D456E] transition-all text-white flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Resolved</p>
                 <p className="text-2xl font-black font-mono text-emerald-300 mt-1">{resolvedCount}</p>
@@ -258,24 +258,24 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
       </div>
 
       {/* ── Search + Status (Card) ── */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
+      <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-center">
           <div className="relative sm:col-span-2">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
             </div>
             <input
               type="text"
               placeholder="Search by reference no, name, vehicle, location..."
               onChange={(e) => onSearch(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
             />
           </div>
 
           <div className="flex sm:justify-end">
             <select
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+              className="block w-full sm:w-48 px-3 py-2.5 text-sm font-medium border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>

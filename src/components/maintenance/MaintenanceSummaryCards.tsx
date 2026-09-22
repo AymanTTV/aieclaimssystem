@@ -7,9 +7,15 @@ import { differenceInCalendarDays } from 'date-fns';
 
 interface MaintenanceSummaryCardsProps {
   logs: MaintenanceLog[];
+  activeStatusFilter?: string;
+  onSelectStatusFilter?: (status: string) => void;
 }
 
-const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs }) => {
+const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ 
+  logs,
+  activeStatusFilter = 'all',
+  onSelectStatusFilter
+}) => {
   // Destructure isCompany from usePermissions
   const { can, isCompany } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
@@ -39,10 +45,29 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
   const totalPaid     = logs.reduce((s, l) => s + (l.paidAmount || 0), 0);
   const totalOwing    = logs.reduce((s, l) => s + (l.remainingAmount || 0), 0);
 
+  const handleCardClick = (status: string) => {
+    if (!onSelectStatusFilter) return;
+    if (activeStatusFilter === status) {
+      onSelectStatusFilter('all');
+    } else {
+      onSelectStatusFilter(status);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
       {/* Total Maintenance */}
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
+      <div 
+        onClick={() => handleCardClick('all')}
+        role="button"
+        tabIndex={0}
+        title="Click to show all maintenance logs"
+        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          activeStatusFilter === 'all'
+            ? 'border-blue-400 ring-2 ring-blue-500/50 shadow-blue-900/30'
+            : 'border-[#2B314E] hover:border-blue-400/50'
+        }`}
+      >
         <div className="flex items-center">
           <div className="p-2.5 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
             <Calendar className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -55,7 +80,19 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
       </div>
 
       {/* Scheduled - Red if due within 7 days */}
-      <div className={`bg-[#0c101c] rounded-2xl shadow-xl border ${dueWithin7Days > 0 ? 'border-red-500/80 border-l-4 !border-l-red-500 bg-[#160c13]' : 'border-slate-800/90'} p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group`}>
+      <div 
+        onClick={() => handleCardClick('scheduled')}
+        role="button"
+        tabIndex={0}
+        title="Click to filter by Scheduled status"
+        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          activeStatusFilter === 'scheduled'
+            ? 'border-amber-400 ring-2 ring-amber-500/50'
+            : dueWithin7Days > 0 
+              ? 'border-red-500/80 border-l-4 !border-l-red-500 bg-[#1E1624] hover:border-red-400' 
+              : 'border-[#2B314E] hover:border-amber-400/50'
+        }`}
+      >
         <div className="flex items-start">
           <div className={`p-2.5 rounded-xl border shadow-xs ${dueWithin7Days > 0 ? 'bg-red-500/20 border-red-500/40 text-red-400 animate-pulse' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
             {dueWithin7Days > 0 ? (
@@ -81,7 +118,17 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
       </div>
 
       {/* In-Progress */}
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-orange-500/50 transition-all duration-200 relative overflow-hidden group">
+      <div 
+        onClick={() => handleCardClick('in-progress')}
+        role="button"
+        tabIndex={0}
+        title="Click to filter by In Progress status"
+        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          activeStatusFilter === 'in-progress'
+            ? 'border-orange-400 ring-2 ring-orange-500/50'
+            : 'border-[#2B314E] hover:border-orange-400/50'
+        }`}
+      >
         <div className="flex items-center">
           <div className="p-2.5 rounded-xl border bg-orange-500/15 border-orange-500/30 text-orange-400 shadow-xs">
             <Wrench className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -94,7 +141,17 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
       </div>
 
       {/* Completed */}
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
+      <div 
+        onClick={() => handleCardClick('completed')}
+        role="button"
+        tabIndex={0}
+        title="Click to filter by Completed status"
+        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          activeStatusFilter === 'completed'
+            ? 'border-emerald-400 ring-2 ring-emerald-500/50'
+            : 'border-[#2B314E] hover:border-emerald-400/50'
+        }`}
+      >
         <div className="flex items-center">
           <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
             <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -107,7 +164,17 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
       </div>
 
       {/* Cancelled */}
-      <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 relative overflow-hidden group">
+      <div 
+        onClick={() => handleCardClick('cancelled')}
+        role="button"
+        tabIndex={0}
+        title="Click to filter by Cancelled status"
+        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          activeStatusFilter === 'cancelled'
+            ? 'border-slate-400 ring-2 ring-slate-400/50'
+            : 'border-[#2B314E] hover:border-slate-400/50'
+        }`}
+      >
         <div className="flex items-center">
           <div className="p-2.5 rounded-xl border bg-slate-800/80 border-slate-700/60 text-slate-400 shadow-xs">
             <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -121,7 +188,7 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ logs 
 
       {/* Financial Breakdown - Hidden for Company role */}
       {!isCompany && (
-        <div className="bg-[#0c101c] rounded-2xl shadow-xl border border-slate-800/90 p-4 sm:p-5 text-white flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200">
+        <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white flex flex-col justify-between hover:border-[#3D456E] transition-all duration-200">
           <div className="flex items-start">
             <div className="p-2 rounded-xl border bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-xs shrink-0">
               <DollarSign className="w-5 h-5" />

@@ -3,24 +3,53 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-outer: #0F111A;
+    --bg-card-navy: #16192B;
+    --bg-card-navy-elevated: #1E2238;
+    --border-card-navy: #2B314E;
+    --text-navy-title: #FFFFFF;
+  }
+
   body {
-    background-color: #f8fafc;
-    background-image: radial-gradient(at 0% 0%, #f1f5f9 0px, transparent 50%),
-                      radial-gradient(at 100% 100%, #e2e8f0 0px, transparent 50%),
-                      linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e8edf5 100%);
+    background-color: #0F111A;
+    background-image: radial-gradient(at 0% 0%, #16192B 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, #1E2238 0px, transparent 50%),
+                      linear-gradient(135deg, #0F111A 0%, #121524 50%, #0F111A 100%);
     background-attachment: fixed;
-    color: #0f172a;
+    color: #F8FAFC;
     min-height: 100vh;
   }
 
+  /* Default page titles on dark canvas */
   h1, h2, h3, h4, h5, h6 {
-    color: #0f172a;
+    color: #FFFFFF;
+  }
+
+  /* Top-level page titles explicit crisp white */
+  .page-title,
+  h1.text-gray-900,
+  h2.text-gray-900 {
+    color: #FFFFFF !important;
   }
 }
 
 @keyframes fadeScaleUp {
   0% { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadingBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-blink {
+  animation: fadingBlink 2.6s ease-in-out infinite;
 }
 
 @layer utilities {
@@ -37,21 +66,156 @@
     background-color: #f1f5f9 !important;
   }
 
-  /* High contrast readable dark text for headings, labels, and content in light mode */
-  :not(.dark) .text-gray-900, :not(.dark) .text-gray-800 {
+  /* Signature Dark Navy Theme Utilities */
+  .bg-dark-navy-page {
+    background-color: #0F111A !important;
+  }
+  .bg-dark-navy-card {
+    background-color: #16192B !important;
+    border-color: #2B314E !important;
+  }
+  .bg-dark-navy-elevated {
+    background-color: #1E2238 !important;
+    border-color: #2B314E !important;
+  }
+  .border-dark-navy {
+    border-color: #2B314E !important;
+  }
+
+  /* High contrast readable dark text for headings and labels ONLY inside light containers */
+  .bg-white,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-slate-50,
+  .bg-slate-100 {
+    color: #0f172a;
+  }
+
+  .bg-white .text-gray-900, .bg-white .text-gray-800,
+  .bg-gray-50 .text-gray-900, .bg-gray-50 .text-gray-800,
+  .bg-gray-100 .text-gray-900, .bg-gray-100 .text-gray-800,
+  .modal-content .text-gray-900, .modal-content .text-gray-800,
+  .add-new-claim-modal .text-gray-900, .add-new-claim-modal .text-gray-800,
+  table .text-gray-900, table .text-gray-800 {
     color: #0f172a !important;
   }
-  :not(.dark) .text-gray-700 {
+
+  /* Headings inside white containers and Add New Claim modal must be bold black, never white */
+  .bg-white h1, .bg-white h2, .bg-white h3, .bg-white h4, .bg-white h5, .bg-white h6,
+  .bg-gray-50 h1, .bg-gray-50 h2, .bg-gray-50 h3, .bg-gray-50 h4, .bg-gray-50 h5, .bg-gray-50 h6,
+  .modal-content h1, .modal-content h2, .modal-content h3, .modal-content h4, .modal-content h5, .modal-content h6,
+  .add-new-claim-modal h1, .add-new-claim-modal h2, .add-new-claim-modal h3, .add-new-claim-modal h4, .add-new-claim-modal h5, .add-new-claim-modal h6 {
+    color: #0f172a !important;
+  }
+
+  .bg-white .text-gray-700, .bg-gray-50 .text-gray-700, .bg-gray-100 .text-gray-700,
+  table .text-gray-700 {
+    color: #1e293b !important;
+  }
+
+  .bg-white .text-gray-600, .bg-gray-50 .text-gray-600,
+  table .text-gray-600 {
     color: #334155 !important;
   }
-  :not(.dark) .text-gray-600 {
-    color: #475569 !important;
+
+  /* Universal protection: In any light container, force unstyled spans, divs, and paragraphs to dark slate */
+  .bg-white span:not([class*="text-"]):not([class*="bg-"]),
+  .bg-white p:not([class*="text-"]),
+  .bg-white div:not([class*="text-"]):not([class*="bg-"]),
+  .bg-gray-50 span:not([class*="text-"]):not([class*="bg-"]),
+  .bg-gray-50 p:not([class*="text-"]),
+  .bg-gray-50 div:not([class*="text-"]):not([class*="bg-"]),
+  .bg-gray-100 span:not([class*="text-"]):not([class*="bg-"]),
+  .bg-gray-100 p:not([class*="text-"]),
+  .bg-gray-100 div:not([class*="text-"]):not([class*="bg-"]) {
+    color: #0f172a !important;
   }
-  :not(.dark) .text-gray-500 {
-    color: #64748b !important;
+
+  /* Inside Dark Navy modals, prevent accidental stark white box containers */
+  .modal-navy .bg-gray-50:not([data-force-light]),
+  .modal-navy .bg-slate-50:not([data-force-light]) {
+    background-color: #0F111A !important;
+    border-color: #2B314E !important;
+    color: #F8FAFC !important;
   }
-  :not(.dark) .text-gray-400 {
-    color: #94a3b8 !important;
+
+  .modal-navy .bg-gray-50:not([data-force-light]) span:not([class*="text-"]),
+  .modal-navy .bg-gray-50:not([data-force-light]) p:not([class*="text-"]),
+  .modal-navy .bg-gray-50:not([data-force-light]) div:not([class*="text-"]) {
+    color: #F8FAFC !important;
+  }
+
+  /* Global Filter and Search Labels - High contrast visibility fix across all pages */
+  .bg-white label,
+  .bg-gray-50 label,
+  .bg-gray-100 label,
+  form label:not(.attachment-item):not(.attachment-title):not(.attachment-label):not([data-attachment-item]):not([data-attachment-box]),
+  label.filter-label,
+  .search-filter-label {
+    color: #1E2238;
+    font-weight: 600;
+  }
+
+  /* Explicit labels in SearchableSelect */
+  .searchable-select-label {
+    color: #1E2238 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Dark navy container labels override to white */
+  .modal-navy label,
+  .modal-navy .searchable-select-label,
+  .bg-\[\#16192B\] label,
+  .bg-\[\#1E2238\] label,
+  .bg-\[\#0F111A\] label,
+  .bg-\[\#121524\] label,
+  .bg-\[\#0c101c\] label,
+  .bg-\[\#0f1022\] label,
+  .bg-\[\#212049\] label,
+  .bg-\[\#1E1E2D\] label,
+  .bg-\[\#161622\] label,
+  .bg-\[\#13131A\] label,
+  .dark-navy-card label,
+  .attachment-container label,
+  .attachment-item,
+  .attachment-title,
+  .attachment-label,
+  [data-attachment-box] label,
+  [data-attachment-item],
+  .bg-\[\#16192B\] .searchable-select-label,
+  .bg-\[\#1E2238\] .searchable-select-label,
+  .bg-\[\#0F111A\] .searchable-select-label,
+  .bg-\[\#121524\] .searchable-select-label,
+  .bg-\[\#0c101c\] .searchable-select-label,
+  .bg-\[\#0f1022\] .searchable-select-label,
+  .dark-navy-card .searchable-select-label {
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+  }
+
+  /* Dark Navy Container Text and Heading Contrast Rules */
+  .bg-\[\#16192B\],
+  .bg-\[\#1E2238\],
+  .bg-\[\#0F111A\],
+  .bg-\[\#0c101c\],
+  .bg-\[\#0f1022\],
+  .bg-\[\#212049\],
+  .bg-\[\#1E1E2D\],
+  .bg-\[\#161622\],
+  .bg-\[\#13131A\],
+  .dark-navy-card {
+    color: #FFFFFF;
+  }
+
+  .bg-\[\#16192B\] h1, .bg-\[\#16192B\] h2, .bg-\[\#16192B\] h3, .bg-\[\#16192B\] h4, .bg-\[\#16192B\] h5, .bg-\[\#16192B\] h6,
+  .bg-\[\#1E2238\] h1, .bg-\[\#1E2238\] h2, .bg-\[\#1E2238\] h3, .bg-\[\#1E2238\] h4, .bg-\[\#1E2238\] h5, .bg-\[\#1E2238\] h6,
+  .bg-\[\#0F111A\] h1, .bg-\[\#0F111A\] h2, .bg-\[\#0F111A\] h3, .bg-\[\#0F111A\] h4, .bg-\[\#0F111A\] h5, .bg-\[\#0F111A\] h6,
+  .bg-\[\#0c101c\] h1, .bg-\[\#0c101c\] h2, .bg-\[\#0c101c\] h3, .bg-\[\#0c101c\] h4, .bg-\[\#0c101c\] h5, .bg-\[\#0c101c\] h6,
+  .bg-\[\#212049\] h1, .bg-\[\#212049\] h2, .bg-\[\#212049\] h3, .bg-\[\#212049\] h4, .bg-\[\#212049\] h5, .bg-\[\#212049\] h6,
+  .bg-\[\#1E1E2D\] h1, .bg-\[\#1E1E2D\] h2, .bg-\[\#1E1E2D\] h3, .bg-\[\#1E1E2D\] h4, .bg-\[\#1E1E2D\] h5, .bg-\[\#1E1E2D\] h6,
+  .bg-\[\#161622\] h1, .bg-\[\#161622\] h2, .bg-\[\#161622\] h3, .bg-\[\#161622\] h4, .bg-\[\#161622\] h5, .bg-\[\#161622\] h6,
+  .dark-navy-card h1, .dark-navy-card h2, .dark-navy-card h3, .dark-navy-card h4, .dark-navy-card h5, .dark-navy-card h6 {
+    color: #FFFFFF !important;
   }
 
   /* Explicit white text rule with high specificity */
@@ -79,34 +243,89 @@
     color: #94a3b8 !important;
   }
 
-  /* Light mode attachment container styling */
-  .attachment-container,
-  .attachment-box,
-  [data-attachment-box] {
-    background-color: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    color: #1e293b !important;
+  /* Attachment container styling - Light mode by default when not in dark or navy container */
+  body:not(.dark) :not(.modal-navy) .attachment-container:not(.dark-attachment),
+  body:not(.dark) :not(.modal-navy) .attachment-box:not(.dark-attachment),
+  body:not(.dark) :not(.modal-navy) [data-attachment-box]:not(.dark-attachment) {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #1e293b;
   }
 
-  .attachment-item,
-  [data-attachment-item] {
-    background-color: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    color: #1e293b !important;
+  body:not(.dark) :not(.modal-navy) .attachment-item:not(.dark-attachment-item),
+  body:not(.dark) :not(.modal-navy) [data-attachment-item]:not(.dark-attachment-item) {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: #1e293b;
   }
 
-  .attachment-item:hover,
-  [data-attachment-item]:hover {
-    background-color: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
+  body:not(.dark) :not(.modal-navy) .attachment-item:not(.dark-attachment-item):hover,
+  body:not(.dark) :not(.modal-navy) [data-attachment-item]:not(.dark-attachment-item):hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
   }
 
-  .attachment-item.is-selected,
-  .attachment-item:has(input:checked),
-  [data-attachment-item].is-selected {
-    background-color: rgba(66, 63, 189, 0.08) !important;
-    border-color: #423fbd !important;
-    color: #212049 !important;
+  body:not(.dark) :not(.modal-navy) .attachment-item:not(.dark-attachment-item).is-selected,
+  body:not(.dark) :not(.modal-navy) .attachment-item:not(.dark-attachment-item):has(input:checked),
+  body:not(.dark) :not(.modal-navy) [data-attachment-item]:not(.dark-attachment-item).is-selected {
+    background-color: rgba(66, 63, 189, 0.08);
+    border-color: #423fbd;
+    color: #212049;
+  }
+
+  /* Navy modal & dark mode attachment container: Crystal clear readability & high contrast */
+  .modal-navy .attachment-container,
+  .modal-navy [data-attachment-box],
+  .dark .attachment-container,
+  .dark [data-attachment-box],
+  .dark-attachment {
+    background-color: #121524 !important;
+    border: 1px solid #2B314E !important;
+    color: #f8fafc !important;
+  }
+
+  .modal-navy .attachment-title,
+  .dark .attachment-title,
+  .dark-attachment .attachment-title {
+    color: #ffffff !important;
+  }
+
+  .modal-navy .attachment-item,
+  .modal-navy [data-attachment-item],
+  .dark .attachment-item,
+  .dark [data-attachment-item],
+  .dark-attachment-item {
+    background-color: #0F111A !important;
+    border: 1px solid #2B314E !important;
+    color: #f1f5f9 !important;
+  }
+
+  .modal-navy .attachment-item:hover,
+  .modal-navy [data-attachment-item]:hover,
+  .dark .attachment-item:hover,
+  .dark [data-attachment-item]:hover,
+  .dark-attachment-item:hover {
+    background-color: #1a1e36 !important;
+    border-color: #485382 !important;
+    color: #ffffff !important;
+  }
+
+  .modal-navy .attachment-item.is-selected,
+  .modal-navy .attachment-item:has(input:checked),
+  .modal-navy [data-attachment-item].is-selected,
+  .dark .attachment-item.is-selected,
+  .dark .attachment-item:has(input:checked),
+  .dark [data-attachment-item].is-selected,
+  .dark-attachment-item.is-selected {
+    background-color: rgba(99, 102, 241, 0.22) !important;
+    border-color: #6366f1 !important;
+    color: #ffffff !important;
+  }
+
+  .modal-navy .attachment-label,
+  .dark .attachment-label,
+  .dark-attachment-item .attachment-label {
+    color: #ffffff !important;
   }
 
   /* Clean subtle borders in light mode */
@@ -140,17 +359,17 @@
   }
 
   /* Active/Hover states: clean light surface with distinct separation */
-  table tbody tr:hover,
+  table tbody tr:not([class*="bg-"]):hover,
   table tbody tr.hover\:bg-gray-50:hover,
   .table-row:hover,
   div.hover\:bg-gray-50:hover {
-    background-color: #f8fafc !important;
+    background-color: #f8fafc;
   }
 
-  table tbody tr:hover td,
+  table tbody tr:not([class*="bg-"]):hover td,
   table tbody tr.hover\:bg-gray-50:hover td,
   .table-row:hover td {
-    background-color: #f8fafc !important;
+    background-color: #f8fafc;
   }
 
   .hover\:bg-gray-50:hover {
@@ -176,14 +395,33 @@
 }
 
 @layer base {
-  /* Clean light styling for native input fields, selects, and textareas */
+  /* Clean light styling for native input fields on light containers */
   input[type="text"], input[type="date"], input[type="email"], input[type="password"], input[type="number"], input[type="tel"], input[type="url"], input[type="search"], select, textarea {
-    background-color: #ffffff !important;
-    color: #0f172a !important;
-    border: 1px solid #cbd5e1 !important;
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
     color-scheme: light;
   }
   input::placeholder, textarea::placeholder {
+    color: #94a3b8;
+  }
+
+  /* Dark inputs on dark containers */
+  .bg-\[\#16192B\] input, .bg-\[\#16192B\] select, .bg-\[\#16192B\] textarea,
+  .bg-\[\#1E2238\] input, .bg-\[\#1E2238\] select, .bg-\[\#1E2238\] textarea,
+  .bg-\[\#0F111A\] input, .bg-\[\#0F111A\] select, .bg-\[\#0F111A\] textarea,
+  .bg-\[\#0f1022\] input, .bg-\[\#0f1022\] select, .bg-\[\#0f1022\] textarea,
+  .dark-navy-card input, .dark-navy-card select, .dark-navy-card textarea {
+    background-color: #0F111A !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color-scheme: dark;
+  }
+  .bg-\[\#16192B\] input::placeholder,
+  .bg-\[\#1E2238\] input::placeholder,
+  .bg-\[\#0F111A\] input::placeholder,
+  .bg-\[\#0f1022\] input::placeholder,
+  .dark-navy-card input::placeholder {
     color: #94a3b8 !important;
   }
 }
@@ -219,6 +457,97 @@
   }
   .modal-header {
     @apply border-b border-slate-200 px-6 py-4 bg-slate-50 rounded-t-2xl;
+  }
+
+  /* Navy Modal System */
+  .modal-navy {
+    background-color: #16192B !important;
+    border-color: #2B314E !important;
+    color: #FFFFFF !important;
+  }
+  .modal-navy .modal-header {
+    background-color: #16192B !important;
+    border-color: #2B314E !important;
+    color: #FFFFFF !important;
+  }
+  .modal-navy h1,
+  .modal-navy h2,
+  .modal-navy h3,
+  .modal-navy h4,
+  .modal-navy h5,
+  .modal-navy h6 {
+    color: #FFFFFF !important;
+  }
+  .modal-navy .text-slate-100,
+  .modal-navy .text-slate-200,
+  .modal-navy .text-slate-300,
+  .modal-navy .text-gray-100,
+  .modal-navy .text-gray-200,
+  .modal-navy .text-gray-300 {
+    color: #E2E8F0 !important;
+  }
+  .modal-navy .text-slate-400,
+  .modal-navy .text-gray-400 {
+    color: #94A3B8 !important;
+  }
+  /* Neutralize accidental dark text inside dark navy modals EXCEPT when on white or light backgrounds */
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-gray-700,
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-gray-800,
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-gray-900,
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-slate-700,
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-slate-800,
+  .modal-navy :not(.bg-white):not([class*="bg-white"]):not(.bg-gray-100):not([class*="bg-gray-100"]).text-slate-900 {
+    color: #FFFFFF !important;
+  }
+
+  /* Universal requirement: In Claim Details and dark navy modals, ALL white or light background elements MUST have BLACK text */
+  .modal-navy .bg-white,
+  .modal-navy .bg-white *,
+  .modal-navy [class*="bg-white"],
+  .modal-navy [class*="bg-white"] *,
+  .modal-navy .status-badge-pill.bg-white,
+  .modal-navy .status-badge-pill.bg-white *,
+  .modal-navy .bg-gray-100,
+  .modal-navy .bg-gray-100 *,
+  .modal-navy [class*="bg-gray-100"],
+  .modal-navy [class*="bg-gray-100"] *,
+  .modal-navy .text-black,
+  .modal-navy .\!text-black,
+  .claim-details-modal .bg-white,
+  .claim-details-modal .bg-white *,
+  .claim-details-modal [class*="bg-white"],
+  .claim-details-modal [class*="bg-white"] *,
+  .claim-details-modal .status-badge-pill.bg-white,
+  .claim-details-modal .status-badge-pill.bg-white *,
+  .claim-details-modal .bg-gray-100,
+  .claim-details-modal .bg-gray-100 *,
+  .claim-details-modal [class*="bg-gray-100"],
+  .claim-details-modal [class*="bg-gray-100"] *,
+  .claim-details-modal .text-black,
+  .claim-details-modal .\!text-black {
+    color: #000000 !important;
+  }
+  .modal-navy .form-input,
+  .modal-navy .form-select,
+  .modal-navy .form-textarea,
+  .modal-navy input:not([type="checkbox"]):not([type="radio"]),
+  .modal-navy textarea,
+  .modal-navy select {
+    background-color: #0F111A !important;
+    border-color: #2B314E !important;
+    color: #FFFFFF !important;
+  }
+  .modal-navy input:focus,
+  .modal-navy textarea:focus,
+  .modal-navy select:focus {
+    border-color: #3b82f6 !important;
+    outline: none !important;
+  }
+  .modal-navy label,
+  .modal-navy .form-label,
+  .modal-navy .searchable-select-label {
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
   }
 
   /* Tables */
@@ -282,4 +611,16 @@
     border-radius: 12px !important;
     color: #0f172a !important;
   }
+
+  /* Scrollbar hiding utilities for clean scrolling without scrollbars */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
 }
+

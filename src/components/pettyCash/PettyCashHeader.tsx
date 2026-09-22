@@ -116,14 +116,14 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
       </div>
 
       <div className="relative flex-1">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+          <Search className="h-4 w-4 text-slate-400" />
         </div>
         <input
           type="text"
           placeholder="Search by name, telephone, description..."
           onChange={(e) => onSearch(e.target.value)}
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
         />
       </div>
     </div>

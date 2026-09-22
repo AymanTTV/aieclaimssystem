@@ -21,12 +21,14 @@ const ParamedicDetails = () => {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Paramedic Information</h3>
+      <div className="pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Paramedic Information</h3>
+      </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Were paramedics involved?</label>
+        <label className="block text-sm font-bold text-gray-950 mb-1.5">Were paramedics involved?</label>
         <select
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+          className="block w-full max-w-xs rounded-lg border-gray-300 bg-white text-gray-950 font-bold shadow-2xs focus:border-primary focus:ring-primary sm:text-sm py-2 px-3"
           // 4. Control the dropdown's value with state
           value={paramedicInvolved ? 'yes' : 'no'}
           onChange={(e) => setParamedicInvolved(e.target.value === 'yes')}

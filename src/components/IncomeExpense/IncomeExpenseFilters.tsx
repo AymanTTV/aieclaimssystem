@@ -49,64 +49,126 @@ const IncomeExpenseFilters: React.FC<Props> = ({
   }, [categoriesCollection]);
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm space-y-4">
+    <div className="bg-[#16192B] border border-[#2B314E] p-4 sm:p-5 rounded-2xl shadow-xl text-white space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
         {/* Search */}
         <div className="relative sm:col-span-2">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-400" /></div>
-          <input type="text" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Search by name or reference..." className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" />
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Search</label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              placeholder="Search by name or reference..."
+              className="block w-full pl-10 pr-3.5 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner transition-all"
+            />
+          </div>
         </div>
+
         {/* Type */}
-        <select value={typeFilter} onChange={(e) => onType(e.target.value as any)} className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-          <option value="all">All Types</option><option value="income">Income</option><option value="expense">Expense</option>
-        </select>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => onType(e.target.value as any)}
+            className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+
         {/* Category */}
-        <select value={category} onChange={(e) => onCategory(e.target.value)} className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-          <option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Category</label>
+          <select
+            value={category}
+            onChange={(e) => onCategory(e.target.value)}
+            className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-end justify-between pt-2 border-t border-gray-100">
+      <div className="flex flex-col sm:flex-row gap-4 items-end justify-between pt-3 border-t border-[#2B314E]">
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-           {/* Date Range */}
-            <div className="flex gap-2">
-              <div><label className="block text-xs font-medium text-gray-500 mb-1">From</label><input type="date" value={dateRange.start} onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" /></div>
-              <div><label className="block text-xs font-medium text-gray-500 mb-1">To</label><input type="date" value={dateRange.end} onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" /></div>
+          {/* Date Range */}
+          <div className="flex gap-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })}
+                className="block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-            
-            {/* Recurring Status */}
-            {recurringFilter && onRecurringFilterChange && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Recurring</label>
-                <select value={recurringFilter} onChange={(e) => onRecurringFilterChange(e.target.value as any)} className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-                  <option value="all">All</option><option value="recurring">Yes</option><option value="non_recurring">No</option>
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })}
+                className="block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          
+          {/* Recurring Status */}
+          {recurringFilter && onRecurringFilterChange && (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Recurring</label>
+              <select
+                value={recurringFilter}
+                onChange={(e) => onRecurringFilterChange(e.target.value as any)}
+                className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">All</option>
+                <option value="recurring">Yes</option>
+                <option value="non_recurring">No</option>
+              </select>
+            </div>
+          )}
 
-            {/* --- NEW: Frequency Filter (Only show if recurring or all is selected) --- */}
-            {recurringFrequency && onRecurringFrequencyChange && recurringFilter !== 'non_recurring' && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Period</label>
-                <select value={recurringFrequency} onChange={(e) => onRecurringFrequencyChange(e.target.value)} className="block w-full py-2 px-3 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-                  <option value="all">All Periods</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="biannually">Biannually</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </div>
-            )}
+          {/* --- NEW: Frequency Filter (Only show if recurring or all is selected) --- */}
+          {recurringFrequency && onRecurringFrequencyChange && recurringFilter !== 'non_recurring' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Period</label>
+              <select
+                value={recurringFrequency}
+                onChange={(e) => onRecurringFrequencyChange(e.target.value)}
+                className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">All Periods</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="biannually">Biannually</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+          )}
         </div>
         
         {/* History */}
         <div className="flex items-center pb-1">
-          <button onClick={() => onToggleHistory(!showHistory)} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showHistory ? 'bg-primary' : 'bg-gray-200'}`}>
+          <button
+            type="button"
+            onClick={() => onToggleHistory(!showHistory)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showHistory ? 'bg-blue-600' : 'bg-slate-700'}`}
+          >
             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showHistory ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
-          <span className="ml-3 text-sm font-medium text-gray-900 flex items-center gap-1"><History className="w-4 h-4" /> Include Past</span>
+          <span className="ml-3 text-sm font-bold text-slate-200 flex items-center gap-1.5">
+            <History className="w-4 h-4 text-slate-400" /> Include Past
+          </span>
         </div>
       </div>
     </div>

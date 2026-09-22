@@ -328,66 +328,69 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
       </div>
 
       {/* Table Area */}
-      <div className="flex-1 overflow-auto bg-white min-h-0">
-        <table className="min-w-full divide-y divide-gray-200 relative">
-          <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-            <tr>
-              <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">
+      <div className="flex-1 overflow-auto bg-white min-h-0 border-t border-b border-[#2B314E]">
+        <table className="min-w-full border-collapse relative">
+          <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-md">
+            <tr className="border-b border-[#2B314E]">
+              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
                 Vehicle
               </th>
-              <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">
+              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
                 Reg
               </th>
-              <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">
+              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
                 Status
               </th>
-              <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-[40%]">
+              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[40%]">
                 Note
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredData.map(({ vehicle, status, note }) => (
-              <tr key={vehicle.id} className={`hover:bg-gray-50 ${status === 'substitution' ? 'bg-yellow-50/50' : ''}`}>
+          <tbody>
+            {filteredData.map(({ vehicle, status, note }, idx) => {
+              const isEven = idx % 2 === 1;
+              const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+              return (
+              <tr key={vehicle.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
                 
-                <td className="px-3 py-3 align-top">
+                <td className="px-4 py-3 align-top">
                   <div className="flex items-start gap-2">
-                    <div className="mt-0.5 p-1.5 bg-gray-100 rounded hidden sm:block flex-shrink-0">
-                      <Car className="w-4 h-4 text-gray-500" />
+                    <div className="mt-0.5 p-1.5 bg-slate-100 rounded hidden sm:block flex-shrink-0">
+                      <Car className="w-4 h-4 text-slate-600" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-gray-900 break-words leading-tight">
+                      <div className="text-xs font-bold text-slate-900 break-words leading-tight">
                         {vehicle.make} {vehicle.model}
                       </div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">{vehicle.year}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{vehicle.year}</div>
                     </div>
                   </div>
                 </td>
 
-                <td className="px-3 py-3 align-top">
-                  <span className="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-[11px] font-mono font-medium text-gray-700 whitespace-nowrap">
+                <td className="px-4 py-3 align-top">
+                  <span className="px-2 py-0.5 rounded border border-slate-300 bg-white text-[11px] font-mono font-bold text-slate-800 whitespace-nowrap shadow-2xs">
                     {vehicle.registrationNumber}
                   </span>
                 </td>
 
-                <td className="px-3 py-3 align-top">
+                <td className="px-4 py-3 align-top">
                   {status === 'available' && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800 border border-green-200 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                       Available
                     </span>
                   )}
                   {status === 'returning_soon' && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
                       Returns Soon
                     </span>
                   )}
                   {status === 'substitution' && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800 border border-orange-200 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 border border-orange-200 whitespace-nowrap">
                       On Sub
                     </span>
                   )}
                   {status === 'hired' && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 whitespace-nowrap">
                       Hired
                     </span>
                   )}
@@ -396,30 +399,30 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
                   )}
                 </td>
 
-                <td className="px-3 py-3 align-top">
+                <td className="px-4 py-3 align-top">
                   {status === 'substitution' ? (
-                    <div className="flex items-start gap-1.5 text-xs text-yellow-800 font-medium bg-yellow-100/50 p-1.5 rounded border border-yellow-200 leading-snug">
-                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-yellow-600" />
+                    <div className="flex items-start gap-1.5 text-xs text-amber-900 font-medium bg-amber-100/70 p-1.5 rounded border border-amber-300 leading-snug">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-700" />
                       <span>{note}</span>
                     </div>
                   ) : status === 'returning_soon' ? (
-                     <div className="flex items-start gap-1.5 text-xs text-blue-700 font-medium leading-snug">
+                     <div className="flex items-start gap-1.5 text-xs text-blue-800 font-medium leading-snug">
                       <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                       <span>{note}</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-500 leading-snug">{note || '—'}</span>
+                    <span className="text-xs text-slate-600 leading-snug font-medium">{note || '—'}</span>
                   )}
                 </td>
               </tr>
-            ))}
+            );})}
             
             {filteredData.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-gray-500 bg-gray-50/30">
+                <td colSpan={4} className="px-6 py-12 text-center text-slate-500 bg-white">
                   <div className="flex flex-col items-center justify-center">
-                    <Search className="w-8 h-8 text-gray-300 mb-2" />
-                    <p className="text-gray-600 font-medium text-sm">No vehicles found.</p>
+                    <Search className="w-8 h-8 text-slate-300 mb-2" />
+                    <p className="text-slate-600 font-medium text-sm">No vehicles found.</p>
                   </div>
                 </td>
               </tr>

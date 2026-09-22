@@ -1,7 +1,7 @@
-// src/components/claims/ClaimForm/sections/DriverDetails.tsx
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import FormField from '../../../ui/FormField';
+import TextArea from '../../../ui/TextArea';
 import SignaturePad from '../../../ui/SignaturePad';
 import SearchableSelect from '../../../ui/SearchableSelect';
 import { useCustomers } from '../../../../hooks/useCustomers';
@@ -29,15 +29,13 @@ const DriverDetails = () => {
     }
   };
 
-  // NEW: Function to check for existing customers on blur
+  // Function to check for existing customers on blur
   const checkForExistingCustomer = async () => {
-    // Only run if manual entry is active and we are not selecting a customer
     if (!manualEntry) return;
 
     const email = watch('clientInfo.email')?.trim();
     const phone = watch('clientInfo.phone')?.trim();
 
-    // Don't check if both fields are empty
     if (!email && !phone) {
         clearErrors(['clientInfo.email', 'clientInfo.phone']);
         return;
@@ -48,7 +46,6 @@ const DriverDetails = () => {
     if (email) queryConstraints.push(where('email', '==', email));
     if (phone) queryConstraints.push(where('mobile', '==', phone));
     
-    // If there's nothing to query, exit
     if (queryConstraints.length === 0) return;
 
     const q = query(customersRef, or(...queryConstraints));
@@ -57,11 +54,9 @@ const DriverDetails = () => {
     if (!querySnapshot.empty) {
       const existingCustomer = querySnapshot.docs[0].data();
       const message = `Customer "${existingCustomer.name}" already exists. Please select them from the search list above.`;
-      // Set an error on both fields to alert the user
       setError('clientInfo.email', { type: 'manual_conflict', message });
       setError('clientInfo.phone', { type: 'manual_conflict', message });
     } else {
-      // If no customer is found, clear any previous errors
       clearErrors(['clientInfo.email', 'clientInfo.phone']);
     }
   };
@@ -70,41 +65,43 @@ const DriverDetails = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">Client Details</h3>
-        <label className="flex items-center space-x-2">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Client / Driver Details</h3>
+        <label className="flex items-center space-x-2 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={manualEntry}
             onChange={e => {
                 setManualEntry(e.target.checked);
-                // Clear errors when toggling manual entry
                 if (!e.target.checked) {
                     clearErrors(['clientInfo.email', 'clientInfo.phone']);
                 }
             }}
-            className="rounded border-gray-300 text-primary focus:ring-primary"
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
           />
-          <span className="text-sm text-gray-700">Enter Details Manually</span>
+          <span className="text-sm font-semibold text-gray-900">Enter Details Manually</span>
         </label>
       </div>
 
       {!manualEntry && (
-        <SearchableSelect
-          label="Select Customer"
-          options={customers.map(c => ({
-            id: c.id, label: c.name, subLabel: `${c.mobile} · ${c.email}`
-          }))}
-          value=""
-          onChange={handleCustomerSelect}
-          placeholder="Search customers..."
-        />
+        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <SearchableSelect
+            label="Select Existing Customer (Auto-fills Driver Info)"
+            variant="light"
+            options={customers.map(c => ({
+              id: c.id, label: c.name, subLabel: `${c.mobile} · ${c.email}`
+            }))}
+            value=""
+            onChange={handleCustomerSelect}
+            placeholder="Search customers by name, phone or email..."
+          />
+        </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Name */}
         <FormField
-          label="Name"
+          label="Full Name"
           error={errors.clientInfo?.name?.message as string}
           {...register('clientInfo.name')}
           required
@@ -113,7 +110,7 @@ const DriverDetails = () => {
 
         {/* Address */}
         <FormField
-          label="Address"
+          label="Full Address"
           error={errors.clientInfo?.address?.message as string}
           {...register('clientInfo.address')}
           required
@@ -128,18 +125,18 @@ const DriverDetails = () => {
           {...register('clientInfo.phone')}
           required
           disabled={!manualEntry}
-          onBlur={checkForExistingCustomer} // Add onBlur check
+          onBlur={checkForExistingCustomer}
         />
 
         {/* Email */}
         <FormField
           type="email"
-          label="Email"
+          label="Email Address"
           error={errors.clientInfo?.email?.message as string}
           {...register('clientInfo.email')}
           required
           disabled={!manualEntry}
-          onBlur={checkForExistingCustomer} // Add onBlur check
+          onBlur={checkForExistingCustomer}
         />
 
         {/* DOB */}
@@ -170,40 +167,40 @@ const DriverDetails = () => {
               required
             />
 
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Injury Details
-              </label>
-              <textarea
+            <div className="col-span-1 md:col-span-2">
+              <TextArea
+                label="Injury Details"
+                error={errors.clientInfo?.injuryDetails?.message as string}
                 {...register('clientInfo.injuryDetails')}
-                rows={5}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
-                           focus:border-primary focus:ring-primary sm:text-sm"
-                placeholder="Describe the injury in detail…"
+                required
+                rows={4}
+                placeholder="Describe the injuries sustained in detail…"
               />
-              {errors.clientInfo?.injuryDetails && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.clientInfo.injuryDetails.message as string}
-                </p>
-              )}
             </div>
           </>
         )}
       </div>
 
       {/* Signature */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Driver Signature
-        </label>
-        <SignaturePad
-          value={signature || ''}
-          onChange={value => setValue('clientInfo.signature', value)}
-          className="mt-1 w-full h-32 border rounded-md"
-        />
+      <div className="pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <label className="block text-sm font-bold text-gray-950">
+            Driver Signature
+          </label>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0">
+            <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
+          </span>
+        </div>
+        <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-2 hover:border-primary/50 transition-colors">
+          <SignaturePad
+            value={signature || ''}
+            onChange={value => setValue('clientInfo.signature', value)}
+            className="w-full h-36"
+          />
+        </div>
         {errors.clientInfo?.signature && (
-          <p className="mt-1 text-sm text-red-600">
-            {errors.clientInfo.signature.message as string}
+          <p className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
+            <span>⚠️</span> {errors.clientInfo.signature.message as string}
           </p>
         )}
       </div>

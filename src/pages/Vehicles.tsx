@@ -495,7 +495,7 @@ const Vehicles: React.FC = () => {
       {/* Summary Cards */}
       {can('vehicles', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-300">All Vehicles</p>
             <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-white tracking-tight">{filteredVehicles.length}</p>
@@ -505,7 +505,7 @@ const Vehicles: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-300">
               Due within {SERVICE_THRESHOLD.toLocaleString()} mi
@@ -517,7 +517,7 @@ const Vehicles: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-slate-700/80 transition-all">
+        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
           <div>
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-300">Overdue</p>
             <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-rose-400 tracking-tight">{overdue.length}</p>
@@ -530,59 +530,72 @@ const Vehicles: React.FC = () => {
       )}
 
       {/* Header & Actions */}
-      <div className="space-y-3 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            AIE Vehicles
-          </h1>
+      <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl p-4 sm:p-5 shadow-xl text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shadow-inner">
+              🚗
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                AIE Vehicles
+              </h1>
+              <p className="text-xs text-slate-300">Fleet management, documents, maintenance tracking, and assignments</p>
+            </div>
+          </div>
 
           <div className="w-full grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:w-auto">
             
             {/* ✅ Added Departments Header Button */}
             {!isCompany && can('vehicles', 'departments') && (
                <button
+                 type="button"
                  onClick={() => setShowManageDepartments(true)}
-                 className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+                 className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                >
-                 <Briefcase className="h-4 w-4 mr-2 text-teal-600" />
+                 <Briefcase className="h-4 w-4 mr-2 text-teal-400 pointer-events-none" />
                  Depts
                </button>
             )}
 
             {can('vehicles', 'export') && (
             <button
+              type="button"
               onClick={handleGeneratePDF}
-              className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <FileText className="h-5 w-5 mr-2" />
+              <FileText className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
               Generate PDF
             </button>
             )}
             {can('vehicles', 'create') && (
             <button
+              type="button"
               onClick={handleExport}
-              className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <Download className="h-5 w-5 mr-2" />
+              <Download className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
               Export
             </button>
             )}
           
             {can('vehicles', 'syncStatus') && (
                 <button
+                  type="button"
                   onClick={syncVehicleStatuses}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                 >
-                  <RefreshCw className="h-5 w-5 mr-2" />
+                  <RefreshCw className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
                   Sync Statuses
                 </button>
             )}
               {can('vehicles', 'create') && (
                 <button
+                  type="button"
                   onClick={() => setShowForm(true)}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+                  className="inline-flex items-center justify-center px-4 py-2.5 border border-blue-500 rounded-xl shadow-md text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                 >
-                  <Plus className="h-5 w-5 mr-2" />
+                  <Plus className="h-4.5 w-4.5 mr-1.5 pointer-events-none" />
                   Add Vehicle
                 </button>
             )}
@@ -628,49 +641,54 @@ const Vehicles: React.FC = () => {
 
       {/* Bulk Actions Header */}
       {selectedIds.size > 0 && !isCompany && can('vehicles', 'update') && (
-        <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center text-orange-800 font-medium">
-            <CheckCircle className="w-5 h-5 mr-2" />
-            {selectedIds.size} vehicle{selectedIds.size > 1 ? 's' : ''} selected
+        <div className="bg-[#16192B] border border-[#2B314E] p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl text-white">
+          <div className="flex items-center text-white font-bold text-sm">
+            <CheckCircle className="w-5 h-5 mr-2 text-emerald-400" />
+            <span>{selectedIds.size} vehicle{selectedIds.size > 1 ? 's' : ''} selected</span>
           </div>
           <div className="flex gap-2 w-full sm:w-auto flex-wrap">
             <button
+              type="button"
               onClick={() => { setSelectedIds(new Set()); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 text-center"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white active:scale-95 transition-all text-center cursor-pointer"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={() => { setAssigningTypeSingleVehicle(null); setShowAssignTypeModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
-              <Tag className="w-4 h-4" /> Assign Type
+              <Tag className="w-4 h-4 pointer-events-none" /> Assign Type
             </button>
             <button
+              type="button"
               onClick={() => { setAssigningSingleVehicle(null); setShowAssignModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded hover:bg-orange-700 flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
-              <Building2 className="w-4 h-4" /> Assign Garage
+              <Building2 className="w-4 h-4 pointer-events-none" /> Assign Garage
             </button>
             <button
+              type="button"
               onClick={() => { setAssigningGroupSingleVehicle(null); setShowAssignGroupModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
-              <Layers className="w-4 h-4" /> Assign Group
+              <Layers className="w-4 h-4 pointer-events-none" /> Assign Group
             </button>
             {/* ✅ Bulk Assign Department */}
             <button
+              type="button"
               onClick={() => { setAssigningDepartmentSingleVehicle(null); setShowAssignDepartmentModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded hover:bg-teal-700 flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
-              <Briefcase className="w-4 h-4" /> Assign Dept
+              <Briefcase className="w-4 h-4 pointer-events-none" /> Assign Dept
             </button>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] overflow-hidden">
         <VehicleTable
           vehicles={displayedVehicles}
           onView={setSelectedVehicle}
@@ -723,15 +741,15 @@ const Vehicles: React.FC = () => {
       />
 
       {/* Assign to Garage Modal */}
-      <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage">
+      <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage" theme="navy">
         <form onSubmit={handleAssignGarageSubmit} className="space-y-4">
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-slate-300">
             {assigningSingleVehicle 
               ? `Select a company/garage to assign to ${assigningSingleVehicle.registrationNumber}.`
               : `Select a company/garage to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div className="min-h-[250px]">
+          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner min-h-[220px]">
             <SearchableSelect
               label="Available Garages / Companies"
               options={[
@@ -744,11 +762,19 @@ const Vehicles: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
+          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+            <button
+              type="button"
+              onClick={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }}
+              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={!selectedGarageId} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50 font-medium shadow-sm">
+            <button
+              type="submit"
+              disabled={!selectedGarageId}
+              className="px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm hover:bg-orange-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+            >
               Confirm Assignment
             </button>
           </div>
@@ -756,22 +782,22 @@ const Vehicles: React.FC = () => {
       </Modal>
 
       {/* Assign Type Modal */}
-      <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type">
+      <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type" theme="navy">
         <form onSubmit={handleAssignTypeSubmit} className="space-y-4">
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-slate-300">
             {assigningTypeSingleVehicle 
               ? `Select a type to assign to ${assigningTypeSingleVehicle.registrationNumber}.`
               : `Select a type to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
+            <label className="block text-sm font-semibold text-white mb-2">
               Vehicle Type
             </label>
             <select
               value={selectedAssignmentType}
               onChange={(e) => setSelectedAssignmentType(e.target.value)}
-              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
+              className="block w-full px-4 py-2.5 text-sm bg-[#16192B] border border-[#2B314E] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-xl"
             >
               <option value="" disabled>Select a type...</option>
               <option value="Claims">For Claims</option>
@@ -780,11 +806,19 @@ const Vehicles: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
+          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+            <button
+              type="button"
+              onClick={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }}
+              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={!selectedAssignmentType} className="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 font-medium shadow-sm">
+            <button
+              type="submit"
+              disabled={!selectedAssignmentType}
+              className="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+            >
               Confirm Assignment
             </button>
           </div>
@@ -792,15 +826,15 @@ const Vehicles: React.FC = () => {
       </Modal>
 
       {/* Assign Group Modal */}
-      <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group">
+      <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group" theme="navy">
         <form onSubmit={handleAssignGroupSubmit} className="space-y-4">
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-slate-300">
             {assigningGroupSingleVehicle 
               ? `Select a finance group to assign to ${assigningGroupSingleVehicle.registrationNumber}.`
               : `Select a finance group to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div className="min-h-[250px]">
+          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner min-h-[220px]">
             <SearchableSelect
               label="Available Groups"
               options={[
@@ -813,11 +847,19 @@ const Vehicles: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 font-medium">
+          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+            <button
+              type="button"
+              onClick={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }}
+              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={!selectedGroupId} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 font-medium shadow-sm">
+            <button
+              type="submit"
+              disabled={!selectedGroupId}
+              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+            >
               Confirm Assignment
             </button>
           </div>
@@ -829,6 +871,7 @@ const Vehicles: React.FC = () => {
           isOpen
           onClose={() => setServiceVehicle(null)}
           title="Update Mileage"
+          theme="navy"
         >
           <MileageUpdateForm
             vehicle={serviceVehicle}
@@ -852,10 +895,12 @@ const Vehicles: React.FC = () => {
           }}
           title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
           size="xl"
+          theme="navy"
+          contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
         >
           <VehicleForm
             vehicle={editingVehicle || undefined}
-            departments={departments} // ✅ Add this line
+            departments={departments}
             onClose={() => {
               setShowForm(false);
               setEditingVehicle(null);

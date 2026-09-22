@@ -141,31 +141,41 @@ const Users = () => {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-white to-gray-50 p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-gray-300 transition-all">
-          <div className="p-3 bg-white shadow-sm text-gray-600 rounded-xl"><UsersIcon className="w-6 h-6" /></div>
-          <div><p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl font-black text-gray-900">{stats.total}</p></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
+          <div className="p-3 bg-slate-800/80 border border-slate-700/60 text-slate-200 rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
+          <div><p className="text-xs text-slate-300 font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.total}</p></div>
         </div>
-        <div className="bg-gradient-to-br from-white to-blue-50/50 p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-blue-200 transition-all">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><ShieldCheck className="w-6 h-6" /></div>
-          <div><p className="text-xs text-gray-500 font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl font-black text-gray-900">{stats.admins}</p></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
+          <div className="p-3 bg-blue-500/15 border border-blue-500/30 text-blue-400 rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
+          <div><p className="text-xs text-blue-300 font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.admins}</p></div>
         </div>
-        <div className="bg-gradient-to-br from-white to-indigo-50/50 p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-indigo-200 transition-all">
-          <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl"><Building2 className="w-6 h-6" /></div>
-          <div><p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl font-black text-gray-900">{stats.companies}</p></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
+          <div className="p-3 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
+          <div><p className="text-xs text-indigo-300 font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.companies}</p></div>
         </div>
-        <div className="bg-gradient-to-br from-white to-green-50/50 p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-green-200 transition-all">
-          <div className="p-3 bg-green-100 text-green-600 rounded-xl"><UserPlus className="w-6 h-6" /></div>
-          <div><p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl font-black text-gray-900">{stats.members}</p></div>
+        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
+          <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
+          <div><p className="text-xs text-emerald-300 font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.members}</p></div>
         </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-2">
+      <div className="bg-[#16192B] p-4 rounded-2xl shadow-xl border border-[#2B314E] flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-           <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-           <input type="text" placeholder="Search by name, email, or company..." className="w-full pl-9 py-2.5 rounded-lg border-transparent bg-gray-50 focus:bg-white focus:border-primary focus:ring-primary text-sm transition-all" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Search by name, email, or company..." 
+            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all shadow-inner" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
         </div>
-        <select className="py-2.5 px-4 rounded-lg border-transparent bg-gray-50 focus:bg-white focus:border-primary focus:ring-primary text-sm font-medium transition-all sm:w-48" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+        <select 
+          className="py-2.5 px-4 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all sm:w-48" 
+          value={roleFilter} 
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
           <option value="all">All Roles</option>
           <option value="manager">Manager</option>
           <option value="admin">Admin</option>

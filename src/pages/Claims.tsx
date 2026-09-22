@@ -832,20 +832,20 @@ const Claims: React.FC = () => {
       </div>
 
       {/* ── Search + Filters ── */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
+      <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] mb-6 text-white">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 items-end">
           <div className="relative sm:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-sm font-bold text-slate-200 mb-1.5">Search</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-slate-400" />
               </div>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by client, phone, email, reg, TP name/reg…"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm min-h-[38px]"
+                className="block w-full pl-11 pr-4 py-2 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm min-h-[38px] font-medium transition-all"
               />
             </div>
           </div>
@@ -853,6 +853,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Show Filter"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={SHOW_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
               value={showFilter}
               onChange={(val) => setShowFilter((val as ShowFilter) || 'Default')}
@@ -864,6 +865,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Progress"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={allProgressOptions}
               value={selectedProgresses}
               onChange={(val) => setSelectedProgresses(val as string[])}
@@ -875,10 +877,11 @@ const Claims: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="mt-4 pt-4 border-t border-[#2B314E] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
           <div>
             <SearchableSelect
               label="Group"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={groupOptions}
               value={selectedGroupFilters}
               onChange={(val) => setSelectedGroupFilters(val as string[])}
@@ -892,6 +895,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Department"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={deptOptions}
               value={selectedDepartmentFilters}
               onChange={(val) => setSelectedDepartmentFilters(val as string[])}
@@ -905,6 +909,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Type"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={TYPE_OPTIONS}
               value={selectedTypes}
               onChange={(val) => setSelectedTypes(val as string[])}
@@ -918,6 +923,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Claim Reason"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={REASON_OPTIONS}
               value={selectedReasons}
               onChange={(val) => setSelectedReasons(val as string[])}
@@ -931,6 +937,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Submitter"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={SUBMITTER_OPTIONS}
               value={selectedSubmitters}
               onChange={(val) => setSelectedSubmitters(val as string[])}
@@ -944,6 +951,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="AIE Handler"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={aieHandlerOptions}
               value={selectedAIEHandlers}
               onChange={(val) => setSelectedAIEHandlers(val as string[])}
@@ -957,6 +965,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Legal Handler"
+              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
               options={legalHandlerOptions}
               value={selectedLegalHandlers}
               onChange={(val) => setSelectedLegalHandlers(val as string[])}
@@ -968,23 +977,23 @@ const Claims: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Incident Date (Start)</label>
+        <div className="mt-4 pt-4 border-t border-[#2B314E] grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-bold text-slate-200 mb-1.5">Incident Date (Start)</label>
             <input
               type="date"
               value={incidentDateStart}
               onChange={(e) => setIncidentDateStart(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm h-[38px]"
+              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0f1022] text-white border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Incident Date (End)</label>
+          <div className="space-y-1">
+            <label className="block text-sm font-bold text-slate-200 mb-1.5">Incident Date (End)</label>
             <input
               type="date"
               value={incidentDateEnd}
               onChange={(e) => setIncidentDateEnd(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm h-[38px]"
+              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0f1022] text-white border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
             />
           </div>
         </div>
@@ -1072,13 +1081,27 @@ const Claims: React.FC = () => {
       )}
 
       {showAddModal && (
-        <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add New Claim" size="xl">
+        <Modal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          title="Add New Claim"
+          size="2xl"
+          theme="default"
+          className="add-new-claim-modal"
+        >
           <ClaimForm onClose={() => setShowAddModal(false)} />
         </Modal>
       )}
 
       {selectedClaim && showEditModal && (
-        <Modal isOpen onClose={() => { setShowEditModal(false); setSelectedClaim(null); }} title="Edit Claim" size="xl">
+        <Modal
+          isOpen
+          onClose={() => { setShowEditModal(false); setSelectedClaim(null); }}
+          title="Edit Claim"
+          size="2xl"
+          theme="default"
+          className="add-new-claim-modal"
+        >
           <ClaimEditModal
             key={selectedClaim.id}
             claim={selectedClaim}

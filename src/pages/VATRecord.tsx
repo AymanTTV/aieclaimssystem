@@ -329,25 +329,25 @@ const VATRecordPage = () => {
       {/* Summary Cards */}
       {can('vatRecord', 'cards') && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total NET</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-green-600">{formatCurrency(isNaN(summary.net) ? 0 : summary.net)}</p>
+          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300">Total NET</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">{formatCurrency(isNaN(summary.net) ? 0 : summary.net)}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total VAT</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-blue-600">{formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}</p>
+          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-300">Total VAT</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-blue-400">{formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total GROSS</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-gray-900">{formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}</p>
+          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Total GROSS</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-white">{formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Total VAT Received</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-purple-600">{formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}</p>
+          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-purple-300">Total VAT Received</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-purple-400">{formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-500">Balance</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-orange-600">{formatCurrency(isNaN(summary.balance) ? 0 : summary.balance)}</p>
+          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">Balance</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-amber-400">{formatCurrency(isNaN(summary.balance) ? 0 : summary.balance)}</p>
           </div>
         </div>
       )}

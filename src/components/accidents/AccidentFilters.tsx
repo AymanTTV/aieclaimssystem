@@ -27,33 +27,16 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
   onDateRangeChange,
 }) => {
   return (
-    <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm">
-      {/* Optional inline search for pages that don't use the header search */}
-      {/* Keep commented if you're already searching from header */}
-      {/*
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
-        </div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search by reference no, name, vehicle, location..."
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-        />
-      </div>
-      */}
-
+    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
       {/* Filters grid: 1 → 2 → 3 → 4 */}
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Status */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2.5 text-sm font-medium border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Status</option>
             <option value="reported">Reported</option>
@@ -65,11 +48,11 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
 
         {/* Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Type</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Type</label>
           <select
             value={typeFilter}
             onChange={(e) => onTypeFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2.5 text-sm font-medium border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Types</option>
             <option value="fault">Fault</option>
@@ -80,11 +63,11 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
 
         {/* Claim Status */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Claim Status</label>
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Claim Status</label>
           <select
             value={claimStatusFilter}
             onChange={(e) => onClaimStatusFilterChange(e.target.value)}
-            className="form-select mt-1 w-full"
+            className="block w-full px-3 py-2.5 text-sm font-medium border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Claim Status</option>
             <option value="pending">Pending</option>
@@ -96,8 +79,8 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
 
         {/* Date Range */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Date Range</label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Date Range</label>
+          <div className="grid grid-cols-2 gap-2">
             <input
               type="date"
               value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
@@ -107,7 +90,7 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
                   start: e.target.value ? new Date(e.target.value) : null,
                 })
               }
-              className="form-input w-full"
+              className="block w-full px-2.5 py-2 text-xs sm:text-sm border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="date"
@@ -119,7 +102,7 @@ const AccidentFilters: React.FC<AccidentFiltersProps> = ({
                   end: e.target.value ? new Date(e.target.value) : null,
                 })
               }
-              className="form-input w-full"
+              className="block w-full px-2.5 py-2 text-xs sm:text-sm border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

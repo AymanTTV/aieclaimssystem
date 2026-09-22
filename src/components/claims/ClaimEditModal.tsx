@@ -249,19 +249,28 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {submitError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{submitError}</div>}
+        {submitError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{submitError}</div>}
         <div className="space-y-6">
-          <div className="bg-white rounded-lg p-6 flex space-x-4"><ClaimProgress /><ClientRefField /></div>
-          <div className="bg-white rounded-lg p-6"><SubmitterDetails /></div>
-          <div className="bg-white rounded-lg p-6"><DriverDetails /></div>
-          <div className="bg-white rounded-lg p-6"><RegisterKeeperDetails /></div>
-          <div className="bg-white rounded-lg p-6"><AccidentDetails /></div>
-          {showVehicleDetails && <div className="bg-white rounded-lg p-6"><VehicleDetails /></div>}
-          <div className="bg-white rounded-lg p-6"><FaultPartyDetails /></div>
-          {showGPInformation && <div className="bg-white rounded-lg p-6"><GPInformation /></div>}
-          {showHospitalInformation && <div className="bg-white rounded-lg p-6"><Hospitalinformation /></div>}
-          <div className="bg-white rounded-lg p-6"><EvidenceUpload /></div>
-          <div className="bg-white rounded-lg p-6">
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
+            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+              <div className="flex-1">
+                <ClaimProgress />
+              </div>
+              <div className="w-full sm:w-64">
+                <ClientRefField />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><SubmitterDetails /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><DriverDetails /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><RegisterKeeperDetails /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><AccidentDetails /></div>
+          {showVehicleDetails && <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><VehicleDetails /></div>}
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><FaultPartyDetails /></div>
+          {showGPInformation && <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><GPInformation /></div>}
+          {showHospitalInformation && <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><Hospitalinformation /></div>}
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><EvidenceUpload /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
             <PassengerDetails
               count={watch('passengers')?.length || 0}
               onCountChange={(count) => {
@@ -271,7 +280,7 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
               }}
             />
           </div>
-          <div className="bg-white rounded-lg p-6">
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs">
             <WitnessDetails
               count={watch('witnesses')?.length || 0}
               onCountChange={(count) => {
@@ -281,13 +290,13 @@ const ClaimEditModal: React.FC<ClaimEditModalProps> = ({ claim, onClose }) => {
               }}
             />
           </div>
-          <div className="bg-white rounded-lg p-6"><PoliceDetails /></div>
-          <div className="bg-white rounded-lg p-6"><ParamedicDetails /></div>
-          <div className="bg-white rounded-lg p-6"><FileHandlers /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><PoliceDetails /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><ParamedicDetails /></div>
+          <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-2xs"><FileHandlers /></div>
         </div>
-        <div className="flex justify-end space-x-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-white border rounded-md">Cancel</button>
-          <button type="submit" disabled={loading} className="px-4 py-2 bg-primary text-white rounded-md">{loading ? 'Updating...' : 'Update Claim'}</button>
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-800 font-bold rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+          <button type="submit" disabled={loading} className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">{loading ? 'Updating...' : 'Update Claim'}</button>
         </div>
       </form>
     </FormProvider>

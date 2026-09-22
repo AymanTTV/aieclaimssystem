@@ -69,30 +69,34 @@ export default function IncomeExpenseSummary({
       label: 'Total Commission (Income)',
       amount: totalIncome,
       icon: TrendingUp,
-      colorClass: 'text-green-600',
-      bgClass: 'bg-green-50',
+      colorClass: 'text-emerald-400',
+      labelColor: 'text-emerald-300',
+      iconWrapperClass: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
     },
     {
       label: 'Total Expense',
       amount: totalExpense,
       icon: TrendingDown,
-      colorClass: 'text-red-600',
-      bgClass: 'bg-red-50',
+      colorClass: 'text-rose-400',
+      labelColor: 'text-rose-300',
+      iconWrapperClass: 'bg-rose-500/15 border-rose-500/30 text-rose-400',
     },
     {
       label: 'Shared Profit',
       amount: totalShared,
       icon: Users,
-      colorClass: 'text-blue-600',
-      bgClass: 'bg-blue-50',
+      colorClass: 'text-blue-400',
+      labelColor: 'text-blue-300',
+      iconWrapperClass: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
       isShared: true,
     },
     {
       label: 'Net Balance',
       amount: balance,
       icon: Wallet,
-      colorClass: 'text-gray-900',
-      bgClass: 'bg-gray-50',
+      colorClass: balance >= 0 ? 'text-white' : 'text-rose-400',
+      labelColor: 'text-slate-300',
+      iconWrapperClass: 'bg-slate-800/80 border-slate-700/60 text-slate-200',
     },
   ] as const;
 
@@ -103,27 +107,27 @@ export default function IncomeExpenseSummary({
         return (
           <div
             key={card.label}
-            className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col justify-between transition-shadow hover:shadow-md"
+            className="bg-[#16192B] rounded-2xl border border-[#2B314E] hover:border-[#3D456E] p-5 sm:p-6 shadow-xl flex flex-col justify-between transition-all duration-300 text-white relative overflow-hidden group"
           >
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${card.labelColor}`}>
                   {card.label}
                 </h3>
-                <div className={`p-2 rounded-lg ${card.bgClass}`}>
-                  <Icon className={`w-5 h-5 ${card.colorClass}`} />
+                <div className={`p-2.5 rounded-xl border shadow-xs ${card.iconWrapperClass}`}>
+                  <Icon className="w-5 h-5" />
                 </div>
               </div>
 
-              <p className={`text-2xl font-bold ${card.colorClass}`}>
+              <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${card.colorClass}`}>
                 {formatCurrency(card.amount)}
               </p>
             </div>
 
             {card.isShared && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4 border-t border-[#2B314E]">
                 {startDate && endDate && (
-                  <div className="text-xs text-gray-400 mb-2 italic">
+                  <div className="text-xs text-slate-400 mb-2 italic">
                     {startDate} → {endDate}
                   </div>
                 )}
@@ -138,11 +142,11 @@ export default function IncomeExpenseSummary({
                         key={name}
                         className="flex justify-between items-center text-xs sm:text-sm"
                       >
-                        <span className="text-gray-600 truncate max-w-[60%]">
+                        <span className="text-slate-300 truncate max-w-[60%]">
                           {name}{' '}
-                          <span className="text-gray-400 text-[10px]">({pct}%)</span>
+                          <span className="text-slate-400 text-[10px]">({pct}%)</span>
                         </span>
-                        <span className="font-medium text-gray-800">
+                        <span className="font-mono font-medium text-white">
                           {formatCurrency(amt)}
                         </span>
                       </div>
@@ -150,7 +154,7 @@ export default function IncomeExpenseSummary({
                   })}
 
                   {breakdownSorted.length === 0 && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-slate-400">
                       No splits in this period
                     </span>
                   )}

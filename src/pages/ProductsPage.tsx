@@ -2,6 +2,7 @@
 import React, {
   useState,
   useEffect,
+  useMemo,
   useTransition,
   Suspense,
   lazy,
@@ -15,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useVehicles } from '../hooks/useVehicles';
 import productService from '../services/product.service';
 import categoryService from '../services/category.service';
-import { X, Edit2, Trash2, Eye, Box, Download, Car } from 'lucide-react';
+import { X, Edit2, Trash2, Eye, Box, Download, Car, Search, Package, Layers, AlertCircle } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { handleProductExport } from '../utils/productHelpers';
@@ -271,6 +272,14 @@ const ProductsPage: React.FC = () => {
     return `£${Math.max(val, 0).toFixed(2)}`;
   };
 
+  const summary = useMemo(() => {
+    const totalCount = products.length;
+    const totalStock = products.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
+    const outOfStock = products.filter(p => (Number(p.quantity) || 0) <= 0).length;
+    const totalCats = categories.length;
+    return { totalCount, totalStock, outOfStock, totalCats };
+  }, [products, categories]);
+
   return (
     <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
@@ -304,23 +313,84 @@ const ProductsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <input
-          className="flex-1 px-3 py-2 border rounded"
-          placeholder="Search by Part Number or Product Name…"
-          value={searchTerm}
-          onChange={handleSearch}
-        />
-        <select
-          className="w-48 px-3 py-2 border rounded"
-          value={filterCat}
-          onChange={handleFilter}
-        >
-          <option value="">All Categories</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+      {/* SUMMARY CARDS */}
+      {can('products', 'cards') && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-300">Total Products</p>
+              <p className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.totalCount}</p>
+            </div>
+            <div className="p-3 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+              <Box className="h-6 w-6" />
+            </div>
+          </div>
+
+          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Total Stock Qty</p>
+              <p className="mt-1 text-3xl font-black font-mono text-emerald-300 tracking-tight">{summary.totalStock}</p>
+            </div>
+            <div className="p-3 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+              <Layers className="h-6 w-6" />
+            </div>
+          </div>
+
+          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-rose-300">Out of Stock</p>
+              <p className="mt-1 text-3xl font-black font-mono text-rose-400 tracking-tight">{summary.outOfStock}</p>
+            </div>
+            <div className="p-3 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+          </div>
+
+          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Categories</p>
+              <p className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.totalCats}</p>
+            </div>
+            <div className="p-3 rounded-xl border bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-xs">
+              <Package className="h-6 w-6" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FILTER & SEARCH BAR */}
+      <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white">
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Search Products
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner transition-all"
+                placeholder="Search by Part Number, Product Name, Bin Location…"
+                value={searchTerm}
+                onChange={handleSearch}
+              />
+            </div>
+          </div>
+          <div className="w-full sm:w-64">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Category
+            </label>
+            <select
+              className="w-full py-2.5 px-3.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner cursor-pointer"
+              value={filterCat}
+              onChange={handleFilter}
+            >
+              <option value="" className="bg-[#0F111A] text-white">All Categories</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id} className="bg-[#0F111A] text-white">{c.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded shadow overflow-auto">

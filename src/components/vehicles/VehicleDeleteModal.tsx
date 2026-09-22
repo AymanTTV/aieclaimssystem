@@ -50,18 +50,24 @@ const VehicleDeleteModal: React.FC<VehicleDeleteModalProps> = ({ vehicle, onClos
       isOpen={!!vehicle}
       onClose={onClose}
       title="Delete Vehicle"
+      theme="navy"
+      size="md"
     >
-      <div className="space-y-4">
-        <p className="text-sm text-gray-500">
-          Are you sure you want to delete this vehicle? This action cannot be undone.
-          All related maintenance logs, rentals, and claims will remain in the system.
-        </p>
+      <div className="space-y-5">
+        <div className="bg-rose-950/40 border border-rose-500/40 rounded-2xl p-5 text-rose-200 shadow-inner">
+          <p className="text-sm font-semibold text-white">
+            Are you sure you want to delete <span className="font-bold underline">{vehicle.registrationNumber}</span>?
+          </p>
+          <p className="text-xs text-rose-300/90 mt-2 leading-relaxed">
+            This action will move the vehicle to Trash. All linked maintenance logs, rentals, and claims will remain safely archived in the system.
+          </p>
+        </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -69,7 +75,7 @@ const VehicleDeleteModal: React.FC<VehicleDeleteModalProps> = ({ vehicle, onClos
             type="button"
             onClick={handleDelete}
             disabled={loading || vehicle.status !== 'sold'}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
+            className="px-5 py-2.5 text-sm font-bold text-white bg-rose-600 hover:bg-rose-500 border border-transparent rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
           >
             {loading ? 'Deleting...' : 'Delete Vehicle'}
           </button>

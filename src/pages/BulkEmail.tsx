@@ -1848,38 +1848,63 @@ export default function BulkEmail() {
           )}
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr>
-              <th className="border px-2 py-1">Date</th>
-              <th className="border px-2 py-1">Type</th>
-              <th className="border px-2 py-1">Template</th>
-              <th className="border px-2 py-1">Recipients</th>
-              <th className="border px-2 py-1">Subject</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredHistory.map(h => (
-              <tr key={h.id}>
-                <td className="border px-2 py-1">{safeFmt(h.timestamp, 'dd/MM/yyyy HH:mm')}</td>
-                <td className="border px-2 py-1">{h.type}</td>
-                <td className="border px-2 py-1">{h.templateId}</td>
-                <td className="border px-2 py-1">
-                  {h.recipients
-                    .map(rid =>
-                      customers.find(c=>c.id===rid)?.name ||
-                      serviceCenters.find(c=>c.id===rid)?.name ||
-                      legalHandlers.find(l=>l.id===rid)?.name
-                    )
-                    .filter(Boolean)
-                    .join(', ')
-                  }
-                </td>
-                <td className="border px-2 py-1">{h.subject}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white mt-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-[#16192B] text-white">
+                <tr className="border-b border-[#2B314E]">
+                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Date</th>
+                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Type</th>
+                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Template</th>
+                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Recipients</th>
+                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHistory.map((h, idx) => {
+                  const isEven = idx % 2 === 1;
+                  const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                  return (
+                    <tr key={h.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                      <td className="px-5 py-3.5 text-sm whitespace-nowrap font-medium text-slate-800">{safeFmt(h.timestamp, 'dd/MM/yyyy HH:mm')}</td>
+                      <td className="px-5 py-3.5 text-sm whitespace-nowrap font-medium text-slate-800">{h.type}</td>
+                      <td className="px-5 py-3.5 text-sm whitespace-nowrap font-medium text-slate-800">{h.templateId}</td>
+                      <td className="px-5 py-3.5 text-sm text-slate-800 font-medium">
+                        {h.recipients
+                          .map(rid =>
+                            customers.find(c=>c.id===rid)?.name ||
+                            serviceCenters.find(c=>c.id===rid)?.name ||
+                            legalHandlers.find(l=>l.id===rid)?.name
+                          )
+                          .filter(Boolean)
+                          .join(', ')
+                        }
+                      </td>
+                      <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">{h.subject}</td>
+                    </tr>
+                  );
+                })}
+                {filteredHistory.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 font-medium">
+                      No email history records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Consistent Dark Navy Footer */}
+          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+            <div>
+              Showing <span className="font-bold text-white">{filteredHistory.length}</span> log{filteredHistory.length === 1 ? '' : 's'}
+            </div>
+            <div className="text-slate-400">
+              Email Dispatch History
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

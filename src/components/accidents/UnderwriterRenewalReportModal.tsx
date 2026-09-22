@@ -182,56 +182,59 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
               <span className="text-[11px] font-normal text-gray-400 lowercase">Threshold: ≥3 accidents or high fault loss</span>
             </h3>
 
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200 text-xs">
-                <thead className="bg-gray-100 text-gray-700 font-bold">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Rank</th>
-                    <th className="px-3 py-2 text-left">Driver Name / Identifier</th>
-                    <th className="px-3 py-2 text-center">Accidents</th>
-                    <th className="px-3 py-2 text-center">Fault Split</th>
-                    <th className="px-3 py-2 text-right">Incurred (£)</th>
-                    <th className="px-3 py-2 text-center">Late Reports</th>
-                    <th className="px-3 py-2 text-left">Underwriter Note / Trigger</th>
+            <div className="border border-[#2B314E] rounded-xl overflow-hidden shadow-sm">
+              <table className="min-w-full border-collapse text-xs">
+                <thead className="bg-[#16192B] text-white">
+                  <tr className="border-b border-[#2B314E]">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Rank</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name / Identifier</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Accidents</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault Split</th>
+                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Late Reports</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Underwriter Note / Trigger</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {summary.topRiskDrivers.map((driver) => (
-                    <tr key={driver.driverName} className={driver.riskRating === 'high' ? 'bg-rose-50/30' : ''}>
-                      <td className="px-3 py-2 font-black text-gray-900 text-sm">#{driver.rank}</td>
-                      <td className="px-3 py-2">
-                        <div className="font-bold text-gray-900">{driver.driverName}</div>
-                        <div className="text-[10px] text-gray-500">
+                <tbody>
+                  {summary.topRiskDrivers.map((driver, idx) => {
+                    const isEven = idx % 2 === 1;
+                    const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                    return (
+                    <tr key={driver.driverName} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                      <td className="px-3.5 py-2 font-black text-slate-900 text-sm">#{driver.rank}</td>
+                      <td className="px-3.5 py-2">
+                        <div className="font-bold text-slate-900">{driver.driverName}</div>
+                        <div className="text-[10px] text-slate-500">
                           {driver.driverNIN ? `NIN: ${driver.driverNIN}` : ''} {driver.driverMobile ? `| Mob: ${driver.driverMobile}` : ''}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center font-bold text-sm text-gray-900">
+                      <td className="px-3.5 py-2 text-center font-bold text-sm text-slate-900">
                         {driver.totalAccidents}
                       </td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3.5 py-2 text-center">
                         <span className="font-semibold text-rose-700">{driver.faultCount} Fault</span>
-                        <span className="text-gray-400 mx-1">/</span>
+                        <span className="text-slate-400 mx-1">/</span>
                         <span className="text-emerald-700">{driver.nonFaultCount} NF</span>
                         {driver.splitCount > 0 && <span className="text-amber-700 ml-1">({driver.splitCount} Split)</span>}
                       </td>
-                      <td className="px-3 py-2 text-right font-black text-gray-900">
+                      <td className="px-3.5 py-2 text-right font-black text-slate-900">
                         {formatGBP(driver.totalIncurred)}
                       </td>
-                      <td className="px-3 py-2 text-center font-medium">
+                      <td className="px-3.5 py-2 text-center font-medium">
                         {driver.lateReportingCount > 0 ? (
                           <span className="text-rose-600 font-bold">{driver.lateReportingCount} (&gt;24h)</span>
                         ) : (
                           <span className="text-emerald-700 font-medium">0</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-[11px] text-gray-600">
+                      <td className="px-3.5 py-2 text-[11px] text-slate-700 font-medium">
                         {driver.riskReasons.join('; ')}
                       </td>
                     </tr>
-                  ))}
+                  );})}
                   {summary.topRiskDrivers.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-4 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500 font-medium">
                         No accidents recorded for this policy term.
                       </td>
                     </tr>
@@ -247,30 +250,33 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
               3. Complete Fleet Driver Risk Ranking Schedule ({summary.driverProfiles.length} Total Incident Drivers)
             </h3>
 
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200 text-xs">
-                <thead className="bg-gray-100 text-gray-700 font-bold">
-                  <tr>
-                    <th className="px-2.5 py-2 text-left">#</th>
-                    <th className="px-3 py-2 text-left">Driver Name</th>
-                    <th className="px-3 py-2 text-left">NIN / Mobile</th>
-                    <th className="px-2.5 py-2 text-center">Risk</th>
-                    <th className="px-2.5 py-2 text-center">Claims</th>
-                    <th className="px-2.5 py-2 text-center">Fault</th>
-                    <th className="px-2.5 py-2 text-center">Non-Fault</th>
-                    <th className="px-3 py-2 text-right">Incurred (£)</th>
-                    <th className="px-2.5 py-2 text-center">Late (&gt;24h)</th>
+            <div className="border border-[#2B314E] rounded-xl overflow-hidden shadow-sm">
+              <table className="min-w-full border-collapse text-xs">
+                <thead className="bg-[#16192B] text-white">
+                  <tr className="border-b border-[#2B314E]">
+                    <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">#</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">NIN / Mobile</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Risk</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Claims</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Non-Fault</th>
+                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Late (&gt;24h)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {summary.driverProfiles.map((driver) => (
-                    <tr key={driver.driverName} className="hover:bg-gray-50">
-                      <td className="px-2.5 py-1.5 font-bold text-gray-500">{driver.rank}</td>
-                      <td className="px-3 py-1.5 font-bold text-gray-900">{driver.driverName}</td>
-                      <td className="px-3 py-1.5 text-[11px] text-gray-500">
+                <tbody>
+                  {summary.driverProfiles.map((driver, idx) => {
+                    const isEven = idx % 2 === 1;
+                    const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                    return (
+                    <tr key={driver.driverName} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                      <td className="px-3 py-2 font-bold text-slate-500">#{driver.rank}</td>
+                      <td className="px-3.5 py-2 font-bold text-slate-900">{driver.driverName}</td>
+                      <td className="px-3.5 py-2 text-[11px] text-slate-500">
                         {driver.driverNIN || driver.driverMobile || '—'}
                       </td>
-                      <td className="px-2.5 py-1.5 text-center">
+                      <td className="px-3 py-2 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             driver.riskRating === 'high'
@@ -283,11 +289,11 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
                           {driver.riskRating}
                         </span>
                       </td>
-                      <td className="px-2.5 py-1.5 text-center font-bold text-gray-900">{driver.totalAccidents}</td>
-                      <td className="px-2.5 py-1.5 text-center text-rose-700 font-semibold">{driver.faultCount}</td>
-                      <td className="px-2.5 py-1.5 text-center text-emerald-700 font-semibold">{driver.nonFaultCount}</td>
-                      <td className="px-3 py-1.5 text-right font-bold text-gray-900">{formatGBP(driver.totalIncurred)}</td>
-                      <td className="px-2.5 py-1.5 text-center font-medium text-gray-700">
+                      <td className="px-3 py-2 text-center font-bold text-slate-900">{driver.totalAccidents}</td>
+                      <td className="px-3 py-2 text-center text-rose-700 font-semibold">{driver.faultCount}</td>
+                      <td className="px-3 py-2 text-center text-emerald-700 font-semibold">{driver.nonFaultCount}</td>
+                      <td className="px-3.5 py-2 text-right font-bold text-slate-900">{formatGBP(driver.totalIncurred)}</td>
+                      <td className="px-3 py-2 text-center font-medium text-slate-700">
                         {driver.lateReportingCount > 0 ? (
                           <span className="text-rose-600 font-bold">{driver.lateReportingCount}</span>
                         ) : (
@@ -295,10 +301,10 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );})}
                   {summary.driverProfiles.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-slate-500 font-medium">
                         No claims recorded for this policy cycle.
                       </td>
                     </tr>

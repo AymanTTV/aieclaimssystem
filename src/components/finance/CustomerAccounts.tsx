@@ -85,54 +85,68 @@ const CustomerAccounts: React.FC<CustomerAccountsProps> = ({ invoices, customers
         </div>
       </div>
 
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Invoiced</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Paid</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider bg-red-50">Total Outstanding</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Current</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">1-30 Days</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">31-60 Days</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider text-red-600">60+ Days</th>
+          <table className="min-w-full border-collapse">
+            <thead className="bg-[#16192B] text-white">
+              <tr className="border-b border-[#2B314E]">
+                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Client</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Total Invoiced</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Total Paid</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Total Outstanding</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Current</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">1-30 Days</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">31-60 Days</th>
+                <th className="px-5 py-4 text-right text-xs font-bold text-rose-300 uppercase tracking-wider select-none whitespace-nowrap">60+ Days</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredSummaries.map((acc) => (
-                <tr key={acc.customer.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{acc.customer.name}</div>
-                    <div className="text-xs text-gray-500">{acc.customer.mobile} | {acc.invoiceCount} invoices</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">{formatCurrency(acc.totalInvoiced)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600 font-medium">{formatCurrency(acc.totalPaid)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold bg-red-50 text-red-700">{formatCurrency(acc.totalOutstanding)}</td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">{acc.current > 0 ? formatCurrency(acc.current) : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-amber-600">{acc.days30 > 0 ? formatCurrency(acc.days30) : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-orange-600">{acc.days60 > 0 ? formatCurrency(acc.days60) : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-red-600 font-bold">
-                    {acc.days60Plus > 0 ? (
-                      <span className="flex items-center justify-end gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {formatCurrency(acc.days60Plus)}
-                      </span>
-                    ) : '-'}
-                  </td>
-                </tr>
-              ))}
+            <tbody>
+              {filteredSummaries.map((acc, idx) => {
+                const isEven = idx % 2 === 1;
+                const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                return (
+                  <tr key={acc.customer.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="font-bold text-slate-900">{acc.customer.name}</div>
+                      <div className="text-xs text-slate-500">{acc.customer.mobile} | {acc.invoiceCount} invoices</div>
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm font-semibold text-slate-800">{formatCurrency(acc.totalInvoiced)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm text-emerald-600 font-bold">{formatCurrency(acc.totalPaid)}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm font-bold text-rose-600">{formatCurrency(acc.totalOutstanding)}</td>
+                    
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm text-slate-600">{acc.current > 0 ? formatCurrency(acc.current) : '-'}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm text-amber-600 font-medium">{acc.days30 > 0 ? formatCurrency(acc.days30) : '-'}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm text-orange-600 font-medium">{acc.days60 > 0 ? formatCurrency(acc.days60) : '-'}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-right text-sm text-rose-600 font-bold">
+                      {acc.days60Plus > 0 ? (
+                        <span className="flex items-center justify-end gap-1">
+                          <AlertCircle className="w-4 h-4" />
+                          {formatCurrency(acc.days60Plus)}
+                        </span>
+                      ) : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredSummaries.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-500 font-medium">
                     No client account data found.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Consistent Dark Navy Footer */}
+        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          <div>
+            Showing <span className="font-bold text-white">{filteredSummaries.length}</span> client accounts
+          </div>
+          <div className="text-slate-400">
+            Aged Debtors & Accounts Summary
+          </div>
         </div>
       </div>
     </div>

@@ -55,44 +55,47 @@ export default function SharesModal({ shares, onClose, onGeneratePDF }: Props) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded-lg bg-white shadow-sm">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-700 uppercase tracking-wider text-xs font-semibold">
+      <div className="overflow-x-auto border border-[#2B314E] rounded-xl bg-white shadow-sm overflow-hidden">
+        <table className="min-w-full text-xs border-collapse">
+          <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
             <tr>
-              <th className="p-3 text-left">Date Range</th>
-              <th className="p-3 text-left">Recipients</th>
-              <th className="p-3 text-right">Total Shared</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date Range</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Recipients</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Total Shared</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {paginated.map(sp => (
-              <tr key={sp.id} className="hover:bg-gray-50 transition-colors">
-                <td className="p-3 font-medium text-gray-900 whitespace-nowrap">
-                  {sp.startDate} <span className="text-gray-400">→</span> {sp.endDate}
+          <tbody>
+            {paginated.map((sp, idx) => {
+              const isEven = idx % 2 === 1;
+              const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+              return (
+              <tr key={sp.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">
+                  {sp.startDate} <span className="text-slate-400">→</span> {sp.endDate}
                 </td>
-                <td className="p-3 space-y-1">
-                  {sp.recipients.map((r, idx) => (
-                    <div key={`${sp.id}-${idx}-${r.name}`} className="flex items-center text-gray-600">
-                      <span className="font-medium text-gray-900 mr-1">{r.name}</span> 
-                      <span className="text-xs bg-gray-100 px-1.5 rounded text-gray-500 mr-2">
+                <td className="px-4 py-3 space-y-1">
+                  {sp.recipients.map((r, rIdx) => (
+                    <div key={`${sp.id}-${rIdx}-${r.name}`} className="flex items-center text-slate-700">
+                      <span className="font-bold text-slate-900 mr-1.5">{r.name}</span> 
+                      <span className="text-xs bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 mr-2 font-semibold">
                         {r.percentage}%
                       </span>
                       {/* Visual Indicator for Pay vs Get */}
-                      <span className={sp.totalSplitAmount < 0 ? "text-red-600" : "text-green-600"}>
+                      <span className={`font-bold ${sp.totalSplitAmount < 0 ? "text-rose-600" : "text-emerald-600"}`}>
                         {formatCurrency(r.amount)}
                       </span>
                     </div>
                   ))}
                 </td>
                 {/* Updated styling for Totals */}
-                <td className={`p-3 text-right font-bold ${sp.totalSplitAmount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <td className={`px-4 py-3 text-right font-black ${sp.totalSplitAmount < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {formatCurrency(sp.totalSplitAmount)}
                 </td>
               </tr>
-            ))}
+            );})}
             {paginated.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-gray-500 italic">
+                <td colSpan={3} className="p-8 text-center text-slate-500 italic font-medium">
                   No share records found matching filter.
                 </td>
               </tr>

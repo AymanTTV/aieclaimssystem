@@ -192,24 +192,24 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       )}
 
       {/* ── LINE ITEMS ── */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <h3 className="text-sm font-semibold text-gray-700">Line Items</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-[#2B314E] overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#2B314E] bg-[#16192B]">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full border-collapse text-xs">
+            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Vehicle</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Qty</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Discount</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">VAT</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Line Total</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Vehicle</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Unit Price</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Discount</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider select-none">VAT</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Line Total</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {invoice.lineItems && invoice.lineItems.length > 0 ? (
                 (invoice.lineItems || []).map((item, idx) => {
                   const gross = item.quantity * item.unitPrice;
@@ -217,22 +217,24 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   const netAfterDiscount = gross - discountAmt;
                   const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
                   const totalLine = netAfterDiscount + vatAmt;
+                  const isEven = idx % 2 === 1;
+                  const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
                   
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">{item.description}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500">{item.vehicleName || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
-                      <td className="px-4 py-3 text-sm text-red-500 text-right">{item.discount > 0 ? `${item.discount.toFixed(1)}%` : '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 text-center">{item.includeVAT ? '✓' : '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{formatCurrency(totalLine)}</td>
+                    <tr key={item.id} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
+                      <td className="px-4 py-3 text-sm text-slate-900 font-bold">{item.description}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 font-medium">{item.vehicleName || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-center font-bold">{item.quantity}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-right font-medium">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-sm text-rose-600 text-right font-semibold">{item.discount > 0 ? `${item.discount.toFixed(1)}%` : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-center font-bold">{item.includeVAT ? '✓' : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-900 text-right font-black">{formatCurrency(totalLine)}</td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500 font-medium">
                     No line items
                   </td>
                 </tr>

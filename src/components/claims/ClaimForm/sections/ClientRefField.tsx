@@ -7,11 +7,13 @@ const ClientRefField = () => {
 
   return (
     <div>
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Client Reference</h3>
+      <div className="pb-2 border-b border-gray-200 mb-4">
+        <h3 className="text-lg font-bold text-gray-950">Client Reference</h3>
+      </div>
       <FormField
         label="Client Reference (Optional)"
         {...register('clientRef')}
-        placeholder="Enter client reference number"
+        placeholder="Enter reference number (if available)"
       />
     </div>
   );

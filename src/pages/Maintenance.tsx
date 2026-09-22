@@ -422,7 +422,11 @@ const Maintenance: React.FC = () => {
   return (
     <div className="space-y-6">
 
-      <MaintenanceSummaryCards logs={filteredLogs} />
+      <MaintenanceSummaryCards 
+        logs={logs} 
+        activeStatusFilter={statusFilter}
+        onSelectStatusFilter={setStatusFilter}
+      />
 
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -489,7 +493,7 @@ const Maintenance: React.FC = () => {
         onDateRangeChange={setDateRange}
       />
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="w-full max-w-full">
        <MaintenanceTable
           logs={orderedLogs}
           vehicles={vehiclesMap}
@@ -515,6 +519,7 @@ const Maintenance: React.FC = () => {
         }}
         title={editingLog ? 'Edit Maintenance' : 'Schedule Maintenance'}
         size="xl"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         <MaintenanceForm
           vehicles={vehicles}
@@ -544,7 +549,8 @@ const Maintenance: React.FC = () => {
         isOpen={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         title="Maintenance Details"
-        size="lg"
+        size="xl"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         {selectedLog && (
           <MaintenanceDetails

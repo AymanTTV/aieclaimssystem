@@ -35,18 +35,18 @@ const toJSDate = (v: any): Date | null => {
 const money = (n = 0) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n || 0);
 
 const SummaryCards: React.FC<{ active: number; completed: number; outstanding: number }> = ({ active, completed, outstanding }) => (
-  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
       <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Active Rentals</div>
-      <div className="mt-2 text-3xl font-black font-mono text-emerald-300">{active}</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-emerald-400 tracking-tight">{active}</div>
     </div>
-    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
       <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Completed Rentals</div>
-      <div className="mt-2 text-3xl font-black font-mono text-white">{completed}</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{completed}</div>
     </div>
-    <div className="rounded-2xl border border-slate-800/90 bg-[#0c101c] p-5 shadow-xl text-white hover:border-slate-700/80 transition-all">
+    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
       <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Outstanding Balance</div>
-      <div className="mt-2 text-3xl font-black font-mono text-amber-300">{money(outstanding)}</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">{money(outstanding)}</div>
     </div>
   </div>
 );
@@ -57,32 +57,32 @@ const Filters: React.FC<{
   status: 'all' | 'active' | 'completed' | 'pending';
   onStatusChange: (s: 'all' | 'active' | 'completed' | 'pending') => void;
 }> = ({ dateRange, onDateRangeChange, status, onStatusChange }) => (
-  <div className="rounded-2xl border bg-white p-4 shadow-sm">
+  <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-4 sm:p-5 shadow-xl text-white">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700">From</label>
+        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
         <input
           type="date"
           value={dateRange.start ? new Date(dateRange.start).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: e.target.value ? new Date(e.target.value) : null, end: dateRange.end })}
-          className="mt-1 w-full rounded-md border px-3 py-2"
+          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">To</label>
+        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
         <input
           type="date"
           value={dateRange.end ? new Date(dateRange.end).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: dateRange.start, end: e.target.value ? new Date(e.target.value) : null })}
-          className="mt-1 w-full rounded-md border px-3 py-2"
+          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">Status</label>
+        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value as any)}
-          className="mt-1 w-full rounded-md border px-3 py-2"
+          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All</option>
           <option value="active">Active</option>
@@ -218,13 +218,16 @@ const MemberRentals: React.FC = () => {
         isOpen={!!selected}
         onClose={() => setSelected(null)}
         title="Rental Details"
-        size="xl"
+        size="3xl"
+        className="max-h-[92vh] sm:max-h-[95vh] w-full"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         {selected && (
           <RentalDetails
             rental={selected as any}
             vehicle={findVehicle(selected)}
             customer={findCustomer(selected)}
+            onClose={() => setSelected(null)}
           />
         )}
       </Modal>

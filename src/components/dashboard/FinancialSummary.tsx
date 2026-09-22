@@ -39,8 +39,8 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({ transactions, perio
   }, [transactions, period]);
 
   return (
-    // Unified container with dark navy palette and dividers
-    <div className="bg-[#0c101c] flex flex-col sm:flex-row sm:divide-x divide-y sm:divide-y-0 divide-slate-800/80">
+    // Unified container with signature dark navy palette and dividers
+    <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden flex flex-col sm:flex-row sm:divide-x divide-y sm:divide-y-0 divide-[#2B314E]">
       
       {/* Total Income */}
       <div className="flex-1 p-5 flex items-center hover:bg-slate-900/40 transition-colors">

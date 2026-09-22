@@ -16,11 +16,14 @@ const AccidentDetails = () => {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Accident Details</h3>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="pb-2 border-b border-gray-200">
+        <h3 className="text-lg font-bold text-gray-950">Accident / Incident Details</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField
           type="date"
           label="Accident Date"
+          max={today}
           error={errors.incidentDetails?.date?.message as string}
           {...register('incidentDetails.date')}
           required
@@ -34,30 +37,35 @@ const AccidentDetails = () => {
           required
         />
 
-        <div className="col-span-2">
+        <div className="col-span-1 md:col-span-2">
           <FormField
             label="Accident Location"
+            placeholder="Enter street, road name, town or junction where incident occurred"
             error={errors.incidentDetails?.location?.message as string}
             {...register('incidentDetails.location')}
             required
           />
         </div>
 
-        <div className="col-span-2">
+        <div className="col-span-1 md:col-span-2">
           <TextArea
             label="Description of Incident"
+            placeholder="Detailed description of what occurred before, during and after the collision..."
             error={errors.incidentDetails?.description?.message as string}
             {...register('incidentDetails.description')}
             required
+            rows={4}
           />
         </div>
 
-        <div className="col-span-2">
+        <div className="col-span-1 md:col-span-2">
           <TextArea
             label="Damage Details"
+            placeholder="Detail all damage to client vehicle, third party vehicle or road furniture..."
             error={errors.incidentDetails?.damageDetails?.message as string}
             {...register('incidentDetails.damageDetails')}
             required
+            rows={3}
           />
         </div>
       </div>
