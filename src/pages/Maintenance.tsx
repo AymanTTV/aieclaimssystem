@@ -13,7 +13,7 @@ import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
-import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock } from 'lucide-react'; 
+import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock, ExternalLink, Radio, Copy } from 'lucide-react'; 
 import { startOfDay, differenceInCalendarDays, format, parseISO } from 'date-fns'; 
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog, Vehicle, Customer } from '../types'; 
@@ -443,6 +443,36 @@ const Maintenance: React.FC = () => {
             </button>
           )}
 
+          {/* Dual-View Real-Time Public Mirror Button */}
+          <div className="flex items-center gap-1.5">
+            <a
+              href="/maintenance/live"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-3 sm:px-4 py-2 border border-emerald-500/50 rounded-md shadow-sm text-sm font-bold text-emerald-400 bg-emerald-950/60 hover:bg-emerald-900/60 transition-colors gap-2"
+              title="Open Real-Time Public Mirror in new tab"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <ExternalLink className="h-4 w-4" />
+              <span className="truncate">Live Public Mirror</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                const mirrorUrl = `${window.location.origin}/maintenance/live`;
+                navigator.clipboard.writeText(mirrorUrl);
+                toast.success('Public Mirror URL copied to clipboard!');
+              }}
+              className="p-2 border border-emerald-500/40 rounded-md text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/60 transition-colors"
+              title="Copy Public Mirror URL"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
+
           {can('maintenance', 'export') && (
             <button
               onClick={handleExport}
@@ -519,6 +549,7 @@ const Maintenance: React.FC = () => {
         }}
         title={editingLog ? 'Edit Maintenance' : 'Schedule Maintenance'}
         size="xl"
+        className="h-[85vh] max-h-[90vh] min-h-[500px]"
         contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         <MaintenanceForm

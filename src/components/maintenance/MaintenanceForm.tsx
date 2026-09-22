@@ -628,7 +628,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Scrollable Tab Content Body */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 custom-scrollbar text-white">
+          <div className="flex-1 overflow-y-auto min-h-[500px] p-5 sm:p-6 space-y-6 custom-scrollbar text-white">
             
             {/* TAB 1: VEHICLE & SERVICE */}
             {activeTab === 'vehicle_service' && (

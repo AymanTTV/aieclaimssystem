@@ -184,40 +184,68 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[85vh] bg-gray-50/30 rounded-2xl">
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-white text-black user-role-modal">
       
-      {/* HEADER CONTROLS */}
-      <div className="shrink-0 p-6 space-y-5 bg-white border-b border-gray-100 rounded-t-2xl">
+      {/* HEADER CONTROLS (PINNED AT TOP) */}
+      <div className="shrink-0 p-5 sm:p-6 space-y-4 bg-white border-b border-gray-200">
         
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
            <div>
-             <h2 className="text-xl font-black text-gray-900 tracking-tight">Access Control Matrix</h2>
-             <p className="text-sm text-gray-500 mt-1">Editing overrides for: <strong className="text-gray-800">{user.name}</strong></p>
+             <h2 className="text-xl font-black text-black tracking-tight">Access Control Matrix</h2>
+             <p className="text-sm font-semibold text-black mt-1">Editing overrides for: <strong className="text-black font-black">{user.name}</strong></p>
            </div>
-           <div className="bg-gray-100 p-1.5 rounded-lg border border-gray-200 flex gap-2 w-full sm:w-auto text-sm">
-              <label className="font-bold text-gray-700 py-1 pl-2">Base Role:</label>
-              <select value={role} onChange={(e) => resetToRole(e.target.value as User['role'])} className="bg-white rounded border-gray-300 shadow-sm focus:ring-primary text-sm px-2 font-bold disabled:opacity-50" disabled={!isManager}>
-                <option value="manager">Manager</option><option value="admin">Admin</option><option value="finance">Finance</option><option value="claims">Claims</option><option value="company">Company</option><option value="member">Member</option>
+           <div className="bg-gray-100 p-1.5 rounded-xl border border-gray-300 flex items-center gap-2 w-full sm:w-auto text-sm">
+              <label className="font-black text-black py-1 pl-2 text-sm">Base Role:</label>
+              <select 
+                value={role} 
+                onChange={(e) => resetToRole(e.target.value as User['role'])} 
+                className="bg-white text-black border border-gray-300 rounded-lg shadow-xs focus:ring-2 focus:ring-primary text-sm px-3 py-1 font-bold disabled:opacity-50 cursor-pointer" 
+                disabled={!isManager}
+              >
+                <option value="manager" className="text-black bg-white">Manager</option>
+                <option value="admin" className="text-black bg-white">Admin</option>
+                <option value="finance" className="text-black bg-white">Finance</option>
+                <option value="claims" className="text-black bg-white">Claims</option>
+                <option value="company" className="text-black bg-white">Company</option>
+                <option value="member" className="text-black bg-white">Member</option>
               </select>
            </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 items-center">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <input type="text" placeholder="Filter specific modules..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full rounded-xl border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm focus:bg-white focus:ring-primary focus:border-primary transition-colors" />
+            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-black" />
+            <input 
+              type="text" 
+              placeholder="Filter specific modules..." 
+              value={query} 
+              onChange={(e) => setQuery(e.target.value)} 
+              className="w-full rounded-xl border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-black font-semibold placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-colors shadow-xs" 
+            />
           </div>
           {isManager && (
             <div className="flex gap-2 w-full sm:w-auto shrink-0">
-              <button type="button" onClick={() => handleGlobalBulkToggle(true)} className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-white bg-gray-800 hover:bg-gray-900 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5"><CheckSquare className="w-4 h-4" /> Allow All</button>
-              <button type="button" onClick={() => handleGlobalBulkToggle(false)} className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5"><Square className="w-4 h-4" /> Deny All</button>
+              <button 
+                type="button" 
+                onClick={() => handleGlobalBulkToggle(true)} 
+                className="btn-white-text flex-1 sm:flex-none px-4 py-2 text-xs font-black text-white bg-black hover:bg-gray-800 rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckSquare className="w-4 h-4 text-white stroke-[2.5]" /> Allow All
+              </button>
+              <button 
+                type="button" 
+                onClick={() => handleGlobalBulkToggle(false)} 
+                className="btn-white-text flex-1 sm:flex-none px-4 py-2 text-xs font-black text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Square className="w-4 h-4 text-white stroke-[2.5]" /> Deny All
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* ACCORDION LIST */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      {/* ACCORDION LIST (SINGLE SCROLL CONTAINER) */}
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-3.5 bg-gray-50/70 custom-scrollbar">
         {filteredAndSortedEntries.map(([module, permissions]) => {
           const title = labelFor(module);
           const isOpen = expanded[module as string] ?? false; 
@@ -225,30 +253,50 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
           const ordered = entries.sort((a, b) => orderIndex(a[0]) - orderIndex(b[0]));
 
           return (
-            <div key={String(module)} className={`rounded-2xl border transition-all duration-200 ${isOpen ? 'border-primary/20 bg-white shadow-md' : 'border-gray-200 bg-white hover:border-gray-300 shadow-sm'}`}>
-              <button type="button" onClick={() => setExpanded((prev) => ({ ...prev, [module as string]: !isOpen }))} className="flex w-full items-center justify-between p-4 focus:outline-none rounded-2xl">
+            <div key={String(module)} className={`rounded-2xl border transition-all duration-200 ${isOpen ? 'border-primary/40 bg-white shadow-md' : 'border-gray-200 bg-white hover:border-gray-300 shadow-xs'}`}>
+              <button 
+                type="button" 
+                onClick={() => setExpanded((prev) => ({ ...prev, [module as string]: !isOpen }))} 
+                className="flex w-full items-center justify-between p-4 focus:outline-none rounded-2xl cursor-pointer"
+              >
                 <div className="flex items-center gap-3">
-                  <span className={`text-base font-bold ${isOpen ? 'text-primary' : 'text-gray-800'}`}>{title}</span>
+                  <span className="text-base font-black text-black tracking-tight">{title}</span>
                   <div className="flex gap-1.5">
                     {permissions?.view ? (
-                      <span className="inline-flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-md text-[10px] uppercase font-bold text-green-700 border border-green-100"><CheckCircle2 className="h-3 w-3" /> View</span>
+                      <span className="inline-flex items-center gap-1 bg-emerald-100 px-2.5 py-0.5 rounded-md text-[11px] uppercase font-black text-black border border-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-800 stroke-[2.5]" /> View
+                      </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-md text-[10px] uppercase font-bold text-gray-500 border border-gray-200"><XCircle className="h-3 w-3" /> No view</span>
+                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2.5 py-0.5 rounded-md text-[11px] uppercase font-black text-black border border-gray-300">
+                        <XCircle className="h-3.5 w-3.5 text-gray-700 stroke-[2.5]" /> No view
+                      </span>
                     )}
                   </div>
                 </div>
-                <div className={`p-1 rounded-full transition-colors ${isOpen ? 'bg-primary/10 text-primary' : 'bg-gray-50 text-gray-400'}`}>
-                  {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                <div className={`p-1.5 rounded-full transition-colors ${isOpen ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-black'}`}>
+                  {isOpen ? <ChevronUp className="h-5 w-5 stroke-[2.5]" /> : <ChevronDown className="h-5 w-5 stroke-[2.5]" />}
                 </div>
               </button>
 
               {isOpen && (
-                <div className="border-t border-gray-100 p-5 bg-gray-50/50 rounded-b-2xl">
+                <div className="border-t border-gray-200 p-5 bg-gray-50 rounded-b-2xl">
                   {isManager && ordered.length > 1 && (
-                    <div className="flex justify-end gap-3 mb-4 pb-3 border-b border-gray-200/50">
-                      <button type="button" onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, true)} className="text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1">Select All {title}</button>
-                      <span className="text-gray-300">|</span>
-                      <button type="button" onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, false)} className="text-xs font-bold text-gray-500 hover:text-red-600 flex items-center gap-1">Clear {title}</button>
+                    <div className="flex justify-end gap-3 mb-4 pb-3 border-b border-gray-200">
+                      <button 
+                        type="button" 
+                        onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, true)} 
+                        className="text-xs font-black text-blue-700 hover:text-blue-900 underline flex items-center gap-1 cursor-pointer"
+                      >
+                        Select All {title}
+                      </button>
+                      <span className="text-gray-400 font-bold">|</span>
+                      <button 
+                        type="button" 
+                        onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, false)} 
+                        className="text-xs font-black text-red-600 hover:text-red-800 underline flex items-center gap-1 cursor-pointer"
+                      >
+                        Clear {title}
+                      </button>
                     </div>
                   )}
 
@@ -260,14 +308,25 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
 
                       return (
                         <button
-                          key={action} type="button"
+                          key={action} 
+                          type="button"
                           disabled={!isManager}
                           onClick={() => toggleAction(module as keyof RolePermissions, action)}
-                          className={`relative flex items-center justify-between w-full px-3 py-2.5 rounded-xl border text-sm transition-all focus:outline-none ${!isManager ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-sm'} ${enabled ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm ring-1 ring-blue-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          className={`relative flex items-center justify-between w-full px-3 py-2.5 rounded-xl border-2 text-sm transition-all focus:outline-none ${
+                            !isManager ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-xs'
+                          } ${
+                            enabled 
+                              ? 'bg-blue-50 border-blue-600 ring-2 ring-blue-500/20 shadow-xs' 
+                              : 'bg-white border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                          }`}
                         >
-                          <span className="font-bold tracking-tight">{label}</span>
-                          <div className={`h-5 w-5 rounded border flex items-center justify-center transition-colors ${enabled ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300'}`}>
-                            {enabled && <CheckSquare className="h-3.5 w-3.5" />}
+                          <span className="font-black text-black tracking-tight text-left mr-2">{label}</span>
+                          <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            enabled 
+                              ? 'bg-blue-600 border-blue-600 text-white' 
+                              : 'bg-white border-gray-400'
+                          }`}>
+                            {enabled && <CheckSquare className="h-3.5 w-3.5 text-white stroke-[2.5]" />}
                           </div>
                         </button>
                       );
@@ -280,11 +339,21 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
         })}
       </div>
 
-      {/* FOOTER */}
-      <div className="shrink-0 p-5 bg-white border-t border-gray-100 rounded-b-2xl">
+      {/* FOOTER (PINNED AT BOTTOM) */}
+      <div className="shrink-0 p-4 sm:p-5 bg-white border-t border-gray-200 rounded-b-2xl">
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel Changes</button>
-          <button type="submit" disabled={loading || !isManager} className="px-8 py-2.5 rounded-xl font-black text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors disabled:opacity-50">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="px-5 py-2.5 rounded-xl font-black text-black bg-gray-100 hover:bg-gray-200 border border-gray-300 transition-colors cursor-pointer"
+          >
+            Cancel Changes
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading || !isManager} 
+            className="btn-white-text px-8 py-2.5 rounded-xl font-black text-white bg-green-600 hover:bg-green-700 shadow-md transition-colors disabled:opacity-50 cursor-pointer"
+          >
             {loading ? 'Saving...' : 'Save Matrix'}
           </button>
         </div>

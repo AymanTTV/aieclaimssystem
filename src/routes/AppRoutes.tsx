@@ -22,6 +22,7 @@ const TrashPage = lazyLoad('TrashPage');
 const Login      = lazyLoad('Login');
 const AdminSetup = lazyLoad('AdminSetup');
 const SignCustomer = lazyLoad('SignCustomer'); // <--- Add this line
+const PublicMirror = lazyLoad('PublicMirror');
 
 /* ─────────────────────────────
    Members (public)
@@ -81,6 +82,10 @@ export default function AppRoutes() {
       <Route path="/admin-setup" element={<AdminSetup />} />
       {/* Public Signature Route - accessible without login */}
       <Route path="/sign/:id"    element={<SignCustomer />} />  {/* <--- Add this line */}
+      {/* Public Real-Time Mirror Routes - Read-Only Live Sync */}
+      <Route path="/maintenance/live" element={<PublicMirror />} />
+      <Route path="/maintenance-public" element={<PublicMirror />} />
+      <Route path="/schedule-mirror"  element={<PublicMirror />} />
       {/* Member password flows */}
       <Route path="/members/forgot-password" element={<ForgotPassword />} />
       <Route path="/members/reset-password"  element={<ResetPassword />} />

@@ -32,13 +32,18 @@ export function Modal({
   // Prevent background scrolling while modal is open & reset modal scroll to top
   useEffect(() => {
     if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.setProperty('overflow', 'hidden', 'important');
+      document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+      document.body.classList.add('modal-open');
       if (contentRef.current) {
         contentRef.current.scrollTop = 0;
       }
       return () => {
-        document.body.style.overflow = originalOverflow;
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.body.classList.remove('modal-open');
       };
     }
   }, [isOpen]);
@@ -104,12 +109,12 @@ export function Modal({
           <div>
             <h3
               id="modal-title"
-              className={clsx('text-lg font-bold tracking-wide', isNavy ? 'text-white' : 'text-gray-900')}
+              className={clsx('text-lg font-bold tracking-wide', isNavy ? 'text-white' : 'text-black font-extrabold')}
             >
               {title}
             </h3>
             {subtitle && (
-              <p className={clsx('text-xs mt-0.5', isNavy ? 'text-slate-400' : 'text-gray-500')}>{subtitle}</p>
+              <p className={clsx('text-xs mt-0.5', isNavy ? 'text-slate-400' : 'text-gray-700 font-medium')}>{subtitle}</p>
             )}
           </div>
           <button
@@ -118,7 +123,7 @@ export function Modal({
               'p-2 rounded-xl transition-colors cursor-pointer ml-4',
               isNavy
                 ? 'text-slate-400 hover:text-white hover:bg-[#1C2038]'
-                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                : 'text-black hover:text-gray-900 hover:bg-gray-100'
             )}
             onClick={onClose}
             title="Close modal"

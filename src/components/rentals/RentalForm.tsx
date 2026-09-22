@@ -533,10 +533,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
   }, [formData.type, formData.numberOfWeeks, formData.startDate, formData.startTime]);
 
   return (
-    <>
+    <div className="rental-form-container flex flex-col h-full min-h-0 bg-[#16192B] text-white">
       <div ref={topRef} />
       
-      <div className="flex border-b border-gray-200 mb-6 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg">
+      {/* Top Tab Navigation Bar */}
+      <div className="flex border-b border-[#2B314E] sticky top-0 bg-[#16192B] z-20 shadow-md shrink-0">
         {[
           { step: 1, label: 'Vehicle & Customer', icon: User },
           { step: 2, label: 'Rental Config & Finance', icon: PoundSterling },
@@ -544,318 +545,338 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         ].map((s) => (
           <button
             key={s.step} type="button"
-            className={`flex-1 py-4 text-sm font-medium border-b-2 flex items-center justify-center gap-2 transition-colors
-              ${activeStep === s.step ? 'border-primary text-primary bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+            className={`flex-1 py-3.5 sm:py-4 px-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-all cursor-pointer
+              ${activeStep === s.step 
+                ? 'border-blue-500 text-white bg-blue-500/10 shadow-inner' 
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#1E2238]/60'}`}
             onClick={() => setActiveStep(s.step as any)}
           >
-            <s.icon className="w-4 h-4" /> <span className="hidden sm:inline">{s.label}</span>
+            <s.icon className={`w-4 h-4 ${activeStep === s.step ? 'text-blue-400' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">{s.label}</span>
           </button>
         ))}
       </div>
 
-      <form onSubmit={handleInitialSubmit} className="space-y-6 px-2">
-        {/* STEP 1 */}
-        {activeStep === 1 && (
-          <div className="space-y-8 animate-in fade-in zoom-in-95 duration-200">
-             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Car className="text-primary" /> Assign Vehicle
-                </h3>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text" value={vehicleSearchQuery}
-                    onChange={e => { setVehicleSearchQuery(e.target.value); setShowVehicleResults(true); }}
-                    onFocus={() => setShowVehicleResults(true)}
-                    onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
-                    placeholder="Search by make, model, or plate..."
-                    className="block w-full pl-10 pr-3 py-3 border-gray-300 rounded-lg focus:ring-primary focus:border-primary shadow-sm"
-                  />
-                  {showVehicleResults && (
-                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-md py-1 overflow-auto border border-gray-100">
-                      {filteredVehicles.map(v => (
-                        <div key={v.id} 
-                           className={`px-4 py-3 border-b border-gray-50 ${(v as any).hasConflict ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50'}`}
-                           onMouseDown={(e) => {
-                             e.preventDefault();
-                             if ((v as any).hasConflict) return toast.error(`Busy: ${(v as any).message}`);
-                             setFormData(p => ({ ...p, vehicleId: v.id }));
-                             setVehicleSearchQuery(`${v.make} ${v.model} - ${v.registrationNumber}`);
-                             setShowVehicleResults(false);
-                             setConditionData(p => ({ ...p, mileage: v.mileage || 0 }));
-                           }}
-                        >
-                          <div className="font-semibold text-gray-800">{v.make} {v.model} <span className="text-primary ml-2">{v.registrationNumber}</span></div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {selectedVehicle && (
-                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg flex items-center gap-4">
-                    <CheckCircle className="text-green-500 w-6 h-6" />
-                    <div><p className="font-bold">{selectedVehicle.make} {selectedVehicle.model}</p><p className="text-sm text-gray-500">{selectedVehicle.registrationNumber}</p></div>
+      <form onSubmit={handleInitialSubmit} className="flex-1 min-h-0 flex flex-col justify-between">
+        <div className="flex-1 overflow-y-auto min-h-[500px] custom-scrollbar p-4 sm:p-6 space-y-6">
+          {/* STEP 1 */}
+          {activeStep === 1 && (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+               {/* Assign Vehicle Card */}
+               <div className="bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <Car className="text-blue-400" /> Assign Vehicle
+                  </h3>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text" 
+                      autoComplete="off"
+                      data-lpignore="true"
+                      value={vehicleSearchQuery}
+                      onChange={e => { setVehicleSearchQuery(e.target.value); setShowVehicleResults(true); }}
+                      onFocus={() => setShowVehicleResults(true)}
+                      onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
+                      placeholder="Search by make, model, or plate..."
+                      className="block w-full pl-10 pr-3 py-3 bg-[#0F111A] text-white font-medium placeholder:text-slate-400 border border-[#2B314E] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm text-sm"
+                    />
+                    {showVehicleResults && (
+                      <div className="absolute z-20 mt-1 w-full bg-[#16192B] shadow-2xl max-h-60 rounded-xl py-1 overflow-auto border border-[#2B314E] custom-scrollbar">
+                        {filteredVehicles.map(v => (
+                          <div key={v.id} 
+                             className={`px-4 py-3 border-b border-[#2B314E]/60 ${(v as any).hasConflict ? 'opacity-50' : 'cursor-pointer hover:bg-[#2B314E]/60 transition-colors'}`}
+                             onMouseDown={(e) => {
+                               e.preventDefault();
+                               if ((v as any).hasConflict) return toast.error(`Busy: ${(v as any).message}`);
+                               setFormData(p => ({ ...p, vehicleId: v.id }));
+                               setVehicleSearchQuery(`${v.make} ${v.model} - ${v.registrationNumber}`);
+                               setShowVehicleResults(false);
+                               setConditionData(p => ({ ...p, mileage: v.mileage || 0 }));
+                             }}
+                          >
+                            <div className="font-bold text-white">{v.make} {v.model} <span className="text-blue-400 ml-2 font-extrabold">{v.registrationNumber}</span></div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-             </div>
-
-             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <User className="text-blue-600" /> Assign Customer
-                </h3>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text" value={customerSearchQuery}
-                    onChange={e => { setCustomerSearchQuery(e.target.value); setShowCustomerResults(true); }}
-                    onFocus={() => setShowCustomerResults(true)}
-                    onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
-                    placeholder="Search by name, email, or mobile..."
-                    className="block w-full pl-10 pr-3 py-3 border-gray-300 rounded-lg focus:ring-primary focus:border-primary shadow-sm"
-                  />
-                 {showCustomerResults && (
-                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-md py-1 overflow-auto border border-gray-100">
-                      {filteredCustomers.map(c => (
-                        <div key={c.id} className="px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-blue-50"
-                           onMouseDown={() => { 
-                             setFormData(p => ({...p, customerId: c.id, signature: c.signature || ''})); 
-                             setCustomerSearchQuery(c.name); 
-                             setShowCustomerResults(false); 
-                           }}
-                        >
-                          <div className="font-semibold">{c.name}</div><div className="text-sm text-gray-500">{c.email} | {c.mobile}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {selectedCustomer && (
-                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg flex flex-col gap-4">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="text-green-500 w-6 h-6" />
+                  {selectedVehicle && (
+                    <div className="mt-4 p-4 bg-[#16192B] border border-emerald-500/40 rounded-xl flex items-center gap-4">
+                      <CheckCircle className="text-emerald-400 w-6 h-6 shrink-0" />
                       <div>
-                        <p className="font-bold">{selectedCustomer.name}</p>
-                        <p className="text-sm text-gray-500">{selectedCustomer.mobile}</p>
+                        <p className="font-bold text-white">{selectedVehicle.make} {selectedVehicle.model}</p>
+                        <p className="text-sm font-semibold text-slate-300">{selectedVehicle.registrationNumber}</p>
                       </div>
                     </div>
-                    
-                    <div className="border-t border-gray-100 pt-4 mt-2">
-                      <div className="flex justify-between items-center mb-2">
-                         <label className="block text-sm font-bold text-gray-700">Customer Signature</label>
-                         {formData.signature ? (
-                           <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase tracking-wider">Attached</span>
-                         ) : (
-                           <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wider">Required</span>
-                         )}
+                  )}
+               </div>
+
+               {/* Assign Customer Card */}
+               <div className="bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <User className="text-blue-400" /> Assign Customer
+                  </h3>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text" 
+                      autoComplete="off"
+                      data-lpignore="true"
+                      value={customerSearchQuery}
+                      onChange={e => { setCustomerSearchQuery(e.target.value); setShowCustomerResults(true); }}
+                      onFocus={() => setShowCustomerResults(true)}
+                      onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
+                      placeholder="Search by name, email, or mobile..."
+                      className="block w-full pl-10 pr-3 py-3 bg-[#0F111A] text-white font-medium placeholder:text-slate-400 border border-[#2B314E] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm text-sm"
+                    />
+                   {showCustomerResults && (
+                      <div className="absolute z-20 mt-1 w-full bg-[#16192B] shadow-2xl max-h-60 rounded-xl py-1 overflow-auto border border-[#2B314E] custom-scrollbar">
+                        {filteredCustomers.map(c => (
+                          <div key={c.id} className="px-4 py-3 border-b border-[#2B314E]/60 cursor-pointer hover:bg-[#2B314E]/60 transition-colors"
+                             onMouseDown={() => { 
+                               setFormData(p => ({...p, customerId: c.id, signature: c.signature || ''})); 
+                               setCustomerSearchQuery(c.name); 
+                               setShowCustomerResults(false); 
+                             }}
+                          >
+                            <div className="font-bold text-white">{c.name}</div>
+                            <div className="text-sm text-slate-300">{c.email} | {c.mobile}</div>
+                          </div>
+                        ))}
                       </div>
-                      <SignaturePad
-                        value={formData.signature}
-                        onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        {formData.signature 
-                          ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
-                          : 'Please have the customer sign above.'}
-                      </p>
-                    </div>
+                    )}
                   </div>
-                )}
-             </div>
-
-             {formData.reason === 'h-substitute' && (
-                <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
-                   <h3 className="text-lg font-bold text-gray-900 mb-4">Substitution Details</h3>
-                   
-                   {formData.hireSubstitutionDetails.map((sub, index) => (
-                      <div key={index} className="flex flex-col gap-5 border border-yellow-300 bg-white p-5 rounded-xl mb-4 relative shadow-sm">
-                         <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <h4 className="font-bold text-gray-800">Substitution Vehicle #{index + 1}</h4>
-                            <button 
-                              type="button" 
-                              onClick={() => removeSubstitutionVehicle(index)} 
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-md transition-colors"
-                              title="Remove Substitution"
-                            >
-                              <X className="h-5 w-5" />
-                            </button>
-                         </div>
-
-                         <div className="space-y-4">
-                            <div className="relative">
-                               <input
-                                 type="text"
-                                 value={subVehicleSearchQueries[index]}
-                                 onChange={(e) => {
-                                   const val = e.target.value;
-                                   const newQueries = [...subVehicleSearchQueries];
-                                   newQueries[index] = val;
-                                   setSubVehicleSearchQueries(newQueries);
-                                   
-                                   const newSubs = [...formData.hireSubstitutionDetails];
-                                   newSubs[index].registration = val;
-                                   setFormData({ ...formData, hireSubstitutionDetails: newSubs });
-                                   
-                                   const newShowResults = [...showSubVehicleResults];
-                                   newShowResults[index] = true;
-                                   setShowSubVehicleResults(newShowResults);
-                                 }}
-                                 onFocus={() => {
-                                   const newShowResults = [...showSubVehicleResults];
-                                   newShowResults[index] = true;
-                                   setShowSubVehicleResults(newShowResults);
-                                 }}
-                                 onBlur={() => {
-                                   setTimeout(() => {
-                                     const newShowResults = [...showSubVehicleResults];
-                                     newShowResults[index] = false;
-                                     setShowSubVehicleResults(newShowResults);
-                                   }, 200);
-                                 }}
-                                 placeholder="Search available substitution vehicles..."
-                                 className="w-full border rounded-md p-2"
-                               />
-                               
-                               {showSubVehicleResults[index] && (
-                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
-                                   {filteredSubVehicles(index).map(v => (
-                                     <div 
-                                       key={v.id}
-                                       className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors flex justify-between items-center"
-                                       onMouseDown={(e) => {
-                                         e.preventDefault();
-                                         const newSubs = [...formData.hireSubstitutionDetails];
-                                         newSubs[index].registration = v.registrationNumber || '';
-                                         newSubs[index].make = v.make || '';
-                                         newSubs[index].model = v.model || '';
-                                         newSubs[index].mileage = v.mileage || 0; 
-                                         setFormData({ ...formData, hireSubstitutionDetails: newSubs });
-                                         
-                                         const newQueries = [...subVehicleSearchQueries];
-                                         newQueries[index] = `${v.make} ${v.model} - ${v.registrationNumber}`;
-                                         setSubVehicleSearchQueries(newQueries);
-
-                                         const newShowResults = [...showSubVehicleResults];
-                                         newShowResults[index] = false;
-                                         setShowSubVehicleResults(newShowResults);
-                                       }}
-                                     >
-                                       <div>
-                                          <div className="font-bold text-gray-900">{v.registrationNumber}</div>
-                                          <div className="text-xs text-gray-500 font-medium">{v.make} {v.model}</div>
-                                       </div>
-                                       <div className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold uppercase">
-                                          Available
-                                       </div>
-                                     </div>
-                                   ))}
-                                   
-                                   {filteredSubVehicles(index).length === 0 && (
-                                     <div className="px-4 py-3 text-sm text-gray-500 italic bg-gray-50 rounded-b-xl">
-                                       No available vehicles match. (Manual entry will be saved)
-                                     </div>
-                                   )}
-                                 </div>
-                               )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <FormField label="Vehicle Make" name="make" value={sub.make} onChange={e => handleSubChange(index, e)} placeholder="e.g. Toyota" />
-                              <FormField label="Vehicle Model" name="model" value={sub.model} onChange={e => handleSubChange(index, e)} placeholder="e.g. Prius" />
-                            </div>
-                         </div>
-
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-                            <FormField label="Date & Time Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={e => handleSubChange(index, e)} />
-                            <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={e => handleSubChange(index, e)} />
-                         </div>
-                         
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="col-span-1 md:col-span-2">
-                                 <FormField label="Loaner (Provider - Optional)" name="loaner" value={sub.loaner || ''} onChange={e => handleSubChange(index, e)} placeholder="e.g. Partner Co. or Internal Fleet" />
-                             </div>
-                             <div className="col-span-1 md:col-span-2">
-                                 <TextArea label="Notes (Reason for Substitution)" name="notes" value={sub.notes} onChange={e => handleSubChange(index, e)} rows={2} />
-                             </div>
-                         </div>
-
-                         <div className="mt-4 border-t border-yellow-200 pt-4 bg-gray-50 p-4 rounded-xl">
-                             <h5 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Car className="text-gray-500"/> Sub Vehicle Check-Out Condition</h5>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField type="number" label="Mileage Out" name="mileage" value={sub.mileage} onChange={e => handleSubChange(index, e)} required />
-                                <div>
-                                   <label className="block text-sm font-medium text-gray-700 mb-1">Fuel Level</label>
-                                   <select name="fuelLevel" value={sub.fuelLevel} onChange={e => handleSubChange(index, e as any)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary" required>
-                                      <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
-                                   </select>
-                                </div>
-                                <div className="flex gap-4 col-span-1 md:col-span-2">
-                                   <label className="flex items-center gap-2 font-medium"><input type="checkbox" name="isClean" checked={!!sub.isClean} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5"/> Is Clean</label>
-                                   <label className="flex items-center gap-2 font-medium"><input type="checkbox" name="hasDamage" checked={!!sub.hasDamage} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-red-500"/> Has Damage</label>
-                                </div>
-                                {sub.hasDamage && <div className="col-span-1 md:col-span-2"><TextArea label="Damage Description" name="damageDescription" value={sub.damageDescription} onChange={e => handleSubChange(index, e as any)} /></div>}
-                                <div className="col-span-1 md:col-span-2 space-y-3">
-                                   <FileUpload label="Add Check-Out Images" multiple accept="image/*" onChange={files => setSubNewImages(prev => ({ ...prev, [index]: files }))} showPreview />
-                                </div>
-                             </div>
-                         </div>
+                  
+                  {selectedCustomer && (
+                    <div className="mt-4 p-4 bg-[#16192B] border border-emerald-500/40 rounded-xl flex flex-col gap-4">
+                      <div className="flex items-center gap-4">
+                        <CheckCircle className="text-emerald-400 w-6 h-6 shrink-0" />
+                        <div>
+                          <p className="font-bold text-white">{selectedCustomer.name}</p>
+                          <p className="text-sm text-slate-400">{selectedCustomer.mobile}</p>
+                        </div>
                       </div>
-                   ))}
-                   
-                   <button 
-                     type="button" 
-                     onClick={addSubstitutionVehicle} 
-                     className="flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 font-bold transition-all"
-                   >
-                     <Plus className="h-4 w-4 mr-2" /> Add Another Substitution
-                   </button>
-                </div>
-             )}
-          </div>
-        )}
+                      
+                      {/* Signature Box */}
+                      <div className="border-t border-[#2B314E] pt-4 mt-2">
+                        <div className="flex justify-between items-center mb-2">
+                           <label className="block text-sm font-bold text-white">Customer Signature</label>
+                           {formData.signature ? (
+                             <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/70 px-2.5 py-0.5 rounded border border-emerald-500/40 uppercase tracking-wider">Attached</span>
+                           ) : (
+                             <span className="text-[10px] font-bold text-rose-300 bg-rose-950/70 px-2.5 py-0.5 rounded border border-rose-500/40 uppercase tracking-wider">Required</span>
+                           )}
+                        </div>
+                        <SignaturePad
+                          value={formData.signature}
+                          onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
+                          theme="navy"
+                        />
+                        <p className="text-xs text-slate-400 mt-2">
+                          {formData.signature 
+                            ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
+                            : 'Please have the customer sign above.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+               </div>
+
+               {formData.reason === 'h-substitute' && (
+                  <div className="bg-[#1E2238] p-6 rounded-xl border border-amber-500/40 shadow-sm">
+                     <h3 className="text-lg font-bold text-white mb-4">Substitution Details</h3>
+                     
+                     {formData.hireSubstitutionDetails.map((sub, index) => (
+                        <div key={index} className="flex flex-col gap-5 border border-[#2B314E] bg-[#16192B] p-5 rounded-xl mb-4 relative shadow-sm">
+                           <div className="flex justify-between items-center pb-2 border-b border-[#2B314E]">
+                              <h4 className="font-bold text-white">Substitution Vehicle #{index + 1}</h4>
+                              <button 
+                                type="button" 
+                                onClick={() => removeSubstitutionVehicle(index)} 
+                                className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 p-1.5 rounded-md transition-colors"
+                                title="Remove Substitution"
+                              >
+                                <X className="h-5 w-5" />
+                              </button>
+                           </div>
+
+                           <div className="space-y-4">
+                              <div className="relative">
+                                 <input
+                                   type="text"
+                                   autoComplete="off"
+                                   data-lpignore="true"
+                                   value={subVehicleSearchQueries[index]}
+                                   onChange={(e) => {
+                                     const val = e.target.value;
+                                     const newQueries = [...subVehicleSearchQueries];
+                                     newQueries[index] = val;
+                                     setSubVehicleSearchQueries(newQueries);
+                                     
+                                     const newSubs = [...formData.hireSubstitutionDetails];
+                                     newSubs[index].registration = val;
+                                     setFormData({ ...formData, hireSubstitutionDetails: newSubs });
+                                     
+                                     const newShowResults = [...showSubVehicleResults];
+                                     newShowResults[index] = true;
+                                     setShowSubVehicleResults(newShowResults);
+                                   }}
+                                   onFocus={() => {
+                                     const newShowResults = [...showSubVehicleResults];
+                                     newShowResults[index] = true;
+                                     setShowSubVehicleResults(newShowResults);
+                                   }}
+                                   onBlur={() => {
+                                     setTimeout(() => {
+                                       const newShowResults = [...showSubVehicleResults];
+                                       newShowResults[index] = false;
+                                       setShowSubVehicleResults(newShowResults);
+                                     }, 200);
+                                   }}
+                                   placeholder="Search available substitution vehicles..."
+                                   className="w-full bg-[#0F111A] text-white font-medium border border-[#2B314E] rounded-lg p-2.5 shadow-sm placeholder:text-slate-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                 />
+                                 
+                                 {showSubVehicleResults[index] && (
+                                   <div className="absolute z-50 w-full mt-1 bg-[#16192B] border border-[#2B314E] rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar">
+                                     {filteredSubVehicles(index).map(v => (
+                                       <div 
+                                         key={v.id}
+                                         className="px-4 py-3 hover:bg-[#2B314E]/60 cursor-pointer border-b border-[#2B314E]/60 last:border-0 transition-colors flex justify-between items-center"
+                                         onMouseDown={(e) => {
+                                           e.preventDefault();
+                                           const newSubs = [...formData.hireSubstitutionDetails];
+                                           newSubs[index].registration = v.registrationNumber || '';
+                                           newSubs[index].make = v.make || '';
+                                           newSubs[index].model = v.model || '';
+                                           newSubs[index].mileage = v.mileage || 0; 
+                                           setFormData({ ...formData, hireSubstitutionDetails: newSubs });
+                                           
+                                           const newQueries = [...subVehicleSearchQueries];
+                                           newQueries[index] = `${v.make} ${v.model} - ${v.registrationNumber}`;
+                                           setSubVehicleSearchQueries(newQueries);
+
+                                           const newShowResults = [...showSubVehicleResults];
+                                           newShowResults[index] = false;
+                                           setShowSubVehicleResults(newShowResults);
+                                         }}
+                                       >
+                                         <div>
+                                            <div className="font-bold text-white">{v.registrationNumber}</div>
+                                            <div className="text-xs text-slate-300 font-medium">{v.make} {v.model}</div>
+                                         </div>
+                                         <div className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-2 py-1 rounded font-bold uppercase">
+                                            Available
+                                         </div>
+                                       </div>
+                                     ))}
+                                     
+                                     {filteredSubVehicles(index).length === 0 && (
+                                       <div className="px-4 py-3 text-sm text-slate-400 italic bg-[#0F111A] rounded-b-xl">
+                                         No available vehicles match. (Manual entry will be saved)
+                                       </div>
+                                     )}
+                                   </div>
+                                 )}
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField label="Vehicle Make" name="make" value={sub.make} onChange={e => handleSubChange(index, e)} placeholder="e.g. Toyota" />
+                                <FormField label="Vehicle Model" name="model" value={sub.model} onChange={e => handleSubChange(index, e)} placeholder="e.g. Prius" />
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#2B314E]">
+                              <FormField label="Date & Time Given" type="datetime-local" name="givenAt" value={sub.givenAt} onChange={e => handleSubChange(index, e)} />
+                              <FormField label="Expected Return" type="datetime-local" name="expectedReturnAt" value={sub.expectedReturnAt} onChange={e => handleSubChange(index, e)} />
+                           </div>
+                           
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div className="col-span-1 md:col-span-2">
+                                   <FormField label="Loaner (Provider - Optional)" name="loaner" value={sub.loaner || ''} onChange={e => handleSubChange(index, e)} placeholder="e.g. Partner Co. or Internal Fleet" />
+                               </div>
+                               <div className="col-span-1 md:col-span-2">
+                                   <TextArea label="Notes (Reason for Substitution)" name="notes" value={sub.notes} onChange={e => handleSubChange(index, e)} rows={2} />
+                               </div>
+                           </div>
+
+                           <div className="mt-4 border-t border-[#2B314E] pt-4 bg-[#0F111A] p-4 rounded-xl border border-[#2B314E]">
+                               <h5 className="font-bold text-white mb-3 flex items-center gap-2"><Car className="text-blue-400"/> Sub Vehicle Check-Out Condition</h5>
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <FormField type="number" label="Mileage Out" name="mileage" value={sub.mileage} onChange={e => handleSubChange(index, e)} required />
+                                  <div>
+                                     <label className="block text-sm font-semibold text-white mb-1">Fuel Level</label>
+                                     <select name="fuelLevel" value={sub.fuelLevel} onChange={e => handleSubChange(index, e as any)} className="w-full rounded-md border-[#2B314E] bg-[#16192B] text-white shadow-sm focus:border-blue-500" required>
+                                        <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
+                                     </select>
+                                  </div>
+                                  <div className="flex gap-4 col-span-1 md:col-span-2">
+                                     <label className="flex items-center gap-2 font-medium text-slate-200"><input type="checkbox" name="isClean" checked={!!sub.isClean} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5"/> Is Clean</label>
+                                     <label className="flex items-center gap-2 font-medium text-slate-200"><input type="checkbox" name="hasDamage" checked={!!sub.hasDamage} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-rose-500"/> Has Damage</label>
+                                  </div>
+                                  {sub.hasDamage && <div className="col-span-1 md:col-span-2"><TextArea label="Damage Description" name="damageDescription" value={sub.damageDescription} onChange={e => handleSubChange(index, e as any)} /></div>}
+                                  <div className="col-span-1 md:col-span-2 space-y-3">
+                                     <FileUpload label="Add Check-Out Images" multiple accept="image/*" onChange={files => setSubNewImages(prev => ({ ...prev, [index]: files }))} showPreview />
+                                  </div>
+                               </div>
+                           </div>
+                        </div>
+                     ))}
+                     
+                     <button 
+                       type="button" 
+                       onClick={addSubstitutionVehicle} 
+                       className="flex items-center px-4 py-2 border border-[#2B314E] rounded-lg shadow-sm text-slate-200 bg-[#16192B] hover:bg-[#2B314E] font-bold transition-all cursor-pointer"
+                     >
+                       <Plus className="h-4 w-4 mr-2" /> Add Another Substitution
+                     </button>
+                  </div>
+               )}
+            </div>
+          )}
 
         {/* STEP 2 */}
         {activeStep === 2 && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-               <h3 className="col-span-2 text-lg font-bold border-b pb-2">Scheduling</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+               <h3 className="col-span-2 text-lg font-bold text-white border-b border-[#2B314E] pb-2">Scheduling</h3>
                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rental Type</label>
-                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as any }))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                  <label className="block text-sm font-semibold text-slate-200 mb-1">Rental Type</label>
+                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as any }))} className="w-full rounded-lg border border-[#2B314E] bg-[#0F111A] text-white p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="claim">Claim</option>
                   </select>
                </div>
                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                  <label className="block text-sm font-semibold text-slate-200 mb-1">Status</label>
+                  <select value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))} className="w-full rounded-lg border border-[#2B314E] bg-[#0F111A] text-white p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     <option value="scheduled">Scheduled</option><option value="active">Active</option>
                   </select>
                </div>
                
                <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                    <select value={formData.reason} onChange={e => setFormData(p => ({ ...p, reason: e.target.value as any }))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                    <label className="block text-sm font-semibold text-slate-200 mb-1">Reason</label>
+                    <select value={formData.reason} onChange={e => setFormData(p => ({ ...p, reason: e.target.value as any }))} className="w-full rounded-lg border border-[#2B314E] bg-[#0F111A] text-white p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                       <option value="hired">Hire</option><option value="claim">Claim</option><option value="o/d">O/D</option><option value="staff">Staff</option><option value="workshop">Workshop</option>
                     </select>
                  </div>
                  {formData.type === 'claim' && (
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-gray-700">Claim Reference</label>
-                        <label className="flex items-center space-x-2 text-xs"><input type="checkbox" checked={manualClaimRef} onChange={e => setManualClaimRef(e.target.checked)} className="rounded" /><span>Manual</span></label>
+                        <label className="block text-sm font-semibold text-slate-200">Claim Reference</label>
+                        <label className="flex items-center space-x-2 text-xs text-slate-400"><input type="checkbox" checked={manualClaimRef} onChange={e => setManualClaimRef(e.target.checked)} className="rounded border-[#2B314E] bg-[#0F111A]" /><span>Manual</span></label>
                       </div>
                       {manualClaimRef ? (
-                        <input type="text" value={formData.claimRef} onChange={e => setFormData(p => ({...p, claimRef: e.target.value}))} className="w-full rounded border-gray-300 shadow-sm" placeholder="Enter claim ref" />
+                        <input type="text" value={formData.claimRef} onChange={e => setFormData(p => ({...p, claimRef: e.target.value}))} className="w-full bg-[#0F111A] text-white font-medium rounded-lg border border-[#2B314E] shadow-sm p-2.5 text-sm focus:ring-2 focus:ring-blue-500" placeholder="Enter claim ref" />
                       ) : (
                         <div className="relative">
-                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                          <input type="text" value={claimSearchQuery} onChange={e => { setClaimSearchQuery(e.target.value); setShowClaimResults(true); }} onFocus={() => setShowClaimResults(true)} onBlur={() => setTimeout(() => setShowClaimResults(false), 200)} placeholder="Search claims..." className="w-full pl-9 py-2 border rounded-md shadow-sm" />
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                          <input type="text" value={claimSearchQuery} onChange={e => { setClaimSearchQuery(e.target.value); setShowClaimResults(true); }} onFocus={() => setShowClaimResults(true)} onBlur={() => setTimeout(() => setShowClaimResults(false), 200)} placeholder="Search claims..." className="w-full pl-9 py-2.5 bg-[#0F111A] text-white font-medium border border-[#2B314E] rounded-lg shadow-sm placeholder:text-slate-400 text-sm focus:ring-2 focus:ring-blue-500" />
                           {showClaimResults && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-auto">
+                            <div className="absolute z-10 w-full mt-1 bg-[#16192B] border border-[#2B314E] rounded-xl shadow-2xl max-h-48 overflow-auto custom-scrollbar">
                               {filteredClaims.map(c => (
-                                <div key={c.id} className="p-2 border-b cursor-pointer hover:bg-gray-50" onMouseDown={() => { setFormData(p => ({...p, claimRef: c.clientRef || c.id})); setClaimSearchQuery(c.clientRef || c.id); setShowClaimResults(false); }}>
-                                  <div className="font-bold text-sm">{c.clientRef || c.id}</div><div className="text-xs text-gray-500">{c.clientInfo?.name}</div>
+                                <div key={c.id} className="p-3 border-b border-[#2B314E]/60 cursor-pointer hover:bg-[#2B314E]/60 transition-colors" onMouseDown={() => { setFormData(p => ({...p, claimRef: c.clientRef || c.id})); setClaimSearchQuery(c.clientRef || c.id); setShowClaimResults(false); }}>
+                                  <div className="font-bold text-sm text-white">{c.clientRef || c.id}</div><div className="text-xs font-semibold text-slate-400">{c.clientInfo?.name}</div>
                                 </div>
                               ))}
                             </div>
@@ -866,9 +887,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                  )}
                </div>
 
-               <div className="col-span-2 flex items-center gap-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-                  <input type="checkbox" id="includeVAT" checked={formData.includeVAT} onChange={e => setFormData(p => ({ ...p, includeVAT: e.target.checked }))} className="w-5 h-5 text-primary rounded border-gray-300" />
-                  <label htmlFor="includeVAT" className="font-bold text-gray-800">Apply Standard 20% VAT to Base Rental Cost</label>
+               <div className="col-span-2 flex items-center gap-3 bg-blue-950/40 p-3.5 rounded-xl border border-blue-800/40">
+                  <input type="checkbox" id="includeVAT" checked={formData.includeVAT} onChange={e => setFormData(p => ({ ...p, includeVAT: e.target.checked }))} className="w-5 h-5 text-blue-500 rounded border-[#2B314E] bg-[#0F111A]" />
+                  <label htmlFor="includeVAT" className="font-bold text-white text-sm cursor-pointer">Apply Standard 20% VAT to Base Rental Cost</label>
                </div>
 
                <FormField type="date" label="Start Date" value={formData.startDate} onChange={e => setFormData(p => ({ ...p, startDate: e.target.value }))} required />
@@ -891,48 +912,48 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             </div>
 
             {/* Insurance Blocks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-               <h3 className="col-span-1 md:col-span-2 text-lg font-bold border-b pb-2">Insurance & Extras</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+               <h3 className="col-span-1 md:col-span-2 text-lg font-bold text-white border-b border-[#2B314E] pb-2">Insurance & Extras</h3>
                {formData.type === 'weekly' ? (
-                  <div className="flex items-end gap-3 col-span-2 border p-3 rounded bg-gray-50">
+                  <div className="flex items-end gap-3 col-span-2 border border-[#2B314E] p-3.5 rounded-xl bg-[#0F111A]">
                     <div className="flex-1"><FormField type="number" label="Insurance Per Week (£)" value={formData.insurancePerWeek} onChange={e => { setInsurancePerWeekTouched(true); setFormData(p => ({...p, insurancePerWeek: parseFloat(e.target.value)||0})); }} /></div>
-                    <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.insurancePerWeekIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerWeekIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-200 cursor-pointer"><input type="checkbox" checked={formData.insurancePerWeekIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerWeekIncludeVAT: e.target.checked}))} className="rounded border-[#2B314E] bg-[#16192B]" /> Inc VAT</label>
                   </div>
                ) : (
-                  <div className="flex items-end gap-3 col-span-2 border p-3 rounded bg-gray-50">
+                  <div className="flex items-end gap-3 col-span-2 border border-[#2B314E] p-3.5 rounded-xl bg-[#0F111A]">
                     <div className="flex-1"><FormField type="number" label="Insurance Per Day (£)" value={formData.insurancePerDay} onChange={e => { setInsurancePerDayTouched(true); setFormData(p => ({...p, insurancePerDay: parseFloat(e.target.value)||0})); }} /></div>
-                    <label className="flex items-center gap-2 pb-2 font-medium"><input type="checkbox" checked={formData.insurancePerDayIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerDayIncludeVAT: e.target.checked}))} className="rounded" /> Inc VAT</label>
+                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-200 cursor-pointer"><input type="checkbox" checked={formData.insurancePerDayIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerDayIncludeVAT: e.target.checked}))} className="rounded border-[#2B314E] bg-[#16192B]" /> Inc VAT</label>
                   </div>
                )}
                {/* Claim Specific Extras */}
                {formData.type === 'claim' && (
-                 <div className="col-span-2 grid grid-cols-2 gap-4 border-t pt-4">
+                 <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-[#2B314E] pt-4">
                     <FormField type="date" label="Storage Start" value={formData.storageStartDate} onChange={e => setFormData(p => ({...p, storageStartDate: e.target.value}))} />
                     <FormField type="date" label="Storage End" value={formData.storageEndDate} onChange={e => setFormData(p => ({...p, storageEndDate: e.target.value}))} />
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Storage/Day (£)" value={formData.storageCostPerDay} onChange={e => setFormData(p => ({...p, storageCostPerDay: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeStorageVAT} onChange={e => setFormData(p => ({...p, includeStorageVAT: e.target.checked}))} className="rounded mb-3" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Recovery (£)" value={formData.recoveryCost} onChange={e => setFormData(p => ({...p, recoveryCost: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeRecoveryCostVAT} onChange={e => setFormData(p => ({...p, includeRecoveryCostVAT: e.target.checked}))} className="rounded mb-3" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Delivery (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded mb-3" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Collection (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded mb-3" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Storage/Day (£)" value={formData.storageCostPerDay} onChange={e => setFormData(p => ({...p, storageCostPerDay: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeStorageVAT} onChange={e => setFormData(p => ({...p, includeStorageVAT: e.target.checked}))} className="rounded mb-3 border-[#2B314E] bg-[#0F111A]" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Recovery (£)" value={formData.recoveryCost} onChange={e => setFormData(p => ({...p, recoveryCost: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeRecoveryCostVAT} onChange={e => setFormData(p => ({...p, includeRecoveryCostVAT: e.target.checked}))} className="rounded mb-3 border-[#2B314E] bg-[#0F111A]" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Delivery (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-[#2B314E] bg-[#0F111A]" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Collection (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-[#2B314E] bg-[#0F111A]" /></div>
                  </div>
                )}
             </div>
 
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
-               <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Financials & Discounts</h3>
+            <div className="bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+               <h3 className="text-lg font-bold text-white border-b border-[#2B314E] pb-2 mb-4">Financials & Discounts</h3>
                <div className="grid grid-cols-2 gap-4">
                   <FormField type="number" label="Negotiated Override Rate (£)" value={formData.negotiatedRate} onChange={e => setFormData(p => ({ ...p, negotiatedRate: e.target.value }))} placeholder="Leave blank for default" />
                   <FormField type="number" label="Discount % (Applied BEFORE VAT)" value={formData.discountPercentage} onChange={e => { setLastDiscountEdit('pct'); setFormData(p => ({ ...p, discountPercentage: parseFloat(e.target.value)||0 })); }} />
                   <FormField type="number" label="Fixed Discount Amount (£)" value={formData.discountAmount} onChange={e => { setLastDiscountEdit('amt'); setFormData(p => ({ ...p, discountAmount: parseFloat(e.target.value)||0 })); }} />
                   
-                  <div className="col-span-2 bg-blue-900 text-white p-5 rounded-xl shadow-inner mt-4 flex items-center justify-between">
+                  <div className="col-span-2 bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-5 rounded-xl shadow-inner mt-4 flex items-center justify-between border border-blue-500/30">
                      <div>
-                       <p className="text-blue-200 text-sm font-semibold uppercase tracking-wider">Gross Total</p>
-                       <p className="text-4xl font-black tracking-tight">{formatCurrency(costs.gross)}</p>
+                       <p className="text-blue-300 text-xs font-bold uppercase tracking-wider">Gross Total</p>
+                       <p className="text-3xl sm:text-4xl font-black tracking-tight text-white">{formatCurrency(costs.gross)}</p>
                      </div>
-                     <div className="text-right text-xs text-blue-300 space-y-1">
-                       <p>Net: {formatCurrency(costs.net)}</p>
-                       <p>VAT: {formatCurrency(costs.vat)}</p>
-                       {costs.discountAmount > 0 && <p className="text-yellow-300 font-bold">Saved: {formatCurrency(costs.discountAmount)}</p>}
+                     <div className="text-right text-xs text-blue-200 space-y-1">
+                       <p>Net: <span className="font-mono">{formatCurrency(costs.net)}</span></p>
+                       <p>VAT: <span className="font-mono">{formatCurrency(costs.vat)}</span></p>
+                       {costs.discountAmount > 0 && <p className="text-amber-300 font-bold">Saved: {formatCurrency(costs.discountAmount)}</p>}
                      </div>
                   </div>
                </div>
@@ -943,22 +964,24 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         {/* STEP 3 */}
         {activeStep === 3 && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-               <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2"><Car className="text-primary"/> Main Vehicle Check-Out Condition</h3>
+             <div className="bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+               <h3 className="text-lg font-bold text-white border-b border-[#2B314E] pb-2 mb-4 flex items-center gap-2">
+                 <Car className="text-blue-400"/> Main Vehicle Check-Out Condition
+               </h3>
                <div className="grid grid-cols-2 gap-6">
                  <FormField type="number" label="Current Mileage" value={conditionData.mileage} onChange={e => setConditionData(p => ({ ...p, mileage: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))} required />
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fuel Level</label>
-                    <select value={conditionData.fuelLevel} onChange={e => setConditionData(p => ({ ...p, fuelLevel: e.target.value as any }))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary" required>
+                    <label className="block text-sm font-semibold text-slate-200 mb-1">Fuel Level</label>
+                    <select value={conditionData.fuelLevel} onChange={e => setConditionData(p => ({ ...p, fuelLevel: e.target.value as any }))} className="w-full rounded-lg border border-[#2B314E] bg-[#0F111A] text-white p-2.5 shadow-sm focus:border-blue-500" required>
                        <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
                     </select>
                  </div>
-                 <div className="flex gap-4 col-span-2 bg-gray-50 p-4 rounded-lg border">
-                    <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
-                       <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5 text-primary"/> Is Clean
+                 <div className="flex gap-4 col-span-2 bg-[#0F111A] p-4 rounded-xl border border-[#2B314E]">
+                    <label className="flex items-center gap-2 font-bold text-slate-200 cursor-pointer">
+                       <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5 text-blue-500 border-[#2B314E] bg-[#16192B]"/> Is Clean
                     </label>
-                    <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
-                       <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-red-500"/> Has Damage
+                    <label className="flex items-center gap-2 font-bold text-slate-200 cursor-pointer">
+                       <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-rose-500 border-[#2B314E] bg-[#16192B]"/> Has Damage
                     </label>
                  </div>
                  {conditionData.hasDamage && <div className="col-span-2"><TextArea label="Damage Description" value={conditionData.damageDescription as any} onChange={e => setConditionData(p => ({...p, damageDescription: e.target.value}))} rows={3} required /></div>}
@@ -968,13 +991,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                </div>
              </div>
 
-             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Initial Payment</h3>
+             <div className="bg-[#1E2238] p-6 rounded-xl border border-[#2B314E] shadow-sm">
+                <h3 className="text-lg font-bold text-white border-b border-[#2B314E] pb-2 mb-4">Initial Payment</h3>
                 <div className="grid grid-cols-2 gap-4">
                    <FormField type="number" label="Amount to Pay Now (£)" value={formData.paidAmount} onChange={e => setFormData(p => ({...p, paidAmount: parseFloat(e.target.value)||0}))} />
                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                      <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary">
+                      <label className="block text-sm font-semibold text-slate-200 mb-1">Payment Method</label>
+                      <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-lg border border-[#2B314E] bg-[#0F111A] text-white p-2.5 shadow-sm focus:border-blue-500">
                          <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
                       </select>
                    </div>
@@ -984,21 +1007,29 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
              </div>
           </div>
         )}
+        </div>
 
         {/* Fixed Footer */}
-        <div className="flex justify-between items-center sticky bottom-0 bg-white border-t p-4 z-10 flex-wrap gap-3">
+        <div className="flex justify-between items-center sticky bottom-0 bg-[#16192B] border-t border-[#2B314E] p-4 z-20 flex-wrap gap-3 shrink-0 shadow-lg">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setActiveStep(p => p > 1 ? p - 1 : 1 as any)} disabled={activeStep === 1} className="px-4 py-2 border rounded-md disabled:opacity-50 font-medium text-gray-700 hover:bg-gray-50">Back</button>
+            <button 
+              type="button" 
+              onClick={() => setActiveStep(p => p > 1 ? p - 1 : 1 as any)} 
+              disabled={activeStep === 1} 
+              className="px-4 py-2 border border-[#2B314E] rounded-lg disabled:opacity-40 font-bold text-slate-300 hover:text-white hover:bg-[#1E2238] transition cursor-pointer"
+            >
+              Back
+            </button>
             
-            <div className="hidden sm:flex items-center gap-2 border-l pl-3 ml-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions:</span>
+            <div className="hidden sm:flex items-center gap-2 border-l border-[#2B314E] pl-3 ml-1">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Actions:</span>
               <button
                 type="button"
                 onClick={() => {
                   setShareInitialMode('whatsapp');
                   setShowShareModal(true);
                 }}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/60 flex items-center gap-1.5 transition cursor-pointer"
                 title="Send WhatsApp"
               >
                 <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
@@ -1009,7 +1040,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   setShareInitialMode('email');
                   setShowShareModal(true);
                 }}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-950/80 text-sky-300 border border-sky-500/40 hover:bg-sky-900/60 flex items-center gap-1.5 transition cursor-pointer"
                 title="Send Email"
               >
                 <Mail className="w-3.5 h-3.5" /> Email
@@ -1018,7 +1049,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 type="button"
                 onClick={() => handlePrintOrDownloadPDF()}
                 disabled={isPrintingPdf}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-950/80 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 flex items-center gap-1.5 transition disabled:opacity-40 cursor-pointer"
                 title="Print / Download PDF"
               >
                 <Printer className="w-3.5 h-3.5" /> PDF
@@ -1027,11 +1058,31 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           </div>
           
           <div className="flex items-center gap-2">
-            {activeStep === 1 && <button type="button" onClick={() => setActiveStep(2)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
-            {activeStep === 2 && <button type="button" onClick={() => setActiveStep(3)} className="px-6 py-2 bg-gray-900 text-white rounded-md font-bold hover:bg-gray-800 shadow-md">Next Step</button>}
+            {activeStep === 1 && (
+              <button 
+                type="button" 
+                onClick={() => setActiveStep(2)} 
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg shadow-blue-950/50 transition cursor-pointer"
+              >
+                Next Step
+              </button>
+            )}
+            {activeStep === 2 && (
+              <button 
+                type="button" 
+                onClick={() => setActiveStep(3)} 
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg shadow-blue-950/50 transition cursor-pointer"
+              >
+                Next Step
+              </button>
+            )}
             
             {activeStep === 3 && (
-               <button type="submit" disabled={loading} className="px-6 py-2 bg-green-600 text-white rounded-md font-bold hover:bg-green-700 shadow-md flex items-center gap-2">
+               <button 
+                 type="submit" 
+                 disabled={loading} 
+                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold shadow-lg shadow-emerald-950/50 flex items-center gap-2 transition cursor-pointer"
+               >
                  {loading ? 'Processing...' : <><CheckCircle className="w-5 h-5"/> Verify & Confirm</>}
                </button>
             )}
@@ -1040,94 +1091,94 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       </form>
 
       {/* Confirmation Modal */}
-      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details" size="lg">
-         <div className="p-4 space-y-4">
-            <div className="bg-blue-50 p-4 border-l-4 border-blue-500 rounded">
-               <h3 className="font-bold text-blue-800 mb-1">Final Review</h3>
-               <p className="text-sm text-blue-700">Please confirm these details before finalizing creation.</p>
+      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details" size="lg" theme="navy">
+         <div className="p-4 space-y-4 text-white">
+            <div className="bg-blue-950/50 p-4 border-l-4 border-blue-500 rounded-lg">
+               <h3 className="font-bold text-blue-300 mb-1">Final Review</h3>
+               <p className="text-sm text-blue-200">Please confirm these details before finalizing creation.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-               <div className="bg-white border p-3 rounded">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Customer</p>
-                  <p className="font-medium text-gray-900 mt-1">{selectedCustomer?.name}</p>
-                  <p className="text-sm text-gray-600">{selectedCustomer?.mobile}</p>
+               <div className="bg-[#1E2238] border border-[#2B314E] p-3 rounded-xl">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Customer</p>
+                  <p className="font-bold text-white mt-1">{selectedCustomer?.name}</p>
+                  <p className="text-sm text-slate-300">{selectedCustomer?.mobile}</p>
                </div>
-               <div className="bg-white border p-3 rounded">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Vehicle</p>
-                  <p className="font-medium text-gray-900 mt-1">{selectedVehicle?.make} {selectedVehicle?.model}</p>
-                  <p className="text-sm font-mono text-gray-600">{selectedVehicle?.registrationNumber}</p>
+               <div className="bg-[#1E2238] border border-[#2B314E] p-3 rounded-xl">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Vehicle</p>
+                  <p className="font-bold text-white mt-1">{selectedVehicle?.make} {selectedVehicle?.model}</p>
+                  <p className="text-sm font-mono text-blue-400">{selectedVehicle?.registrationNumber}</p>
                </div>
-               <div className="bg-white border p-3 rounded">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Timing</p>
-                  <p className="font-medium text-gray-900 mt-1">{formData.startDate} @ {formData.startTime}</p>
-                  <p className="text-sm text-gray-600">To: {formData.endDate} @ {formData.endTime}</p>
+               <div className="bg-[#1E2238] border border-[#2B314E] p-3 rounded-xl">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Timing</p>
+                  <p className="font-bold text-white mt-1">{formData.startDate} @ {formData.startTime}</p>
+                  <p className="text-sm text-slate-300">To: {formData.endDate} @ {formData.endTime}</p>
                </div>
-               <div className="bg-white border p-3 rounded">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Parameters</p>
-                  <p className="font-medium text-gray-900 mt-1 capitalize">Type: {formData.type}</p>
-                  <p className="text-sm text-gray-600 capitalize">Reason: {formData.reason}</p>
+               <div className="bg-[#1E2238] border border-[#2B314E] p-3 rounded-xl">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Parameters</p>
+                  <p className="font-bold text-white mt-1 capitalize">Type: {formData.type}</p>
+                  <p className="text-sm text-slate-300 capitalize">Reason: {formData.reason}</p>
                </div>
-               <div className="col-span-2 bg-white border p-3 rounded flex justify-between">
+               <div className="col-span-2 bg-[#1E2238] border border-[#2B314E] p-3 rounded-xl flex justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Checkout Mileage</p>
-                    <p className="font-medium text-gray-900 mt-1">{conditionData.mileage} miles</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Checkout Mileage</p>
+                    <p className="font-bold text-white mt-1">{conditionData.mileage} miles</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Fuel Level</p>
-                    <p className="font-medium text-gray-900 mt-1">{conditionData.fuelLevel}%</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Fuel Level</p>
+                    <p className="font-bold text-white mt-1">{conditionData.fuelLevel}%</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Status</p>
-                    <p className="font-medium text-gray-900 mt-1 capitalize">{formData.status}</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Status</p>
+                    <p className="font-bold text-white mt-1 capitalize">{formData.status}</p>
                   </div>
                </div>
             </div>
 
             {/* Finances */}
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-4">
-               <p className="font-bold text-gray-800 border-b pb-2 mb-2">Cost Breakdown</p>
-               <div className="flex justify-between py-1"><span className="text-gray-500">Net Cost</span><span className="font-mono">{formatCurrency((costs as any).baseNet)}</span></div>
-               <div className="flex justify-between py-1"><span className="text-gray-500">VAT Total</span><span className="font-mono">{formatCurrency((costs as any).baseVat)}</span></div>
-               {costs.discountAmount > 0 && <div className="flex justify-between py-1 text-green-700"><span className="font-bold">Discount Applied</span><span className="font-mono font-bold">-{formatCurrency(costs.discountAmount)}</span></div>}
-               <div className="border-t mt-2 pt-2 flex justify-between font-bold text-lg text-gray-900">
+            <div className="bg-[#1E2238] p-4 rounded-xl border border-[#2B314E] mt-4">
+               <p className="font-bold text-white border-b border-[#2B314E] pb-2 mb-2">Cost Breakdown</p>
+               <div className="flex justify-between py-1"><span className="text-slate-400">Net Cost</span><span className="font-mono text-white">{formatCurrency((costs as any).baseNet)}</span></div>
+               <div className="flex justify-between py-1"><span className="text-slate-400">VAT Total</span><span className="font-mono text-white">{formatCurrency((costs as any).baseVat)}</span></div>
+               {costs.discountAmount > 0 && <div className="flex justify-between py-1 text-emerald-400"><span className="font-bold">Discount Applied</span><span className="font-mono font-bold">-{formatCurrency(costs.discountAmount)}</span></div>}
+               <div className="border-t border-[#2B314E] mt-2 pt-2 flex justify-between font-bold text-lg text-white">
                   <span>Gross Total</span><span>{formatCurrency(costs.gross)}</span>
                </div>
             </div>
 
             {/* Quick Actions / Share section */}
-            <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl space-y-3 mt-4">
+            <div className="bg-[#0F111A] border border-[#2B314E] p-4 rounded-xl space-y-3 mt-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Quick Actions</span>
-                <span className="text-xs text-gray-400">Trigger on Confirm</span>
+                <span className="text-xs text-slate-400">Trigger on Confirm</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-[#16192B] border border-[#2B314E] hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-slate-200">
                   <input
                     type="checkbox"
                     checked={postSaveActions.whatsapp}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
-                    className="rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-900"
+                    className="rounded border-[#2B314E] text-emerald-500 focus:ring-emerald-500 bg-[#0F111A]"
                   />
                   <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Send via WhatsApp</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-[#16192B] border border-[#2B314E] hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-slate-200">
                   <input
                     type="checkbox"
                     checked={postSaveActions.email}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
-                    className="rounded border-gray-600 text-sky-500 focus:ring-sky-500 bg-gray-900"
+                    className="rounded border-[#2B314E] text-sky-500 focus:ring-sky-500 bg-[#0F111A]"
                   />
                   <Mail className="w-3.5 h-3.5 text-sky-400" />
                   <span>Send via Email</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-[#16192B] border border-[#2B314E] hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-slate-200">
                   <input
                     type="checkbox"
                     checked={postSaveActions.printPdf}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
-                    className="rounded border-gray-600 text-purple-500 focus:ring-purple-500 bg-gray-900"
+                    className="rounded border-[#2B314E] text-purple-500 focus:ring-purple-500 bg-[#0F111A]"
                   />
                   <Printer className="w-3.5 h-3.5 text-purple-400" />
                   <span>Print / Download PDF</span>
@@ -1135,11 +1186,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t mt-6">
+            <div className="flex justify-between items-center pt-2 border-t border-[#2B314E] mt-6">
               <button
                 type="button"
                 onClick={() => setIsConfirmModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-bold text-slate-300 hover:text-white border border-[#2B314E] rounded-lg hover:bg-[#1E2238] transition cursor-pointer"
               >
                 Back to Edit
               </button>
@@ -1147,7 +1198,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 type="button"
                 onClick={executeCreateRental}
                 disabled={loading}
-                className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50"
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition cursor-pointer"
               >
                 {loading ? 'Creating...' : <><CheckCircle className="w-4 h-4" /> Confirm & Save</>}
               </button>
@@ -1169,7 +1220,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         vehicle={selectedVehicle || null}
         initialMode={shareInitialMode}
       />
-    </>
+    </div>
   );
 };
 

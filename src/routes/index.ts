@@ -11,6 +11,8 @@ export const ROUTES = {
   // Public routes
   LOGIN: '/login',
   ADMIN_SETUP: '/admin-setup',
+  MAINTENANCE_LIVE: '/maintenance/live',
+  SCHEDULE_MIRROR: '/schedule-mirror',
   TRASH: '/trash',
   PRODUCTS: '/products',
   TODO: '/todo',

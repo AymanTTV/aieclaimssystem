@@ -614,7 +614,15 @@ const Rentals = () => {
         {discountingRental && <RentalDiscountModal rental={discountingRental} onClose={() => setDiscountingRental(null)} />}
       </Modal>
 
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Schedule Rental" size="xl">
+      <Modal 
+        isOpen={showForm} 
+        onClose={() => setShowForm(false)} 
+        title="Schedule Rental" 
+        size="xl"
+        className="schedule-rental-modal h-[85vh] max-h-[90vh] min-h-[500px] flex flex-col"
+        contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0"
+        theme="navy"
+      >
         <RentalForm vehicles={vehicles} customers={customers} onClose={() => setShowForm(false)} />
       </Modal>
 

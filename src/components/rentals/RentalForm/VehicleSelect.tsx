@@ -58,7 +58,7 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({
         </div>
         <input
           type="text"
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+          className="search-box-light block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white text-black font-semibold placeholder:text-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
           placeholder="Search vehicles..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}

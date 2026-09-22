@@ -270,6 +270,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           <input
             ref={inputRef}
             type="text"
+            autoComplete="off"
+            data-lpignore="true"
             className="flex-1 min-w-[60px] bg-transparent border-0 p-1 text-sm text-white placeholder-slate-400 focus:ring-0 focus:outline-none"
             placeholder={isValueEmpty ? placeholder : ''}
             value={searchTerm}
@@ -349,6 +351,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               <input
                 ref={inputRef}
                 type="text"
+                autoComplete="off"
+                data-lpignore="true"
                 className={`flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none ${isLight ? 'text-gray-900 placeholder-gray-400' : 'text-white placeholder-slate-400'}`}
                 placeholder="Search..."
                 value={searchTerm}

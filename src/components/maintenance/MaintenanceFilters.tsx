@@ -96,6 +96,8 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
              </div>
              <input
                type="text"
+               autoComplete="off"
+               data-lpignore="true"
                value={searchQuery}
                onChange={(e) => onSearchChange(e.target.value)}
                placeholder="Search type, vehicle, reg, invoice, notes..."

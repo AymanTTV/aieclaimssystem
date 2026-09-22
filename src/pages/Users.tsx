@@ -262,7 +262,14 @@ const Users = () => {
       </Modal>
 
       {/* PERMISSIONS MODAL */}
-      <Modal isOpen={!!editingUser} onClose={() => setEditingUser(null)} title="Manage User Permissions" size="xl">
+      <Modal 
+        isOpen={!!editingUser} 
+        onClose={() => setEditingUser(null)} 
+        title="Manage User Permissions" 
+        size="xl"
+        theme="default"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden bg-white"
+      >
         {editingUser && <UserRoleModal user={editingUser} onClose={() => setEditingUser(null)} />}
       </Modal>
 
