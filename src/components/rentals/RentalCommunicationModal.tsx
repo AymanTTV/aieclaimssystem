@@ -76,6 +76,29 @@ export interface RentalDocItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// Pure date and time formatting helpers
+export const formatDateValue = (d: any): string => {
+  if (!d) return 'N/A';
+  try {
+    const date = d?.toDate ? d.toDate() : d instanceof Date ? d : new Date(d);
+    if (isNaN(date.getTime())) return 'N/A';
+    return format(date, 'dd/MM/yyyy');
+  } catch {
+    return 'N/A';
+  }
+};
+
+export const formatTimeValue = (d: any): string => {
+  if (!d) return '';
+  try {
+    const date = d?.toDate ? d.toDate() : d instanceof Date ? d : new Date(d);
+    if (isNaN(date.getTime())) return '';
+    return format(date, 'HH:mm');
+  } catch {
+    return '';
+  }
+};
+
 export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> = ({
   isOpen,
   onClose,
@@ -129,6 +152,59 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [docUrls, setDocUrls] = useState<Record<string, string>>({});
   const [isGeneratingDocs, setIsGeneratingDocs] = useState<Record<string, boolean>>({});
+
+  // Quick Data Tools UI State
+  const [dataToolInsertMode, setDataToolInsertMode] = useState<'value' | 'tag'>('value');
+  const [dataToolCategory, setDataToolCategory] = useState<'all' | 'payment' | 'vehicle' | 'customer'>('all');
+
+  // Computed latest recorded payment details for instant tool buttons & validation
+  const latestPayment = useMemo(() => {
+    if (!rental?.payments || rental.payments.length === 0) return null;
+    const sorted = [...rental.payments].sort((a, b) => {
+      const tA = a.date ? new Date(a.date as any).getTime() : 0;
+      const tB = b.date ? new Date(b.date as any).getTime() : 0;
+      return tB - tA;
+    });
+    return sorted[0] || null;
+  }, [rental?.payments]);
+
+  const latestPaymentDetails = useMemo(() => {
+    const formatMethod = (m?: string): string => {
+      if (!m) return 'N/A';
+      const lower = m.toLowerCase();
+      if (lower.includes('bank') || lower.includes('transfer')) return 'Bank Transfer';
+      if (lower.includes('card')) return 'Card';
+      if (lower.includes('cash')) return 'Cash';
+      if (lower.includes('cheque') || lower.includes('check')) return 'Cheque';
+      return m.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    };
+
+    if (latestPayment) {
+      return {
+        amount: formatCurrency(latestPayment.amount || 0),
+        date: formatDateValue(latestPayment.date || latestPayment.createdAt),
+        method: formatMethod(latestPayment.method),
+        ref: latestPayment.reference || '',
+        notes: latestPayment.notes || '',
+      };
+    }
+    if (rental && Number(rental.paidAmount ?? 0) > 0) {
+      return {
+        amount: formatCurrency(rental.paidAmount || 0),
+        date: formatDateValue(rental.updatedAt || rental.startDate),
+        method: formatMethod(rental.paymentMethod),
+        ref: rental.paymentReference || '',
+        notes: '',
+      };
+    }
+    return {
+      amount: '£0.00',
+      date: rental ? formatDateValue(rental.startDate) : '',
+      method: 'N/A',
+      ref: '',
+      notes: '',
+    };
+  }, [latestPayment, rental, formatCurrency]);
 
   useEffect(() => {
     setInternalCustomer(customer);
@@ -393,30 +469,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     }
   }, [isOpen, templates, rental, rentalState]);
 
-  // Format date helper
-  const formatDateValue = (d: any): string => {
-    if (!d) return 'N/A';
-    try {
-      const date = d?.toDate ? d.toDate() : d instanceof Date ? d : new Date(d);
-      if (isNaN(date.getTime())) return 'N/A';
-      return format(date, 'dd/MM/yyyy');
-    } catch {
-      return 'N/A';
-    }
-  };
-
-  // Format time helper
-  const formatTimeValue = (d: any): string => {
-    if (!d) return '';
-    try {
-      const date = d?.toDate ? d.toDate() : d instanceof Date ? d : new Date(d);
-      if (isNaN(date.getTime())) return '';
-      return format(date, 'HH:mm');
-    } catch {
-      return '';
-    }
-  };
-
   // Dynamic Placeholder Injection & Live Preview
   const populateTemplate = useCallback(
     (rawText: string, currentPdfUrl?: string): string => {
@@ -435,33 +487,85 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       const paidStr = formatCurrency(paid);
       const owingStr = formatCurrency(owing);
 
+      // Format method name nicely
+      const formatPaymentMethodName = (m?: string): string => {
+        if (!m) return 'N/A';
+        const lower = m.toLowerCase();
+        if (lower.includes('bank') || lower.includes('transfer')) return 'Bank Transfer';
+        if (lower.includes('card')) return 'Card';
+        if (lower.includes('cash')) return 'Cash';
+        if (lower.includes('cheque') || lower.includes('check')) return 'Cheque';
+        return m.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+      };
+
       // Latest payment details
       let lastPaymentPaidStr = '£0.00';
       let datePaidStr = '';
-      let lastPaymentMethodStr = '';
+      let lastPaymentMethodStr = 'N/A';
       let lastPaymentRefStr = '';
+      let lastPaymentNotesStr = '';
+      let lastPaymentVehicleStr = '';
+      let lastPaymentItem: any = null;
 
-      if (rental.payments && rental.payments.length > 0) {
-        const sorted = [...rental.payments].sort((a, b) => {
+      const paymentsList = rental.payments || [];
+      if (paymentsList.length > 0) {
+        const sorted = [...paymentsList].sort((a, b) => {
           const tA = a.date ? new Date(a.date as any).getTime() : 0;
           const tB = b.date ? new Date(b.date as any).getTime() : 0;
           return tB - tA;
         });
         const latest = sorted[0];
         if (latest) {
+          lastPaymentItem = latest;
           lastPaymentPaidStr = formatCurrency(latest.amount || 0);
           datePaidStr = formatDateValue(latest.date || latest.createdAt);
-          lastPaymentMethodStr = String(latest.method || '');
-          lastPaymentRefStr = latest.reference || '';
+          lastPaymentMethodStr = formatPaymentMethodName(latest.method);
+          lastPaymentRefStr = latest.reference || rentalId;
+          lastPaymentNotesStr = latest.notes || '';
+          lastPaymentVehicleStr = latest.allocatedVehicleName || '';
         }
       } else if (paid > 0) {
         lastPaymentPaidStr = formatCurrency(paid);
         datePaidStr = formatDateValue(rental.updatedAt || rental.startDate);
-        lastPaymentMethodStr = String(rental.paymentMethod || '');
-        lastPaymentRefStr = rental.paymentReference || '';
+        lastPaymentMethodStr = formatPaymentMethodName(rental.paymentMethod);
+        lastPaymentRefStr = rental.paymentReference || rentalId;
       } else {
         datePaidStr = formatDateValue(rental.startDate);
       }
+
+      // Payment status string
+      const paymentStatusStr = owing <= 0.001 ? 'Fully Paid' : paid > 0 ? 'Partially Paid' : 'Pending';
+
+      // Full payment statement of all recorded transactions
+      const sortedPaymentsDesc = [...paymentsList].sort((a, b) => {
+        const tA = a.date ? new Date(a.date as any).getTime() : 0;
+        const tB = b.date ? new Date(b.date as any).getTime() : 0;
+        return tB - tA;
+      });
+
+      const statementLines = sortedPaymentsDesc.map((p) => {
+        const pDate = formatDateValue(p.date || p.createdAt);
+        const pAmt = formatCurrency(p.amount || 0);
+        const pMethod = formatPaymentMethodName(p.method);
+        const pRef = p.reference ? ` | Ref: ${p.reference}` : '';
+        const pNotes = p.notes ? ` (${p.notes})` : '';
+        return `• ${pDate}: ${pAmt} via ${pMethod}${pRef}${pNotes}`;
+      });
+
+      const paymentStatementStr = statementLines.length > 0
+        ? `📄 Payment Statement (${statementLines.length} payment${statementLines.length > 1 ? 's' : ''}):\n${statementLines.join('\n')}\nTotal Paid: ${paidStr} | Balance Outstanding: ${owingStr}`
+        : 'No payments recorded yet.';
+
+      const lastTransactionStr = lastPaymentItem
+        ? `${lastPaymentPaidStr} paid on ${datePaidStr} via ${lastPaymentMethodStr}${lastPaymentRefStr ? ` (Ref: ${lastPaymentRefStr})` : ''}`
+        : (paid > 0 ? `${paidStr} paid via ${lastPaymentMethodStr}` : 'No payment recorded yet');
+
+      // VAT and Subtotal calculations
+      const hasVAT = rental.includeVAT !== false;
+      const netCost = hasVAT ? total / 1.2 : total;
+      const vatCost = Math.max(0, total - netCost);
+      const subtotalStr = formatCurrency(rental.subtotal || netCost);
+      const vatAmountStr = formatCurrency(rental.vatAmount || vatCost);
 
       const startDateStr = formatDateValue(rental.startDate);
       const endDateStr = formatDateValue(rental.endDate);
@@ -486,9 +590,11 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '{client_name}': clientName,
         '{customer_name}': clientName,
         '{recipient_name}': clientName,
+        '{driver_name}': clientName,
         '[client name]': clientName,
         '[customer name]': clientName,
         '[recipient name]': clientName,
+        '[driver name]': clientName,
         "['driver name]": clientName,
         "[driver's name]": clientName,
 
@@ -504,61 +610,141 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '[rental number]': rentalId,
         '[agreement number]': rentalId,
         '[agreement no]': rentalId,
+        '[agreement reference]': rentalId,
 
-        // Amounts & Balances
+        // Total Cost / Grand Total
         '{total_amount}': totalStr,
+        '{total_cost}': totalStr,
+        '{rental_cost}': totalStr,
+        '{grand_total}': totalStr,
         '{total}': totalStr,
         '{amount}': totalStr,
         '[total amount]': totalStr,
+        '[total cost]': totalStr,
+        '[rental cost]': totalStr,
+        '[grand total]': totalStr,
         '[total]': totalStr,
         '[amount]': totalStr,
-        '[grand total]': totalStr,
 
-        // Paid amounts
+        // Paid amounts (explicit user request: payment paid, total paid)
         '{paid_amount}': paidStr,
+        '{payment_paid}': paidStr,
+        '{total_paid}': paidStr,
         '{paid}': paidStr,
         '{amount_paid}': paidStr,
         '[paid amount]': paidStr,
+        '[payment paid]': paidStr,
+        '[total paid]': paidStr,
         '[paid]': paidStr,
         '[paid balance]': paidStr,
         '[amount paid]': paidStr,
 
-        // Outstanding & Owing
+        // Outstanding & Owing (explicit user request: total current outstanding, outstanding / owing)
         '{owing_amount}': owingStr,
+        '{total_outstanding}': owingStr,
+        '{current_outstanding}': owingStr,
+        '{total_current_outstanding}': owingStr,
+        '{outstanding_balance}': owingStr,
         '{owing}': owingStr,
         '{outstanding}': owingStr,
-        '{outstanding_balance}': owingStr,
         '{amount_owing}': owingStr,
         '{amount_due}': owingStr,
+        '{amount_owed}': owingStr,
         '[owing amount]': owingStr,
+        '[total outstanding]': owingStr,
+        '[current outstanding]': owingStr,
+        '[total current outstanding]': owingStr,
         '[owing]': owingStr,
         '[outstanding]': owingStr,
         '[outstanding balance]': owingStr,
         '[amount owed]': owingStr,
         '[amount due]': owingStr,
+        '[amount owing]': owingStr,
         '[new balance]': owingStr,
+        '[owing balance]': owingStr,
+        '[amount overdue]': owingStr,
+        '[total overdue]': owingStr,
 
-        // Payment History & Dates (last payment paid, date paid, the date paid)
+        // Payment History & Dates (explicit user request: last record Record Payment, paid date, amount, type of payment cash or card or bank transfer, statement, transection payment)
         '{last_payment_paid}': lastPaymentPaidStr,
         '{last_payment_amount}': lastPaymentPaidStr,
+        '{last_record_payment_amount}': lastPaymentPaidStr,
+        '{last_record_amount}': lastPaymentPaidStr,
         '{last_payment}': lastPaymentPaidStr,
+        '{amount_received}': lastPaymentPaidStr,
         '[last payment paid]': lastPaymentPaidStr,
         '[last payment amount]': lastPaymentPaidStr,
+        '[last record payment amount]': lastPaymentPaidStr,
+        '[last record amount]': lastPaymentPaidStr,
         '[last payment]': lastPaymentPaidStr,
+        '[amount received]': lastPaymentPaidStr,
 
         '{date_paid}': datePaidStr,
         '{the_date_paid}': datePaidStr,
         '{last_payment_date}': datePaidStr,
+        '{last_record_payment_date}': datePaidStr,
         '{payment_date}': datePaidStr,
+        '{date_received}': datePaidStr,
         '[date paid]': datePaidStr,
         '[the date paid]': datePaidStr,
         '[last payment date]': datePaidStr,
+        '[last record payment date]': datePaidStr,
         '[payment date]': datePaidStr,
+        '[date received]': datePaidStr,
+        '[dd/mm/yyyy]': datePaidStr,
 
+        '{last_payment_type}': lastPaymentMethodStr,
         '{last_payment_method}': lastPaymentMethodStr,
+        '{payment_type}': lastPaymentMethodStr,
+        '{payment_method}': lastPaymentMethodStr,
+        '{type_of_payment}': lastPaymentMethodStr,
+        '{last_record_payment_type}': lastPaymentMethodStr,
+        '[last payment type]': lastPaymentMethodStr,
         '[last payment method]': lastPaymentMethodStr,
+        '[payment type]': lastPaymentMethodStr,
+        '[payment method]': lastPaymentMethodStr,
+        '[type of payment]': lastPaymentMethodStr,
+        '[payment mode]': lastPaymentMethodStr,
+
         '{last_payment_ref}': lastPaymentRefStr,
+        '{last_payment_reference}': lastPaymentRefStr,
+        '{payment_reference}': lastPaymentRefStr,
+        '{transaction_id}': lastPaymentRefStr,
+        '{transaction_reference}': lastPaymentRefStr,
+        '{last_record_payment_ref}': lastPaymentRefStr,
         '[last payment ref]': lastPaymentRefStr,
+        '[last payment reference]': lastPaymentRefStr,
+        '[payment reference]': lastPaymentRefStr,
+        '[transaction id]': lastPaymentRefStr,
+        '[transaction ref]': lastPaymentRefStr,
+
+        '{last_payment_notes}': lastPaymentNotesStr,
+        '{payment_notes}': lastPaymentNotesStr,
+        '[last payment notes]': lastPaymentNotesStr,
+        '[payment notes]': lastPaymentNotesStr,
+
+        '{last_payment_vehicle}': lastPaymentVehicleStr,
+        '[last payment vehicle]': lastPaymentVehicleStr,
+
+        '{payment_status}': paymentStatusStr,
+        '[payment status]': paymentStatusStr,
+
+        // Statement & Transaction payment
+        '{payment_statement}': paymentStatementStr,
+        '{statement}': paymentStatementStr,
+        '{statement_of_account}': paymentStatementStr,
+        '{payment_transactions}': paymentStatementStr,
+        '{transactions_summary}': paymentStatementStr,
+        '[payment statement]': paymentStatementStr,
+        '[statement]': paymentStatementStr,
+        '[statement of account]': paymentStatementStr,
+        '[payment transactions]': paymentStatementStr,
+
+        '{transaction_payment}': lastTransactionStr,
+        '{last_transaction}': lastTransactionStr,
+        '[transaction payment]': lastTransactionStr,
+        '[transection payment]': lastTransactionStr,
+        '[last transaction]': lastTransactionStr,
 
         // Dates & Times
         '{start_date}': startDateStr,
@@ -569,8 +755,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '[due date]': endDateStr,
         '{date}': startDateStr,
         '[date]': startDateStr,
+        '[the current date]': startDateStr,
+        '[current date]': startDateStr,
         '{start_time}': startTimeStr,
+        '[start time]': startTimeStr,
         '{end_time}': endTimeStr,
+        '[end time]': endTimeStr,
 
         // Vehicle info & Registration Number
         '{vehicle_reg}': vehicleReg,
@@ -580,17 +770,27 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '[vehicle reg]': vehicleReg,
         '[registration]': vehicleReg,
         '[registration number]': vehicleReg,
+        '[vehicle registration number]': vehicleReg,
         '[reg number]': vehicleReg,
         '{vehicle_name}': vehicleName,
         '[vehicle]': vehicleName,
+        '[vehicle make & model]': vehicleName,
         '{vehicle_make}': vehicleMake,
+        '[vehicle make]': vehicleMake,
         '{vehicle_model}': vehicleModel,
+        '[vehicle model]': vehicleModel,
 
-        // Rates
+        // Rates & Breakdown
         '{daily_rate}': dailyRateStr,
         '[daily rate]': dailyRateStr,
         '{weekly_rate}': weeklyRateStr,
         '[weekly rate]': weeklyRateStr,
+        '{subtotal}': subtotalStr,
+        '[subtotal]': subtotalStr,
+        '{vat_amount}': vatAmountStr,
+        '{vat}': vatAmountStr,
+        '[vat]': vatAmountStr,
+        '[vat amount]': vatAmountStr,
         '{rental_type}': rentalType,
         '[rental type]': rentalType,
 
@@ -618,6 +818,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         // Bank / Payment Instructions
         '{payment_details}': paymentDetails,
         '[payment details]': paymentDetails,
+        '[bank details]': paymentDetails,
+        '[payment instructions]': paymentDetails,
       };
 
       let result = rawText;
@@ -887,22 +1089,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   );
 
   // Insert evaluated or raw data tool into message at cursor position
-  const handleInsertDataTool = (tag: string) => {
-    const populated = populateTemplate(tag);
+  const handleInsertDataTool = (tag: string, forceAsTag = false) => {
+    const shouldInsertTag = forceAsTag || dataToolInsertMode === 'tag';
+    const textToInsert = shouldInsertTag ? tag : populateTemplate(tag);
     const textarea = messageTextareaRef.current;
     if (textarea) {
       const start = textarea.selectionStart || 0;
       const end = textarea.selectionEnd || 0;
       const current = message;
-      const updated = current.slice(0, start) + populated + current.slice(end);
+      const updated = current.slice(0, start) + textToInsert + current.slice(end);
       handleMessageChange(updated);
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + populated.length, start + populated.length);
+        textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
       }, 0);
     } else {
-      handleMessageChange(`${message} ${populated}`);
+      handleMessageChange(`${message} ${textToInsert}`);
     }
+    const previewText = shouldInsertTag ? tag : (textToInsert.length > 25 ? textToInsert.slice(0, 22) + '...' : textToInsert);
+    toast.success(`Inserted ${previewText}`);
   };
 
   // Live preview update whenever selected template, mode, or rental changes
@@ -1821,85 +2026,302 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
 
           {/* Quick Data Tools Bar */}
-          <div className="bg-[#121524] border border-[#2B314E] rounded-lg p-2.5 mb-2.5 space-y-1.5 shadow-2xs">
-            <div className="flex items-center justify-between text-[11px] text-slate-300">
-              <span className="font-bold uppercase tracking-wider flex items-center gap-1 text-slate-200">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                Data Tools (Click to Insert Value):
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsTemplatesModalOpen(true)}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1"
-              >
-                Manage Templates Tabs &rarr;
-              </button>
+          <div className="bg-[#121524] border border-[#2B314E] rounded-lg p-2.5 mb-2.5 space-y-2 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300 border-b border-[#2B314E]/60 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-200">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  Data Tools:
+                </span>
+
+                {/* Category Filter Pills */}
+                <div className="flex items-center bg-[#0C0F1D] p-0.5 rounded-md border border-[#2B314E]/80">
+                  {(
+                    [
+                      { id: 'all', label: 'All' },
+                      { id: 'payment', label: 'Payment & Receipts' },
+                      { id: 'vehicle', label: 'Vehicle & Rental' },
+                      { id: 'customer', label: 'Customer' },
+                    ] as const
+                  ).map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setDataToolCategory(cat.id)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                        dataToolCategory === cat.id
+                          ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Insert Mode Toggle (Value vs Tag) */}
+                <div className="flex items-center bg-[#0C0F1D] p-0.5 rounded-md border border-[#2B314E]/80 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setDataToolInsertMode('value')}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      dataToolInsertMode === 'value'
+                        ? 'bg-emerald-600 text-white font-semibold shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Insert real current dynamic value into message"
+                  >
+                    Insert Value
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDataToolInsertMode('tag')}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      dataToolInsertMode === 'tag'
+                        ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Insert dynamic template tag {tag} into message"
+                  >
+                    Insert Tag {'{...}'}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsTemplatesModalOpen(true)}
+                  className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px]"
+                >
+                  Manage Templates &rarr;
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{paid_amount}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/40 transition-colors shadow-2xs cursor-pointer"
-                title="Insert Paid Amount"
-              >
-                + Paid: {formatCurrency(rental.paidAmount ?? 0)}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{owing_amount}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-500/40 transition-colors shadow-2xs cursor-pointer"
-                title="Insert Outstanding Balance"
-              >
-                + Outstanding: {formatCurrency(rental.remainingAmount ?? 0)}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{last_payment_amount}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 border border-blue-500/40 transition-colors shadow-2xs cursor-pointer"
-                title="Insert Last Payment Paid Amount"
-              >
-                + Last Payment Paid
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{date_paid}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-500/40 transition-colors shadow-2xs cursor-pointer"
-                title="Insert Date Paid"
-              >
-                + Date Paid
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{vehicle_reg}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
-                title="Insert Vehicle Registration Plate"
-              >
-                + Reg: {(internalVehicle || vehicle)?.registrationNumber || 'N/A'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{agreement_number}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
-                title="Insert Agreement Number"
-              >
-                + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{client_name}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
-                title="Insert Customer / Driver Name"
-              >
-                + Customer: {(internalCustomer || customer)?.name || 'Customer'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInsertDataTool('{payment_details}')}
-                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 transition-colors shadow-2xs cursor-pointer"
-                title="Insert Lloyds Bank Transfer Instructions"
-              >
-                + Bank Details
-              </button>
+
+            {/* Buttons list */}
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+              {/* Payment & Receipts Tools */}
+              {(dataToolCategory === 'all' || dataToolCategory === 'payment') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{date_paid}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Date Paid (e.g. 18/09/2026)"
+                  >
+                    + Date Paid: {latestPaymentDetails.date || 'N/A'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{last_payment_amount}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 border border-blue-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Last Payment Amount"
+                  >
+                    + Last Paid: {latestPaymentDetails.amount}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{last_payment_type}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Payment Method (Bank Transfer, Card, Cash, Cheque)"
+                  >
+                    + Type: {latestPaymentDetails.method}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{last_payment_ref}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-950/40 hover:bg-teal-900/50 text-teal-300 border border-teal-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Transaction Reference"
+                  >
+                    + Ref: {latestPaymentDetails.ref || rental.rentalAgreementNumber || 'Ref'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{owing_amount}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Total Current Outstanding Balance"
+                  >
+                    + Outstanding: {formatCurrency(rental.remainingAmount ?? 0)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{paid_amount}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Total Amount Paid"
+                  >
+                    + Total Paid: {formatCurrency(rental.paidAmount ?? 0)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{total_amount}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-950/40 hover:bg-violet-900/50 text-violet-300 border border-violet-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Total Rental Cost"
+                  >
+                    + Total Cost: {formatCurrency(rental.cost ?? 0)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{payment_status}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Payment Status (Paid, Partially Paid, Pending)"
+                  >
+                    + Status: {Number(rental.remainingAmount ?? 0) <= 0.001 ? 'Fully Paid' : Number(rental.paidAmount ?? 0) > 0 ? 'Partially Paid' : 'Pending'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{transaction_payment}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-900/40 hover:bg-blue-800/50 text-blue-200 border border-blue-400/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert single-line Last Transaction summary"
+                  >
+                    + Last Txn Summary
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{payment_statement}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-900/40 hover:bg-amber-800/50 text-amber-200 border border-amber-400/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert complete statement listing all recorded payment transactions"
+                  >
+                    + Full Statement ({rental.payments?.length || 0} Txns)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{payment_details}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Lloyds Bank Transfer Instructions"
+                  >
+                    + Lloyds Bank Details
+                  </button>
+                </>
+              )}
+
+              {/* Vehicle & Rental Agreement Tools */}
+              {(dataToolCategory === 'all' || dataToolCategory === 'vehicle') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{vehicle_reg}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Vehicle Registration Plate"
+                  >
+                    + Reg: {(internalVehicle || vehicle)?.registrationNumber || 'N/A'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{vehicle_name}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Vehicle Make & Model"
+                  >
+                    + Vehicle: {((internalVehicle || vehicle)?.make || '')} {((internalVehicle || vehicle)?.model || '')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{agreement_number}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Agreement Number"
+                  >
+                    + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{rental_type}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Rental Type"
+                  >
+                    + Type: {rental.type || 'Standard'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{start_date}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Start Date"
+                  >
+                    + Start: {formatDateValue(rental.startDate)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{end_date}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert End / Due Date"
+                  >
+                    + Due: {formatDateValue(rental.endDate)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{weekly_rate}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Weekly Rental Rate"
+                  >
+                    + Weekly: {formatCurrency(rental.lockedWeeklyRate || (internalVehicle || vehicle)?.weeklyRentalPrice || 0)}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{daily_rate}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Daily Rental Rate"
+                  >
+                    + Daily: {formatCurrency(rental.lockedDailyRate || (internalVehicle || vehicle)?.dailyRentalPrice || 0)}
+                  </button>
+                </>
+              )}
+
+              {/* Customer & Document Tools */}
+              {(dataToolCategory === 'all' || dataToolCategory === 'customer') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{client_name}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Customer / Driver Name"
+                  >
+                    + Customer: {(internalCustomer || customer)?.name || 'Customer'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{client_phone}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Customer Phone / Mobile"
+                  >
+                    + Phone: {(internalCustomer || customer)?.mobile || (internalCustomer || customer)?.phone || 'N/A'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{client_email}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Customer Email"
+                  >
+                    + Email: {(internalCustomer || customer)?.email || 'N/A'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInsertDataTool('{pdf_link}')}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-950/40 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-500/40 transition-colors shadow-2xs cursor-pointer"
+                    title="Insert Document PDF download link"
+                  >
+                    + PDF Doc Link
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

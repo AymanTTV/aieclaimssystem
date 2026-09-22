@@ -482,3 +482,90 @@ export const getRentalUnpaidWarningInfo = (
     baseRate,
   };
 };
+
+export interface DetailedRentalTotals {
+  detailedCosts: DetailedRentalCost;
+  ongoingCharges: number;
+  returnCharges: number;
+  totalAmountDue: number;
+  paid: number;
+  remaining: number;
+  extraTotal: number;
+}
+
+export const calculateDetailedRentalTotals = (
+  rental: Rental,
+  vehicle?: Vehicle | null
+): DetailedRentalTotals => {
+  if (!rental) {
+    return {
+      detailedCosts: { net: 0, vat: 0, gross: 0, discountAmount: 0, baseNet: 0, baseVat: 0, baseGross: 0, pureHireNet: 0, pureInsuranceNet: 0 },
+      ongoingCharges: 0,
+      returnCharges: 0,
+      totalAmountDue: 0,
+      paid: 0,
+      remaining: 0,
+      extraTotal: 0,
+    };
+  }
+
+  const paid = Number(rental.paidAmount ?? 0);
+
+  if (!vehicle) {
+    const cost = Number(rental.cost ?? 0);
+    const remaining = Number(rental.remainingAmount ?? (cost - paid));
+    return {
+      detailedCosts: {
+        net: rental.subtotal || (rental.includeVAT !== false ? cost / 1.2 : cost),
+        vat: rental.vatAmount || (rental.includeVAT !== false ? cost - (cost / 1.2) : 0),
+        gross: cost,
+        discountAmount: Number(rental.discountAmount || 0),
+        baseNet: 0,
+        baseVat: 0,
+        baseGross: 0,
+        pureHireNet: 0,
+        pureInsuranceNet: 0,
+      },
+      ongoingCharges: 0,
+      returnCharges: 0,
+      totalAmountDue: cost,
+      paid,
+      remaining,
+      extraTotal: 0,
+    };
+  }
+
+  const start = ensureValidDate(rental.startDate);
+  const end = ensureValidDate(rental.endDate);
+  const storageNet = rental.type === 'claim' ? (rental.storageDays || 0) * (rental.storageCostPerDay || 0) : 0;
+
+  // Sum up extra charges
+  const extraTotal = (rental.extraCharges || []).reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+  const detailedCosts = calculateRentalCostDetailed(
+    start, end, rental.type, vehicle, rental.reason, rental.negotiatedRate ?? undefined,
+    storageNet,
+    rental.type === 'claim' ? (rental.recoveryCost || 0) : 0,
+    rental.deliveryCharge || 0, rental.collectionCharge || 0,
+    rental.type !== 'weekly' ? (rental.insurancePerDay || 0) : 0,
+    rental.type === 'weekly' ? ((rental as any).insurancePerWeek || 0) : 0,
+    rental.includeVAT || false, rental.deliveryChargeIncludeVAT || false, rental.collectionChargeIncludeVAT || false,
+    rental.insurancePerDayIncludeVAT || false, (rental as any).insurancePerWeekIncludeVAT || false, rental.includeRecoveryCostVAT || false, rental.includeStorageVAT || false,
+    rental.discountPercentage || 0, rental.discountAmount || 0, rental.status,
+    rental.lockedDailyRate, rental.lockedWeeklyRate, rental.lockedClaimRate,
+    extraTotal,
+    rental.discounts || []
+  );
+
+  const now = new Date();
+  const ongoingCharges = rental.status === 'active' && isAfter(now, end) ? calculateOverdueCost(rental, now, vehicle) : 0;
+
+  const subCharges = calculateTotalSubstitutionCharges(rental);
+  const returnCharges = (rental.returnCondition?.totalCharges ?? 0) + subCharges;
+
+  const totalAmountDue = detailedCosts.gross + ongoingCharges + returnCharges;
+  const remaining = totalAmountDue - paid;
+
+  return { detailedCosts, ongoingCharges, returnCharges, totalAmountDue, paid, remaining, extraTotal };
+};
+

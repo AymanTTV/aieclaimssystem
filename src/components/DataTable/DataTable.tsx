@@ -137,7 +137,7 @@ export function DataTable<T extends AnyRow>({
 
             return (
               <div
-                key={row.id}
+                key={`${row.id}-${idx}`}
                 className={`rounded-xl border p-4 shadow-sm transition-colors ${rowCls}`}
                 onClick={() => {
                   if (onRowClick && (!module || can(module as any, 'view'))) {
@@ -207,11 +207,11 @@ export function DataTable<T extends AnyRow>({
           })}
         </div>
 
-        {/* Mobile Pagination - Consistent Dark Navy Bar */}
-        <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl p-4 shadow-xl flex items-center justify-between text-xs text-slate-300">
+        {/* Mobile Pagination - Consistent Light Mode Bar */}
+        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl p-4 shadow-xs flex items-center justify-between text-xs text-slate-600">
           <div className="flex items-center gap-1.5">
             <button
-              className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors"
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
               aria-label="First page"
@@ -220,7 +220,7 @@ export function DataTable<T extends AnyRow>({
               <ChevronsLeft className="h-4 w-4" />
             </button>
             <button
-              className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors"
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
               aria-label="Previous page"
@@ -230,14 +230,14 @@ export function DataTable<T extends AnyRow>({
             </button>
           </div>
 
-          <span className="text-slate-300 font-medium">
-            Page <span className="font-bold text-white">{pagination.pageIndex + 1}</span> of{' '}
-            <span className="font-bold text-white">{table.getPageCount() || 1}</span>
+          <span className="text-slate-600 font-medium">
+            Page <span className="font-bold text-slate-900">{pagination.pageIndex + 1}</span> of{' '}
+            <span className="font-bold text-slate-900">{table.getPageCount() || 1}</span>
           </span>
 
           <div className="flex items-center gap-1.5">
             <button
-              className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors"
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
               aria-label="Next page"
@@ -246,7 +246,7 @@ export function DataTable<T extends AnyRow>({
               <ChevronRight className="h-4 w-4" />
             </button>
             <button
-              className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors"
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
               aria-label="Last page"
@@ -268,32 +268,32 @@ export function DataTable<T extends AnyRow>({
 
     return (
       <div className="hidden lg:block">
-        <div className={`${compact ? 'w-full overflow-hidden' : 'overflow-x-auto'} rounded-2xl border border-[#2B314E] shadow-xl ${separatedRows ? 'bg-slate-100/75' : 'bg-white'}`}>
+        <div className={`${compact ? 'w-full overflow-hidden' : 'overflow-x-auto'} rounded-2xl border border-[#E2E8F0] shadow-xs ${separatedRows ? 'bg-slate-100/75' : 'bg-white'}`}>
           <div className={separatedRows ? 'p-3' : ''}>
             <table className={`w-full ${separatedRows ? 'border-separate border-spacing-y-2' : 'border-collapse'}`}>
-              <thead className="bg-[#16192B] text-white">
+              <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
                 {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id} className={separatedRows ? 'shadow-xs' : 'border-b border-[#2B314E]'}>
+                  <tr key={headerGroup.id} className={separatedRows ? 'shadow-xs' : 'border-b-2 border-[#E2E8F0]'}>
                     {headerGroup.headers.map((header, hIdx) => {
                       const isFirst = hIdx === 0;
                       const isLast = hIdx === headerGroup.headers.length - 1;
                       return (
                         <th
                           key={header.id}
-                          className={`${compact ? 'px-2.5 py-3 text-xs' : 'px-5 py-4 text-xs'} text-left font-bold text-white uppercase tracking-wider select-none whitespace-nowrap ${
+                          className={`${compact ? 'px-2.5 py-3 text-xs' : 'px-5 py-4 text-xs'} text-left font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap ${
                             separatedRows
-                              ? `bg-[#16192B] border-y border-[#2B314E] ${isFirst ? 'rounded-l-xl border-l' : ''} ${isLast ? 'rounded-r-xl border-r' : ''}`
+                              ? `bg-[#F8FAFC] border-y border-[#E2E8F0] ${isFirst ? 'rounded-l-xl border-l' : ''} ${isLast ? 'rounded-r-xl border-r' : ''}`
                               : ''
                           } ${(header.column.columnDef.meta as any)?.headerClassName || (header.column.columnDef.meta as any)?.className || ''}`}
                         >
                           {header.isPlaceholder ? null : (
                             <div
                               className={`flex items-center gap-1.5 ${
-                                header.column.getCanSort() ? 'cursor-pointer select-none hover:text-blue-300 transition-colors' : ''
+                                header.column.getCanSort() ? 'cursor-pointer select-none hover:text-blue-600 transition-colors' : ''
                               }`}
                               onClick={header.column.getToggleSortingHandler()}
                             >
-                              <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                              <span className="font-semibold text-[#334155]">{flexRender(header.column.columnDef.header, header.getContext())}</span>
                               {header.column.getCanSort() && (
                                 <span className="text-slate-400 text-xs">
                                   {{
@@ -321,7 +321,7 @@ export function DataTable<T extends AnyRow>({
 
                   return (
                     <tr
-                      key={row.id}
+                      key={`${row.id}-${idx}`}
                       onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as T)}
                       className={`group ${
                         separatedRows
@@ -362,38 +362,38 @@ export function DataTable<T extends AnyRow>({
             </table>
           </div>
 
-          {/* Seamless Dark Navy Footer Bar */}
-          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-300">
+          {/* Seamless Light Mode Footer Bar */}
+          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
             <div>
-              Showing <span className="font-bold text-white">{startIdx}</span> to{' '}
-              <span className="font-bold text-white">{endIdx}</span> of{' '}
-              <span className="font-bold text-white">{data.length}</span> total entries
+              Showing <span className="font-bold text-slate-900">{startIdx}</span> to{' '}
+              <span className="font-bold text-slate-900">{endIdx}</span> of{' '}
+              <span className="font-bold text-slate-900">{data.length}</span> total entries
             </div>
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-slate-400">Rows:</span>
+                <span className="text-slate-500 font-medium">Rows:</span>
                 <select
-                  className="bg-[#0F111A] border border-[#2B314E] text-white rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                  className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
                   value={pagination.pageSize}
                   onChange={e => setPageSize(Number(e.target.value))}
                 >
                   {[10, 20, 30, 40, 50, 100].map(pageSize => (
-                    <option key={pageSize} value={pageSize} className="bg-[#16192B] text-white">
+                    <option key={pageSize} value={pageSize} className="bg-white text-[#0F172A]">
                       {pageSize}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="text-slate-300">
-                Page <span className="font-bold text-white">{pagination.pageIndex + 1}</span> of{' '}
-                <span className="font-bold text-white">{table.getPageCount() || 1}</span>
+              <div className="text-slate-600">
+                Page <span className="font-bold text-slate-900">{pagination.pageIndex + 1}</span> of{' '}
+                <span className="font-bold text-slate-900">{table.getPageCount() || 1}</span>
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
-                  className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
                   onClick={() => table.setPageIndex(0)}
                   disabled={!table.getCanPreviousPage()}
                   aria-label="First page"
@@ -402,7 +402,7 @@ export function DataTable<T extends AnyRow>({
                   <ChevronsLeft className="h-4 w-4" />
                 </button>
                 <button
-                  className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
                   onClick={() => table.previousPage()}
                   disabled={!table.getCanPreviousPage()}
                   aria-label="Previous page"
@@ -411,7 +411,7 @@ export function DataTable<T extends AnyRow>({
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
-                  className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
                   onClick={() => table.nextPage()}
                   disabled={!table.getCanNextPage()}
                   aria-label="Next page"
@@ -420,7 +420,7 @@ export function DataTable<T extends AnyRow>({
                   <ChevronRight className="h-4 w-4" />
                 </button>
                 <button
-                  className="p-1.5 rounded-lg bg-[#1E2238] border border-[#2B314E] text-white hover:bg-[#2B314E] disabled:opacity-30 disabled:hover:bg-[#1E2238] transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white transition-colors cursor-pointer"
                   onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                   disabled={!table.getCanNextPage()}
                   aria-label="Last page"

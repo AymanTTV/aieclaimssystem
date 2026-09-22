@@ -59,4 +59,17 @@ export function installSafeJsonStringify(): void {
       throw err;
     }
   };
+
+  // Filter benign Firestore backend connection / offline retry notices from polluting console
+  const originalConsoleError = console.error;
+  console.error = function (...args: any[]) {
+    if (
+      args.length > 0 &&
+      typeof args[0] === 'string' &&
+      args[0].includes('Could not reach Cloud Firestore backend')
+    ) {
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
 }

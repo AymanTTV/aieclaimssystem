@@ -36,17 +36,17 @@ const money = (n = 0) => new Intl.NumberFormat('en-GB', { style: 'currency', cur
 
 const SummaryCards: React.FC<{ active: number; completed: number; outstanding: number }> = ({ active, completed, outstanding }) => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Active Rentals</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-emerald-400 tracking-tight">{active}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Active Rentals</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-emerald-600 tracking-tight">{active}</div>
     </div>
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Completed Rentals</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{completed}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-blue-600">Completed Rentals</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-slate-900 tracking-tight">{completed}</div>
     </div>
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Outstanding Balance</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">{money(outstanding)}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-amber-600">Outstanding Balance</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-amber-600 tracking-tight">{money(outstanding)}</div>
     </div>
   </div>
 );
@@ -57,32 +57,32 @@ const Filters: React.FC<{
   status: 'all' | 'active' | 'completed' | 'pending';
   onStatusChange: (s: 'all' | 'active' | 'completed' | 'pending') => void;
 }> = ({ dateRange, onDateRangeChange, status, onStatusChange }) => (
-  <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-4 sm:p-5 shadow-xl text-white">
+  <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs text-slate-900">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">From</label>
         <input
           type="date"
           value={dateRange.start ? new Date(dateRange.start).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: e.target.value ? new Date(e.target.value) : null, end: dateRange.end })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">To</label>
         <input
           type="date"
           value={dateRange.end ? new Date(dateRange.end).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: dateRange.start, end: e.target.value ? new Date(e.target.value) : null })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Status</label>
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value as any)}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="all">All</option>
           <option value="active">Active</option>

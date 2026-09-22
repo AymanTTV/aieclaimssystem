@@ -83,15 +83,15 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
       </Section>
 
       <Section title="Descriptions">
-        <div className="overflow-x-auto border border-[#2B314E] rounded-xl overflow-hidden shadow-sm bg-white">
+        <div className="overflow-x-auto border border-[#E2E8F0] rounded-xl overflow-hidden shadow-xs bg-white">
           <table className="min-w-full border-collapse text-xs">
-            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-              <tr>
-                <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
-                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">NET</th>
-                <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">V</th> 
-                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">VAT</th>
-                <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">GROSS</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Description</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">NET</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">V</th> 
+                <th className="px-5 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">VAT</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">GROSS</th>
               </tr>
             </thead>
             <tbody>
@@ -108,12 +108,12 @@ const VATRecordDetails: React.FC<VATRecordDetailsProps> = ({ record }) => {
                   </tr>
                 );
               })}
-              <tr className="bg-[#16192B] text-white font-bold border-t border-[#2B314E]">
-                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-white font-black uppercase tracking-wider">Totals</td>
-                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.net)}</td>
-                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-white"></td> 
-                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.vat)}</td>
-                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-white font-black">{formatCurrency(record.gross)}</td>
+              <tr className="bg-[#F1F5F9] text-slate-900 font-bold border-t-2 border-[#CBD5E1]">
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-900 font-black uppercase tracking-wider">Totals</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-900 font-black">{formatCurrency(record.net)}</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-900"></td> 
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-900 font-black">{formatCurrency(record.vat)}</td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right text-slate-900 font-black">{formatCurrency(record.gross)}</td>
               </tr>
             </tbody>
           </table>

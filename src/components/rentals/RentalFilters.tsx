@@ -116,7 +116,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
         
         <SearchableSelect
           label="Status"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={statusOptions}
           value={statusFilter}
           onChange={(val) => onStatusFilterChange(val as string[])}
@@ -126,7 +126,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
 
         <SearchableSelect
           label="Type"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={typeOptions}
           value={typeFilter}
           onChange={(val) => onTypeFilterChange(val as string[])}
@@ -136,7 +136,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
 
         <SearchableSelect
           label="Reason"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={reasonOptions}
           value={reasonFilter}
           onChange={(val) => onReasonFilterChange(val as string[])}
@@ -146,7 +146,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
 
         <SearchableSelect
           label="Payment"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={paymentOptions}
           value={paymentStatusFilter}
           onChange={(val) => onPaymentStatusFilterChange(val as string[])}
@@ -156,7 +156,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
 
         <SearchableSelect
           label="Vehicle"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={vehicleOptions}
           value={vehicleFilter}
           onChange={(val) => onVehicleFilterChange(val as string[])}
@@ -166,25 +166,25 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
         />
 
         <div className="space-y-1">
-          <label htmlFor="startDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+          <label htmlFor="startDate" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">From</label>
           <input
             type="date"
             id="startDate"
             value={startDateFilter}
             onChange={(e) => onStartDateChange(e.target.value)}
-            className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0F111A] text-white border border-[#2B314E] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
+            className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 shadow-xs"
             disabled={isDisabled}
           />
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="endDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+          <label htmlFor="endDate" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">To</label>
           <input
             type="date"
             id="endDate"
             value={endDateFilter}
             onChange={(e) => onEndDateChange(e.target.value)}
-            className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0F111A] text-white border border-[#2B314E] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
+            className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 shadow-xs"
             disabled={isDisabled}
           />
         </div>

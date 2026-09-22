@@ -70,12 +70,12 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
     { id: 'partially_paid', label: 'Partially Paid' }
   ], []);
 
-  const labelStyle = "block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1";
+  const labelStyle = "block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1";
 
   return (
-    <div className="bg-[#16192B] p-4 sm:p-5 rounded-2xl shadow-xl border border-[#2B314E]">
-      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-slate-300 mb-4 pb-2 border-b border-[#2B314E]/60">
-        <Filter className="w-4 h-4 text-blue-400" />
+    <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-xs border border-[#E2E8F0]">
+      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#64748B] mb-4 pb-2 border-b border-[#E2E8F0]">
+        <Filter className="w-4 h-4 text-blue-600" />
         <span>Maintenance Filters</span>
       </div>
 
@@ -101,7 +101,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
                value={searchQuery}
                onChange={(e) => onSearchChange(e.target.value)}
                placeholder="Search type, vehicle, reg, invoice, notes..."
-               className="block w-full pl-9 pr-3 py-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500 h-[42px]"
+               className="block w-full pl-9 pr-3 py-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-[#94A3B8] h-[42px]"
              />
            </div>
         </div>
@@ -158,7 +158,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
             type="date"
             value={dateRange.from}
             onChange={(e) => onDateRangeChange({ ...dateRange, from: e.target.value })}
-            className="block w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark] px-3 h-[42px]"
+            className="block w-full bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 px-3 h-[42px]"
           />
         </div>
 
@@ -168,7 +168,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
             type="date"
             value={dateRange.to}
             onChange={(e) => onDateRangeChange({ ...dateRange, to: e.target.value })}
-            className="block w-full bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark] px-3 h-[42px]"
+            className="block w-full bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 px-3 h-[42px]"
           />
         </div>
       </div>

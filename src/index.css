@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --bg-outer: #0F111A;
+    --bg-outer: #F8FAFC;
     --bg-card-navy: #16192B;
     --bg-card-navy-elevated: #1E2238;
     --border-card-navy: #2B314E;
@@ -14,28 +14,25 @@
   html, body {
     overflow-x: hidden;
     max-width: 100vw;
+    min-height: 100vh;
+    background-color: #F8FAFC !important;
   }
 
   body {
-    background-color: #0F111A;
-    background-image: radial-gradient(at 0% 0%, #16192B 0px, transparent 50%),
-                      radial-gradient(at 100% 100%, #1E2238 0px, transparent 50%),
-                      linear-gradient(135deg, #0F111A 0%, #121524 50%, #0F111A 100%);
-    background-attachment: fixed;
-    color: #F8FAFC;
+    background-color: #F8FAFC !important;
+    background-image: none !important;
+    color: #0F172A;
     min-height: 100vh;
   }
 
-  /* Default page titles on dark canvas */
-  h1, h2, h3, h4, h5, h6 {
-    color: #FFFFFF;
+  #root, #app, main, .layout-wrapper, .page-container {
+    min-height: 100vh;
+    background-color: #F8FAFC !important;
   }
 
-  /* Top-level page titles explicit crisp white */
-  .page-title,
-  h1.text-gray-900,
-  h2.text-gray-900 {
-    color: #FFFFFF !important;
+  /* Page titles default to inherited color */
+  h1, h2, h3, h4, h5, h6 {
+    color: inherit;
   }
 }
 

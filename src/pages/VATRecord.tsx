@@ -329,59 +329,73 @@ const VATRecordPage = () => {
       {/* Summary Cards */}
       {can('vatRecord', 'cards') && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300">Total NET</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">{formatCurrency(isNaN(summary.net) ? 0 : summary.net)}</p>
+          <div className="bg-[#ECFDF5] rounded-2xl shadow-xs border border-[#A7F3D0] p-4 sm:p-5 text-[#0F172A]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669]">Total NET</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#047857]">{formatCurrency(isNaN(summary.net) ? 0 : summary.net)}</p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-300">Total VAT</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-blue-400">{formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}</p>
+          <div className="bg-[#F0F9FF] rounded-2xl shadow-xs border border-[#BAE6FD] p-4 sm:p-5 text-[#0F172A]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7]">Total VAT</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0369A1]">{formatCurrency(isNaN(summary.vat) ? 0 : summary.vat)}</p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Total GROSS</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-white">{formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}</p>
+          <div className="bg-[#F8FAFC] rounded-2xl shadow-xs border border-[#CBD5E1] p-4 sm:p-5 text-[#0F172A]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#334155]">Total GROSS</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0F172A]">{formatCurrency(isNaN(summary.gross) ? 0 : summary.gross)}</p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-purple-300">Total VAT Received</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-purple-400">{formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}</p>
+          <div className="bg-[#FAF5FF] rounded-2xl shadow-xs border border-[#E9D5FF] p-4 sm:p-5 text-[#0F172A]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#7E22CE]">Total VAT Received</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#6B21A8]">{formatCurrency(isNaN(summary.vatReceived) ? 0 : summary.vatReceived)}</p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">Balance</h3>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-amber-400">{formatCurrency(isNaN(summary.balance) ? 0 : summary.balance)}</p>
+          <div className="bg-[#FFFBEB] rounded-2xl shadow-xs border border-[#FDE68A] p-4 sm:p-5 text-[#0F172A]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#D97706]">Balance</h3>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#B45309]">{formatCurrency(isNaN(summary.balance) ? 0 : summary.balance)}</p>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">VAT Records</h1>
-        <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">VAT Records</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">HMRC tax filings, gross/net reconciliations, recurring input expenses, and VAT returns.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
           {can('vatRecord', 'export') && (
-            
-             <button onClick={handleGeneratePDF} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"><FileText className="h-5 w-5 mr-2" /> Generate PDF</button> )}
-             {can('vatRecord', 'categories') && (<button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Categories</button>)}
-             {can('vatRecord', 'groups') && (<button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Manage Groups</button>)}
-            
+             <button onClick={handleGeneratePDF} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer">
+               <FileText className="h-4 w-4 mr-1.5 text-[#64748B]" /> Generate PDF
+             </button> 
+          )}
+          {can('vatRecord', 'categories') && (
+            <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer">
+              Manage Categories
+            </button>
+          )}
+          {can('vatRecord', 'groups') && (
+            <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer">
+              Manage Groups
+            </button>
+          )}
           
           {can('vatRecord', 'export') && (
-            <button onClick={handleExport} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-[48%] sm:w-auto"><Download className="h-5 w-5 mr-2" /> Export</button>
+            <button onClick={handleExport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer">
+              <Download className="h-4 w-4 mr-1.5 text-[#64748B]" /> Export
+            </button>
           )}
           
           {can('vatRecord', 'reoccurring') && (
             <button
               onClick={() => { setIsCreatingRecurring(true); setShowForm(true); }}
-              className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+              className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
             >
-              <Repeat className="h-5 w-5 mr-2" /> Recurring
+              <Repeat className="h-4 w-4 mr-1.5" /> Recurring
             </button>
           )}
 
           {can('vatRecord', 'create') && (
             <button
               onClick={() => { setIsCreatingRecurring(false); setShowForm(true); }}
-              className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#059669] hover:bg-[#047857] transition-colors cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-2" /> Add Record
+              <Plus className="h-4 w-4 mr-1.5" /> Add Record
             </button>
           )}
         </div>

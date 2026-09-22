@@ -17,20 +17,23 @@ export const CompanyManagers = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Company & Roles</h1>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Company & Roles</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Business entity details, system role assignments, and corporate permissions.</p>
+        </div>
       </div>
       
       {/* Company Details Section */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
         <div className="p-6">
           <CompanyDetails />
         </div>
       </div>
 
       {/* Role Groups Section */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
         <div className="p-6">
           <ManagerGroups />
         </div>

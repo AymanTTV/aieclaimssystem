@@ -17,7 +17,7 @@ interface FinanceHeaderProps {
 
   onManageCategories: () => void;
   onManageGroups: () => void;
-  onManageDepartments: () => void; // NEW
+  onManageDepartments: () => void;
   onManageAccounts: () => void;
   onAddRecurring: () => void;
 }
@@ -40,41 +40,41 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
           type="text"
           placeholder="Search by Customer, Vehicle Reg, Owner, Category, Payment Ref..."
           onChange={(e) => onSearch(e.target.value)}
-          className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+          className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-xs"
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div className="flex flex-wrap items-center gap-2">
             {can('finance', 'accounts') && (
-                <button onClick={onManageAccounts} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                    <Settings className="h-4 w-4 mr-2" /> Accounts
+                <button onClick={onManageAccounts} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+                    <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Accounts
                 </button>
             )}
             {can('finance', 'groups') && (
-                <button onClick={onManageGroups} className="inline-flex items-center justify-center px-4 py-2 border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 rounded">
-                    <Settings className="h-4 w-4 mr-2" /> Groups
+                <button onClick={onManageGroups} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+                    <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Groups
                 </button>
             )}
             {can('finance', 'departments') && (
-                <button onClick={onManageDepartments} className="inline-flex items-center justify-center px-4 py-2 border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 rounded">
-                    <Settings className="h-4 w-4 mr-2" /> Depts
+                <button onClick={onManageDepartments} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+                    <Settings className="h-4 w-4 mr-2 text-teal-600" /> Depts
                 </button>
             )}
             {can('finance', 'categories') && (
-                <button onClick={onManageCategories} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                    <Settings className="h-4 w-4 mr-2" /> Categories
+                <button onClick={onManageCategories} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+                    <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Categories
                 </button>
             )}
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-            {can('finance', 'export') && <button onClick={onImport} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"><Upload className="h-4 w-4 mr-2" /> Import</button>}
-            {can('finance', 'export') && <button onClick={onExport} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"><Download className="h-4 w-4 mr-2" /> Export</button>}
-            {can('finance', 'export') && <button onClick={onGeneratePDF} className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"><FileText className="h-4 w-4 mr-2" /> PDF</button>}
-             {can('finance', 'reoccurring') && <button onClick={onAddRecurring} className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"><Repeat className="h-4 w-4 mr-2" /> Recurring</button>}
-            {can('finance', 'create') && <button onClick={onAddIncome} className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-secondary hover:bg-secondary-600"><Plus className="h-4 w-4 mr-2" /> Income</button>}
-            {can('finance', 'create') && <button onClick={onAddExpense} className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"><Plus className="h-4 w-4 mr-2" /> Expense</button>}
+            {can('finance', 'export') && <button onClick={onImport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><Upload className="h-4 w-4 mr-2 text-[#64748B]" /> Import</button>}
+            {can('finance', 'export') && <button onClick={onExport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><Download className="h-4 w-4 mr-2 text-[#64748B]" /> Export</button>}
+            {can('finance', 'export') && <button onClick={onGeneratePDF} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><FileText className="h-4 w-4 mr-2 text-[#64748B]" /> PDF</button>}
+            {can('finance', 'reoccurring') && <button onClick={onAddRecurring} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] transition-colors cursor-pointer"><Repeat className="h-4 w-4 mr-2" /> Recurring</button>}
+            {can('finance', 'create') && <button onClick={onAddIncome} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#059669] hover:bg-[#047857] transition-colors cursor-pointer"><Plus className="h-4 w-4 mr-2" /> Income</button>}
+            {can('finance', 'create') && <button onClick={onAddExpense} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#DC2626] hover:bg-[#B91C1C] transition-colors cursor-pointer"><Plus className="h-4 w-4 mr-2" /> Expense</button>}
         </div>
       </div>
     </div>

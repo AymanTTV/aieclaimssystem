@@ -1005,12 +1005,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm"><span>Net:</span><span>{formatCurrency(subTotal)}</span></div>
-          <div className="flex justify-between text-sm"><span>VAT:</span><span>{formatCurrency(vatAmount)}</span></div>
-          <div className="flex justify-between text-sm"><span>Discount:</span><span className="text-red-600">–{formatCurrency(totalDiscount)}</span></div>
-          <div className="flex justify-between text-lg font-bold pt-2 border-t"><span>Total:</span><span>{formatCurrency(total)}</span></div>
-          <div className="flex justify-between text-sm"><span>Paid (so far):</span><span className="text-green-600">{formatCurrency(invoice.paidAmount || 0)}</span></div>
-          <div className="flex justify-between text-sm"><span>Owing:</span><span className="text-amber-600">{formatCurrency(Math.max(0, total - (invoice.paidAmount || 0)))}</span></div>
+          <div className="flex justify-between text-sm text-[#000000] font-semibold"><span>Net:</span><span className="font-mono">{formatCurrency(subTotal)}</span></div>
+          <div className="flex justify-between text-sm text-[#2563EB] font-semibold"><span>VAT:</span><span className="font-mono">{formatCurrency(vatAmount)}</span></div>
+          <div className="flex justify-between text-sm text-[#D97706] font-semibold"><span>Discount:</span><span className="font-mono">–{formatCurrency(totalDiscount)}</span></div>
+          <div className="flex justify-between text-lg font-bold pt-2 border-t text-[#D97706]"><span>Total:</span><span className="font-mono">{formatCurrency(total)}</span></div>
+          <div className="flex justify-between text-sm text-[#15803D] font-bold"><span>Paid (so far):</span><span className="font-mono">{formatCurrency(invoice.paidAmount || 0)}</span></div>
+          <div className="flex justify-between text-sm text-[#DC2626] font-bold"><span>Owing:</span><span className="font-mono">{formatCurrency(Math.max(0, total - (invoice.paidAmount || 0)))}</span></div>
         </div>
 
         <div>

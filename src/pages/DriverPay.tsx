@@ -335,17 +335,20 @@ const DriverPayPage = () => {
         totalRemaining={summary.totalRemaining}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Pay</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Driver Pay</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Weekly remuneration, commission splits, collection reconciliation, and payment runs.</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           
           {/* 🟢 NEW: Default Settings Bulk Action Button */}
           {selectedRecordIds.size > 0 && can('driverPay', 'update') && (
             <button
               onClick={() => setShowDefaultsModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-primary text-primary rounded-md shadow-sm text-sm font-medium bg-white hover:bg-primary-50 transition-colors"
+              className="inline-flex items-center px-3.5 py-2.5 border border-blue-300 text-blue-700 rounded-xl shadow-xs text-sm font-semibold bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
             >
-              <Settings className="h-5 w-5 mr-2" />
+              <Settings className="h-4 w-4 mr-1.5 text-blue-600" />
               Set Default Commissions ({selectedRecordIds.size})
             </button>
           )}
@@ -354,10 +357,10 @@ const DriverPayPage = () => {
           {selectedRecordIds.size > 0 && can('driverPay', 'whatsapp') && (
             <button
               onClick={handleBulkWhatsApp}
-              className="inline-flex items-center px-4 py-2 border border-emerald-600 text-emerald-700 rounded-md shadow-sm text-sm font-medium bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+              className="inline-flex items-center px-3.5 py-2.5 border border-emerald-300 text-emerald-700 rounded-xl shadow-xs text-sm font-semibold bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors cursor-pointer"
               title="Batch WhatsApp messages to selected drivers"
             >
-              <MessageCircle className="h-5 w-5 mr-2 text-emerald-600" />
+              <MessageCircle className="h-4 w-4 mr-1.5 text-emerald-600" />
               WhatsApp Drivers ({selectedRecordIds.size})
             </button>
           )}
@@ -365,11 +368,11 @@ const DriverPayPage = () => {
           {can('driverPay', 'export') && (
             <button
               onClick={handleGeneratePDF}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
               disabled={sortedFilteredRecords.length === 0}
               title={sortedFilteredRecords.length === 0 ? 'No data for PDF' : 'Generate PDF'}
             >
-              <FileText className="h-5 w-5 mr-2" />
+              <FileText className="h-4 w-4 mr-1.5 text-[#64748B]" />
               Generate PDF
             </button>
           )}
@@ -377,23 +380,23 @@ const DriverPayPage = () => {
           {can('driverPay', 'export') && (
             <button
               onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
               disabled={sortedFilteredRecords.length === 0}
               title={sortedFilteredRecords.length === 0 ? 'No data to export' : 'Export to Excel'}
             >
-              <Download className="h-5 w-5 mr-2" />
+              <Download className="h-4 w-4 mr-1.5 text-[#64748B]" />
               Export
             </button>
           )}
 
           {can('driverPay', 'update') && (
-  <button
-    onClick={() => setShowManageGroups(true)}
-    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-  >
-    Manage Groups
-  </button>
-)}
+            <button
+              onClick={() => setShowManageGroups(true)}
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+            >
+              Manage Groups
+            </button>
+          )}
 
           {can('driverPay', 'create') && (
             <button
@@ -401,9 +404,9 @@ const DriverPayPage = () => {
                 setEditingRecord(null);
                 setShowForm(true);
               }}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+              className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-4 w-4 mr-1.5" />
               Add Driver Pay
             </button>
           )}

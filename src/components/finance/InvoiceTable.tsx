@@ -215,17 +215,17 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
           const inv = row.original;
           return (
             <div className="text-sm space-y-0.5">
-              <div className="flex justify-between font-bold text-gray-900 border-b border-gray-100 pb-0.5">
+              <div className="flex justify-between font-bold text-[#D97706] border-b border-gray-100 pb-0.5">
                 <span>Total:</span>
-                <span>{formatCurrency(inv.total)}</span>
+                <span className="font-mono">{formatCurrency(inv.total)}</span>
               </div>
-              <div className="flex justify-between text-green-600">
+              <div className="flex justify-between text-[#15803D] font-bold">
                 <span>Paid:</span>
-                <span>{formatCurrency(inv.paidAmount)}</span>
+                <span className="font-mono">{formatCurrency(inv.paidAmount)}</span>
               </div>
-              <div className={`flex justify-between font-medium ${inv.remainingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              <div className={`flex justify-between font-bold ${inv.remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
                 <span>Owing:</span>
-                <span>{formatCurrency(inv.remainingAmount)}</span>
+                <span className="font-mono">{formatCurrency(inv.remainingAmount)}</span>
               </div>
             </div>
           );

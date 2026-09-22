@@ -57,10 +57,10 @@ const Card: React.FC<{ title: string; value: React.ReactNode; sub?: string; to?:
   title, value, sub, to
 }) => {
   const body = (
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl hover:border-[#3D456E] transition text-white h-full">
-      <div className="text-xs font-bold uppercase tracking-wider text-slate-300">{title}</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">{value}</div>
-      {sub && <div className="mt-1.5 text-xs text-slate-400 font-medium">{sub}</div>}
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs hover:border-slate-300 transition text-slate-900 h-full">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">{value}</div>
+      {sub && <div className="mt-1.5 text-xs text-slate-500 font-medium">{sub}</div>}
     </div>
   );
   return to ? <Link to={to} className="block">{body}</Link> : body;

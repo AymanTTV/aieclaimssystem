@@ -313,13 +313,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden">
       {/* TABS NAVIGATION */}
-      <div className="flex border-b border-[#2B314E] px-6 pt-2 shrink-0 bg-[#121524]">
+      <div className="flex border-b border-[#E2E8F0] px-6 pt-2 shrink-0 bg-[#F8FAFC]">
         <button
           type="button"
           className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
             activeTab === 'vehicle'
-              ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              ? 'border-blue-600 text-blue-600 font-bold bg-white rounded-t-lg shadow-2xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
           }`}
           onClick={() => setActiveTab('vehicle')}
         >
@@ -330,8 +330,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
           type="button"
           className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
             activeTab === 'service'
-              ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              ? 'border-blue-600 text-blue-600 font-bold bg-white rounded-t-lg shadow-2xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
           }`}
           onClick={() => setActiveTab('service')}
         >
@@ -342,8 +342,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
           type="button"
           className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer ${
             activeTab === 'license'
-              ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+              ? 'border-blue-600 text-blue-600 font-bold bg-white rounded-t-lg shadow-2xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
           }`}
           onClick={() => setActiveTab('license')}
         >
@@ -357,8 +357,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
         {/* SECTION 1: VEHICLE DETAILS */}
         {activeTab === 'vehicle' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Core Specifications</h4>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Core Specifications</h4>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="VIN" value={formData.vin} onChange={e => setFormData({ ...formData, vin: e.target.value })} required disabled={isCompany} />
                 <FormField label="Registration Number" value={formData.registrationNumber} onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })} required disabled={isCompany} />
@@ -368,7 +368,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                 
                 {/* Group Assignment selector in Form */}
                 <div>
-                  <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1">Assign Finance Group</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Assign Finance Group</label>
                   <SearchableSelect
                     options={groups.map(g => ({ id: g.id, label: g.name }))}
                     value={formData.assignedGroupId}
@@ -381,7 +381,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
 
                 {/* Department Assignment selector in Form */}
                 <div>
-                  <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1">Assign Department</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Assign Department</label>
                   <SearchableSelect
                     options={departments.map(d => ({ id: d.id, label: d.name }))}
                     value={formData.assignedDepartmentId}
@@ -400,8 +400,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
             </div>
 
             {!isCompany && (
-              <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 mb-4 flex items-center gap-2">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600 mb-4 flex items-center gap-2">
                   <Tag className="w-4 h-4" /> Rental Pricing
                 </h3>
                 <div className="grid grid-cols-3 gap-4">
@@ -418,24 +418,24 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
             )}
 
             {!isCompany && (
-              <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-purple-400 mb-4 flex items-center gap-2">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-purple-600 mb-4 flex items-center gap-2">
                   <User className="w-4 h-4" /> Vehicle Owner
                 </h3>
                 <div className="space-y-4 max-w-lg">
-                  <label className="flex items-center space-x-2 text-white font-medium cursor-pointer">
-                    <input type="checkbox" checked={isCustomOwner} onChange={e => { setIsCustomOwner(e.target.checked); if (!e.target.checked) setOwner(DEFAULT_OWNER); }} className="rounded border-[#2B314E] text-blue-500 focus:ring-blue-500 bg-[#0F111A]" />
+                  <label className="flex items-center space-x-2 text-slate-800 font-medium cursor-pointer">
+                    <input type="checkbox" checked={isCustomOwner} onChange={e => { setIsCustomOwner(e.target.checked); if (!e.target.checked) setOwner(DEFAULT_OWNER); }} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 bg-white" />
                     <span>Custom Owner</span>
                   </label>
                   {isCustomOwner ? (
                     <div className="space-y-4">
                       <FormField label="Owner Name" value={owner?.name || ''} onChange={e => setOwner({ ...(owner || {}), name: e.target.value, isDefault: false })} required />
                       <div>
-                        <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1">Owner Address</label>
-                        <textarea rows={3} value={owner?.address || ''} onChange={e => setOwner({ ...(owner || {}), address: e.target.value })} className="mt-1 block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white p-3 shadow-inner focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Owner Address</label>
+                        <textarea rows={3} value={owner?.address || ''} onChange={e => setOwner({ ...(owner || {}), address: e.target.value })} className="mt-1 block w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] p-3 shadow-xs focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1">Linked Finance Account</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Linked Finance Account</label>
                         <SearchableSelect
                           options={accounts.map(account => ({ id: account.id, label: account.name }))}
                           value={(owner as any)?.accountId || ''}
@@ -450,29 +450,29 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-300 bg-[#16192B] p-3.5 rounded-xl border border-[#2B314E]">
-                      Default: <span className="font-semibold text-white">{DEFAULT_OWNER.name}</span>, {DEFAULT_OWNER.address}
+                    <p className="text-sm text-slate-700 bg-white p-3.5 rounded-xl border border-slate-200">
+                      Default: <span className="font-semibold text-slate-900">{DEFAULT_OWNER.name}</span>, {DEFAULT_OWNER.address}
                     </p>
                   )}
                 </div>
               </div>
             )}
 
-            <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-              <label className="block text-xs font-bold text-white uppercase tracking-wider mb-2">Vehicle Image</label>
-              <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-[#2B314E] border-dashed rounded-xl bg-[#16192B] hover:bg-[#1C2038] transition-colors">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Vehicle Image</label>
+              <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-xl bg-white hover:bg-slate-50 transition-colors">
                 <div className="space-y-1 text-center">
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Vehicle preview" className="mx-auto h-40 w-auto object-cover rounded-xl shadow-md border border-[#2B314E]" />
+                    <img src={imagePreview} alt="Vehicle preview" className="mx-auto h-40 w-auto object-cover rounded-xl shadow-md border border-slate-200" />
                   ) : (
-                    <Upload className="mx-auto h-12 w-12 text-slate-500" />
+                    <Upload className="mx-auto h-12 w-12 text-slate-400" />
                   )}
-                  <div className="flex text-sm text-slate-400 justify-center mt-2">
+                  <div className="flex text-sm text-slate-500 justify-center mt-2">
                     {isCompany ? (
-                      <span className="text-slate-500 italic mt-2">Uploading image not permitted</span>
+                      <span className="text-slate-400 italic mt-2">Uploading image not permitted</span>
                     ) : (
                       <>
-                        <label className="relative cursor-pointer rounded-lg font-semibold text-blue-400 hover:text-blue-300 focus-within:outline-none">
+                        <label className="relative cursor-pointer rounded-lg font-semibold text-blue-600 hover:text-blue-500 focus-within:outline-none">
                           <span>Upload a photo</span>
                           <input type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
                         </label>
@@ -480,7 +480,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                       </>
                     )}
                   </div>
-                  {!isCompany && <p className="text-xs text-slate-500">PNG, JPG, WebP up to 100 MB</p>}
+                  {!isCompany && <p className="text-xs text-slate-400">PNG, JPG, WebP up to 100 MB</p>}
                 </div>
               </div>
             </div>
@@ -490,9 +490,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
         {/* SECTION 2: SERVICE DETAILS */}
         {activeTab === 'service' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 mb-4 flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-blue-400" />
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600 mb-4 flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-blue-600" />
                 Service Tracking Configuration
               </h3>
               
@@ -525,17 +525,17 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                       required
                       disabled={true}
                     />
-                    <div className="absolute right-3 top-9 text-xs text-blue-300 font-bold bg-blue-900/60 border border-blue-500/40 px-2.5 py-1 rounded-lg">Auto-Calculated</div>
+                    <div className="absolute right-3 top-9 text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">Auto-Calculated</div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 ml-1">
+                  <p className="text-xs text-slate-500 mt-1.5 ml-1">
                     Calculated by adding the 'Service Mileage Required' to the 'Last Service Mileage Done'.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white mb-4">Service Dates</h3>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-4">Service Dates</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <FormField
                   type="date"
@@ -559,8 +559,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
         {/* SECTION 3: LICENSE DETAILS */}
         {activeTab === 'license' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Compliance Dates</h4>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Compliance Dates</h4>
               <div className="grid grid-cols-2 gap-6">
                 <FormField type="date" label="MOT Test Date" value={formData.motTestDate} onChange={e => setFormData({ ...formData, motTestDate: e.target.value })} required disabled={isCompany} />
                 <FormField type="date" label="NSL Expiry" value={formData.nslExpiry} onChange={e => setFormData({ ...formData, nslExpiry: e.target.value })} required disabled={isCompany} />
@@ -578,8 +578,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                   { title: 'Meter Certificate Images', dt: meter },
                   { title: 'Insurance Images', dt: insure }
                 ].map(({ title, dt }) => (
-                  <div key={title} className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 mb-4">{title}</h3>
+                  <div key={title} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-700 mb-4">{title}</h3>
                     {dt.previews.length > 0 && (
                       <div className="grid grid-cols-3 gap-4 mb-4">
                         {dt.previews.map((src, i) => (
@@ -587,7 +587,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                             <img
                               src={src}
                               alt={`${title} ${i + 1}`}
-                              className="h-32 w-full object-cover rounded-xl border border-[#2B314E] shadow-sm"
+                              className="h-32 w-full object-cover rounded-xl border border-slate-200 shadow-xs"
                             />
                             <button
                               type="button"
@@ -600,8 +600,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                         ))}
                       </div>
                     )}
-                    <label className="inline-flex items-center px-4 py-2 border border-[#2B314E] shadow-sm text-sm font-semibold rounded-xl text-white bg-[#16192B] hover:bg-[#1C2038] cursor-pointer transition-all">
-                      <Upload className="w-4 h-4 mr-2 text-slate-400" />
+                    <label className="inline-flex items-center px-4 py-2 border border-slate-300 shadow-xs text-sm font-semibold rounded-xl text-slate-700 bg-white hover:bg-slate-50 cursor-pointer transition-all">
+                      <Upload className="w-4 h-4 mr-2 text-slate-500" />
                       <span>Upload {title}</span>
                       <input
                         type="file"
@@ -620,11 +620,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
       </form>
 
       {/* FIXED FOOTER ACTIONS */}
-      <div className="border-t border-[#2B314E] p-4 sm:p-5 bg-[#121524] flex justify-end space-x-3 shrink-0 rounded-b-2xl">
+      <div className="border-t border-[#E2E8F0] p-4 sm:p-5 bg-[#F8FAFC] flex justify-end space-x-3 shrink-0 rounded-b-2xl">
         <button
           type="button"
           onClick={onClose}
-          className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold shadow-sm transition-all cursor-pointer"
+          className="px-5 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:bg-slate-50 font-semibold shadow-xs transition-all cursor-pointer"
         >
           Cancel
         </button>

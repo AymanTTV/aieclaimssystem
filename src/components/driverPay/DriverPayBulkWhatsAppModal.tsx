@@ -315,16 +315,16 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
           <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
             Selected Driver Records ({queue.length})
           </h4>
-          <div className="border border-[#2B314E] rounded-xl overflow-hidden max-h-56 overflow-y-auto bg-white shadow-sm">
+          <div className="border border-[#E2E8F0] rounded-xl overflow-hidden max-h-56 overflow-y-auto bg-white shadow-xs">
             <table className="min-w-full border-collapse text-xs">
-              <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-sm">
-                <tr className="border-b border-[#2B314E]">
-                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">#</th>
-                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name</th>
-                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Phone</th>
-                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Paid</th>
-                  <th className="py-2.5 px-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Status</th>
-                  <th className="py-2.5 px-3.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Action</th>
+              <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0] sticky top-0 z-10 shadow-xs">
+                <tr className="border-b-2 border-[#E2E8F0]">
+                  <th className="py-2.5 px-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">#</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Driver Name</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Phone</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Paid</th>
+                  <th className="py-2.5 px-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Status</th>
+                  <th className="py-2.5 px-3.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Action</th>
                 </tr>
               </thead>
               <tbody>

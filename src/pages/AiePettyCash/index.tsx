@@ -103,27 +103,27 @@ const AiePettyCash = () => {
 
       {can('aiePettyCash', 'cards') && (
         <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total In</h3>
-            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
+          <div className="bg-[#ECFDF5] rounded-2xl shadow-xs p-4 sm:p-5 border border-[#A7F3D0] text-[#0F172A] hover:border-emerald-300 transition-all">
+            <h3 className="text-xs font-bold text-[#059669] uppercase tracking-wider">Total In</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#047857]">
               {formatCurrency(totalIn)}
             </p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total Out</h3>
-            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-rose-400">
+          <div className="bg-[#FEF2F2] rounded-2xl shadow-xs p-4 sm:p-5 border border-[#FECACA] text-[#0F172A] hover:border-red-300 transition-all">
+            <h3 className="text-xs font-bold text-[#DC2626] uppercase tracking-wider">Total Out</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#B91C1C]">
               {formatCurrency(totalOut)}
             </p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Balance</h3>
-            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-blue-400">
+          <div className="bg-[#F0F9FF] rounded-2xl shadow-xs p-4 sm:p-5 border border-[#BAE6FD] text-[#0F172A] hover:border-sky-300 transition-all">
+            <h3 className="text-xs font-bold text-[#0284C7] uppercase tracking-wider">Balance</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0369A1]">
               {formatCurrency(netIncome)}
             </p>
           </div>
-          <div className="bg-[#16192B] rounded-2xl shadow-xl p-4 sm:p-5 border border-[#2B314E] text-white hover:border-[#3D456E] transition-all">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Profit Margin</h3>
-            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-purple-400">
+          <div className="bg-[#FAF5FF] rounded-2xl shadow-xs p-4 sm:p-5 border border-[#E9D5FF] text-[#0F172A] hover:border-purple-300 transition-all">
+            <h3 className="text-xs font-bold text-[#7E22CE] uppercase tracking-wider">Profit Margin</h3>
+            <p className="mt-2 text-xl sm:text-2xl font-black font-mono tracking-tight text-[#6B21A8]">
               {profitMargin.toFixed(1)}%
             </p>
           </div>
@@ -143,7 +143,7 @@ const AiePettyCash = () => {
         {can('aiePettyCash', 'categories') && (
         <button
           onClick={() => setShowManageCategories(true)}
-          className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
+          className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] rounded-xl shadow-xs text-sm font-semibold hover:bg-[#F8FAFC] transition-colors"
         >
           Manage Categories
         </button>
@@ -151,7 +151,7 @@ const AiePettyCash = () => {
         {can('aiePettyCash', 'groups') && (
         <button
           onClick={() => setShowManageGroups(true)}
-          className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50"
+          className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] rounded-xl shadow-xs text-sm font-semibold hover:bg-[#F8FAFC] transition-colors"
         >
           Manage Groups
         </button>

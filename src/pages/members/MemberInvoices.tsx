@@ -37,21 +37,21 @@ const money = (n = 0) => new Intl.NumberFormat('en-GB', { style: 'currency', cur
 
 const SummaryCards: React.FC<{ total: number; paid: number; unpaid: number; count: number }> = ({ total, paid, unpaid, count }) => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Total Invoices</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{count}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Invoices</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-slate-900 tracking-tight">{count}</div>
     </div>
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Total Amount</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{money(total)}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-blue-600">Total Amount</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-slate-900 tracking-tight">{money(total)}</div>
     </div>
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Paid</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-emerald-400 tracking-tight">{money(paid)}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Paid</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-emerald-600 tracking-tight">{money(paid)}</div>
     </div>
-    <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
-      <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Unpaid</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">{money(unpaid)}</div>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
+      <div className="text-xs font-bold uppercase tracking-wider text-amber-600">Unpaid</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-black font-mono text-amber-600 tracking-tight">{money(unpaid)}</div>
     </div>
   </div>
 );
@@ -62,32 +62,32 @@ const Filters: React.FC<{
   status: 'all' | 'paid' | 'unpaid' | 'partially_paid';
   onStatusChange: (s: 'all' | 'paid' | 'unpaid' | 'partially_paid') => void;
 }> = ({ dateRange, onDateRangeChange, status, onStatusChange }) => (
-  <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-4 sm:p-5 shadow-xl text-white">
+  <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs text-slate-900">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">From</label>
         <input
           type="date"
           value={dateRange.start ? new Date(dateRange.start).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: e.target.value ? new Date(e.target.value) : null, end: dateRange.end })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">To</label>
         <input
           type="date"
           value={dateRange.end ? new Date(dateRange.end).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: dateRange.start, end: e.target.value ? new Date(e.target.value) : null })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Status</label>
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value as any)}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="all">All</option>
           <option value="paid">Paid</option>

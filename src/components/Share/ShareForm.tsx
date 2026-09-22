@@ -204,16 +204,16 @@ export default function ShareForm({ record, onClose }: Props) {
       {/* Expenses */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">🧾 Expenses</h3>
-        <div className="overflow-x-auto border border-[#2B314E] rounded-xl bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto border border-[#E2E8F0] rounded-xl bg-white shadow-xs overflow-hidden">
           <table className="min-w-full table-auto border-collapse text-xs">
-            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-              <tr>
-                <th className="px-3.5 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none">Type</th>
-                <th className="px-3.5 py-2.5 text-left font-bold text-white uppercase tracking-wider select-none">Desc</th>
-                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Qty</th>
-                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Unit</th>
-                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">VAT</th>
-                <th className="px-3.5 py-2.5 text-center font-bold text-white uppercase tracking-wider select-none">Action</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-3.5 py-2.5 text-left font-semibold text-[#334155] uppercase tracking-wider select-none">Type</th>
+                <th className="px-3.5 py-2.5 text-left font-semibold text-[#334155] uppercase tracking-wider select-none">Desc</th>
+                <th className="px-3.5 py-2.5 text-center font-semibold text-[#334155] uppercase tracking-wider select-none">Qty</th>
+                <th className="px-3.5 py-2.5 text-center font-semibold text-[#334155] uppercase tracking-wider select-none">Unit</th>
+                <th className="px-3.5 py-2.5 text-center font-semibold text-[#334155] uppercase tracking-wider select-none">VAT</th>
+                <th className="px-3.5 py-2.5 text-center font-semibold text-[#334155] uppercase tracking-wider select-none">Action</th>
               </tr>
             </thead>
             <tbody>

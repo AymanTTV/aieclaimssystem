@@ -60,7 +60,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
   selectedType, onTypeFilter,
 }) => {
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A] space-y-4">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
           <Search className="h-4 w-4 text-slate-400" />
@@ -70,7 +70,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
           placeholder="Search by name, email, phone, badge no, account no..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+          className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-xs"
         />
       </div>
 
@@ -78,7 +78,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         <div className="w-48">
           <SearchableSelect
             label="Customer Status"
-            labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+            labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
             options={STATUS_OPTIONS}
             value={statusFilter}
             onChange={(val) => onStatusFilterChange(val as any)}
@@ -88,7 +88,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         <div className="w-64">
           <SearchableSelect
             label="Document Expiry"
-            labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+            labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
             options={EXPIRY_OPTIONS}
             value={expiryFilters}
             onChange={(val) => onExpiryFiltersChange(val as string[])}
@@ -101,7 +101,7 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         <div className="w-56">
           <SearchableSelect
             label="Office Bill Copy"
-            labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+            labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
             options={BILL_COPY_OPTIONS}
             value={billCopyFilter}
             onChange={(val) => onBillCopyFilterChange(val as any)}
@@ -109,11 +109,11 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         </div>
 
         <div className="w-32">
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Type</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Type</label>
           <select
             value={selectedType}
             onChange={(e) => onTypeFilter(e.target.value as CustomerType | 'all')}
-            className="block w-full px-3 py-2.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All</option>
             <option value="customer">Customer</option>
@@ -123,11 +123,11 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         </div>
 
         <div className="w-32">
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Gender</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Gender</label>
           <select
             value={selectedGender}
             onChange={(e) => onGenderFilter(e.target.value as Gender | 'all')}
-            className="block w-full px-3 py-2.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All</option>
             <option value="male">Male</option>
@@ -137,22 +137,22 @@ const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Age Range</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Age Range</label>
           <div className="flex items-center space-x-2">
             <input
               type="number"
               placeholder="Min"
               value={ageRange?.min || ''}
               onChange={(e) => { const min = parseInt(e.target.value); onAgeRangeFilter(min ? { min, max: ageRange?.max || 100 } : null); }}
-              className="w-20 px-2.5 py-2.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-20 px-2.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             />
-            <span className="text-slate-400">-</span>
+            <span className="text-[#94A3B8]">-</span>
             <input
               type="number"
               placeholder="Max"
               value={ageRange?.max || ''}
               onChange={(e) => { const max = parseInt(e.target.value); onAgeRangeFilter(max ? { min: ageRange?.min || 0, max } : null); }}
-              className="w-20 px-2.5 py-2.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-20 px-2.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             />
           </div>
         </div>

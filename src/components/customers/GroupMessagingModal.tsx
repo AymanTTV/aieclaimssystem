@@ -977,16 +977,16 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             </div>
 
             {/* Recipient List Table */}
-            <div className="border border-[#2B314E] rounded-xl overflow-hidden min-h-[350px] max-h-[600px] sm:max-h-[70vh] overflow-y-auto bg-white shadow-sm">
+            <div className="border border-[#E2E8F0] rounded-xl overflow-hidden min-h-[350px] max-h-[600px] sm:max-h-[70vh] overflow-y-auto bg-white shadow-xs">
               <table className="min-w-full border-collapse text-xs">
-                <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-sm">
-                  <tr className="border-b border-[#2B314E]">
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-10">Select</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Name / Entity</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Group</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Email Address</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Mobile / WhatsApp</th>
-                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Channel Status</th>
+                <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0] sticky top-0 z-10 shadow-xs">
+                  <tr className="border-b-2 border-[#E2E8F0]">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-10">Select</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Name / Entity</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Group</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Email Address</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Mobile / WhatsApp</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Channel Status</th>
                   </tr>
                 </thead>
                 <tbody>

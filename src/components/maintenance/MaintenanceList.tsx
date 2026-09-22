@@ -35,33 +35,33 @@ const MaintenanceList: React.FC<MaintenanceListProps> = ({
   }
 
   return (
-    <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+    <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse">
-          <thead className="bg-[#16192B] text-white">
-            <tr className="border-b border-[#2B314E]">
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+            <tr className="border-b-2 border-[#E2E8F0]">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Registration
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Make/Model
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Service Due
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Status
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Type
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Location
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Cost
               </th>
-              <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">
+              <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                 Actions
               </th>
             </tr>
@@ -148,12 +148,12 @@ const MaintenanceList: React.FC<MaintenanceListProps> = ({
         </table>
       </div>
 
-      {/* Consistent Dark Navy Footer */}
-      <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+      {/* Consistent Light Footer */}
+      <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
         <div>
-          Showing <span className="font-bold text-white">{logs.length}</span> total maintenance records
+          Showing <span className="font-bold text-slate-900">{logs.length}</span> total maintenance records
         </div>
-        <div className="text-slate-400">
+        <div className="text-slate-500">
           Fleet Maintenance Log
         </div>
       </div>

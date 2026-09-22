@@ -459,7 +459,7 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                 {showPartSuggestions[index] && part.name && partSuggestions.filter(
                   suggestion => suggestion.name.toLowerCase().includes(part.name.toLowerCase())
                 ).length > 0 && (
-                    <ul className="absolute z-10 w-full bg-[#16192B] border border-[#2B314E] rounded-md shadow-xl mt-1 max-h-48 overflow-y-auto text-white">
+                    <ul className="absolute z-10 w-full bg-white border-[1.5px] border-[#CBD5E1] rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto text-[#0F172A]">
                       {partSuggestions
                         .filter(suggestion =>
                           suggestion.name.toLowerCase().includes(part.name.toLowerCase())
@@ -467,11 +467,11 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                         .map((suggestion, i) => (
                           <li
                             key={i}
-                            className="px-4 py-2 cursor-pointer hover:bg-[#1E2238] text-white flex items-center justify-between transition-colors"
+                            className="px-4 py-2 cursor-pointer hover:bg-slate-50 text-slate-900 flex items-center justify-between transition-colors border-b border-slate-100 last:border-b-0"
                             onMouseDown={() => handlePartNameSelect(suggestion, index)} // Use onMouseDown to prevent blur before click
                           >
                             <span className="font-medium">{suggestion.name}</span>
-                            <span className="text-slate-400 text-sm ml-2 font-mono">({formatCurrency(suggestion.lastCost)})</span>
+                            <span className="text-slate-500 text-sm ml-2 font-mono">({formatCurrency(suggestion.lastCost)})</span>
                           </li>
                         ))}
                     </ul>

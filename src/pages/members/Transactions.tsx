@@ -48,27 +48,27 @@ const Transactions: React.FC = () => {
       <h1 className="text-2xl font-bold mb-4">My Transactions</h1>
 
       {/* Filters */}
-      <div className="mb-4 rounded-2xl border border-[#2B314E] bg-[#16192B] p-4 sm:p-5 shadow-xl text-white">
+      <div className="mb-4 rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs text-slate-900">
         <div className="grid gap-3 md:grid-cols-3 items-center">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search anything..."
-            className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-slate-400 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <select
             value={type}
             onChange={(e) => setType(e.target.value as any)}
-            className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="all">All types</option>
             <option value="income">Income</option>
             <option value="expense">Expense</option>
             <option value="transfer">Transfer</option>
           </select>
-          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider text-slate-300">
-            <div>Income: <span className="text-emerald-400 font-mono text-sm">{formatGBP(totalIncome)}</span></div>
-            <div>Expense: <span className="text-rose-400 font-mono text-sm">{formatGBP(totalExpense)}</span></div>
+          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider text-slate-600">
+            <div>Income: <span className="text-emerald-600 font-mono text-sm">{formatGBP(totalIncome)}</span></div>
+            <div>Expense: <span className="text-rose-600 font-mono text-sm">{formatGBP(totalExpense)}</span></div>
           </div>
         </div>
       </div>
@@ -85,14 +85,14 @@ const Transactions: React.FC = () => {
           Please make sure your account email or mobile matches your customer profile.
         </div>
       ) : (
-        <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+        <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
-              <thead className="bg-[#16192B] text-white">
-                <tr className="border-b border-[#2B314E]">
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none">Date</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none">Type</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-right select-none">Amount</th>
+              <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+                <tr className="border-b-2 border-[#E2E8F0]">
+                  <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none">Date</th>
+                  <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none">Type</th>
+                  <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-right select-none">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,12 +122,12 @@ const Transactions: React.FC = () => {
             </table>
           </div>
 
-          {/* Consistent Dark Navy Footer */}
-          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          {/* Consistent Light Footer */}
+          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
             <div>
-              Showing <span className="font-bold text-white">{filtered.length}</span> transaction{filtered.length === 1 ? '' : 's'}
+              Showing <span className="font-bold text-slate-900">{filtered.length}</span> transaction{filtered.length === 1 ? '' : 's'}
             </div>
-            <div className="text-slate-400">
+            <div className="text-slate-500">
               Account Activity
             </div>
           </div>

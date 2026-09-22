@@ -29,17 +29,17 @@ export default function Table<T extends { id: string }>({
   }
 
   return (
-    <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+    <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse">
-          <thead className="bg-[#16192B] text-white">
-            <tr className="border-b border-[#2B314E]">
+          <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+            <tr className="border-b-2 border-[#E2E8F0]">
               {columns.map((column, index) => (
                 <th
                   key={index}
                   scope="col"
                   className={clsx(
-                    'px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap',
+                    'px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap',
                     column.className
                   )}
                 >
@@ -90,10 +90,10 @@ export default function Table<T extends { id: string }>({
         </table>
       </div>
 
-      {/* Consistent Dark Navy Footer */}
-      <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+      {/* Consistent Light Footer */}
+      <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
         <div>
-          Showing <span className="font-bold text-white">{data.length}</span> record{data.length === 1 ? '' : 's'}
+          Showing <span className="font-bold text-slate-900">{data.length}</span> record{data.length === 1 ? '' : 's'}
         </div>
       </div>
     </div>

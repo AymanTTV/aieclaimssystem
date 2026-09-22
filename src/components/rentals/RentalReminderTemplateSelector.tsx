@@ -446,22 +446,22 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
         </div>
 
         {/* --- INTERACTIVE SCHEDULE CONTROLS BAR (Displayed directly alongside Save Selections) --- */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-3.5 bg-[#0F111A] border border-indigo-500/30 rounded-2xl shadow-inner">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             {/* Day Selector Dropdown */}
             <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-indigo-300 flex items-center gap-1.5 shrink-0">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Dispatch Day:</span>
               </label>
               <select
                 value={scheduleDay}
                 onChange={e => setScheduleDay(Number(e.target.value))}
                 aria-label="Select automated dispatch day"
-                className="px-3 py-1.5 bg-[#16192B] border border-white/20 rounded-xl text-white text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                className="px-3 py-1.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-[#0F172A] text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
               >
                 {DAYS_OF_WEEK.map(d => (
-                  <option key={d.value} value={d.value} className="bg-[#0F111A] text-white py-1">
+                  <option key={d.value} value={d.value} className="bg-white text-[#0F172A] py-1">
                     {d.label}
                   </option>
                 ))}
@@ -470,23 +470,23 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
             {/* Time Picker / Dropdown */}
             <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-indigo-300 flex items-center gap-1.5 shrink-0">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Dispatch Time:</span>
               </label>
               <select
                 value={scheduleTime}
                 onChange={e => setScheduleTime(e.target.value)}
                 aria-label="Select automated dispatch time"
-                className="px-3 py-1.5 bg-[#16192B] border border-white/20 rounded-xl text-white text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                className="px-3 py-1.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-[#0F172A] text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
               >
                 {!SCHEDULE_TIME_OPTIONS.some(o => o.value === scheduleTime) && (
-                  <option value={scheduleTime} className="bg-[#0F111A] text-white font-bold">
+                  <option value={scheduleTime} className="bg-white text-[#0F172A] font-bold">
                     {formattedTime} (Custom)
                   </option>
                 )}
                 {SCHEDULE_TIME_OPTIONS.map(t => (
-                  <option key={t.value} value={t.value} className="bg-[#0F111A] text-white py-1">
+                  <option key={t.value} value={t.value} className="bg-white text-[#0F172A] py-1">
                     {t.label}
                   </option>
                 ))}
@@ -494,16 +494,16 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
             </div>
 
             {/* Live Computed Cron Badge */}
-            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-mono bg-[#1E2238] px-3 py-1.5 rounded-xl border border-white/10 shadow-xs">
-              <span className="text-indigo-400 font-bold">Active Cron:</span>
-              <span className="text-white font-bold">{cronExpr}</span>
-              <span className="text-slate-400">({dayInfo.plural} at {formattedTime})</span>
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+              <span className="text-indigo-600 font-bold">Active Cron:</span>
+              <span className="text-indigo-600 font-bold">{cronExpr}</span>
+              <span className="text-slate-500">({dayInfo.plural} at {formattedTime})</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium">
-              Click <strong className="text-indigo-300">Save Selections</strong> above to apply changes.
+            <span className="text-[11px] text-slate-500 font-medium">
+              Click <strong className="text-indigo-600">Save Selections</strong> above to apply changes.
             </span>
           </div>
         </div>
@@ -873,24 +873,24 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
       {/* --- LIVE RENDERED SAMPLE PREVIEW DRAWER --- */}
       {previewTab && (
-        <div className="px-5 pb-5 pt-3 border-t border-gray-200 bg-gray-50 animate-in fade-in duration-150">
-          <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div className="px-5 pb-5 pt-3 border-t border-slate-200 bg-slate-50 animate-in fade-in duration-150">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-200">
+                <span className="text-xs font-bold text-slate-700">
                   Live Sample Rendered Output ({previewTab === 'weekly' ? 'Weekly Hire' : 'Daily Hire'}):
                 </span>
-                <span className="text-xs font-black text-indigo-300">
+                <span className="text-xs font-black text-indigo-700">
                   {previewTab === 'weekly' ? selectedWeekly.name : selectedDaily.name}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   category = &apos;Bulk Email&apos;
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setPreviewTab(null)}
-                className="text-xs text-slate-400 hover:text-white hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 font-bold transition cursor-pointer"
+                className="text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 font-bold transition cursor-pointer"
               >
                 Close Preview
               </button>
@@ -925,12 +925,12 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
               );
             })()}
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400 pt-2 border-t border-white/10">
-              <span className="text-slate-400">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 pt-2 border-t border-slate-200">
+              <span className="text-slate-600">
                 Sample preview shown with dummy customer data (John Smith, Reg: AB21 XYZ, Owing: £300.00).
               </span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                 {dayInfo.plural} {formattedTime} Auto-Dispatch Ready
               </span>
             </div>

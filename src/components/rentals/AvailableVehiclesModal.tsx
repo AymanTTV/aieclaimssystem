@@ -328,20 +328,20 @@ const AvailableVehiclesModal: React.FC<AvailableVehiclesModalProps> = ({
       </div>
 
       {/* Table Area */}
-      <div className="flex-1 overflow-auto bg-white min-h-0 border-t border-b border-[#2B314E]">
+      <div className="flex-1 overflow-auto bg-white min-h-0 border-t border-b border-[#E2E8F0]">
         <table className="min-w-full border-collapse relative">
-          <thead className="bg-[#16192B] text-white sticky top-0 z-10 shadow-md">
-            <tr className="border-b border-[#2B314E]">
-              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
+          <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0] sticky top-0 z-10 shadow-xs">
+            <tr className="border-b-2 border-[#E2E8F0]">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-[20%]">
                 Vehicle
               </th>
-              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-[20%]">
                 Reg
               </th>
-              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[20%]">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-[20%]">
                 Status
               </th>
-              <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-[40%]">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-[40%]">
                 Note
               </th>
             </tr>

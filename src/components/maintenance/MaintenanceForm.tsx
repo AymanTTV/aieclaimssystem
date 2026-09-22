@@ -595,9 +595,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         onProductCreated={handleProductCreated}
       />
 
-      <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden text-white">
+      <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden text-slate-900">
         {/* Modal Navigation Tabs */}
-        <div className="flex border-b border-[#2B314E] px-4 sm:px-6 shrink-0 bg-[#121524] overflow-x-auto no-scrollbar">
+        <div className="flex border-b border-[#E2E8F0] px-4 sm:px-6 shrink-0 bg-[#F8FAFC] overflow-x-auto no-scrollbar">
           {formTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -608,15 +608,15 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-medium text-sm transition-all cursor-pointer whitespace-nowrap ${
                   isActive
-                    ? 'border-blue-500 text-blue-400 font-bold bg-blue-500/10 rounded-t-lg'
-                    : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+                    ? 'border-blue-600 text-blue-600 font-bold bg-white rounded-t-lg shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-600'
                 }`}
               >
                 <Icon className="w-4 h-4 pointer-events-none shrink-0" />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className={`ml-1.5 px-2 py-0.2 rounded-full text-xs font-bold ${
-                    isActive ? 'bg-blue-500 text-white' : 'bg-[#2B314E] text-slate-300'
+                    isActive ? 'bg-blue-600 text-white' : 'bg-[#2B314E] text-slate-700'
                   }`}>
                     {tab.count}
                   </span>
@@ -628,26 +628,26 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Scrollable Tab Content Body */}
-          <div className="flex-1 overflow-y-auto min-h-[500px] p-5 sm:p-6 space-y-6 custom-scrollbar text-white">
+          <div className="flex-1 overflow-y-auto min-h-[500px] p-5 sm:p-6 space-y-6 custom-scrollbar text-slate-900">
             
             {/* TAB 1: VEHICLE & SERVICE */}
             {activeTab === 'vehicle_service' && (
               <div className="space-y-5 animate-in fade-in duration-200">
                 {/* Vehicle Selection Card */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Car className="w-5 h-5 text-blue-400" />
-                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Vehicle Details</h4>
+                      <Car className="w-5 h-5 text-blue-600" />
+                      <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Vehicle Details</h4>
                     </div>
                     <label className="flex items-center cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={manualEntry}
                         onChange={e => setManualEntry(e.target.checked)}
-                        className="rounded border-gray-600 bg-[#16192B] text-primary focus:ring-primary h-4 w-4"
+                        className="rounded border-gray-600 bg-white text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="ml-2 text-xs font-semibold text-slate-300">Enter vehicle manually</span>
+                      <span className="ml-2 text-xs font-semibold text-slate-700">Enter vehicle manually</span>
                     </label>
                   </div>
 
@@ -706,17 +706,17 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 </div>
 
                 {/* Service Scheduling Card */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Wrench className="w-5 h-5 text-amber-400" />
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Service Scheduling & Parameters</h4>
+                    <Wrench className="w-5 h-5 text-amber-600" />
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Service Scheduling & Parameters</h4>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Type (Searchable) */}
                     <div className="sm:col-span-2">
                       {loadingTypes ? (
-                        <div className="text-sm text-slate-400 mt-2">Loading types…</div>
+                        <div className="text-sm text-slate-500 mt-2">Loading types…</div>
                       ) : (
                         <SearchableSelect
                           label="Maintenance Type"
@@ -742,19 +742,19 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                     
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">Completed Date</label>
-                        <span className="text-xs text-blue-400 font-medium">Optional</span>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Completed Date</label>
+                        <span className="text-xs text-blue-600 font-medium">Optional</span>
                       </div>
                       <input
                         type="datetime-local"
                         value={completedDate}
                         onChange={e => setCompletedDate(e.target.value)}
-                        className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white px-3.5 py-2 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                        className="block w-full rounded-xl border border-[#E2E8F0] bg-white text-slate-900 px-3.5 py-2 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Service Center</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Service Center</label>
                       <ServiceCenterDropdown
                         value={formData.serviceProvider}
                         onChange={handleServiceCenterSelect}
@@ -808,23 +808,23 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 </div>
 
                 {/* Description & Notes */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                      Service Description <span className="text-rose-400">*</span>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Service Description <span className="text-rose-600">*</span>
                     </label>
                     <textarea
                       rows={3}
                       value={formData.description}
                       onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                       placeholder="Enter description of maintenance work required or performed…"
-                      className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
+                      className="block w-full rounded-xl border border-[#E2E8F0] bg-white text-slate-900 p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                       Internal Notes
                     </label>
                     <textarea
@@ -832,7 +832,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                       value={formData.notes}
                       onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Optional notes, technician observations, or special instructions…"
-                      className="block w-full rounded-xl border border-[#2B314E] bg-[#16192B] text-white p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
+                      className="block w-full rounded-xl border border-[#E2E8F0] bg-white text-slate-900 p-3 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed"
                     />
                   </div>
                 </div>
@@ -843,11 +843,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             {activeTab === 'parts_labor' && !isCompany && (
               <div className="space-y-5 animate-in fade-in duration-200">
                 {/* Parts Section */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <Layers className="w-5 h-5 text-indigo-400" />
-                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Parts & Materials ({parts.length})</h4>
+                      <Layers className="w-5 h-5 text-indigo-600" />
+                      <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Parts & Materials ({parts.length})</h4>
                     </div>
                     <button
                       type="button"
@@ -857,7 +857,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                           { name: '', quantity: 1, cost: 0, includeVAT: false, discount: 0 }
                         ])
                       }
-                      className="px-3 py-1.5 rounded-xl bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 text-xs font-bold flex items-center gap-1.5 transition-colors"
                     >
                       <PlusCircle className="w-4 h-4" /> Add Part
                     </button>
@@ -867,7 +867,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                     {parts.map((part, index) => (
                       <div
                         key={index}
-                        className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end p-4 border border-[#2B314E] rounded-xl bg-[#16192B] text-white shadow-sm"
+                        className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end p-4 border border-[#E2E8F0] rounded-xl bg-white text-slate-900 shadow-sm"
                       >
                         <div className="relative col-span-1 sm:col-span-2">
                           <FormField
@@ -891,7 +891,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                           />
 
                           {showPartSuggestions[index] && (
-                            <ul className="absolute z-20 w-full bg-[#16192B] border border-[#2B314E] rounded-xl shadow-2xl mt-1 max-h-48 overflow-y-auto text-white">
+                            <ul className="absolute z-20 w-full bg-white border border-[#E2E8F0] rounded-xl shadow-2xl mt-1 max-h-48 overflow-y-auto text-slate-900">
                               {partSuggestionsList
                                 .filter(s => {
                                   const q = part.name?.toLowerCase() || '';
@@ -900,7 +900,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                                 .map((s) => (
                                 <li
                                   key={s.id}
-                                  className="px-4 py-2 cursor-pointer hover:bg-[#1E2238] flex items-center justify-between text-white transition-colors"
+                                  className="px-4 py-2 cursor-pointer hover:bg-slate-100 flex items-center justify-between text-slate-900 transition-colors"
                                   onMouseDown={() => {
                                     const newParts = [...parts];
                                     newParts[index] = {
@@ -913,18 +913,18 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                                   }}
                                   title={`${s.name} (${s.partNumber})`}
                                 >
-                                  <span className="truncate text-white font-medium text-xs">
+                                  <span className="truncate text-slate-900 font-medium text-xs">
                                     {s.name}
-                                    {s.partNumber ? <span className="text-slate-400"> — {s.partNumber}</span> : null}
+                                    {s.partNumber ? <span className="text-slate-500"> — {s.partNumber}</span> : null}
                                   </span>
-                                  <span className="text-slate-300 font-mono text-xs ml-2">
+                                  <span className="text-slate-700 font-mono text-xs ml-2">
                                     {formatCurrency(s.lastCost)}
                                   </span>
                                 </li>
                               ))}
 
                               <li 
-                                className="px-4 py-2.5 text-blue-400 font-semibold cursor-pointer hover:bg-[#1E2238] border-t border-[#2B314E] flex items-center gap-2 sticky bottom-0 bg-[#16192B] text-xs"
+                                className="px-4 py-2.5 text-blue-600 font-semibold cursor-pointer hover:bg-slate-100 border-t border-[#E2E8F0] flex items-center gap-2 sticky bottom-0 bg-white text-xs"
                                 onMouseDown={(e) => {
                                   e.preventDefault(); 
                                   setPendingPartIndex(index);
@@ -990,14 +990,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                                 newParts[index] = { ...newParts[index], includeVAT: e.target.checked };
                                 setParts(newParts);
                               }}
-                              className="rounded border-gray-600 bg-[#0F111A] text-primary focus:ring-primary h-4 w-4"
+                              className="rounded border-gray-600 bg-slate-50 text-primary focus:ring-primary h-4 w-4"
                             />
-                            <span className="text-xs font-bold text-slate-300">+VAT</span>
+                            <span className="text-xs font-bold text-slate-700">+VAT</span>
                           </label>
                           <button
                             type="button"
                             onClick={() => setParts(parts.filter((_, i) => i !== index))}
-                            className="px-2.5 py-1 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
+                            className="px-2.5 py-1 text-xs font-bold text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
                             title="Remove Part"
                           >
                             Remove
@@ -1009,13 +1009,13 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 </div>
 
                 {/* Labor Section */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Wrench className="w-5 h-5 text-blue-400" />
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Labor Charge</h4>
+                    <Wrench className="w-5 h-5 text-blue-600" />
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Labor Charge</h4>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end bg-[#16192B] p-4 rounded-xl border border-[#2B314E]">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end bg-white p-4 rounded-xl border border-[#E2E8F0]">
                     <div>
                       <FormField
                         type="number"
@@ -1046,15 +1046,15 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                           type="checkbox"
                           checked={includeVATOnLabor}
                           onChange={e => setIncludeVATOnLabor(e.target.checked)}
-                          className="rounded border-gray-600 bg-[#0F111A] text-primary focus:ring-primary h-4 w-4"
+                          className="rounded border-gray-600 bg-slate-50 text-primary focus:ring-primary h-4 w-4"
                         />
-                        <span className="text-xs font-bold text-slate-300">+20% VAT on Labor</span>
+                        <span className="text-xs font-bold text-slate-700">+20% VAT on Labor</span>
                       </label>
                     </div>
 
                     <div className="text-right pb-1">
-                      <span className="text-xs text-slate-400 block uppercase tracking-wider">Labor Total</span>
-                      <span className="text-lg font-mono font-bold text-emerald-400">
+                      <span className="text-xs text-slate-500 block uppercase tracking-wider">Labor Total</span>
+                      <span className="text-lg font-mono font-bold text-emerald-600">
                         {formatCurrency(includeVATOnLabor
                           ? formData.laborHours * formData.laborRate * 1.2
                           : formData.laborHours * formData.laborRate
@@ -1070,17 +1070,17 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             {activeTab === 'billing_payment' && !isCompany && (
               <div className="space-y-5 animate-in fade-in duration-200">
                 {/* Order & Invoice Details Card */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Order & Invoice Identifiers</h4>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Order & Invoice Identifiers</h4>
                   
                   {!editLog && !formData.type && (
-                    <p className="text-xs font-medium text-amber-300 bg-amber-950/40 p-3 rounded-xl border border-amber-800/60">
+                    <p className="text-xs font-medium text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-800">
                       💡 Tip: Select the maintenance type on the Vehicle & Service tab to automatically generate the sequence numbers.
                     </p>
                   )}
 
                   {isGeneratingNumbers && (
-                    <p className="text-xs font-semibold text-blue-400 animate-pulse">
+                    <p className="text-xs font-semibold text-blue-600 animate-pulse">
                       Generating next sequence numbers…
                     </p>
                   )}
@@ -1119,14 +1119,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 </div>
 
                 {/* Payment Breakdown Card */}
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Payment Details</h4>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Payment Details</h4>
                   
                   {editLog && (
-                    <div className="bg-[#16192B] p-4 rounded-xl border border-[#2B314E]">
+                    <div className="bg-white p-4 rounded-xl border border-[#E2E8F0]">
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-300 font-semibold">Previously Paid Amount:</span>
-                        <span className="font-bold font-mono text-emerald-400">{formatCurrency(existingPaidAmount)}</span>
+                        <span className="text-slate-700 font-semibold">Previously Paid Amount:</span>
+                        <span className="font-bold font-mono text-emerald-600">{formatCurrency(existingPaidAmount)}</span>
                       </div>
                     </div>
                   )}
@@ -1169,32 +1169,32 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                   </div>
 
                   {/* Complete Live Summary */}
-                  <div className="bg-[#16192B] p-4.5 rounded-xl border border-[#2B314E] space-y-2.5 text-slate-100 shadow-md">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-300 font-semibold">NET Total:</span>
-                      <span className="font-mono text-white font-bold">{formatCurrency(netAmount)}</span>
+                  <div className="bg-white p-4.5 rounded-xl border border-[#E2E8F0] space-y-2.5 text-slate-900 shadow-md">
+                    <div className="flex justify-between text-sm text-[#000000]">
+                      <span className="text-[#000000] font-semibold">NET Total:</span>
+                      <span className="font-mono text-[#000000] font-semibold">{formatCurrency(netAmount)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-300 font-semibold">VAT:</span>
-                      <span className="font-mono text-white font-bold">{formatCurrency(vatAmount)}</span>
+                    <div className="flex justify-between text-sm text-[#2563EB]">
+                      <span className="text-[#2563EB] font-semibold">VAT:</span>
+                      <span className="font-mono text-[#2563EB] font-semibold">{formatCurrency(vatAmount)}</span>
                     </div>
                     {totalDiscount > 0 && (
-                      <div className="flex justify-between text-sm text-rose-400 font-semibold">
+                      <div className="flex justify-between text-sm text-[#D97706] font-semibold">
                         <span>Discount:</span>
-                        <span className="font-mono text-rose-400 font-bold">–{formatCurrency(totalDiscount)}</span>
+                        <span className="font-mono text-[#D97706] font-semibold">–{formatCurrency(totalDiscount)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-base font-bold pt-2 border-t border-[#2B314E] text-white">
+                    <div className="flex justify-between text-base font-bold pt-2 border-t border-[#E2E8F0] text-[#D97706]">
                       <span>Total:</span>
-                      <span className="font-mono text-xl font-black text-white">{formatCurrency(totalAmount)}</span>
+                      <span className="font-mono text-xl font-bold text-[#D97706]">{formatCurrency(totalAmount)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-emerald-400 font-bold">
+                    <div className="flex justify-between text-sm text-[#15803D] font-bold">
                       <span>Paid:</span>
-                      <span className="font-mono font-bold text-emerald-400">{formatCurrency(totalPaidAmount)}</span>
+                      <span className="font-mono font-bold text-[#15803D]">{formatCurrency(totalPaidAmount)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-amber-400 font-bold">
+                    <div className={`flex justify-between text-sm font-bold ${remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
                       <span>Owing:</span>
-                      <span className="font-mono font-bold text-amber-400">{formatCurrency(remainingAmount)}</span>
+                      <span className="font-mono font-bold">{formatCurrency(remainingAmount)}</span>
                     </div>
                   </div>
                 </div>
@@ -1204,10 +1204,10 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             {/* TAB 4: ATTACHMENTS */}
             {activeTab === 'attachments' && (
               <div className="space-y-5 animate-in fade-in duration-200">
-                <div className="bg-[#0F111A] p-5 rounded-2xl border border-[#2B314E] space-y-4 shadow-sm">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-[#E2E8F0] space-y-4 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Paperclip className="w-5 h-5 text-blue-400" />
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Attachments & Documents</h4>
+                    <Paperclip className="w-5 h-5 text-blue-600" />
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Attachments & Documents</h4>
                   </div>
 
                   <FileUpload
@@ -1220,16 +1220,16 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                   />
 
                   {existingAttachments.length > 0 && (
-                    <div className="pt-3 border-t border-[#2B314E]">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Existing Attachments</h4>
+                    <div className="pt-3 border-t border-[#E2E8F0]">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Existing Attachments</h4>
                       <ul className="space-y-2">
                         {existingAttachments.map((att, idx) => (
-                          <li key={idx} className="flex items-center justify-between bg-[#16192B] border border-[#2B314E] p-3 rounded-xl">
+                          <li key={idx} className="flex items-center justify-between bg-white border border-[#E2E8F0] p-3 rounded-xl">
                             <a
                               href={att.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 font-semibold text-sm truncate max-w-[80%]"
+                              className="text-blue-600 hover:text-blue-300 font-semibold text-sm truncate max-w-[80%]"
                             >
                               {att.name}
                             </a>
@@ -1238,7 +1238,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                               onClick={() =>
                                 setExistingAttachments(existingAttachments.filter((_, i) => i !== idx))
                               }
-                              className="px-2.5 py-1 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
+                              className="px-2.5 py-1 text-xs font-bold text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors"
                             >
                               Remove
                             </button>
@@ -1254,12 +1254,12 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           </div>
 
           {/* Pinned Bottom Actions */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 shrink-0 bg-[#121524] border-t border-[#2B314E]">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 shrink-0 bg-[#F8FAFC] border-t border-[#E2E8F0]">
             <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-semibold text-slate-300 bg-[#1E2238] border border-[#2B314E] rounded-xl hover:bg-[#2B314E] hover:text-white transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-[#E2E8F0] rounded-xl hover:bg-[#2B314E] hover:text-slate-900 transition-colors"
               >
                 Cancel
               </button>
@@ -1267,7 +1267,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 <button
                   type="button"
                   onClick={() => setActiveTab(prevTab.id)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-300 bg-[#1E2238] border border-[#2B314E] rounded-xl hover:bg-[#2B314E] hover:text-white flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-[#E2E8F0] rounded-xl hover:bg-[#2B314E] hover:text-slate-900 flex items-center gap-1.5 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" /> {prevTab.label}
                 </button>
@@ -1277,15 +1277,15 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               {!isCompany && (
                 <div className="hidden sm:block mr-2 text-right">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Cost</span>
-                  <span className="text-sm font-mono font-black text-white">{formatCurrency(totalAmount)}</span>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Cost</span>
+                  <span className="text-sm font-mono font-black text-slate-900">{formatCurrency(totalAmount)}</span>
                 </div>
               )}
               {nextTab && (
                 <button
                   type="button"
                   onClick={() => setActiveTab(nextTab.id)}
-                  className="px-4 py-2 text-sm font-semibold text-blue-300 bg-blue-600/20 border border-blue-500/40 rounded-xl hover:bg-blue-600/30 flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 flex items-center gap-1.5 transition-colors"
                 >
                   {nextTab.label} <ArrowRight className="w-4 h-4" />
                 </button>
@@ -1293,7 +1293,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 text-sm font-semibold text-white bg-primary border border-transparent rounded-xl hover:bg-primary-600 shadow-md transition-colors"
+                className="px-5 py-2 text-sm font-semibold text-slate-900 bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 shadow-xs transition-colors cursor-pointer text-white"
               >
                 {loading ? 'Saving…' : editLog ? 'Update Maintenance' : 'Schedule Maintenance'}
               </button>

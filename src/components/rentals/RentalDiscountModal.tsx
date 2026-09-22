@@ -248,34 +248,34 @@ const RentalDiscountModal: React.FC<RentalDiscountModalProps> = ({ rental, onClo
     <form onSubmit={handleSubmit} className="space-y-6">
       
       {/* 1. Live Financial Dashboard */}
-      <div className="bg-gray-900 rounded-2xl p-6 shadow-xl text-white">
-         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white/90">
-            <Receipt className="w-5 h-5 text-purple-400" /> Projected Financial Impact
+      <div className="bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-2xl p-6 shadow-xs text-[#0F172A]">
+         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+            <Receipt className="w-5 h-5 text-blue-600" /> Projected Financial Impact
          </h3>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-               <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Base Net</p>
-               <p className="text-xl font-mono">{formatCurrency(detailedCostsPreDiscount.baseNet)}</p>
+               <p className="text-slate-600 text-xs font-bold uppercase tracking-wider">Base Net</p>
+               <p className="text-xl font-mono font-semibold text-[#000000]">{formatCurrency(detailedCostsPreDiscount.baseNet)}</p>
             </div>
             <div>
-               <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Discount</p>
-               <p className="text-xl font-mono text-purple-400">-{formatCurrency(currentTotalDiscount)}</p>
+               <p className="text-[#D97706] text-xs font-bold uppercase tracking-wider">Total Discount</p>
+               <p className="text-xl font-mono font-semibold text-[#D97706]">-{formatCurrency(currentTotalDiscount)}</p>
             </div>
             <div>
-               <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">New VAT</p>
-               <p className="text-xl font-mono">{formatCurrency(liveVat)}</p>
+               <p className="text-[#2563EB] text-xs font-bold uppercase tracking-wider">New VAT</p>
+               <p className="text-xl font-mono font-semibold text-[#2563EB]">{formatCurrency(liveVat)}</p>
             </div>
             <div>
-               <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">New Gross</p>
-               <p className="text-xl font-mono">{formatCurrency(liveGross)}</p>
+               <p className="text-[#D97706] text-xs font-bold uppercase tracking-wider">New Gross</p>
+               <p className="text-xl font-mono font-bold text-[#D97706]">{formatCurrency(liveGross)}</p>
             </div>
             
-            <div className="col-span-2 md:col-span-4 bg-white/10 p-4 rounded-xl border border-white/20 flex items-center justify-between mt-2">
+            <div className="col-span-2 md:col-span-4 bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between mt-2 shadow-xs">
                <div>
-                  <p className="text-white text-sm font-bold uppercase tracking-wider">Projected Remaining</p>
-                  <p className="text-xs text-gray-300 mt-0.5">Including {formatCurrency(rental.paidAmount||0)} paid</p>
+                  <p className="text-slate-700 text-sm font-bold uppercase tracking-wider">Projected Remaining (Owing)</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Including {formatCurrency(rental.paidAmount||0)} paid</p>
                </div>
-               <p className={`text-3xl font-black font-mono ${newRemainingAfterCurrentDiscount <= 0.001 ? 'text-green-400' : 'text-amber-400'}`}>
+               <p className={`text-3xl font-black font-mono ${newRemainingAfterCurrentDiscount <= 0.001 ? 'text-[#15803D]' : 'text-[#DC2626]'}`}>
                   {formatCurrency(Math.max(0, newRemainingAfterCurrentDiscount))}
                </p>
             </div>

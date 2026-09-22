@@ -217,39 +217,39 @@ const MaintenanceInvoice: React.FC<MaintenanceInvoiceProps> = ({
             <Text style={styles.sectionTitle}>Summary</Text>
             
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Net Amount:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{netAmount.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#000000', fontWeight: 'bold' }]}>Net Amount:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#000000', fontWeight: 'bold' }]}>£{netAmount.toFixed(2)}</Text>
             </View>
 
             <View style={styles.spaceBetweenRow}>
-              <Text style={[styles.label, { color: '#2563EB' }]}>VAT Total:</Text>
-              <Text style={[styles.value, { color: '#2563EB', textAlign: 'right' }]}>
+              <Text style={[styles.label, { color: '#2563EB', fontWeight: 'bold' }]}>VAT Total:</Text>
+              <Text style={[styles.value, { color: '#2563EB', textAlign: 'right', fontWeight: 'bold' }]}>
                 £{vatAmount.toFixed(2)}
               </Text>
             </View>
 
             {discountAmount > 0 && (
               <View style={styles.spaceBetweenRow}>
-                <Text style={[styles.label, { color: 'red' }]}>Discount:</Text>
-                <Text style={[styles.value, { color: 'red', textAlign: 'right' }]}>
+                <Text style={[styles.label, { color: '#D97706', fontWeight: 'bold' }]}>Discount:</Text>
+                <Text style={[styles.value, { color: '#D97706', textAlign: 'right', fontWeight: 'bold' }]}>
                   –£{discountAmount.toFixed(2)}
                 </Text>
               </View>
             )}
 
             <View style={[styles.spaceBetweenRow, { borderTopWidth: 1, borderColor: '#ccc', paddingTop: 4 }]}>
-              <Text style={[styles.label, { fontWeight: 'bold' }]}>Grand Total:</Text>
-              <Text style={[styles.value, { textAlign: 'right', fontWeight: 'bold' }]}>£{totalAmount.toFixed(2)}</Text>
+              <Text style={[styles.label, { fontWeight: 'bold', color: '#D97706' }]}>Grand Total:</Text>
+              <Text style={[styles.value, { textAlign: 'right', fontWeight: 'bold', color: '#D97706' }]}>£{totalAmount.toFixed(2)}</Text>
             </View>
 
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Paid:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{paidAmount.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#15803D', fontWeight: 'bold' }]}>Paid:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#15803D', fontWeight: 'bold' }]}>£{paidAmount.toFixed(2)}</Text>
             </View>
 
             <View style={styles.spaceBetweenRow}>
-              <Text style={[styles.label, { color: owingAmount > 0 ? '#DC2626' : '#16A34A' }]}>Owing:</Text>
-              <Text style={[styles.value, { textAlign: 'right', color: owingAmount > 0 ? '#DC2626' : '#16A34A' }]}>
+              <Text style={[styles.label, { fontWeight: 'bold', color: owingAmount > 0.001 ? '#DC2626' : '#15803D' }]}>Owing:</Text>
+              <Text style={[styles.value, { textAlign: 'right', fontWeight: 'bold', color: owingAmount > 0.001 ? '#DC2626' : '#15803D' }]}>
                 £{owingAmount.toFixed(2)}
               </Text>
             </View>

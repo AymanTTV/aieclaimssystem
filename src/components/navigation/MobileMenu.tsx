@@ -55,6 +55,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
             const isActive = currentPath === item.href;
             const isSubmenuOpen = openSubmenu === item.name;
             const isSubmenuActive = item.submenu?.some(sub => currentPath === sub.href) ?? false;
+            const isTodo = item.href === ROUTES.TODO || item.name.toLowerCase().includes('todo') || item.name.toLowerCase().includes('to-do');
 
             return (
               <div key={item.name} className="mb-2">
@@ -104,18 +105,18 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                   <Link
                     to={item.href}
                     onClick={onClose}
-                    className={`flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                    className={`flex items-center justify-between px-4 py-3 text-sm rounded-full transition-colors ${
                       isActive
-                        ? 'text-primary bg-primary/5'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs font-semibold'
+                        : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]'
                     }`}
                   >
                     <div className="flex items-center">
-                      <Icon className="w-5 h-5 mr-3" />
+                      <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                       <span>{item.name}</span>
                     </div>
                     {item.href === ROUTES.CHAT && unreadChatCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold text-red-100 bg-red-600 rounded-full">
+                      <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold text-white bg-[#EF4444] rounded-full">
                         {unreadChatCount}
                       </span>
                     )}

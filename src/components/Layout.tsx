@@ -384,7 +384,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [navigation, isMemberArea]);
 
   return (
-    <div className="min-h-screen bg-transparent">
+    <div className="min-h-screen bg-[#F8FAFC] layout-wrapper">
       <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
         <div className="px-1 sm:px-2 lg:px-3 2xl:px-4">
           <div className="flex items-center justify-between h-16">
@@ -407,19 +407,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     >
                       <button
                         onClick={() => setOpenSubmenu(prev => (prev === item.name ? null : item.name))}
-                        className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                          isActive ? 'text-primary bg-primary/5' : 'text-gray-600 hover:text-primary hover:bg-gray-50'
+                        className={`group flex items-center px-3.5 py-2 text-sm font-semibold rounded-full transition-all ${
+                          isActive
+                            ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs'
+                            : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] border border-transparent'
                         }`}
                       >
-                        <Icon className="w-5 h-5 mr-1.5 transition-transform group-hover:scale-110" />
+                        <Icon className={`w-5 h-5 mr-1.5 transition-transform group-hover:scale-110 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                         <span>{item.name}</span>
                         <ChevronDown
-                          className={`w-4 h-4 ml-1 transition-transform duration-200 ${openSubmenu === item.name ? 'rotate-180' : ''}`}
+                          className={`w-4 h-4 ml-1 transition-transform duration-200 ${openSubmenu === item.name ? 'rotate-180' : ''} ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`}
                         />
                       </button>
 
                       <div
-                        className={`absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50
+                        className={`absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-[#E2E8F0] py-2 z-50
                                    origin-top transform transition duration-150 ease-out
                                    ${openSubmenu === item.name ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
                         onMouseEnter={cancelClose}
@@ -434,16 +436,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             <Link
                               key={sub.href}
                               to={sub.href}
-                              className={`group/item relative mx-1 rounded-md px-3 py-2 text-sm flex items-center
+                              className={`group/item relative mx-1 rounded-lg px-3 py-2 text-sm flex items-center
                                           transition-colors ${
-                                            subActive ? 'text-primary bg-primary/5' : 'text-gray-700 hover:bg-gray-50'
+                                            subActive
+                                              ? 'bg-[#FEE2E2] text-[#991B1B] font-semibold border border-[#FCA5A5]'
+                                              : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]'
                                           }`}
                               onClick={() => setOpenSubmenu(null)}
                             >
                               {SubIcon && <SubIcon className="w-4 h-4 mr-2 transition-transform group-hover/item:translate-x-0.5" />}
                               <span>{sub.name}</span>
                               {showBadge && (
-                                <span className="ml-auto inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full">
+                                <span className="ml-auto inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold text-white bg-[#EF4444] rounded-full">
                                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                                 </span>
                               )}
@@ -459,15 +463,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive ? 'text-primary bg-primary/5' : 'text-gray-600 hover:text-primary hover:bg-gray-50'
+                    className={`flex items-center px-3.5 py-2 text-sm font-semibold rounded-full transition-all ${
+                      isActive
+                        ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs'
+                        : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] border border-transparent'
                     }`}
                   >
-                    <Icon className="w-5 h-5 mr-1.5" />
+                    <Icon className={`w-5 h-5 mr-1.5 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                     <span>{item.name}</span>
                     
                     {item.badgeCount ? (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full">
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1 text-[10px] font-bold text-[#FFFFFF] bg-[#EF4444] rounded-full shadow-2xs">
                         {item.badgeCount > 99 ? '99+' : item.badgeCount}
                       </span>
                     ) : null}
@@ -545,7 +551,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         />
       )}
 
-      <main className="pt-2 md:pt-3 pb-20">
+      <main className="pt-2 md:pt-3 pb-20 bg-[#F8FAFC] min-h-[calc(100vh-4rem)]">
         <div className="w-full mx-auto px-1 sm:px-2 lg:px-3 2xl:px-4">
           {children}
         </div>
@@ -560,14 +566,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               return (
                 <Link key={item.href} to={item.href} className="flex flex-col items-center justify-center py-2 text-xs">
                   <div className="relative">
-                    <Icon className={`h-5 w-5 ${active ? 'text-primary' : 'text-gray-500'}`} />
+                    <Icon className={`h-5 w-5 ${active ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                     {item.badgeCount ? (
-                      <span className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[1rem] h-[1rem] px-1 text-[9px] font-bold text-white bg-red-600 border border-white rounded-full">
+                      <span className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[1rem] h-[1rem] px-1 text-[9px] font-bold text-white bg-[#EF4444] border border-white rounded-full">
                         {item.badgeCount > 99 ? '99+' : item.badgeCount}
                       </span>
                     ) : null}
                   </div>
-                  <span className={`${active ? 'text-primary' : 'text-gray-600'}`}>{item.name}</span>
+                  <span className={`${active ? 'text-[#991B1B] font-bold' : 'text-[#64748B]'}`}>{item.name}</span>
                 </Link>
               );
             })}

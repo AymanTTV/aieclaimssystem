@@ -2,11 +2,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, ActionCodeSettings } from 'firebase/auth';
 import { 
-  initializeFirestore, 
   getFirestore, 
-  persistentLocalCache, 
-  persistentMultipleTabManager,
-  memoryLocalCache,
+  initializeFirestore,
   setLogLevel 
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -28,36 +25,23 @@ const firebaseConfig = {
 // 1. Initialize Firebase app exactly once (prevents duplicate app initialization)
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// 2. Suppress low-level internal retry logs so benign offline status messages don't alarm user
+// 2. Suppress low-level internal retry logs and transient offline notices so benign network fluctuations don't alarm user
 try {
-  setLogLevel('error');
+  setLogLevel('silent');
 } catch {
   // Ignore if setLogLevel is not supported in the environment
 }
 
-// 3. Initialize Firestore with auto-detect long polling and multi-tab local cache
-let firestoreDb;
-try {
-  firestoreDb = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true,
-    useFetchStreams: false,
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
-    }),
-  });
-} catch {
+// 3. Initialize Firestore safely and reliably across all environments (including iframes, private browsing, and public mirror)
+export const db = (() => {
   try {
-    firestoreDb = initializeFirestore(app, {
+    return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false,
-      localCache: memoryLocalCache(),
     });
   } catch {
-    firestoreDb = getFirestore(app);
+    return getFirestore(app);
   }
-}
-
-export const db = firestoreDb;
+})();
 export const auth = getAuth(app);
 export const functions = getFunctions(app, 'europe-west2');
 export const storage = getStorage(app);

@@ -116,24 +116,27 @@ const PersonalInjuryPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Personal Injury Claims</h1>
-        <div className="flex space-x-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Personal Injury Claims</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Claims registry, medical reports, and settlement progress.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {user?.role === 'manager' && (
             <button
               onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <Download className="h-5 w-5 mr-2" />
+              <Download className="h-4 w-4 mr-2 text-[#64748B]" />
               Export
             </button>
           )}
           {can('claims', 'create') && (
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+              className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-4 w-4 mr-2" />
               New Claim
             </button>
           )}

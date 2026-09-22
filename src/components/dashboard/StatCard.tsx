@@ -9,70 +9,66 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, iconColor = 'text-primary' }) => {
-  const getPalette = (colorStr: string) => {
-    if (colorStr.includes('emerald') || colorStr.includes('green')) {
+  const getContextualColors = () => {
+    const t = title.toLowerCase();
+    const c = iconColor.toLowerCase();
+
+    if (t.includes('overdue') || t.includes('critical') || t.includes('expense') || t.includes('alert') || c.includes('red') || c.includes('rose')) {
       return {
-        label: 'text-emerald-300',
-        badge: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
+        bg: 'bg-[#FEF2F2]',
+        border: 'border-[#FECACA]',
+        text: 'text-[#DC2626]',
+        badge: 'bg-white border-[#FECACA] text-[#DC2626]',
       };
     }
-    if (colorStr.includes('blue') || colorStr.includes('primary')) {
+    if (t.includes('completed') || t.includes('on-hire') || t.includes('in service') || t.includes('income') || t.includes('active hire') || c.includes('emerald') || c.includes('green')) {
       return {
-        label: 'text-blue-300',
-        badge: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
+        bg: 'bg-[#ECFDF5]',
+        border: 'border-[#A7F3D0]',
+        text: 'text-[#059669]',
+        badge: 'bg-white border-[#A7F3D0] text-[#059669]',
       };
     }
-    if (colorStr.includes('indigo')) {
+    if (t.includes('progress') || t.includes('attention') || t.includes('warn') || c.includes('amber') || c.includes('yellow')) {
       return {
-        label: 'text-indigo-300',
-        badge: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400',
+        bg: 'bg-[#FFFBEB]',
+        border: 'border-[#FDE68A]',
+        text: 'text-[#D97706]',
+        badge: 'bg-white border-[#FDE68A] text-[#D97706]',
       };
     }
-    if (colorStr.includes('amber') || colorStr.includes('yellow')) {
+    if (t.includes('pending') || t.includes('not started') || t.includes('scheduled') || c.includes('slate') || c.includes('gray')) {
       return {
-        label: 'text-amber-300',
-        badge: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+        bg: 'bg-[#F8FAFC]',
+        border: 'border-[#CBD5E1]',
+        text: 'text-[#334155]',
+        badge: 'bg-white border-[#CBD5E1] text-[#334155]',
       };
     }
-    if (colorStr.includes('purple')) {
-      return {
-        label: 'text-purple-300',
-        badge: 'bg-purple-500/15 border-purple-500/30 text-purple-400',
-      };
-    }
-    if (colorStr.includes('teal')) {
-      return {
-        label: 'text-teal-300',
-        badge: 'bg-teal-500/15 border-teal-500/30 text-teal-400',
-      };
-    }
-    if (colorStr.includes('rose') || colorStr.includes('red')) {
-      return {
-        label: 'text-rose-300',
-        badge: 'bg-rose-500/15 border-rose-500/30 text-rose-400',
-      };
-    }
+    // Default / Total / General Metrics
     return {
-      label: 'text-slate-300',
-      badge: 'bg-slate-800/80 border-slate-700/60 text-slate-200',
+      bg: 'bg-[#F0F9FF]',
+      border: 'border-[#BAE6FD]',
+      text: 'text-[#0284C7]',
+      badge: 'bg-white border-[#BAE6FD] text-[#0284C7]',
     };
   };
 
-  const palette = getPalette(iconColor);
+  const scheme = getContextualColors();
 
   return (
-    <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 hover:border-[#3D456E] hover:shadow-2xl relative overflow-hidden group">
-      {/* Subtle watermark icon in corner */}
-      <Icon className="absolute -right-3 -bottom-3 w-24 h-24 text-white/[0.04] pointer-events-none select-none transition-transform group-hover:scale-110" />
-
+    <div
+      className={`${scheme.bg} ${scheme.border} rounded-2xl shadow-xs p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group`}
+      style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+    >
       <div className="flex items-center justify-between mb-4 relative z-10">
-        <p className={`text-xs font-bold uppercase tracking-wider ${palette.label}`}>{title}</p>
-        <div className={`rounded-xl p-2.5 border shadow-xs ${palette.badge}`}>
+        <p className={`text-xs font-bold uppercase tracking-wider ${scheme.text}`}>{title}</p>
+        <div className={`rounded-xl p-2.5 border shadow-xs ${scheme.badge}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
       <div className="relative z-10 flex items-baseline justify-between">
-        <p className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight">{value}</p>
+        <p className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${scheme.text}`}>{value}</p>
       </div>
     </div>
   );

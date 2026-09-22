@@ -39,8 +39,8 @@ const Dashboard = () => {
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight font-display">Overview</h1>
-          <p className="text-sm text-gray-500 mt-1 font-medium">Real-time analysis of your fleet operations and financial performance.</p>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Overview</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Real-time analysis of your fleet operations and financial performance.</p>
         </div>
       </div>
 
@@ -49,9 +49,7 @@ const Dashboard = () => {
         {can('vehicles', 'cards') && <VehicleMetrics />}
         
         {user?.role === 'manager' && (
-          <div className="bg-[#0c101c] rounded-2xl border border-slate-800/90 shadow-xl overflow-hidden">
-            <FinancialSummary transactions={transactions} period="month" />
-          </div>
+          <FinancialSummary transactions={transactions} period="month" />
         )}
       </div>
 

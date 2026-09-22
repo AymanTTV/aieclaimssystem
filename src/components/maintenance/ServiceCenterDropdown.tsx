@@ -122,7 +122,7 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
     <div className="relative" ref={dropdownRef}>
       <input
         type="text"
-        className="form-input w-full"
+        className="form-input w-full bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Search or select service center..."
         value={inputValue}
         onChange={handleInputChange}
@@ -130,23 +130,23 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
       />
 
       {isOpen && (
-        <div className="absolute z-10 w-full bg-[#16192B] border border-[#2B314E] rounded-md shadow-xl mt-1 max-h-60 overflow-y-auto text-white">
+        <div className="absolute z-10 w-full bg-white border-[1.5px] border-[#CBD5E1] rounded-xl shadow-xl mt-1 max-h-60 overflow-y-auto text-[#0F172A]">
           {loadingCenters ? (
-            <div className="p-2 text-sm text-slate-400">Loading service centers...</div>
+            <div className="p-3 text-sm text-slate-500">Loading service centers...</div>
           ) : serviceCentersError ? (
-            <div className="p-2 text-sm text-red-400">Error: {serviceCentersError}</div>
+            <div className="p-3 text-sm text-rose-600">Error: {serviceCentersError}</div>
           ) : filteredServiceCenters.length === 0 && inputValue ? (
-            <div className="p-2 text-sm text-slate-400">No matching service centers found.</div>
+            <div className="p-3 text-sm text-slate-500">No matching service centers found.</div>
           ) : (
             <>
-              <div className="p-2 border-b border-[#2B314E]">
+              <div className="p-2 border-b border-slate-200">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCreateForm(true);
                     setIsOpen(false); // Close dropdown when opening modal
                   }}
-                  className="w-full text-left flex items-center p-2 text-sm text-blue-400 hover:bg-[#1E2238] rounded-md font-semibold"
+                  className="w-full text-left flex items-center p-2 text-sm text-blue-600 hover:bg-slate-50 rounded-lg font-semibold cursor-pointer"
                 >
                   <Plus className="h-4 w-4 mr-2" /> Add New Service Center
                 </button>
@@ -154,10 +154,10 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
               {filteredServiceCenters.map((center) => (
                 <div
                   key={center.id}
-                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-[#1E2238] transition-colors"
+                  className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                   onClick={() => handleSelectCenter(center)}
                 >
-                  <span className="text-sm font-medium text-white">{center.name}</span>
+                  <span className="text-sm font-medium text-slate-900">{center.name}</span>
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
@@ -165,7 +165,7 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
                         e.stopPropagation(); // Prevent dropdown from closing
                         openEditForm(center);
                       }}
-                      className="text-blue-400 hover:text-blue-300"
+                      className="text-blue-600 hover:text-blue-700 p-1"
                       title="Edit"
                     >
                       <Edit className="h-4 w-4" />
@@ -176,7 +176,7 @@ const ServiceCenterDropdown: React.FC<ServiceCenterDropdownProps> = ({
                         e.stopPropagation(); // Prevent dropdown from closing
                         handleDeleteClick(center);
                       }}
-                      className="text-rose-400 hover:text-rose-300"
+                      className="text-rose-600 hover:text-rose-700 p-1"
                       title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />

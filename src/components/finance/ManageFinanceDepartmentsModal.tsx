@@ -77,51 +77,51 @@ const ManageFinanceDepartmentsModal: React.FC<ManageFinanceDepartmentsModalProps
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Manage Departments" size="md" theme="navy">
+    <Modal isOpen={isOpen} onClose={onClose} title="Manage Departments" size="md">
       <div className="space-y-5">
-        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Add New Department</label>
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Add New Department</label>
           <form onSubmit={handleAddDepartment} className="flex gap-2">
             <input
               type="text"
               value={newDepartment}
               onChange={(e) => setNewDepartment(e.target.value)}
               placeholder="e.g. Sales, Fleet, Maintenance..."
-              className="flex-1 bg-[#16192B] border border-[#2B314E] text-white placeholder-slate-400 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] placeholder-slate-400 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !newDepartment.trim()}
-              className="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 shadow-sm cursor-pointer"
+              className="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 shadow-xs cursor-pointer"
             >
               Add
             </button>
           </form>
         </div>
 
-        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
-          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Existing Departments ({departments.length})</h4>
-          <div className="max-h-64 overflow-y-auto custom-scrollbar rounded-xl border border-[#2B314E] bg-[#121524]">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Existing Departments ({departments.length})</h4>
+          <div className="max-h-64 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 bg-white">
             {departments.length === 0 ? (
-              <p className="p-4 text-sm text-slate-400 text-center">No departments created yet.</p>
+              <p className="p-4 text-sm text-slate-500 text-center">No departments created yet.</p>
             ) : (
-              <ul className="divide-y divide-[#2B314E]">
+              <ul className="divide-y divide-slate-200">
                 {departments.map((dept) => (
-                  <li key={dept.id} className="p-3.5 flex justify-between items-center hover:bg-[#1C2038] transition-colors">
+                  <li key={dept.id} className="p-3.5 flex justify-between items-center hover:bg-slate-50 transition-colors">
                     {editingId === dept.id ? (
                       <div className="flex-1 flex items-center space-x-2">
                         <input
                           type="text"
                           value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
-                          className="flex-1 text-sm bg-[#16192B] border border-[#2B314E] text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           autoFocus
                         />
                         <button
                           type="button"
                           onClick={handleSaveEdit}
-                          className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-950/40 transition-colors"
+                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="Save"
                         >
                           <Check className="h-4 w-4" />
@@ -129,7 +129,7 @@ const ManageFinanceDepartmentsModal: React.FC<ManageFinanceDepartmentsModalProps
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:bg-[#2B314E] transition-colors"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
                           title="Cancel"
                         >
                           <X className="h-4 w-4" />
@@ -137,12 +137,12 @@ const ManageFinanceDepartmentsModal: React.FC<ManageFinanceDepartmentsModalProps
                       </div>
                     ) : (
                       <>
-                        <span className="text-sm font-semibold text-white tracking-wide">{dept.name}</span>
+                        <span className="text-sm font-semibold text-slate-900 tracking-wide">{dept.name}</span>
                         <div className="flex items-center space-x-1.5">
                           <button
                             type="button"
                             onClick={() => { setEditingId(dept.id); setEditingName(dept.name); }}
-                            className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-950/40 hover:text-blue-300 transition-colors"
+                            className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
                             title="Edit"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -150,7 +150,7 @@ const ManageFinanceDepartmentsModal: React.FC<ManageFinanceDepartmentsModalProps
                           <button
                             type="button"
                             onClick={() => handleDelete(dept.id, dept.name)}
-                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition-colors"
+                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
                             title="Delete"
                           >
                             <Trash2 className="h-4 w-4" />

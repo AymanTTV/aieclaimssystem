@@ -498,19 +498,19 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const { cost, paidAmount = 0, remainingAmount } = row.original;
         return (
           <div className="space-y-0.5 text-xs w-28">
-            <div className="flex justify-between font-bold text-slate-900 border-b border-slate-200/80 pb-0.5">
+            <div className="flex justify-between font-bold text-[#D97706] border-b border-slate-200/80 pb-0.5">
               <span>Total:</span>
               <span className="font-mono">{formatCurrency(cost)}</span>
             </div>
-            <div className="flex justify-between font-bold text-emerald-600">
+            <div className="flex justify-between font-bold text-[#15803D]">
               <span>Paid:</span>
               <span className="font-mono">{formatCurrency(paidAmount)}</span>
             </div>
             <div
               className={`flex justify-between font-bold ${
-                remainingAmount > 0
-                  ? 'text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.5 rounded'
-                  : 'text-slate-400'
+                remainingAmount > 0.001
+                  ? 'text-[#DC2626]'
+                  : 'text-[#15803D]'
               }`}
             >
               <span>Owing:</span>
@@ -677,12 +677,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   return (
     <>
       {selectedLogIds.size > 0 && (
-        <div className="bg-[#16192B] border border-[#2B314E] text-white px-4 py-3 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in slide-in-from-top-1">
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in slide-in-from-top-1">
           <div className="flex items-center gap-3">
             <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-full">
               {selectedLogIds.size} {selectedLogIds.size === 1 ? 'record' : 'records'} selected
             </span>
-            <span className="text-xs text-slate-300 hidden sm:inline">
+            <span className="text-xs text-blue-700 hidden sm:inline font-medium">
               Perform batch communications for selected maintenance jobs
             </span>
           </div>
@@ -708,7 +708,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             <button
               type="button"
               onClick={() => setSelectedLogIds(new Set())}
-              className="px-2.5 py-1.5 bg-[#2B314E] hover:bg-[#3D456E] text-slate-200 hover:text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl transition cursor-pointer"
             >
               Clear Selection
             </button>
@@ -717,22 +717,22 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       )}
 
       {/* Color Status Legend with Interactive Dynamic Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3 px-4 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl text-xs mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3 px-4 bg-[#F1F5F9] border border-[#E2E8F0] rounded-2xl shadow-xs text-xs mb-4">
         <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px]">Row Indicators:</span>
+          <span className="text-[#475569] font-bold uppercase tracking-wider text-[11px]">Row Indicators:</span>
           <button
             type="button"
             onClick={() => setActiveHighlightFilter(prev => prev === 'due7d' ? 'all' : 'due7d')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               activeHighlightFilter === 'due7d'
-                ? 'bg-red-500/25 border border-red-500 ring-1 ring-red-400 text-white shadow-xs'
-                : 'bg-[#1F243B] hover:bg-[#282F4D] border border-red-500/30 text-red-300'
+                ? 'bg-[#FEE2E2] border border-red-400 ring-2 ring-red-300 text-[#B91C1C] shadow-xs'
+                : 'bg-[#FEE2E2] hover:bg-[#FECACA] border border-red-200 text-[#B91C1C]'
             }`}
             title="Click to filter: Show only jobs due in ≤7 days"
           >
-            <span className="w-3.5 h-3.5 rounded-full bg-red-600 border border-red-400 inline-block shadow-xs animate-pulse"></span>
-            <span className="font-bold">Due in ≤7d (highlight Red)</span>
-            <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+            <span className="w-3.5 h-3.5 rounded-full bg-[#B91C1C] border border-red-300 inline-block shadow-xs animate-pulse"></span>
+            <span className="font-bold">Due in ≤7d</span>
+            <span className="bg-[#B91C1C] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
               {due7dCount}
             </span>
           </button>
@@ -741,14 +741,14 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             onClick={() => setActiveHighlightFilter(prev => prev === 'in-progress' ? 'all' : 'in-progress')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               activeHighlightFilter === 'in-progress'
-                ? 'bg-orange-500/25 border border-orange-500 ring-1 ring-orange-400 text-white shadow-xs'
-                : 'bg-[#1F243B] hover:bg-[#282F4D] border border-orange-500/30 text-orange-300'
+                ? 'bg-[#FEF3C7] border border-amber-400 ring-2 ring-amber-300 text-[#B45309] shadow-xs'
+                : 'bg-[#FEF3C7] hover:bg-[#FDE68A] border border-amber-200 text-[#B45309]'
             }`}
             title="Click to filter: Show only jobs in progress"
           >
-            <span className="w-3.5 h-3.5 rounded-full bg-orange-500 border border-orange-400 inline-block shadow-xs"></span>
-            <span className="font-bold">In Progress (highlight Orange)</span>
-            <span className="bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+            <span className="w-3.5 h-3.5 rounded-full bg-[#B45309] border border-amber-300 inline-block shadow-xs"></span>
+            <span className="font-bold">In Progress</span>
+            <span className="bg-[#B45309] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
               {inProgressCount}
             </span>
           </button>
@@ -759,13 +759,13 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
             <button
               type="button"
               onClick={() => setActiveHighlightFilter('all')}
-              className="text-xs text-sky-400 hover:text-sky-300 font-bold underline cursor-pointer"
+              className="text-xs text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
             >
               Reset Filter
             </button>
           )}
-          <span className="text-slate-400 text-xs">
-            Showing <strong className="text-white font-mono">{displayedLogs.length}</strong> of <span className="font-mono">{logs.length}</span> jobs
+          <span className="text-[#475569] text-xs">
+            Showing <strong className="text-slate-900 font-mono">{displayedLogs.length}</strong> of <span className="font-mono text-slate-700">{logs.length}</span> jobs
           </span>
         </div>
       </div>

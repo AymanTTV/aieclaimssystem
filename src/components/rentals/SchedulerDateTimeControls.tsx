@@ -44,26 +44,26 @@ export const SchedulerDateTimeControls: React.FC<SchedulerDateTimeControlsProps>
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-3 p-3 sm:p-3.5 bg-[#16192B] border border-indigo-500/25 rounded-2xl shadow-md ${className}`}
+      className={`flex flex-wrap items-center gap-3 p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs ${className}`}
       data-testid="scheduler-datetime-controls"
     >
       {/* 1. Day Selector Dropdown */}
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 shrink-0">
-          <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0">
+          <Calendar className="w-3.5 h-3.5 text-indigo-600" />
           <span>Day:</span>
         </label>
         <select
           value={scheduleDay}
           onChange={e => onChangeDay(Number(e.target.value))}
           aria-label="Select automated dispatch day of the week"
-          className="px-3 py-1.5 bg-[#0F111A] text-white text-xs sm:text-sm font-semibold rounded-xl border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors shadow-inner cursor-pointer"
+          className="px-3 py-1.5 bg-white text-[#0F172A] text-xs sm:text-sm font-semibold rounded-xl border-[1.5px] border-[#CBD5E1] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors shadow-xs cursor-pointer"
         >
           {DAYS_OF_WEEK.map(d => (
             <option
               key={d.value}
               value={d.value}
-              className="bg-[#0F111A] text-white py-1.5 font-medium"
+              className="bg-white text-[#0F172A] py-1.5 font-medium"
             >
               {d.label}
             </option>
@@ -73,18 +73,18 @@ export const SchedulerDateTimeControls: React.FC<SchedulerDateTimeControlsProps>
 
       {/* 2. Time Picker / Dropdown */}
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 shrink-0">
-          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0">
+          <Clock className="w-3.5 h-3.5 text-indigo-600" />
           <span>Time:</span>
         </label>
         <select
           value={scheduleTime}
           onChange={e => onChangeTime(e.target.value)}
           aria-label="Select automated dispatch time"
-          className="px-3 py-1.5 bg-[#0F111A] text-white text-xs sm:text-sm font-semibold rounded-xl border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors shadow-inner cursor-pointer"
+          className="px-3 py-1.5 bg-white text-[#0F172A] text-xs sm:text-sm font-semibold rounded-xl border-[1.5px] border-[#CBD5E1] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors shadow-xs cursor-pointer"
         >
           {!hasTimeInOptions && (
-            <option value={scheduleTime} className="bg-[#0F111A] text-white font-medium">
+            <option value={scheduleTime} className="bg-white text-[#0F172A] font-medium">
               {formattedTime} (Custom)
             </option>
           )}
@@ -92,7 +92,7 @@ export const SchedulerDateTimeControls: React.FC<SchedulerDateTimeControlsProps>
             <option
               key={t.value}
               value={t.value}
-              className="bg-[#0F111A] text-white py-1.5 font-medium"
+              className="bg-white text-[#0F172A] py-1.5 font-medium"
             >
               {t.label}
             </option>
@@ -102,10 +102,10 @@ export const SchedulerDateTimeControls: React.FC<SchedulerDateTimeControlsProps>
 
       {/* 3. Live Cron / Schedule Badge */}
       {showLiveCronBadge && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#0F111A] border border-indigo-500/30 text-indigo-300 text-[11px] font-mono font-bold shadow-xs">
-          <Clock className="w-3 h-3 text-indigo-400 animate-pulse" />
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 text-[11px] font-mono font-bold shadow-xs">
+          <Clock className="w-3 h-3 text-indigo-600" />
           <span>
-            Cron: <span className="text-white">{cronExpr}</span> ({dayInfo.plural} {formattedTime})
+            Cron: <span className="text-indigo-600">{cronExpr}</span> ({dayInfo.plural} {formattedTime})
           </span>
         </div>
       )}

@@ -408,7 +408,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
             <StatusBadge status={r.status} />
             <StatusBadge 
               status={warningInfo.effectivePaymentStatus}
-              className={warningInfo.effectivePaymentStatus === 'unpaid' ? '!bg-red-600 !text-white border border-red-700 font-extrabold animate-blink shadow-sm' : ''}
+              className={warningInfo.effectivePaymentStatus === 'unpaid' ? '!bg-[#FEE2E2] !text-[#B91C1C] border border-[#FCA5A5] font-bold shadow-2xs' : ''}
             />
           </div>
         );
@@ -419,7 +419,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
       cell: ({ row }: any) => {
         const r = row.original as Rental;
         const v = vehicles.find(veh => veh.id === r.vehicleId);
-        if (!v) return <div className="text-red-500 text-sm">Vehicle Not Found</div>;
+        if (!v) return <div className="text-[#B91C1C] text-sm font-semibold">Vehicle Not Found</div>;
 
         const { detailedCosts, totalAmountDue, paid, remaining, extraTotal } = getDetailedRentalTotals(r, v);
         
@@ -434,62 +434,77 @@ const RentalTable: React.FC<RentalTableProps> = ({
 
         return (
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Rate:</span>
-              <span className="font-bold text-gray-700">
+            {/* Rate / Day Rate: #0F172A, font-weight: 600 */}
+            <div className="flex justify-between text-[#0F172A]">
+              <span className="font-semibold text-[#0F172A]">Rate:</span>
+              <span className="font-semibold font-mono text-[#0F172A]">
                 {formatCurrency(effectiveRate)}/{unit}{isNegotiated ? ' (neg)' : ''}
               </span>
             </div>
 
-            <div className="flex justify-between">
-              <span className="text-gray-500">Net Period:</span>
-              <span className="font-mono text-gray-700">{formatCurrency(detailedCosts.net)}</span>
+            {/* Net Period / Base Net: #000000, font-weight: 600 */}
+            <div className="flex justify-between text-[#000000]">
+              <span className="font-semibold text-[#000000]">Net Period:</span>
+              <span className="font-mono font-semibold text-[#000000]">{formatCurrency(detailedCosts.net)}</span>
             </div>
 
-            {/* Extras Display in the summary table */}
+            {/* Discount Amounts: #D97706 */}
+            {detailedCosts.discountAmount > 0 && (
+              <div className="flex justify-between text-[#D97706]">
+                <span className="font-semibold text-[#D97706]">Discount:</span>
+                <span className="font-mono font-semibold text-[#D97706]">-{formatCurrency(detailedCosts.discountAmount)}</span>
+              </div>
+            )}
+
+            {/* Extras Display */}
             {extraTotal > 0 && (
-              <div className="flex justify-between text-indigo-600">
-                <span className="font-medium">Extras:</span>
-                <span className="font-mono">{formatCurrency(extraTotal)}</span>
+              <div className="flex justify-between text-[#475569]">
+                <span className="font-medium text-[#475569]">Extras:</span>
+                <span className="font-mono font-semibold text-[#475569]">{formatCurrency(extraTotal)}</span>
               </div>
             )}
 
+            {/* VAT / VAT Amount: #2563EB, font-weight: 600 */}
             {detailedCosts.vat > 0 && (
-              <div className="flex justify-between text-blue-600">
-                <span>VAT:</span>
-                <span className="font-mono">{formatCurrency(detailedCosts.vat)}</span>
+              <div className="flex justify-between text-[#2563EB]">
+                <span className="font-semibold text-[#2563EB]">VAT:</span>
+                <span className="font-mono font-semibold text-[#2563EB]">{formatCurrency(detailedCosts.vat)}</span>
               </div>
             )}
 
-            <div className="border-t border-gray-100 my-1.5" />
+            <div className="border-t border-slate-200 my-1.5" />
 
-            <div className="flex justify-between font-bold text-gray-900">
-              <span>Total:</span>
-              <span className="font-mono">{formatCurrency(totalAmountDue)}</span>
+            {/* Total / Gross Total: #D97706, font-weight: 700 */}
+            <div className="flex justify-between font-bold text-[#D97706]">
+              <span className="text-[#D97706]">Total:</span>
+              <span className="font-mono font-bold text-[#D97706]">{formatCurrency(totalAmountDue)}</span>
             </div>
 
-            <div className="flex justify-between text-green-700">
-              <span>Paid:</span>
-              <span className="font-bold font-mono">{formatCurrency(paid)}</span>
+            {/* Paid / Collected Amount: #15803D, font-weight: 700 */}
+            <div className="flex justify-between text-[#15803D] font-bold">
+              <span className="text-[#15803D]">Paid:</span>
+              <span className="font-bold font-mono text-[#15803D]">{formatCurrency(paid)}</span>
             </div>
 
-            <div className={`flex justify-between ${isCredit ? 'text-green-700' : 'text-red-700'}`}>
-              <span className="font-bold">{isCredit ? 'Credit' : 'Owing'}:</span>
-              <span className="font-black font-mono">{formatCurrency(Math.abs(remaining))}</span>
+            {/* Owing / Balance Due: #DC2626, font-weight: 700 */}
+            <div className={`flex justify-between font-bold ${isCredit ? 'text-[#15803D]' : 'text-[#DC2626]'}`}>
+              <span className={isCredit ? 'text-[#15803D]' : 'text-[#DC2626]'}>{isCredit ? 'Credit' : 'Owing'}:</span>
+              <span className={`font-mono ${isCredit ? 'text-[#15803D]' : 'text-[#DC2626]'}`}>{formatCurrency(Math.abs(remaining))}</span>
             </div>
             
+            {/* Urgent: Unpaid Warning Banner: Background #FEE2E2 | Border 1px solid #FCA5A5 | Text & Icon #991B1B */}
             {urgencyLevel === 'red' && warningInfo.warningMessage && (
-              <div className="mt-2 flex items-center justify-center gap-1.5 bg-red-600 text-white text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-red-700 text-center shadow-md animate-blink">
-                <AlertTriangle className="w-3.5 h-3.5 text-white flex-shrink-0" />
-                <span className="tracking-tight text-white font-extrabold">
+              <div className="mt-2 flex items-center justify-center gap-1.5 bg-[#FEE2E2] text-[#991B1B] text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-[#FCA5A5] text-center shadow-xs">
+                <AlertTriangle className="w-3.5 h-3.5 text-[#991B1B] flex-shrink-0" />
+                <span className="tracking-tight text-[#991B1B] font-extrabold">
                   {warningInfo.warningMessage}
                 </span>
               </div>
             )}
             
             {urgencyLevel === 'yellow' && (
-              <div className="mt-2 flex items-center justify-center gap-1 bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1.5 rounded border border-yellow-200 text-center">
-                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              <div className="mt-2 flex items-center justify-center gap-1 bg-[#FEF3C7] text-[#B45309] text-[10px] font-bold px-2 py-1.5 rounded-lg border border-[#FDE68A] text-center">
+                <AlertCircle className="w-3 h-3 flex-shrink-0 text-[#B45309]" />
                 <span>Warning: Unpaid Balance</span>
               </div>
             )}

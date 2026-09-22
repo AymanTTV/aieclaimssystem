@@ -10,6 +10,7 @@ import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface ClaimProgressDocumentProps {
   data: Claim;
+  companyDetails?: any;
 }
 
 // --- HELPER TO SAFELY CONVERT DATES/TIMESTAMPS ---
@@ -20,14 +21,14 @@ const toJsDate = (dateVal: any): Date => {
   return new Date(dateVal);
 };
 
-const ClaimProgressDocument: React.FC<ClaimProgressDocumentProps> = ({ data }) => {
+const ClaimProgressDocument: React.FC<ClaimProgressDocumentProps> = ({ data, companyDetails = {} }) => {
   const headerDetails = {
-    logoUrl: aieClaimsLogo,
-    fullName: 'AIE Claims LTD',
-    addressLine1: 'United House, 39-41 North Road,',
-    addressLine2: 'London, N7 9DP',
-    phone: '+442080505337',
-    email: 'claims@aieclaims.co.uk',
+    logoUrl: companyDetails?.logoUrl || aieClaimsLogo,
+    fullName: companyDetails?.fullName || 'AIE Claims LTD',
+    addressLine1: companyDetails?.addressLine1 || (companyDetails?.officialAddress ? companyDetails.officialAddress.split('\n')[0] : 'United House, 39-41 North Road,'),
+    addressLine2: companyDetails?.addressLine2 || (companyDetails?.officialAddress ? companyDetails.officialAddress.split('\n')[1] || '' : 'London, N7 9DP'),
+    phone: companyDetails?.phone || '+442080505337',
+    email: companyDetails?.email || 'claims@aieclaims.co.uk',
   };
 
   const sortedHistory = (data.progressHistory || []).sort((a, b) => {
@@ -406,7 +407,7 @@ const ClaimProgressDocument: React.FC<ClaimProgressDocumentProps> = ({ data }) =
               registrationNumber: '14592207',
               officialAddress: 'United House.\n39-41 North Road, London, N7 9DP.',
               vatNumber: '453448875',
-              ...companyDetails,
+              ...(companyDetails || {}),
             })}
           </Text>
           <Text

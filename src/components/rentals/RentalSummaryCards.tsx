@@ -122,68 +122,74 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
 
   if (!can('rentals', 'cards')) return null;
 
-  const SummaryCard = ({ label, icon, totals, labelColor, iconWrapperClass }: any) => {
+  const SummaryCard = ({ label, icon, totals, bgClass, borderClass, accentClass }: any) => {
     const d = totals;
     return (
-      <div className="bg-[#16192B] rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200 p-6 border border-[#2B314E] hover:border-[#3D456E] relative overflow-hidden group text-white flex flex-col justify-between">
+      <div
+        className={`${bgClass} ${borderClass} rounded-2xl shadow-xs transition-all duration-200 p-6 relative overflow-hidden flex flex-col justify-between`}
+        style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+      >
         <div className="flex items-center justify-between mb-4 relative z-10">
           <div>
-            <p className={`text-xs font-bold uppercase tracking-wider ${labelColor}`}>{label}</p>
-            <p className="mt-1 text-4xl font-black text-white font-mono tracking-tight">{d.count}</p>
+            <p className={`text-xs font-bold uppercase tracking-wider ${accentClass}`}>{label}</p>
+            <p className={`mt-1 text-4xl font-black font-mono tracking-tight ${accentClass}`}>{d.count}</p>
           </div>
-          <div className={`p-3 rounded-xl border shadow-xs ${iconWrapperClass}`}>
+          <div className={`p-3 rounded-xl border ${borderClass} bg-white shadow-xs ${accentClass}`}>
             {icon}
           </div>
         </div>
 
-        <div className="space-y-1.5 text-sm border-t pt-4 border-slate-800/80 relative z-10">
-          {/* 1. Base Net */}
-          <div className="flex justify-between items-center">
-             <span className="text-slate-300 font-medium">Base Net:</span>
-             <span className="font-mono text-white">{formatCurrency(d.net + d.discount)}</span>
+        <div className="space-y-1.5 text-sm border-t pt-4 border-slate-200/80 relative z-10">
+          {/* 1. Base Net: #000000, font-weight: 600 */}
+          <div className="flex justify-between items-center text-[#000000]">
+             <span className="font-semibold text-[#000000]">Base Net:</span>
+             <span className="font-mono font-semibold text-[#000000]">{formatCurrency(d.net + d.discount)}</span>
           </div>
 
           {/* 2. Discount */}
           {d.discount > 0 && (
-             <div className="flex justify-between items-center">
-                <span className="text-purple-400 font-medium">Discount:</span>
-                <span className="font-mono text-purple-300">-{formatCurrency(d.discount)}</span>
+             <div className="flex justify-between items-center text-[#D97706]">
+                <span className="font-semibold text-[#D97706]">Discount:</span>
+                <span className="font-mono font-semibold text-[#D97706]">-{formatCurrency(d.discount)}</span>
              </div>
           )}
 
-          {/* 3. VAT */}
-          <div className="flex justify-between items-center">
-             <span className="text-blue-400 font-medium">VAT:</span>
-             <span className="font-mono text-blue-300">{formatCurrency(d.vat)}</span>
+          {/* 3. VAT: #2563EB, font-weight: 600 */}
+          <div className="flex justify-between items-center text-[#2563EB]">
+             <span className="font-semibold text-[#2563EB]">VAT:</span>
+             <span className="font-mono font-semibold text-[#2563EB]">{formatCurrency(d.vat)}</span>
           </div>
 
           {/* Extras */}
           {d.ongoing > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-rose-400 font-medium">Overdue:</span>
-              <span className="font-mono text-rose-300">{formatCurrency(d.ongoing)}</span>
+            <div className="flex justify-between items-center text-[#DC2626]">
+              <span className="font-semibold text-[#DC2626]">Overdue:</span>
+              <span className="font-mono font-semibold text-[#DC2626]">{formatCurrency(d.ongoing)}</span>
             </div>
           )}
           {d.returnCharges > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-amber-400 font-medium">Penalties:</span>
-              <span className="font-mono text-amber-300">{formatCurrency(d.returnCharges)}</span>
+            <div className="flex justify-between items-center text-[#DC2626]">
+              <span className="font-semibold text-[#DC2626]">Penalties:</span>
+              <span className="font-mono font-semibold text-[#DC2626]">{formatCurrency(d.returnCharges)}</span>
             </div>
           )}
           
           {/* Totals */}
-          <div className="border-t my-2 border-slate-800/80" />
-          <div className="flex justify-between items-center font-bold text-slate-100">
-            <span>Gross Total:</span>
-            <span className="font-mono text-white text-base">{formatCurrency(d.total)}</span>
+          <div className="border-t my-2 border-slate-200/80" />
+          {/* Gross Total: #D97706, font-weight: 700 */}
+          <div className="flex justify-between items-center font-bold text-[#D97706]">
+            <span className="text-[#D97706]">Gross Total:</span>
+            <span className="font-mono text-[#D97706] text-base font-bold">{formatCurrency(d.total)}</span>
           </div>
-          <div className="flex justify-between items-center text-emerald-400 font-medium">
-            <span>Paid:</span>
-            <span className="font-mono text-emerald-300">{formatCurrency(d.paid)}</span>
+          {/* Paid: #15803D, font-weight: 700 */}
+          <div className="flex justify-between items-center text-[#15803D] font-bold">
+            <span className="text-[#15803D]">Paid:</span>
+            <span className="font-mono text-[#15803D] font-bold">{formatCurrency(d.paid)}</span>
           </div>
-          <div className="flex justify-between items-center text-amber-400 font-bold">
-            <span>Owing:</span>
-            <span className="font-mono text-amber-300">{formatCurrency(d.owing)}</span>
+          {/* Owing: #DC2626, font-weight: 700 */}
+          <div className="flex justify-between items-center text-[#DC2626] font-bold">
+            <span className="text-[#DC2626]">Owing:</span>
+            <span className="font-mono text-[#DC2626] font-bold">{formatCurrency(d.owing)}</span>
           </div>
         </div>
       </div>
@@ -196,51 +202,56 @@ const RentalSummaryCards: React.FC<Props> = ({ rentals, vehicles = [] }) => {
         label="Daily Rentals" 
         icon={<Calendar className="h-6 w-6" />} 
         totals={summary.byType.daily}
-        labelColor="text-blue-300"
-        iconWrapperClass="bg-blue-500/15 border-blue-500/30 text-blue-400"
+        bgClass="bg-[#EFF6FF]"
+        borderClass="border-[#BFDBFE]"
+        accentClass="text-[#1D4ED8]"
       />
       <SummaryCard 
         label="Weekly Rentals" 
         icon={<TrendingUp className="h-6 w-6" />} 
         totals={summary.byType.weekly}
-        labelColor="text-emerald-300"
-        iconWrapperClass="bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+        bgClass="bg-[#ECFDF5]"
+        borderClass="border-[#A7F3D0]"
+        accentClass="text-[#047857]"
       />
       <SummaryCard 
         label="Claim Rentals" 
         icon={<FileText className="h-6 w-6" />} 
         totals={summary.byType.claim}
-        labelColor="text-purple-300"
-        iconWrapperClass="bg-purple-500/15 border-purple-500/30 text-purple-400"
+        bgClass="bg-[#FFFBEB]"
+        borderClass="border-[#FDE68A]"
+        accentClass="text-[#B45309]"
       />
 
-      {/* Status Dashboard - Dynamic Standout Fleet Status Card */}
-      <div className="bg-[#16192B] rounded-2xl shadow-xl p-5 sm:p-6 text-white relative overflow-hidden border border-[#2B314E] hover:border-[#3D456E] flex flex-col justify-between">
-        <Receipt className="absolute -right-3 -bottom-5 w-36 h-36 text-white/[0.04] pointer-events-none select-none" />
+      {/* Status Dashboard - Fleet Status Card */}
+      <div
+        className="bg-white rounded-2xl shadow-xs p-5 sm:p-6 text-[#0F172A] relative overflow-hidden border border-[#E2E8F0] flex flex-col justify-between"
+        style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+      >
         <div className="flex items-center justify-between mb-5 relative z-10">
-          <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+          <p className="text-xs font-extrabold text-[#64748B] uppercase tracking-widest font-mono">
             Fleet Status
           </p>
-          <div className="p-2 bg-slate-800/80 border border-slate-700/60 rounded-xl shadow-xs">
-            <Clock className="h-5 w-5 text-slate-100" />
+          <div className="p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl shadow-xs">
+            <Clock className="h-5 w-5 text-[#64748B]" />
           </div>
         </div>
         <div className="space-y-3 relative z-10">
-          <div className="flex justify-between items-center bg-[#101e38] border border-blue-500/40 hover:border-blue-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
-            <span className="text-blue-300 font-bold text-sm tracking-wide">Active on Hire</span>
-            <span className="font-mono font-black text-white text-2xl tracking-tight">
+          <div className="flex justify-between items-center bg-[#DCFCE7] border border-[#86EFAC] p-3.5 rounded-xl transition-all duration-150 shadow-xs">
+            <span className="text-[#15803D] font-bold text-sm tracking-wide">Active on Hire</span>
+            <span className="font-mono font-black text-[#15803D] text-2xl tracking-tight">
               {summary.status.active}
             </span>
           </div>
-          <div className="flex justify-between items-center bg-[#28220e] border border-amber-500/40 hover:border-amber-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
-            <span className="text-amber-300 font-bold text-sm tracking-wide">Scheduled</span>
-            <span className="font-mono font-black text-amber-100 text-2xl tracking-tight">
+          <div className="flex justify-between items-center bg-[#FEF3C7] border border-[#FDE68A] p-3.5 rounded-xl transition-all duration-150 shadow-xs">
+            <span className="text-[#B45309] font-bold text-sm tracking-wide">Scheduled</span>
+            <span className="font-mono font-black text-[#B45309] text-2xl tracking-tight">
               {summary.status.scheduled}
             </span>
           </div>
-          <div className="flex justify-between items-center bg-[#0d261b] border border-emerald-500/40 hover:border-emerald-400/70 p-3.5 rounded-xl transition-all duration-150 shadow-sm">
-            <span className="text-emerald-300 font-bold text-sm tracking-wide">Completed</span>
-            <span className="font-mono font-black text-emerald-100 text-2xl tracking-tight">
+          <div className="flex justify-between items-center bg-[#E0F2FE] border border-[#BAE6FD] p-3.5 rounded-xl transition-all duration-150 shadow-xs">
+            <span className="text-[#0369A1] font-bold text-sm tracking-wide">Completed</span>
+            <span className="font-mono font-black text-[#0369A1] text-2xl tracking-tight">
               {summary.status.completed}
             </span>
           </div>

@@ -405,17 +405,17 @@ export default function AutomationSettings() {
   return (
     <div className="max-w-7xl mx-auto pb-20 space-y-6" onKeyDown={handleKeyDown}>
       <div className="flex items-center gap-3 mb-6">
-        <div className="bg-blue-100 p-3 rounded-lg">
-          <MessageSquare className="w-8 h-8 text-blue-600" />
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl shadow-xs">
+          <MessageSquare className="w-6 h-6 text-[#2563EB]" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Message Template Manager</h1>
-          <p className="text-sm text-gray-500">Edit templates, drag-and-drop tags, and manage communications.</p>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Message Template Manager</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Edit templates, drag-and-drop tags, and manage communications.</p>
         </div>
       </div>
 
       {/* --- AUTOMATION CONTROL: GLOBAL SCHEDULED EMAIL SYSTEM --- */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
         <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
             <div className={`p-3.5 rounded-2xl ${globalAutoEmailEnabled ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>

@@ -164,18 +164,18 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col justify-between">
            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Financial Summary</h3>
            <div className="space-y-2 flex-grow">
-              <div className="flex justify-between text-sm text-gray-600"><span>Net</span><span>{formatCurrency(net)}</span></div>
-              <div className="flex justify-between text-sm text-gray-600"><span>VAT</span><span>{formatCurrency(vat)}</span></div>
+              <div className="flex justify-between text-sm text-[#000000] font-semibold"><span>Net:</span><span className="font-mono">{formatCurrency(net)}</span></div>
+              <div className="flex justify-between text-sm text-[#2563EB] font-semibold"><span>VAT:</span><span className="font-mono">{formatCurrency(vat)}</span></div>
               {totalDiscount > 0 && (
-                 <div className="flex justify-between text-sm text-red-500"><span>Discount</span><span>-{formatCurrency(totalDiscount)}</span></div>
+                 <div className="flex justify-between text-sm text-[#D97706] font-semibold"><span>Discount:</span><span className="font-mono">-{formatCurrency(totalDiscount)}</span></div>
               )}
            </div>
            
            <div className="pt-3 border-t border-gray-100 space-y-2">
-              <div className="flex justify-between text-base font-bold text-gray-900"><span>Total</span><span>{formatCurrency(total)}</span></div>
-              <div className="flex justify-between text-sm font-medium text-green-600"><span>Paid</span><span>{formatCurrency(paid)}</span></div>
-              <div className={`flex justify-between text-sm font-bold ${owing > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                <span>Owing</span><span>{formatCurrency(owing)}</span>
+              <div className="flex justify-between text-base font-bold text-[#D97706]"><span>Total:</span><span className="font-mono">{formatCurrency(total)}</span></div>
+              <div className="flex justify-between text-sm font-bold text-[#15803D]"><span>Paid:</span><span className="font-mono">{formatCurrency(paid)}</span></div>
+              <div className={`flex justify-between text-sm font-bold ${owing > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+                <span>Owing:</span><span className="font-mono">{formatCurrency(owing)}</span>
               </div>
            </div>
         </div>
@@ -192,21 +192,21 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       )}
 
       {/* ── LINE ITEMS ── */}
-      <div className="bg-white rounded-xl shadow-sm border border-[#2B314E] overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#2B314E] bg-[#16192B]">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
+      <div className="bg-white rounded-xl shadow-xs border border-[#E2E8F0] overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Line Items</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-xs">
-            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Vehicle</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Qty</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Unit Price</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Discount</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider select-none">VAT</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Line Total</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Vehicle</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Unit Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Discount</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">VAT</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Line Total</th>
               </tr>
             </thead>
             <tbody>

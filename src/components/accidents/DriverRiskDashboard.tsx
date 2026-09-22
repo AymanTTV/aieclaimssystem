@@ -469,30 +469,30 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
         {/* The Ranking Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-xs">
-            <thead className="bg-[#16192B] text-white">
-              <tr className="border-b border-[#2B314E]">
-                <th scope="col" className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none w-12">
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th scope="col" className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-12">
                   Rank
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Driver Information
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Accidents Count
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Fault Split
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Total Financial Incurred (£)
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Late Reports (&gt;24h)
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">
                   Risk Rating Badge
                 </th>
-                <th scope="col" className="px-4 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none w-24">
+                <th scope="col" className="px-4 py-3.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none w-24">
                   Actions
                 </th>
               </tr>
@@ -677,18 +677,18 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
                               </span>
                             </div>
 
-                            <div className="overflow-x-auto rounded-xl border border-[#2B314E] overflow-hidden">
+                            <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-xs overflow-hidden">
                               <table className="min-w-full border-collapse text-xs">
-                                <thead className="bg-[#16192B] text-white">
-                                  <tr className="border-b border-[#2B314E]">
-                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date / Time</th>
-                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Ref / Claim</th>
-                                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Vehicle VRN</th>
-                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault</th>
-                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Status</th>
-                                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
-                                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Reporting Window</th>
-                                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Action</th>
+                                <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+                                  <tr className="border-b-2 border-[#E2E8F0]">
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Date / Time</th>
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Ref / Claim</th>
+                                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Vehicle VRN</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Fault</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Status</th>
+                                    <th className="px-3.5 py-2.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Incurred (£)</th>
+                                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Reporting Window</th>
+                                    <th className="px-3.5 py-2.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Action</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -785,12 +785,12 @@ export const DriverRiskDashboard: React.FC<DriverRiskDashboardProps> = ({
           </table>
         </div>
 
-        {/* Consistent Dark Navy Footer */}
-        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        {/* Consistent Light Footer */}
+        <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
           <div>
-            Showing <span className="font-bold text-white">{filteredProfiles.length}</span> ranked driver{filteredProfiles.length === 1 ? '' : 's'}
+            Showing <span className="font-bold text-slate-900">{filteredProfiles.length}</span> ranked driver{filteredProfiles.length === 1 ? '' : 's'}
           </div>
-          <div className="text-slate-400">
+          <div className="text-slate-500">
             Loss Run & Driver Risk Rankings
           </div>
         </div>

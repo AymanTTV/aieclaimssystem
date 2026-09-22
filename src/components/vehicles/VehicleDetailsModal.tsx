@@ -370,22 +370,22 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                     </div>
 
                     {isLoadingHistory ? (
-                      <p className="text-sm text-slate-400">Loading history...</p>
+                      <p className="text-sm text-slate-500">Loading history...</p>
                     ) : mileageHistory.length === 0 ? (
-                      <div className="bg-[#16192B] p-6 rounded-xl text-center border border-[#2B314E]">
-                        <p className="text-sm text-slate-400">No mileage updates recorded yet.</p>
+                      <div className="bg-slate-50 p-6 rounded-xl text-center border border-slate-200">
+                        <p className="text-sm text-slate-500">No mileage updates recorded yet.</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-[#2B314E] shadow-sm bg-white">
+                      <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-xs bg-white">
                         <table className="min-w-full border-collapse text-xs">
-                          <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Mileage</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Diff</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Time Gap</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Recorded By</th>
-                              <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Actions</th>
+                          <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+                            <tr className="border-b-2 border-[#E2E8F0]">
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Mileage</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Diff</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Time Gap</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Recorded By</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Actions</th>
                             </tr>
                           </thead>
                           <tbody>

@@ -476,22 +476,25 @@ const Rentals = () => {
 
       {/* --- ENHANCED HEADER ACTION BAR --- */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Rentals</h1>
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Rentals</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Manage hire agreements, bookings, documents, and payments.</p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           {can('rentals', 'export') && (
             <>
               <button 
                 onClick={handleGenerateBulkDocument} 
-                className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow transition-all"
+                className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
               >
-                <FileText className="h-4 w-4 mr-2" />
+                <FileText className="h-4 w-4 mr-2 text-[#64748B]" />
                 <span className="truncate">PDF Report</span>
               </button>
               <button 
                 onClick={handleExport} 
-                className="flex items-center px-4 py-2 border border-emerald-200 rounded-xl shadow-sm text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:shadow transition-all"
+                className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
               >
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-4 w-4 mr-2 text-[#64748B]" />
                 <span className="truncate">Export CSV</span>
               </button>
             </>
@@ -502,7 +505,7 @@ const Rentals = () => {
                 setRentalTemplatesInitialTab('whatsapp');
                 setShowRentalTemplatesModal(true);
               }} 
-              className="flex items-center px-4 py-2 border border-emerald-200 rounded-xl shadow-sm text-sm font-bold text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100 hover:shadow transition-all cursor-pointer"
+              className="flex items-center px-4 py-2 border border-emerald-300 rounded-xl shadow-xs text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all cursor-pointer"
               title="Open WhatsApp & Email Template Navigation Tabs"
             >
               <MessageSquare className="h-4 w-4 mr-2 text-emerald-600" />
@@ -515,10 +518,10 @@ const Rentals = () => {
                 setMondayAutoEmailTab('templates');
                 setShowMondayAutoEmailModal(true);
               }} 
-              className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-white hover:bg-indigo-50 hover:shadow transition-all"
+              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
               title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
             >
-              <Settings2 className="h-4 w-4 mr-2 text-indigo-600" />
+              <Settings2 className="h-4 w-4 mr-2 text-[#64748B]" />
               <span className="truncate">Reminder Templates</span>
             </button>
           )}
@@ -528,35 +531,35 @@ const Rentals = () => {
                 setMondayAutoEmailTab('list');
                 setShowMondayAutoEmailModal(true);
               }} 
-              className="flex items-center px-4 py-2 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow transition-all"
+              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
               title="Manage Monday Auto-Email for Active Rentals"
             >
-              <Mail className="h-4 w-4 mr-2 text-indigo-600" />
+              <Mail className="h-4 w-4 mr-2 text-[#64748B]" />
               <span className="truncate">Monday Auto-Email</span>
             </button>
           )}
           {can('rentals', 'availableVehicles') && (
             <button 
               onClick={() => setShowAvailableVehicles(true)} 
-              className="flex items-center px-4 py-2 border border-amber-200 rounded-xl shadow-sm text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 hover:shadow transition-all"
+              className="flex items-center px-4 py-2 border border-amber-300 rounded-xl shadow-xs text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all"
             >
-              <Car className="h-4 w-4 mr-2" />
+              <Car className="h-4 w-4 mr-2 text-amber-600" />
               <span className="truncate">Available Vehicles</span>
             </button>
           )}
           {can('rentals', 'syncStatus') && (
             <button 
               onClick={syncVehicleStatuses} 
-              className="flex items-center px-4 py-2 border border-blue-200 rounded-xl shadow-sm text-sm font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:shadow transition-all"
+              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
             >
-              <RefreshCwIcon className="h-4 w-4 mr-2" />
+              <RefreshCwIcon className="h-4 w-4 mr-2 text-[#64748B]" />
               <span className="truncate">Sync Statuses</span>
             </button>
           )}
           {can('rentals', 'create') && (
             <button 
               onClick={() => setShowForm(true)} 
-              className="flex items-center px-5 py-2 border-transparent rounded-xl shadow-md text-sm font-black text-white bg-primary hover:bg-primary-600 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              className="flex items-center px-5 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-all cursor-pointer"
             >
               <Plus className="h-5 w-5 mr-2" />
               <span className="truncate">Schedule Rental</span>
@@ -566,7 +569,7 @@ const Rentals = () => {
       </div>
 
       {/* --- ENHANCED SEARCH & FILTERS BAR --- */}
-      <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] mb-6 text-white">
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-[#E2E8F0] mb-6 text-[#0F172A]">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center mb-4">
           <div className="relative sm:col-span-2">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -577,24 +580,24 @@ const Rentals = () => {
               placeholder="Search rentals (Agreement #, Customer, Vehicle, Plate)..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
-              className="block w-full pl-11 pr-4 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm font-medium transition-all" 
+              className="block w-full pl-11 pr-4 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm font-medium transition-all shadow-xs" 
             />
           </div>
           <div className="flex sm:justify-end">
-            <label htmlFor="allRecords" className="inline-flex items-center gap-3 select-none cursor-pointer bg-[#0F111A] border border-[#2B314E] px-4 py-2.5 rounded-xl hover:bg-[#1E2338] transition-colors w-full sm:w-auto justify-center text-slate-200">
+            <label htmlFor="allRecords" className="inline-flex items-center gap-3 select-none cursor-pointer bg-white border border-[#CBD5E1] px-4 py-2.5 rounded-xl hover:bg-[#F8FAFC] transition-colors w-full sm:w-auto justify-center text-[#1E293B] shadow-xs">
               <input 
                 type="checkbox" 
                 id="allRecords" 
                 checked={showAllRecords} 
                 onChange={(e) => setShowAllRecords(e.target.checked)} 
-                className="h-4 w-4 rounded border-[#2B314E] bg-[#16192B] text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
+                className="h-4 w-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-blue-500 cursor-pointer" 
               />
-              <span className="text-sm font-bold text-slate-200">Show All Records</span>
+              <span className="text-sm font-bold text-[#1E293B]">Show All Records</span>
             </label>
           </div>
         </div>
 
-        <div className="pt-4 border-t border-[#2B314E]">
+        <div className="pt-4 border-t border-[#E2E8F0]">
           <RentalFilters
             statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} typeFilter={typeFilter} onTypeFilterChange={setTypeFilter} vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} reasonFilter={reasonFilter} onReasonFilterChange={setReasonFilter} paymentStatusFilter={paymentStatusFilter} onPaymentStatusFilterChange={setPaymentStatusFilter} startDateFilter={startDateFilter} onStartDateChange={setStartDateFilter} endDateFilter={endDateFilter} onEndDateChange={setEndDateFilter} vehicles={vehicles} rentals={rentals} isDisabled={false}
           />

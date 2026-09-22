@@ -51,53 +51,56 @@ const EmailHistory: React.FC = () => {
       <h1 className="text-2xl font-bold">Email History</h1>
 
       {/* Filters */}
-      <div className="flex space-x-4">
-        <select
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-          className="border rounded p-2"
-        >
-          <option value="all">All Types</option>
-          <option value="custom">Custom</option>
-          <option value="rental">Rental</option>
-          <option value="maintenance">Maintenance</option>
-          <option value="invoice">Invoice</option>
-          <option value="claim">Claim</option>
-        </select>
+      <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+        <div>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Type</label>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          >
+            <option value="all">All Types</option>
+            <option value="custom">Custom</option>
+            <option value="rental">Rental</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="invoice">Invoice</option>
+            <option value="claim">Claim</option>
+          </select>
+        </div>
 
         <div>
-          <label className="block text-sm">From:</label>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">From:</label>
           <input
             type="date"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
-            className="border rounded p-2"
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm">To:</label>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">To:</label>
           <input
             type="date"
             value={endDate}
             onChange={e => setEndDate(e.target.value)}
-            className="border rounded p-2"
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+      <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse">
-            <thead className="bg-[#16192B] text-white">
-              <tr className="border-b border-[#2B314E]">
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Date Sent</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Type</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Template</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Recipient</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Subject</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider text-left select-none whitespace-nowrap">Sent By</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Date Sent</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Type</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Template</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Recipient</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Subject</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider text-left select-none whitespace-nowrap">Sent By</th>
               </tr>
             </thead>
             <tbody>
@@ -127,12 +130,12 @@ const EmailHistory: React.FC = () => {
           </table>
         </div>
 
-        {/* Consistent Dark Navy Footer */}
-        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        {/* Consistent Light Footer */}
+        <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
           <div>
-            Showing <span className="font-bold text-white">{filtered.length}</span> log{filtered.length === 1 ? '' : 's'}
+            Showing <span className="font-bold text-slate-900">{filtered.length}</span> log{filtered.length === 1 ? '' : 's'}
           </div>
-          <div className="text-slate-400">
+          <div className="text-slate-500">
             Email Delivery Log
           </div>
         </div>

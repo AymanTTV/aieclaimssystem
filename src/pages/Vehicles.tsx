@@ -495,34 +495,43 @@ const Vehicles: React.FC = () => {
       {/* Summary Cards */}
       {can('vehicles', 'cards') && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#F0F9FF] border-[#BAE6FD] rounded-2xl p-5 sm:p-6 flex items-center justify-between shadow-xs transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-300">All Vehicles</p>
-            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-white tracking-tight">{filteredVehicles.length}</p>
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#0284C7]">All Vehicles</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-[#0284C7] tracking-tight">{filteredVehicles.length}</p>
           </div>
-          <div className="p-3 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+          <div className="p-3 rounded-xl border border-[#BAE6FD] bg-white text-[#0284C7] shadow-xs">
             <CheckCircle className="h-7 w-7" />
           </div>
         </div>
 
-        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#FFFBEB] border-[#FDE68A] rounded-2xl p-5 sm:p-6 flex items-center justify-between shadow-xs transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-300">
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#D97706]">
               Due within {SERVICE_THRESHOLD.toLocaleString()} mi
             </p>
-            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-amber-200 tracking-tight">{dueSoonArr.length}</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-[#D97706] tracking-tight">{dueSoonArr.length}</p>
           </div>
-          <div className="p-3 rounded-xl border bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-xs">
+          <div className="p-3 rounded-xl border border-[#FDE68A] bg-white text-[#D97706] shadow-xs">
             <AlertTriangle className="h-7 w-7" />
           </div>
         </div>
 
-        <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 sm:p-6 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#FEF2F2] border-[#FECACA] rounded-2xl p-5 sm:p-6 flex items-center justify-between shadow-xs transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-300">Overdue</p>
-            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-rose-400 tracking-tight">{overdue.length}</p>
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#DC2626]">Overdue</p>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-[#DC2626] tracking-tight">{overdue.length}</p>
           </div>
-          <div className="p-3 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+          <div className="p-3 rounded-xl border border-[#FECACA] bg-white text-[#DC2626] shadow-xs">
             <AlertCircle className="h-7 w-7" />
           </div>
         </div>
@@ -530,17 +539,17 @@ const Vehicles: React.FC = () => {
       )}
 
       {/* Header & Actions */}
-      <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl p-4 sm:p-5 shadow-xl text-white">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 shadow-xs text-[#0F172A]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shadow-inner">
+            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shadow-xs">
               🚗
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">
                 AIE Vehicles
               </h1>
-              <p className="text-xs text-slate-300">Fleet management, documents, maintenance tracking, and assignments</p>
+              <p className="text-xs text-[#64748B]">Fleet management, documents, maintenance tracking, and assignments</p>
             </div>
           </div>
 
@@ -551,9 +560,9 @@ const Vehicles: React.FC = () => {
                <button
                  type="button"
                  onClick={() => setShowManageDepartments(true)}
-                 className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                 className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                >
-                 <Briefcase className="h-4 w-4 mr-2 text-teal-400 pointer-events-none" />
+                 <Briefcase className="h-4 w-4 mr-2 text-teal-600 pointer-events-none" />
                  Depts
                </button>
             )}
@@ -562,9 +571,9 @@ const Vehicles: React.FC = () => {
             <button
               type="button"
               onClick={handleGeneratePDF}
-              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <FileText className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
+              <FileText className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
               Generate PDF
             </button>
             )}
@@ -572,9 +581,9 @@ const Vehicles: React.FC = () => {
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <Download className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
+              <Download className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
               Export
             </button>
             )}
@@ -583,9 +592,9 @@ const Vehicles: React.FC = () => {
                 <button
                   type="button"
                   onClick={syncVehicleStatuses}
-                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2B314E] rounded-xl shadow-sm text-sm font-semibold text-white bg-[#0F111A] hover:bg-[#1C2038] hover:border-[#3D456E] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                 >
-                  <RefreshCw className="h-4.5 w-4.5 mr-2 text-slate-300 pointer-events-none" />
+                  <RefreshCw className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
                   Sync Statuses
                 </button>
             )}
@@ -593,7 +602,7 @@ const Vehicles: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowForm(true)}
-                  className="inline-flex items-center justify-center px-4 py-2.5 border border-blue-500 rounded-xl shadow-md text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2563EB] rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
                 >
                   <Plus className="h-4.5 w-4.5 mr-1.5 pointer-events-none" />
                   Add Vehicle
@@ -641,37 +650,37 @@ const Vehicles: React.FC = () => {
 
       {/* Bulk Actions Header */}
       {selectedIds.size > 0 && !isCompany && can('vehicles', 'update') && (
-        <div className="bg-[#16192B] border border-[#2B314E] p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl text-white">
-          <div className="flex items-center text-white font-bold text-sm">
-            <CheckCircle className="w-5 h-5 mr-2 text-emerald-400" />
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs text-blue-900">
+          <div className="flex items-center text-blue-950 font-bold text-sm">
+            <CheckCircle className="w-5 h-5 mr-2 text-emerald-600" />
             <span>{selectedIds.size} vehicle{selectedIds.size > 1 ? 's' : ''} selected</span>
           </div>
           <div className="flex gap-2 w-full sm:w-auto flex-wrap">
             <button
               type="button"
               onClick={() => { setSelectedIds(new Set()); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white active:scale-95 transition-all text-center cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 active:scale-95 transition-all text-center cursor-pointer shadow-xs"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => { setAssigningTypeSingleVehicle(null); setShowAssignTypeModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Tag className="w-4 h-4 pointer-events-none" /> Assign Type
             </button>
             <button
               type="button"
               onClick={() => { setAssigningSingleVehicle(null); setShowAssignModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Building2 className="w-4 h-4 pointer-events-none" /> Assign Garage
             </button>
             <button
               type="button"
               onClick={() => { setAssigningGroupSingleVehicle(null); setShowAssignGroupModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Layers className="w-4 h-4 pointer-events-none" /> Assign Group
             </button>
@@ -679,7 +688,7 @@ const Vehicles: React.FC = () => {
             <button
               type="button"
               onClick={() => { setAssigningDepartmentSingleVehicle(null); setShowAssignDepartmentModal(true); }}
-              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Briefcase className="w-4 h-4 pointer-events-none" /> Assign Dept
             </button>
@@ -688,7 +697,7 @@ const Vehicles: React.FC = () => {
       )}
 
       {/* Table */}
-      <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
         <VehicleTable
           vehicles={displayedVehicles}
           onView={setSelectedVehicle}
@@ -790,14 +799,14 @@ const Vehicles: React.FC = () => {
               : `Select a type to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner">
-            <label className="block text-sm font-semibold text-white mb-2">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
+            <label className="block text-sm font-semibold text-slate-800 mb-2">
               Vehicle Type
             </label>
             <select
               value={selectedAssignmentType}
               onChange={(e) => setSelectedAssignmentType(e.target.value)}
-              className="block w-full px-4 py-2.5 text-sm bg-[#16192B] border border-[#2B314E] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-xl"
+              className="block w-full px-4 py-2.5 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-xl"
             >
               <option value="" disabled>Select a type...</option>
               <option value="Claims">For Claims</option>
@@ -806,11 +815,11 @@ const Vehicles: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }}
-              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+              className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 bg-white hover:bg-slate-100 font-semibold transition-all cursor-pointer shadow-xs"
             >
               Cancel
             </button>

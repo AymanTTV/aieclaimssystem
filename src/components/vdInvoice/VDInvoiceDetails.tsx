@@ -95,12 +95,12 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
       {/* Labor & Paint/Materials Costs */}
       <div>
         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-2">Labor & Paint/Materials Costs</h3>
-        <div className="border border-[#2B314E] rounded-xl overflow-hidden mb-4 shadow-sm bg-white">
+        <div className="border border-[#E2E8F0] rounded-xl overflow-hidden mb-4 shadow-xs bg-white">
           <table className="min-w-full border-collapse text-xs">
-            <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Description</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Cost</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Description</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Cost</th>
               </tr>
             </thead>
             <tbody>
@@ -123,17 +123,25 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
 
       {/* Totals */}
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-        <div className="flex justify-between text-sm font-medium">
+        <div className="flex justify-between text-sm font-semibold text-[#000000]">
           <span>Subtotal:</span>
-          <span>£{invoice.subtotal.toFixed(2)}</span>
+          <span className="font-mono">£{invoice.subtotal.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-sm font-semibold text-[#2563EB]">
           <span>VAT:</span>
-          <span>£{invoice.vatAmount.toFixed(2)}</span>
+          <span className="font-mono">£{invoice.vatAmount.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-lg font-bold pt-2 border-t">
+        <div className="flex justify-between text-lg font-bold pt-2 border-t text-[#D97706]">
           <span>Total:</span>
-          <span>£{invoice.total.toFixed(2)}</span>
+          <span className="font-mono">£{invoice.total.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm font-bold text-[#15803D]">
+          <span>Paid:</span>
+          <span className="font-mono">£{invoice.paidAmount.toFixed(2)}</span>
+        </div>
+        <div className={`flex justify-between text-sm font-bold ${(invoice.total - invoice.paidAmount) > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+          <span>Owing:</span>
+          <span className="font-mono">£{Math.max(0, invoice.total - invoice.paidAmount).toFixed(2)}</span>
         </div>
       </div>
 

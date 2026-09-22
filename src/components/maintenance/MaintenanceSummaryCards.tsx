@@ -62,19 +62,19 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
         role="button"
         tabIndex={0}
         title="Click to show all maintenance logs"
-        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+        className={`bg-[#F0F9FF] rounded-2xl shadow-xs border p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
           activeStatusFilter === 'all'
-            ? 'border-blue-400 ring-2 ring-blue-500/50 shadow-blue-900/30'
-            : 'border-[#2B314E] hover:border-blue-400/50'
+            ? 'border-blue-500 ring-2 ring-blue-500/30'
+            : 'border-[#BAE6FD] hover:border-blue-400'
         }`}
       >
         <div className="flex items-center">
-          <div className="p-2.5 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+          <div className="p-2.5 rounded-xl border bg-white border-[#BAE6FD] text-[#0284C7] shadow-xs">
             <Calendar className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-bold text-blue-300 uppercase tracking-wider">Total</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">{totalLogs}</p>
+            <p className="text-xs sm:text-sm font-bold text-[#0284C7] uppercase tracking-wider">Total</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-[#0369A1] tracking-tight">{totalLogs}</p>
           </div>
         </div>
       </div>
@@ -85,16 +85,18 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
         role="button"
         tabIndex={0}
         title="Click to filter by Scheduled status"
-        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+        className={`rounded-2xl shadow-xs border p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+          dueWithin7Days > 0 
+            ? 'bg-[#FEF2F2] border-[#FECACA] hover:border-red-300'
+            : 'bg-[#FFFBEB] border-[#FDE68A] hover:border-amber-300'
+        } ${
           activeStatusFilter === 'scheduled'
-            ? 'border-amber-400 ring-2 ring-amber-500/50'
-            : dueWithin7Days > 0 
-              ? 'border-red-500/80 border-l-4 !border-l-red-500 bg-[#1E1624] hover:border-red-400' 
-              : 'border-[#2B314E] hover:border-amber-400/50'
+            ? 'ring-2 ring-amber-500/50'
+            : ''
         }`}
       >
         <div className="flex items-start">
-          <div className={`p-2.5 rounded-xl border shadow-xs ${dueWithin7Days > 0 ? 'bg-red-500/20 border-red-500/40 text-red-400 animate-pulse' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+          <div className={`p-2.5 rounded-xl border shadow-xs ${dueWithin7Days > 0 ? 'bg-white border-[#FECACA] text-[#DC2626] animate-pulse' : 'bg-white border-[#FDE68A] text-[#D97706]'}`}>
             {dueWithin7Days > 0 ? (
               <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
             ) : (
@@ -102,14 +104,14 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
             )}
           </div>
           <div className="ml-3 sm:ml-4">
-            <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${dueWithin7Days > 0 ? 'text-red-300' : 'text-amber-300'}`}>
+            <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${dueWithin7Days > 0 ? 'text-[#DC2626]' : 'text-[#D97706]'}`}>
               Scheduled
             </p>
-            <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${dueWithin7Days > 0 ? 'text-red-400' : 'text-amber-200'}`}>
+            <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${dueWithin7Days > 0 ? 'text-[#B91C1C]' : 'text-[#B45309]'}`}>
               {scheduled}
             </p>
             {dueWithin7Days > 0 && (
-              <span className="inline-flex items-center text-[10px] font-black text-red-200 bg-red-500/30 border border-red-500/50 px-2 py-0.5 rounded-full mt-1">
+              <span className="inline-flex items-center text-[10px] font-black text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full mt-1">
                 {dueWithin7Days} due ≤7d
               </span>
             )}
@@ -123,19 +125,19 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
         role="button"
         tabIndex={0}
         title="Click to filter by In Progress status"
-        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+        className={`bg-[#FFF7ED] rounded-2xl shadow-xs border p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
           activeStatusFilter === 'in-progress'
-            ? 'border-orange-400 ring-2 ring-orange-500/50'
-            : 'border-[#2B314E] hover:border-orange-400/50'
+            ? 'border-orange-500 ring-2 ring-orange-500/30'
+            : 'border-[#FED7AA] hover:border-orange-400'
         }`}
       >
         <div className="flex items-center">
-          <div className="p-2.5 rounded-xl border bg-orange-500/15 border-orange-500/30 text-orange-400 shadow-xs">
+          <div className="p-2.5 rounded-xl border bg-white border-[#FED7AA] text-[#EA580C] shadow-xs">
             <Wrench className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-bold text-orange-300 uppercase tracking-wider">In Progress</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-orange-200 tracking-tight">{inProgress}</p>
+            <p className="text-xs sm:text-sm font-bold text-[#EA580C] uppercase tracking-wider">In Progress</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-[#C2410C] tracking-tight">{inProgress}</p>
           </div>
         </div>
       </div>
@@ -146,19 +148,19 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
         role="button"
         tabIndex={0}
         title="Click to filter by Completed status"
-        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+        className={`bg-[#ECFDF5] rounded-2xl shadow-xs border p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
           activeStatusFilter === 'completed'
-            ? 'border-emerald-400 ring-2 ring-emerald-500/50'
-            : 'border-[#2B314E] hover:border-emerald-400/50'
+            ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+            : 'border-[#A7F3D0] hover:border-emerald-400'
         }`}
       >
         <div className="flex items-center">
-          <div className="p-2.5 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+          <div className="p-2.5 rounded-xl border bg-white border-[#A7F3D0] text-[#059669] shadow-xs">
             <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wider">Completed</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-300 tracking-tight">{completed}</p>
+            <p className="text-xs sm:text-sm font-bold text-[#059669] uppercase tracking-wider">Completed</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-[#047857] tracking-tight">{completed}</p>
           </div>
         </div>
       </div>
@@ -169,56 +171,56 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
         role="button"
         tabIndex={0}
         title="Click to filter by Cancelled status"
-        className={`bg-[#16192B] rounded-2xl shadow-xl border p-4 sm:p-5 text-white flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
+        className={`bg-[#F8FAFC] rounded-2xl shadow-xs border p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between transition-all duration-200 relative overflow-hidden group cursor-pointer ${
           activeStatusFilter === 'cancelled'
-            ? 'border-slate-400 ring-2 ring-slate-400/50'
-            : 'border-[#2B314E] hover:border-slate-400/50'
+            ? 'border-slate-500 ring-2 ring-slate-400/30'
+            : 'border-[#CBD5E1] hover:border-slate-400'
         }`}
       >
         <div className="flex items-center">
-          <div className="p-2.5 rounded-xl border bg-slate-800/80 border-slate-700/60 text-slate-400 shadow-xs">
+          <div className="p-2.5 rounded-xl border bg-white border-[#CBD5E1] text-[#64748B] shadow-xs">
             <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div className="ml-3 sm:ml-4">
-            <p className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Cancelled</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-slate-300 tracking-tight">{cancelled}</p>
+            <p className="text-xs sm:text-sm font-bold text-[#64748B] uppercase tracking-wider">Cancelled</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-[#334155] tracking-tight">{cancelled}</p>
           </div>
         </div>
       </div>
 
       {/* Financial Breakdown - Hidden for Company role */}
       {!isCompany && (
-        <div className="bg-[#16192B] rounded-2xl shadow-xl border border-[#2B314E] p-4 sm:p-5 text-white flex flex-col justify-between hover:border-[#3D456E] transition-all duration-200">
+        <div className="bg-[#FAF5FF] rounded-2xl shadow-xs border border-[#E9D5FF] p-4 sm:p-5 text-[#0F172A] flex flex-col justify-between hover:border-purple-300 transition-all duration-200">
           <div className="flex items-start">
-            <div className="p-2 rounded-xl border bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-xs shrink-0">
+            <div className="p-2 rounded-xl border bg-white border-[#E9D5FF] text-[#7E22CE] shadow-xs shrink-0">
               <DollarSign className="w-5 h-5" />
             </div>
             <div className="ml-3 space-y-1 text-xs sm:text-sm w-full">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-slate-400 font-medium">NET:</span>
-                <span className="font-mono text-white">{formatCurrency(totalNet)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#000000]">
+                <span className="font-semibold text-[#000000]">NET:</span>
+                <span className="font-mono font-semibold text-[#000000]">{formatCurrency(totalNet)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-blue-300 font-medium">VAT:</span>
-                <span className="font-mono text-blue-300">{formatCurrency(totalVat)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#2563EB]">
+                <span className="font-semibold text-[#2563EB]">VAT:</span>
+                <span className="font-mono font-semibold text-[#2563EB]">{formatCurrency(totalVat)}</span>
               </div>
               {totalDiscount > 0 && (
-                <div className="flex items-center justify-between gap-2 text-purple-300">
-                  <span className="font-medium">Discount:</span>
-                  <span className="font-mono">-{formatCurrency(totalDiscount)}</span>
+                <div className="flex items-center justify-between gap-2 text-[#D97706]">
+                  <span className="font-semibold text-[#D97706]">Discount:</span>
+                  <span className="font-mono font-semibold text-[#D97706]">-{formatCurrency(totalDiscount)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2 font-bold text-slate-100 border-t border-slate-800/80 pt-1">
-                <span>Total:</span>
-                <span className="font-mono text-white">{formatCurrency(totalCost)}</span>
+              <div className="flex items-center justify-between gap-2 font-bold text-[#D97706] border-t border-[#E2E8F0] pt-1">
+                <span className="text-[#D97706]">Total:</span>
+                <span className="font-mono text-[#D97706] font-bold">{formatCurrency(totalCost)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2 text-emerald-400">
-                <span className="font-medium">Paid:</span>
-                <span className="font-mono font-semibold text-emerald-300">{formatCurrency(totalPaid)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#15803D] font-bold">
+                <span className="text-[#15803D]">Paid:</span>
+                <span className="font-mono font-bold text-[#15803D]">{formatCurrency(totalPaid)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2 text-amber-400">
-                <span className="font-bold">Owing:</span>
-                <span className="font-mono font-bold text-amber-300">{formatCurrency(totalOwing)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#DC2626] font-bold">
+                <span className="text-[#DC2626]">Owing:</span>
+                <span className="font-mono font-bold text-[#DC2626]">{formatCurrency(totalOwing)}</span>
               </div>
             </div>
           </div>

@@ -91,7 +91,7 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner space-y-4">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
           <FormField
             type="date"
             label="Sale Date"
@@ -113,12 +113,12 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
           />
 
           <div>
-            <label className="block text-sm font-semibold text-white mb-1.5">Notes (Optional)</label>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5">Notes (Optional)</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="block w-full rounded-xl bg-[#16192B] border border-[#2B314E] text-white p-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="block w-full rounded-xl bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] p-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Add any notes about the sale"
             />
           </div>
@@ -128,7 +128,7 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-all cursor-pointer shadow-xs"
           >
             Cancel
           </button>

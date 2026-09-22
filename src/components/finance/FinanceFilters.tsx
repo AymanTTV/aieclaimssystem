@@ -110,33 +110,33 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   };
 
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A] space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">From</label>
           <input
             type="date"
             value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
             onChange={(e) => onDateRangeChange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">To</label>
           <input
             type="date"
             value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
             onChange={(e) => onDateRangeChange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })}
             min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Type</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Type</label>
           <select
             value={type}
             onChange={(e) => onTypeChange(e.target.value as typeof type)}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All Types</option>
             <option value="income">Income</option>
@@ -144,11 +144,11 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Payment Status</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Payment Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -159,7 +159,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
 
         <SearchableSelect
           label="Category"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={categoryFilter}
           onChange={createMultiHandler(onCategoryFilterChange)}
           options={categoryOptions}
@@ -171,7 +171,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
         <SearchableSelect
           label="Group"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={groupFilter}
           onChange={createMultiHandler(onGroupFilterChange)}
           options={groupSelectOptions}
@@ -183,7 +183,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
         <SearchableSelect
           label="Department"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={departmentFilter}
           onChange={createMultiHandler(onDepartmentFilterChange)}
           options={deptSelectOptions}
@@ -196,7 +196,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         
         <SearchableSelect
           label="Owner"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={owner}
           onChange={createMultiHandler(onOwnerChange)}
           options={ownerOptions}
@@ -208,7 +208,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
         <SearchableSelect
           label="Account"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={accountFilter}
           onChange={handleAccountChange}
           options={accountOptions}
@@ -220,7 +220,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
         <SearchableSelect
           label="Customer"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={customerFilter}
           onChange={createMultiHandler(onCustomerFilterChange)}
           options={customerOptions}
@@ -232,7 +232,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
         <SearchableSelect
           label="Vehicle"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={vehicleFilter}
           onChange={createMultiHandler(onVehicleFilterChange)}
           options={vehicleOptions}
@@ -244,11 +244,11 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         />
 
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Linked Status</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Linked Status</label>
           <select
             value={showLinked}
             onChange={(e) => onShowLinkedChange(e.target.value as any)}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All Transactions</option>
             <option value="linked">Show Linked Only</option>
@@ -257,11 +257,11 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Recurring</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Recurring</label>
           <select
             value={recurringFilter}
             onChange={(e) => onRecurringFilterChange(e.target.value)}
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All</option>
             <option value="active_recurring">Active Only</option>
@@ -272,11 +272,11 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
 
         {recurringFilter !== 'non_recurring' && (
           <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Period</label>
+            <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Period</label>
             <select
               value={recurringFrequency}
               onChange={(e) => onRecurringFrequencyChange(e.target.value)}
-              className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             >
               <option value="all">All Periods</option>
               <option value="daily">Daily</option>

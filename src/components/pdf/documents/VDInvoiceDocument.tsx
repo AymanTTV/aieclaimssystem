@@ -161,24 +161,24 @@ const VDInvoiceDocument: React.FC<VDInvoiceDocumentProps> = ({ data, companyDeta
           <View style={[styles.card, { width: '48%' }]}>
             <Text style={styles.sectionTitle}>Summary</Text>
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Net:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{data.subtotal.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#000000', fontWeight: 'bold' }]}>Net:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#000000', fontWeight: 'bold' }]}>£{data.subtotal.toFixed(2)}</Text>
             </View>
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>V.A.T.:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{data.vatAmount.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#2563EB', fontWeight: 'bold' }]}>V.A.T.:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#2563EB', fontWeight: 'bold' }]}>£{data.vatAmount.toFixed(2)}</Text>
             </View>
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Total:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{data.total.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#D97706', fontWeight: 'bold' }]}>Total:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#D97706', fontWeight: 'bold' }]}>£{data.total.toFixed(2)}</Text>
             </View>
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Paid:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{data.paidAmount.toFixed(2)}</Text>
+              <Text style={[styles.label, { color: '#15803D', fontWeight: 'bold' }]}>Paid:</Text>
+              <Text style={[styles.value, { textAlign: 'right', color: '#15803D', fontWeight: 'bold' }]}>£{data.paidAmount.toFixed(2)}</Text>
             </View>
             <View style={styles.spaceBetweenRow}>
-              <Text style={styles.label}>Owing:</Text>
-              <Text style={[styles.value, { textAlign: 'right' }]}>£{owing.toFixed(2)}</Text>
+              <Text style={[styles.label, { fontWeight: 'bold', color: owing > 0.001 ? '#DC2626' : '#15803D' }]}>Owing:</Text>
+              <Text style={[styles.value, { textAlign: 'right', fontWeight: 'bold', color: owing > 0.001 ? '#DC2626' : '#15803D' }]}>£{owing.toFixed(2)}</Text>
             </View>
           </View>
         </View>

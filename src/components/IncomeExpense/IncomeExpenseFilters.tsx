@@ -49,11 +49,11 @@ const IncomeExpenseFilters: React.FC<Props> = ({
   }, [categoriesCollection]);
 
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] p-4 sm:p-5 rounded-2xl shadow-xl text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] p-4 sm:p-5 rounded-2xl shadow-xs text-[#0F172A] space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
         {/* Search */}
         <div className="relative sm:col-span-2">
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Search</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Search</label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
@@ -63,18 +63,18 @@ const IncomeExpenseFilters: React.FC<Props> = ({
               value={search}
               onChange={(e) => onSearch(e.target.value)}
               placeholder="Search by name or reference..."
-              className="block w-full pl-10 pr-3.5 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner transition-all"
+              className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
             />
           </div>
         </div>
 
         {/* Type */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Type</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Type</label>
           <select
             value={typeFilter}
             onChange={(e) => onType(e.target.value as any)}
-            className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full py-2.5 px-3 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All Types</option>
             <option value="income">Income</option>
@@ -84,11 +84,11 @@ const IncomeExpenseFilters: React.FC<Props> = ({
 
         {/* Category */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Category</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Category</label>
           <select
             value={category}
             onChange={(e) => onCategory(e.target.value)}
-            className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full py-2.5 px-3 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
           >
             <option value="all">All Categories</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -96,26 +96,26 @@ const IncomeExpenseFilters: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-end justify-between pt-3 border-t border-[#2B314E]">
+      <div className="flex flex-col sm:flex-row gap-4 items-end justify-between pt-3 border-t border-[#E2E8F0]">
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           {/* Date Range */}
           <div className="flex gap-2">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+              <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">From</label>
               <input
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => onDateRange({ ...dateRange, start: e.target.value })}
-                className="block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="block w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+              <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">To</label>
               <input
                 type="date"
                 value={dateRange.end}
                 onChange={(e) => onDateRange({ ...dateRange, end: e.target.value })}
-                className="block w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="block w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
               />
             </div>
           </div>
@@ -123,11 +123,11 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           {/* Recurring Status */}
           {recurringFilter && onRecurringFilterChange && (
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Recurring</label>
+              <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Recurring</label>
               <select
                 value={recurringFilter}
                 onChange={(e) => onRecurringFilterChange(e.target.value as any)}
-                className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="block w-full py-2 px-3 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
               >
                 <option value="all">All</option>
                 <option value="recurring">Yes</option>
@@ -139,11 +139,11 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           {/* --- NEW: Frequency Filter (Only show if recurring or all is selected) --- */}
           {recurringFrequency && onRecurringFrequencyChange && recurringFilter !== 'non_recurring' && (
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Period</label>
+              <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Period</label>
               <select
                 value={recurringFrequency}
                 onChange={(e) => onRecurringFrequencyChange(e.target.value)}
-                className="block w-full py-2 px-3 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="block w-full py-2 px-3 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
               >
                 <option value="all">All Periods</option>
                 <option value="daily">Daily</option>
@@ -162,12 +162,12 @@ const IncomeExpenseFilters: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => onToggleHistory(!showHistory)}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showHistory ? 'bg-blue-600' : 'bg-slate-700'}`}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showHistory ? 'bg-blue-600' : 'bg-slate-300'}`}
           >
             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showHistory ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
-          <span className="ml-3 text-sm font-bold text-slate-200 flex items-center gap-1.5">
-            <History className="w-4 h-4 text-slate-400" /> Include Past
+          <span className="ml-3 text-sm font-bold text-[#0F172A] flex items-center gap-1.5">
+            <History className="w-4 h-4 text-[#64748B]" /> Include Past
           </span>
         </div>
       </div>

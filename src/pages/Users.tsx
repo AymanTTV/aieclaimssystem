@@ -129,50 +129,50 @@ const Users = () => {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">User Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage system access, roles, and corporate accounts.</p>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">User Management</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Manage system access, roles, and corporate accounts.</p>
         </div>
         {can('users', 'create') && (
-          <button onClick={() => setShowForm(true)} className="flex items-center px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-600 transition-all shadow-sm">
-            <Plus className="h-5 w-5 mr-2" /> Add New User
+          <button onClick={() => setShowForm(true)} className="flex items-center px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold rounded-xl transition-colors shadow-xs cursor-pointer text-sm">
+            <Plus className="h-4 w-4 mr-1.5" /> Add New User
           </button>
         )}
       </div>
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
-          <div className="p-3 bg-slate-800/80 border border-slate-700/60 text-slate-200 rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
-          <div><p className="text-xs text-slate-300 font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.total}</p></div>
+        <div className="bg-[#F8FAFC] p-5 rounded-2xl shadow-xs border border-[#CBD5E1] hover:border-slate-300 flex items-center gap-4 transition-all text-[#0F172A]">
+          <div className="p-3 bg-white border border-[#CBD5E1] text-[#334155] rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
+          <div><p className="text-xs text-[#334155] font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0F172A] tracking-tight">{stats.total}</p></div>
         </div>
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
-          <div className="p-3 bg-blue-500/15 border border-blue-500/30 text-blue-400 rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
-          <div><p className="text-xs text-blue-300 font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.admins}</p></div>
+        <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] hover:border-sky-300 flex items-center gap-4 transition-all text-[#0F172A]">
+          <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
+          <div><p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.admins}</p></div>
         </div>
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
-          <div className="p-3 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
-          <div><p className="text-xs text-indigo-300 font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.companies}</p></div>
+        <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] hover:border-purple-300 flex items-center gap-4 transition-all text-[#0F172A]">
+          <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
+          <div><p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{stats.companies}</p></div>
         </div>
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] hover:border-[#3D456E] flex items-center gap-4 transition-all text-white">
-          <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
-          <div><p className="text-xs text-emerald-300 font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">{stats.members}</p></div>
+        <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] hover:border-emerald-300 flex items-center gap-4 transition-all text-[#0F172A]">
+          <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
+          <div><p className="text-xs text-[#059669] font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#047857] tracking-tight">{stats.members}</p></div>
         </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-[#16192B] p-4 rounded-2xl shadow-xl border border-[#2B314E] flex flex-col sm:flex-row gap-3">
+      <div className="bg-white p-4 rounded-2xl shadow-xs border border-[#E2E8F0] flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-[#94A3B8]" />
           <input 
             type="text" 
             placeholder="Search by name, email, or company..." 
-            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all shadow-inner" 
+            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all shadow-xs" 
             value={searchQuery} 
             onChange={(e) => setSearchQuery(e.target.value)} 
           />
         </div>
         <select 
-          className="py-2.5 px-4 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all sm:w-48" 
+          className="py-2.5 px-4 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all sm:w-48 shadow-xs" 
           value={roleFilter} 
           onChange={(e) => setRoleFilter(e.target.value)}
         >

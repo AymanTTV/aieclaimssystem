@@ -107,11 +107,11 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   ], [owners]);
 
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-slate-900 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
         {/* Search */}
         <div className="relative col-span-1 sm:col-span-2 lg:col-span-2">
-          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Search</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Search</label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
@@ -121,7 +121,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search vehicles (reg, make, owner, account, garage, group, dept)..."
-              className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+              className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm transition-all"
             />
           </div>
         </div>
@@ -135,7 +135,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               onChange={onAccountFilterChange}
               placeholder="Select account..."
               isClearable={false}
-              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+              labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
             />
           </div>
         )}
@@ -149,7 +149,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               onChange={onGarageFilterChange}
               placeholder="Select garage..."
               isClearable={false}
-              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+              labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
             />
           </div>
         )}
@@ -163,7 +163,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               onChange={onGroupFilterChange}
               placeholder="Select group..."
               isClearable={false}
-              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+              labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
             />
           </div>
         )}
@@ -178,7 +178,7 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               onChange={onDepartmentFilterChange}
               placeholder="Select department..."
               isClearable={false}
-              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+              labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
             />
           </div>
         )}
@@ -192,36 +192,36 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               onChange={onOwnerFilterChange}
               placeholder="Select owner..."
               isClearable={false}
-              labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+              labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
             />
           </div>
         )}
 
         <div>
-          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Status</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            className="block w-full px-3 py-2.5 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all" className="bg-[#16192B] text-white">All Status</option>
-            <option value="available" className="bg-[#16192B] text-white">Available</option>
-            <option value="hired" className="bg-[#16192B] text-white">Hired</option>
-            <option value="scheduled-rental" className="bg-[#16192B] text-white">Scheduled for Hire</option>
-            <option value="maintenance" className="bg-[#16192B] text-white">Maintenance</option>
+            <option value="all">All Status</option>
+            <option value="available">Available</option>
+            <option value="hired">Hired</option>
+            <option value="scheduled-rental">Scheduled for Hire</option>
+            <option value="maintenance">Maintenance</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Make</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Make</label>
           <select
             value={makeFilter}
             onChange={(e) => onMakeFilterChange(e.target.value)}
-            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            className="block w-full px-3 py-2.5 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all" className="bg-[#16192B] text-white">All Makes</option>
+            <option value="all">All Makes</option>
             {makes.map((make) => (
-              <option key={make} value={make} className="bg-[#16192B] text-white">{make}</option>
+              <option key={make} value={make}>{make}</option>
             ))}
           </select>
         </div>
@@ -234,37 +234,37 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
             onChange={onExpiryFilterChange}
             placeholder="Select expiry type..."
             isClearable={true}
-            labelClassName="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider"
+            labelClassName="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider"
           />
         </div>
         
         <div>
-          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Vehicle Type</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Vehicle Type</label>
           <select
             value={typeFilter}
             onChange={(e) => onTypeFilterChange(e.target.value)}
-            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            className="block w-full px-3 py-2.5 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all" className="bg-[#16192B] text-white">All Types</option>
-            <option value="Claims" className="bg-[#16192B] text-white">For Claims</option>
-            <option value="Hire" className="bg-[#16192B] text-white">For Hire</option>
-            <option value="unassigned" className="bg-[#16192B] text-white">Unassigned</option>
+            <option value="all">All Types</option>
+            <option value="Claims">For Claims</option>
+            <option value="Hire">For Hire</option>
+            <option value="unassigned">Unassigned</option>
           </select>
         </div>
         
         <div>
-          <label className="block text-xs font-bold text-white mb-1.5 uppercase tracking-wider">Vehicle Age</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Vehicle Age</label>
           <select
             value={ageFilter}
             onChange={(e) => onAgeFilterChange(e.target.value)}
-            className="block w-full px-3 py-2.5 text-sm bg-[#0F111A] border border-[#2B314E] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            className="block w-full px-3 py-2.5 text-sm bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all" className="bg-[#16192B] text-white">All Ages</option>
-            <option value="0-5" className="bg-[#16192B] text-white">0 - 5 Years</option>
-            <option value="6-10" className="bg-[#16192B] text-white">6 - 10 Years</option>
-            <option value="11-20" className="bg-[#16192B] text-white">11 - 20 Years</option>
-            <option value="21-40" className="bg-[#16192B] text-white">21 - 40 Years</option>
-            <option value="41+" className="bg-[#16192B] text-white">41+ Years</option>
+            <option value="all">All Ages</option>
+            <option value="0-5">0 - 5 Years</option>
+            <option value="6-10">6 - 10 Years</option>
+            <option value="11-20">11 - 20 Years</option>
+            <option value="21-40">21 - 40 Years</option>
+            <option value="41+">41+ Years</option>
           </select>
         </div>
 
@@ -275,9 +275,9 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
                 type="checkbox"
                 checked={showSold}
                 onChange={(e) => onShowSoldChange(e.target.checked)}
-                className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+                className="h-4 w-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
               />
-              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Show Sold</span>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Show Sold</span>
             </label>
           )}
 
@@ -286,9 +286,9 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
               type="checkbox"
               checked={showDueSoon}
               onChange={(e) => onShowDueSoonChange(e.target.checked)}
-              className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+              className="h-4 w-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
             />
-            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Due Soon (Quick View)</span>
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Due Soon (Quick View)</span>
           </label>
         </div>
       </div>

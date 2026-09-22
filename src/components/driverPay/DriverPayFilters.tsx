@@ -50,7 +50,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
   const exactEnd     = periodDateRange.end ? periodDateRange.end.toISOString().split('T')[0] : '';
 
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A] space-y-4">
       {/* Row 1: Search + quick filters */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 sm:gap-4 items-center">
         {/* Search */}
@@ -63,7 +63,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by driver no, TID, name or phone…"
-            className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+            className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-xs"
           />
         </div>
 
@@ -73,7 +73,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="statusFilter"
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2.5 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
           >
             <option value="all">All Status</option>
             <option value="unpaid">Unpaid</option>
@@ -85,7 +85,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="collectionFilter"
             value={collectionFilter}
             onChange={(e) => onCollectionFilterChange(e.target.value)}
-            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2.5 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
           >
             <option value="all">All Collections</option>
             <option value="OFFICE">OFFICE</option>
@@ -99,7 +99,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="groupIdFilter"
             value={groupIdFilter}
             onChange={(e) => onGroupIdFilterChange(e.target.value)}
-            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2.5 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
           >
             <option value="all">All Groups</option>
             {groups.map((group) => (
@@ -114,7 +114,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="usageFilter"
             value={usageFilter}
             onChange={(e) => onUsageFilterChange(e.target.value)}
-            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2.5 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
           >
             <option value="all">All Usage</option>
             <option value="high_usage">High Usage (£750+)</option>
@@ -127,7 +127,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
             id="lockFilter"
             value={lockFilter}
             onChange={(e) => onLockFilterChange(e.target.value)}
-            className="flex-1 min-w-[130px] pl-3 pr-8 py-2 border border-[#2B314E] bg-[#0F111A] text-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 min-w-[130px] pl-3 pr-8 py-2.5 border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
           >
             <option value="active">Active Drivers</option>
             <option value="locked">Locked Drivers</option>
@@ -139,7 +139,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
       {/* Row 2: Period Overlap (2 inputs) */}
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
         <div>
-          <label htmlFor="periodOverlapStartDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Period Overlap Start</label>
+          <label htmlFor="periodOverlapStartDate" className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Period Overlap Start</label>
           <input
             type="date"
             id="periodOverlapStartDate"
@@ -150,12 +150,12 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 start: e.target.value ? new Date(e.target.value) : null
               })
             }
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             max={overlapEnd || undefined}
           />
         </div>
         <div>
-          <label htmlFor="periodOverlapEndDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Period Overlap End</label>
+          <label htmlFor="periodOverlapEndDate" className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Period Overlap End</label>
           <input
             type="date"
             id="periodOverlapEndDate"
@@ -166,7 +166,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 end: e.target.value ? new Date(e.target.value) : null
               })
             }
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             min={overlapStart || undefined}
           />
         </div>
@@ -175,7 +175,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
       {/* Row 3: Exact Period (2 inputs) */}
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
         <div>
-          <label htmlFor="periodStartDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Exact Period Start</label>
+          <label htmlFor="periodStartDate" className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Exact Period Start</label>
           <input
             type="date"
             id="periodStartDate"
@@ -186,12 +186,12 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 start: e.target.value ? new Date(e.target.value) : null
               })
             }
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             max={exactEnd || undefined}
           />
         </div>
         <div>
-          <label htmlFor="periodEndDate" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Exact Period End</label>
+          <label htmlFor="periodEndDate" className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Exact Period End</label>
           <input
             type="date"
             id="periodEndDate"
@@ -202,7 +202,7 @@ const DriverPayFilters: React.FC<DriverPayFiltersProps> = ({
                 end: e.target.value ? new Date(e.target.value) : null
               })
             }
-            className="block w-full px-3 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="block w-full px-3 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs"
             min={exactStart || undefined}
           />
         </div>

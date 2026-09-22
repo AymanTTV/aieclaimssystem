@@ -377,31 +377,31 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           <div><span className="font-semibold text-gray-700">Due:</span> {formatDateDisplay(log.invoiceDueDate)}</div>
         </div>
 
-        <div className="flex justify-between text-sm font-medium">
+        <div className="flex justify-between text-sm font-semibold text-[#000000]">
           <span>NET:</span>
-          <span>{formatCurrency(log.netAmount || 0)}</span>
+          <span className="font-mono">{formatCurrency(log.netAmount || 0)}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-sm font-semibold text-[#2563EB]">
           <span>VAT:</span>
-          <span>{formatCurrency(log.vatAmount || 0)}</span>
+          <span className="font-mono">{formatCurrency(log.vatAmount || 0)}</span>
         </div>
         {log.totalDiscount! > 0 && (
-          <div className="flex justify-between text-sm text-red-600">
+          <div className="flex justify-between text-sm font-semibold text-[#D97706]">
             <span>Discount:</span>
-            <span>–{formatCurrency(log.totalDiscount!)}</span>
+            <span className="font-mono">–{formatCurrency(log.totalDiscount!)}</span>
           </div>
         )}
-        <div className="flex justify-between text-lg font-medium pt-2 border-t border-gray-200">
+        <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 text-[#D97706]">
           <span>Total:</span>
-          <span>{formatCurrency(log.cost)}</span>
+          <span className="font-mono">{formatCurrency(log.cost)}</span>
         </div>
-        <div className="flex justify-between text-sm text-green-600">
+        <div className="flex justify-between text-sm text-[#15803D] font-bold">
           <span>Paid:</span>
-          <span>{formatCurrency(calculatedPaid)}</span>
+          <span className="font-mono">{formatCurrency(calculatedPaid)}</span>
         </div>
-        <div className="flex justify-between text-sm text-amber-600 font-medium">
+        <div className={`flex justify-between text-sm font-bold ${remaining > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
           <span>Owing:</span>
-          <span>{formatCurrency(remaining)}</span>
+          <span className="font-mono">{formatCurrency(remaining)}</span>
         </div>
       </div>
 

@@ -245,39 +245,39 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
             <Text style={localStyles.cardTitle}>Summary</Text>
             
             <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Net Amount:</Text>
-              <Text style={[localStyles.value, { textAlign: 'right' }]}>{formatCurrency(netTotal)}</Text>
+              <Text style={[localStyles.label, { textTransform: 'none', color: '#000000', fontWeight: 'bold' }]}>Net Amount:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', color: '#000000', fontWeight: 'bold' }]}>{formatCurrency(netTotal)}</Text>
             </View>
 
             <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { color: '#2563EB', textTransform: 'none' }]}>VAT Total:</Text>
-              <Text style={[localStyles.value, { color: '#2563EB', textAlign: 'right' }]}>
+              <Text style={[localStyles.label, { color: '#2563EB', textTransform: 'none', fontWeight: 'bold' }]}>VAT Total:</Text>
+              <Text style={[localStyles.value, { color: '#2563EB', textAlign: 'right', fontWeight: 'bold' }]}>
                 {formatCurrency(vatTotal)}
               </Text>
             </View>
 
             {totalDiscount > 0 && (
               <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                <Text style={[localStyles.label, { color: '#DC2626', textTransform: 'none' }]}>Discount:</Text>
-                <Text style={[localStyles.value, { color: '#DC2626', textAlign: 'right' }]}>
+                <Text style={[localStyles.label, { color: '#D97706', textTransform: 'none', fontWeight: 'bold' }]}>Discount:</Text>
+                <Text style={[localStyles.value, { color: '#D97706', textAlign: 'right', fontWeight: 'bold' }]}>
                   –{formatCurrency(totalDiscount)}
                 </Text>
               </View>
             )}
 
             <View style={[localStyles.spaceBetweenRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 6, marginTop: 4, marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { fontWeight: 'bold', textTransform: 'none' }]}>Grand Total:</Text>
-              <Text style={[localStyles.value, { textAlign: 'right', fontWeight: 'bold' }]}>{formatCurrency(grandTotal)}</Text>
+              <Text style={[localStyles.label, { fontWeight: 'bold', textTransform: 'none', color: '#D97706' }]}>Grand Total:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', fontWeight: 'bold', color: '#D97706' }]}>{formatCurrency(grandTotal)}</Text>
             </View>
 
             <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Paid:</Text>
-              <Text style={[localStyles.value, { textAlign: 'right' }]}>{formatCurrency(data.paidAmount || 0)}</Text>
+              <Text style={[localStyles.label, { textTransform: 'none', color: '#15803D', fontWeight: 'bold' }]}>Paid:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', color: '#15803D', fontWeight: 'bold' }]}>{formatCurrency(data.paidAmount || 0)}</Text>
             </View>
 
             <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#16A34A' }]}>Owing:</Text>
-              <Text style={[localStyles.value, { textAlign: 'right', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#16A34A' }]}>
+              <Text style={[localStyles.label, { textTransform: 'none', fontWeight: 'bold', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#15803D' }]}>Owing:</Text>
+              <Text style={[localStyles.value, { textAlign: 'right', fontWeight: 'bold', color: (data.remainingAmount || 0) > 0.001 ? '#DC2626' : '#15803D' }]}>
                 {formatCurrency(data.remainingAmount || 0)}
               </Text>
             </View>

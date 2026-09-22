@@ -151,44 +151,44 @@ export default function TrashPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight flex items-center gap-2">
             <Trash2 className="h-6 w-6 text-red-500" />
             Recycle Bin
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Deleted items are kept here safely until you permanently remove them.</p>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Deleted items are kept here safely until you permanently remove them.</p>
         </div>
       </div>
 
       {/* --- Summary Cards (Wrapped with permission) --- */}
       {can('trash', 'cards') && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-red-100 text-red-600 rounded-full">
+          <div className="bg-[#FEF2F2] p-5 rounded-2xl shadow-xs border border-[#FECACA] flex items-center gap-4 text-[#0F172A]">
+            <div className="p-3 bg-white border border-[#FECACA] text-[#DC2626] rounded-xl shadow-xs">
               <Trash2 className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-gray-500 font-medium">Total Deleted Items</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-xs text-[#DC2626] font-bold uppercase tracking-wider">Total Deleted Items</p>
+              <p className="text-2xl sm:text-3xl font-black font-mono text-[#B91C1C] tracking-tight">{stats.total}</p>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-blue-100 text-blue-600 rounded-full">
+          <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] flex items-center gap-4 text-[#0F172A]">
+            <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs">
               <Database className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-gray-500 font-medium">Affected Modules</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.collectionsCount}</p>
+              <p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">Affected Modules</p>
+              <p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.collectionsCount}</p>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-purple-100 text-purple-600 rounded-full">
+          <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] flex items-center gap-4 text-[#0F172A]">
+            <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs">
               <Archive className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-gray-500 font-medium">Most Deleted Module</p>
-              <p className="text-lg font-bold text-gray-900 capitalize truncate">
+              <p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Most Deleted Module</p>
+              <p className="text-lg font-black text-[#6B21A8] capitalize truncate tracking-tight">
                 {stats.mostDeleted.replace(/([A-Z])/g, ' $1').trim()}
               </p>
             </div>
@@ -197,11 +197,11 @@ export default function TrashPage() {
       )}
 
       {/* --- Filters --- */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+      <div className="bg-white p-4 rounded-2xl shadow-xs border border-[#E2E8F0]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-[#94A3B8]" />
             </div>
             <input
               type="text"
@@ -209,18 +209,18 @@ export default function TrashPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               disabled={!selectedCollection}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:ring-primary focus:border-primary sm:text-sm disabled:bg-gray-50 disabled:text-gray-400"
+              className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-400 shadow-xs transition-all"
             />
           </div>
 
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Filter className="h-5 w-5 text-gray-400" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Filter className="h-4 w-4 text-[#94A3B8]" />
             </div>
             <select
               value={selectedCollection}
               onChange={(e) => setSelectedCollection(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-primary focus:border-primary sm:text-sm capitalize font-medium text-gray-700"
+              className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm capitalize font-medium shadow-xs transition-all cursor-pointer"
             >
               <option value="" disabled>Select a Module to view records...</option>
               <option value="all">View All Modules</option>
@@ -235,16 +235,16 @@ export default function TrashPage() {
       </div>
 
       {/* --- Table --- */}
-      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+      <div className="rounded-2xl border border-[#CBD5E1] shadow-xs overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse">
-            <thead className="bg-[#16192B] text-white">
-              <tr className="border-b border-[#2B314E]">
-                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Record Name</th>
-                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Module</th>
-                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Deleted By</th>
-                <th className="px-5 py-4 text-left text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Deleted At</th>
-                <th className="px-5 py-4 text-right text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Actions</th>
+            <thead className="bg-[#F8FAFC] text-[#0F172A] border-b border-[#CBD5E1]">
+              <tr>
+                <th className="px-5 py-3.5 text-left text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Record Name</th>
+                <th className="px-5 py-3.5 text-left text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Module</th>
+                <th className="px-5 py-3.5 text-left text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Deleted By</th>
+                <th className="px-5 py-3.5 text-left text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Deleted At</th>
+                <th className="px-5 py-3.5 text-right text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -333,12 +333,12 @@ export default function TrashPage() {
           </table>
         </div>
 
-        {/* Consistent Dark Navy Footer */}
-        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        {/* Clean Light Footer */}
+        <div className="bg-[#F8FAFC] border-t border-[#CBD5E1] px-5 py-3.5 flex items-center justify-between text-xs text-[#64748B]">
           <div>
-            Showing <span className="font-bold text-white">{selectedCollection ? filteredItems.length : 0}</span> deleted record{(selectedCollection ? filteredItems.length : 0) === 1 ? '' : 's'}
+            Showing <span className="font-bold text-[#0F172A]">{selectedCollection ? filteredItems.length : 0}</span> deleted record{(selectedCollection ? filteredItems.length : 0) === 1 ? '' : 's'}
           </div>
-          <div className="text-slate-400">
+          <div className="text-[#64748B] font-medium">
             Recycle Bin
           </div>
         </div>

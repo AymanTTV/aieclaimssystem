@@ -55,13 +55,13 @@ export default function SharesModal({ shares, onClose, onGeneratePDF }: Props) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-[#2B314E] rounded-xl bg-white shadow-sm overflow-hidden">
+      <div className="overflow-x-auto border border-[#E2E8F0] rounded-xl bg-white shadow-xs overflow-hidden">
         <table className="min-w-full text-xs border-collapse">
-          <thead className="bg-[#16192B] text-white border-b border-[#2B314E]">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Date Range</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Recipients</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Total Shared</th>
+          <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+            <tr className="border-b-2 border-[#E2E8F0]">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Date Range</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Recipients</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Total Shared</th>
             </tr>
           </thead>
           <tbody>

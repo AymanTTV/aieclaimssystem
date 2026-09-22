@@ -69,34 +69,41 @@ export default function IncomeExpenseSummary({
       label: 'Total Commission (Income)',
       amount: totalIncome,
       icon: TrendingUp,
-      colorClass: 'text-emerald-400',
-      labelColor: 'text-emerald-300',
-      iconWrapperClass: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
+      cardBg: 'bg-[#ECFDF5] border-[#A7F3D0] hover:border-emerald-300',
+      colorClass: 'text-[#047857]',
+      labelColor: 'text-[#059669]',
+      iconWrapperClass: 'bg-white border-[#A7F3D0] text-[#059669]',
+      isShared: false,
     },
     {
       label: 'Total Expense',
       amount: totalExpense,
       icon: TrendingDown,
-      colorClass: 'text-rose-400',
-      labelColor: 'text-rose-300',
-      iconWrapperClass: 'bg-rose-500/15 border-rose-500/30 text-rose-400',
+      cardBg: 'bg-[#FEF2F2] border-[#FECACA] hover:border-red-300',
+      colorClass: 'text-[#B91C1C]',
+      labelColor: 'text-[#DC2626]',
+      iconWrapperClass: 'bg-white border-[#FECACA] text-[#DC2626]',
+      isShared: false,
     },
     {
       label: 'Shared Profit',
       amount: totalShared,
       icon: Users,
-      colorClass: 'text-blue-400',
-      labelColor: 'text-blue-300',
-      iconWrapperClass: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
+      cardBg: 'bg-[#F0F9FF] border-[#BAE6FD] hover:border-sky-300',
+      colorClass: 'text-[#0369A1]',
+      labelColor: 'text-[#0284C7]',
+      iconWrapperClass: 'bg-white border-[#BAE6FD] text-[#0284C7]',
       isShared: true,
     },
     {
       label: 'Net Balance',
       amount: balance,
       icon: Wallet,
-      colorClass: balance >= 0 ? 'text-white' : 'text-rose-400',
-      labelColor: 'text-slate-300',
-      iconWrapperClass: 'bg-slate-800/80 border-slate-700/60 text-slate-200',
+      cardBg: balance >= 0 ? 'bg-[#FAF5FF] border-[#E9D5FF] hover:border-purple-300' : 'bg-[#FEF2F2] border-[#FECACA] hover:border-red-300',
+      colorClass: balance >= 0 ? 'text-[#6B21A8]' : 'text-[#B91C1C]',
+      labelColor: balance >= 0 ? 'text-[#7E22CE]' : 'text-[#DC2626]',
+      iconWrapperClass: balance >= 0 ? 'bg-white border-[#E9D5FF] text-[#7E22CE]' : 'bg-white border-[#FECACA] text-[#DC2626]',
+      isShared: false,
     },
   ] as const;
 
@@ -107,7 +114,7 @@ export default function IncomeExpenseSummary({
         return (
           <div
             key={card.label}
-            className="bg-[#16192B] rounded-2xl border border-[#2B314E] hover:border-[#3D456E] p-5 sm:p-6 shadow-xl flex flex-col justify-between transition-all duration-300 text-white relative overflow-hidden group"
+            className={`${card.cardBg} rounded-2xl border p-5 sm:p-6 shadow-xs flex flex-col justify-between transition-all duration-300 text-[#0F172A] relative overflow-hidden group`}
           >
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -125,9 +132,9 @@ export default function IncomeExpenseSummary({
             </div>
 
             {card.isShared && (
-              <div className="mt-4 pt-4 border-t border-[#2B314E]">
+              <div className="mt-4 pt-4 border-t border-[#BAE6FD]">
                 {startDate && endDate && (
-                  <div className="text-xs text-slate-400 mb-2 italic">
+                  <div className="text-xs text-[#64748B] mb-2 italic">
                     {startDate} → {endDate}
                   </div>
                 )}
@@ -142,11 +149,11 @@ export default function IncomeExpenseSummary({
                         key={name}
                         className="flex justify-between items-center text-xs sm:text-sm"
                       >
-                        <span className="text-slate-300 truncate max-w-[60%]">
+                        <span className="text-[#334155] truncate max-w-[60%]">
                           {name}{' '}
-                          <span className="text-slate-400 text-[10px]">({pct}%)</span>
+                          <span className="text-[#64748B] text-[10px]">({pct}%)</span>
                         </span>
-                        <span className="font-mono font-medium text-white">
+                        <span className="font-mono font-medium text-[#0F172A]">
                           {formatCurrency(amt)}
                         </span>
                       </div>
@@ -154,7 +161,7 @@ export default function IncomeExpenseSummary({
                   })}
 
                   {breakdownSorted.length === 0 && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-[#64748B]">
                       No splits in this period
                     </span>
                   )}

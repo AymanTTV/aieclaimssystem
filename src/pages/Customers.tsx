@@ -156,33 +156,36 @@ const Customers = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Customers & Members</h1>
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Customers & Members</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Customer database, KYC documentation, and member status.</p>
+        </div>
         
         <div className="flex flex-wrap items-center gap-2">
           {selectedCount > 0 && can('customers', 'update') && (
-             <div className="flex items-center bg-blue-50 border border-blue-200 rounded-md px-3 py-1 mr-2 shadow-sm">
-               <span className="text-sm text-blue-800 font-medium mr-3">{selectedCount} selected</span>
-               <button onClick={() => setIsStatusModalOpen(true)} className="text-sm bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded flex items-center transition-colors">
+             <div className="flex items-center bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 mr-2 shadow-xs">
+               <span className="text-sm text-blue-800 font-semibold mr-3">{selectedCount} selected</span>
+               <button onClick={() => setIsStatusModalOpen(true)} className="text-sm bg-[#2563EB] text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg flex items-center font-bold transition-colors">
                  <Edit3 className="w-4 h-4 mr-2"/> Update Status
                </button>
              </div>
           )}
 
           {can('customers', 'export') && (
-            <button onClick={() => handleCustomerExport(customers)} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              <Download className="h-5 w-5 mr-2" /> Export
+            <button onClick={() => handleCustomerExport(customers)} className="inline-flex items-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+              <Download className="h-5 w-5 mr-2 text-[#64748B]" /> Export
             </button>
           )}
 
           <button
             onClick={() => setIsGroupMessagingOpen(true)}
-            className="inline-flex items-center px-4 py-2 border border-purple-200 rounded-md shadow-sm text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+            className="inline-flex items-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
           >
             <Radio className="h-4 w-4 mr-2 text-purple-600" /> Group Messaging / News Flash
           </button>
 
           {can('customers', 'create') && (
-            <button onClick={() => handleOpenEditForm(null)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600">
+            <button onClick={() => handleOpenEditForm(null)} className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer">
               <Plus className="h-5 w-5 mr-2" /> Add Customer
             </button>
           )}

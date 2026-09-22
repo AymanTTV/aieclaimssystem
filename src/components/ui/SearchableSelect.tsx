@@ -236,12 +236,12 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return (
       <>
         {hasAll && showAllChipInMulti && (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-500/30">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
             {getOptionLabel(allId)}
             <button
               type="button"
               onClick={(e) => removeValue(allId, e)}
-              className="ml-1 text-indigo-300 hover:text-white focus:outline-none"
+              className="ml-1 text-blue-500 hover:text-blue-800 focus:outline-none"
             >
               <X className="h-3 w-3" />
             </button>
@@ -251,13 +251,13 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         {specific.map((id, idx) => (
           <span
             key={`${id}-${idx}`}
-            className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-500/30"
+            className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200"
           >
             {getOptionLabel(id)}
             <button
               type="button"
               onClick={(e) => removeValue(id, e)}
-              className="ml-1 text-indigo-300 hover:text-white focus:outline-none"
+              className="ml-1 text-blue-500 hover:text-blue-800 focus:outline-none"
             >
               <X className="h-3 w-3" />
             </button>
@@ -272,7 +272,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             type="text"
             autoComplete="off"
             data-lpignore="true"
-            className="flex-1 min-w-[60px] bg-transparent border-0 p-1 text-sm text-white placeholder-slate-400 focus:ring-0 focus:outline-none"
+            className="flex-1 min-w-[60px] bg-transparent border-0 p-1 text-sm text-[#0F172A] placeholder-slate-400 focus:ring-0 focus:outline-none"
             placeholder={isValueEmpty ? placeholder : ''}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -282,12 +282,12 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     );
   };
 
-  const isLight = variant === 'light';
+  const isDark = variant === 'dark';
 
   return (
-    <div className={`space-y-1 ${isLight ? 'searchable-select-light' : ''}`} ref={wrapperRef}>
+    <div className="space-y-1 searchable-select-light" ref={wrapperRef}>
       <div className="flex items-center justify-between gap-2 mb-1">
-        <label className={labelClassName || (isLight ? "block text-sm font-bold text-gray-900" : "searchable-select-label block text-sm font-semibold text-[#1E2238] dark:text-white")}>
+        <label className={labelClassName || (isDark ? "searchable-select-label block text-sm font-semibold text-white" : "block text-sm font-bold text-[#0F172A]")}>
           {label}
         </label>
         {required && (
@@ -304,26 +304,26 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       <div className="relative">
         <div
           ref={controlRef}
-          className={`w-full min-h-[38px] border transition-all ${
+          className={`w-full min-h-[38px] border-[1.5px] transition-all ${
             error
               ? 'border-red-500'
-              : isLight
-              ? required
-                ? 'border-gray-300 border-l-4 border-l-red-500'
-                : 'border-gray-300'
-              : 'border-white/20'
-          } ${isLight ? 'rounded-lg bg-white text-gray-900 shadow-2xs' : 'rounded-xl bg-[#0f1022] text-white shadow-inner'} ${
+              : isDark
+              ? 'border-white/20'
+              : required
+              ? 'border-[#CBD5E1] border-l-4 border-l-red-500'
+              : 'border-[#CBD5E1]'
+          } ${isDark ? 'rounded-xl bg-[#0f1022] text-white shadow-inner' : 'rounded-xl bg-white text-[#0F172A] shadow-2xs'} ${
             disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           } relative`}
           onClick={() => !disabled && setIsOpen(true)}
         >
           <div className="flex flex-wrap items-center gap-1 p-1 pr-8">
             {!isMulti && !isOpen && (
-              <div className={`px-2 py-1 w-full truncate text-sm font-medium ${isLight ? 'text-gray-900' : 'text-white'}`}>
+              <div className={`px-2 py-1 w-full truncate text-sm font-medium ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>
                 {selectedIds.length > 0 && selectedIds[0] !== allId ? (
                   <span>{getOptionLabel(selectedIds[0])}</span>
                 ) : (
-                  <span className={isLight ? 'text-gray-400 font-normal' : 'text-slate-400'}>{placeholder}</span>
+                  <span className={isDark ? 'text-slate-400' : 'text-slate-400 font-normal'}>{placeholder}</span>
                 )}
               </div>
             )}
@@ -335,25 +335,25 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             {isClearable && !isValueEmpty && !disabled && (
               <button
                 type="button"
-                className={`p-1 rounded-full mr-1 ${isLight ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+                className={`p-1 rounded-full mr-1 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
                 onClick={clearAll}
                 aria-label="Clear selection"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
-            {!isOpen && !isMulti && <Search className={`h-4 w-4 ${isLight ? 'text-gray-400' : 'text-slate-400'}`} />}
+            {!isOpen && !isMulti && <Search className={`h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />}
           </div>
 
           {isOpen && !isMulti && (
-            <div className={`absolute inset-0 z-10 rounded-xl flex items-center px-3 border ${isLight ? 'bg-white border-primary shadow-xs' : 'bg-[#0f1022] border-indigo-500/50'}`}>
-              <Search className={`h-4 w-4 mr-2 ${isLight ? 'text-gray-400' : 'text-slate-400'}`} />
+            <div className={`absolute inset-0 z-10 rounded-xl flex items-center px-3 border ${isDark ? 'bg-[#0f1022] border-indigo-500/50' : 'bg-white border-blue-500 shadow-xs'}`}>
+              <Search className={`h-4 w-4 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
               <input
                 ref={inputRef}
                 type="text"
                 autoComplete="off"
                 data-lpignore="true"
-                className={`flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none ${isLight ? 'text-gray-900 placeholder-gray-400' : 'text-white placeholder-slate-400'}`}
+                className={`flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none ${isDark ? 'text-white placeholder-slate-400' : 'text-[#0F172A] placeholder-slate-400'}`}
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -364,7 +364,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   e.stopPropagation();
                   setIsOpen(false);
                 }}
-                className={`ml-2 p-1 rounded ${isLight ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+                className={`ml-2 p-1 rounded ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
               >
                 <X className="h-4 w-4" />
               </button>

@@ -182,17 +182,17 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
               <span className="text-[11px] font-normal text-gray-400 lowercase">Threshold: ≥3 accidents or high fault loss</span>
             </h3>
 
-            <div className="border border-[#2B314E] rounded-xl overflow-hidden shadow-sm">
+            <div className="border border-[#E2E8F0] rounded-xl overflow-hidden shadow-xs bg-white">
               <table className="min-w-full border-collapse text-xs">
-                <thead className="bg-[#16192B] text-white">
-                  <tr className="border-b border-[#2B314E]">
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Rank</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name / Identifier</th>
-                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Accidents</th>
-                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault Split</th>
-                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
-                    <th className="px-3.5 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Late Reports</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Underwriter Note / Trigger</th>
+                <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+                  <tr className="border-b-2 border-[#E2E8F0]">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Rank</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Driver Name / Identifier</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Accidents</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Fault Split</th>
+                    <th className="px-3.5 py-2.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Incurred (£)</th>
+                    <th className="px-3.5 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Late Reports</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Underwriter Note / Trigger</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,19 +250,19 @@ export const UnderwriterRenewalReportModal: React.FC<UnderwriterRenewalReportMod
               3. Complete Fleet Driver Risk Ranking Schedule ({summary.driverProfiles.length} Total Incident Drivers)
             </h3>
 
-            <div className="border border-[#2B314E] rounded-xl overflow-hidden shadow-sm">
+            <div className="border border-[#E2E8F0] rounded-xl overflow-hidden shadow-xs bg-white">
               <table className="min-w-full border-collapse text-xs">
-                <thead className="bg-[#16192B] text-white">
-                  <tr className="border-b border-[#2B314E]">
-                    <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">#</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">Driver Name</th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider select-none">NIN / Mobile</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Risk</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Claims</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Fault</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Non-Fault</th>
-                    <th className="px-3.5 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider select-none">Incurred (£)</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider select-none">Late (&gt;24h)</th>
+                <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+                  <tr className="border-b-2 border-[#E2E8F0]">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">#</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Driver Name</th>
+                    <th className="px-3.5 py-2.5 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">NIN / Mobile</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Risk</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Claims</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Fault</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Non-Fault</th>
+                    <th className="px-3.5 py-2.5 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Incurred (£)</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-[#334155] uppercase tracking-wider select-none">Late (&gt;24h)</th>
                   </tr>
                 </thead>
                 <tbody>

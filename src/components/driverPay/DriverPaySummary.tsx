@@ -30,18 +30,20 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
     icon: React.ReactNode; 
     title: string; 
     value: number; 
+    cardBg: string;
     iconBg: string; 
     iconColor: string; 
-    valueColor?: string 
-  }> = ({ icon, title, value, iconBg, iconColor, valueColor }) => (
-    <div className="bg-[#16192B] rounded-2xl shadow-xl hover:border-[#3D456E] border border-[#2B314E] p-5 text-white transition-all">
+    titleColor: string;
+    valueColor: string; 
+  }> = ({ icon, title, value, cardBg, iconBg, iconColor, titleColor, valueColor }) => (
+    <div className={`${cardBg} rounded-2xl shadow-xs border p-5 text-[#0F172A] transition-all`}>
       <div className="flex items-center gap-4">
-        <div className={`shrink-0 p-3 rounded-xl border ${iconBg} ${iconColor}`}>
+        <div className={`shrink-0 p-3 rounded-xl border shadow-xs ${iconBg} ${iconColor}`}>
           {icon}
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">{title}</p>
-          <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${valueColor ?? 'text-white'}`}>
+          <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${titleColor}`}>{title}</p>
+          <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${valueColor}`}>
             {formatCurrency(value)}
           </p>
         </div>
@@ -55,45 +57,61 @@ const DriverPaySummary: React.FC<DriverPaySummaryProps> = ({
         icon={<DollarSign className="h-6 w-6" />} 
         title="TOTAL AMOUNT" 
         value={total} 
-        iconBg="bg-blue-500/15 border-blue-500/30" 
-        iconColor="text-blue-400" 
+        cardBg="bg-[#F0F9FF] border-[#BAE6FD]"
+        iconBg="bg-white border-[#BAE6FD]" 
+        iconColor="text-[#0284C7]" 
+        titleColor="text-[#0284C7]"
+        valueColor="text-[#0369A1]"
       />
       <Card 
         icon={<PieChart className="h-6 w-6" />} 
         title="COMMISSION A" 
         value={commissionA} 
-        iconBg="bg-amber-500/15 border-amber-500/30" 
-        iconColor="text-amber-400" 
+        cardBg="bg-[#FFFBEB] border-[#FDE68A]"
+        iconBg="bg-white border-[#FDE68A]" 
+        iconColor="text-[#D97706]" 
+        titleColor="text-[#D97706]"
+        valueColor="text-[#B45309]"
       />
       <Card 
         icon={<Percent className="h-6 w-6" />} 
         title="COMMISSION B" 
         value={commissionB} 
-        iconBg="bg-orange-500/15 border-orange-500/30" 
-        iconColor="text-orange-400" 
+        cardBg="bg-[#FFF7ED] border-[#FED7AA]"
+        iconBg="bg-white border-[#FED7AA]" 
+        iconColor="text-[#EA580C]" 
+        titleColor="text-[#EA580C]"
+        valueColor="text-[#C2410C]"
       />
       <Card 
         icon={<Wallet className="h-6 w-6" />} 
         title="NET PAY" 
         value={netPay} 
-        iconBg="bg-emerald-500/15 border-emerald-500/30" 
-        iconColor="text-emerald-400" 
+        cardBg="bg-[#FAF5FF] border-[#E9D5FF]"
+        iconBg="bg-white border-[#E9D5FF]" 
+        iconColor="text-[#7E22CE]" 
+        titleColor="text-[#7E22CE]"
+        valueColor="text-[#6B21A8]"
       />
       <Card 
         icon={<ArrowUpCircle className="h-6 w-6" />} 
         title="AMOUNT PAID" 
         value={totalPaid} 
-        iconBg="bg-emerald-500/15 border-emerald-500/30" 
-        iconColor="text-emerald-400" 
-        valueColor="text-emerald-400"
+        cardBg="bg-[#ECFDF5] border-[#A7F3D0]"
+        iconBg="bg-white border-[#A7F3D0]" 
+        iconColor="text-[#059669]" 
+        titleColor="text-[#059669]"
+        valueColor="text-[#047857]"
       />
       <Card 
         icon={<ArrowDownCircle className="h-6 w-6" />} 
         title="REMAINING AMOUNT" 
         value={totalRemaining} 
-        iconBg="bg-rose-500/15 border-rose-500/30" 
-        iconColor="text-rose-400" 
-        valueColor="text-rose-400"
+        cardBg="bg-[#FEF2F2] border-[#FECACA]"
+        iconBg="bg-white border-[#FECACA]" 
+        iconColor="text-[#DC2626]" 
+        titleColor="text-[#DC2626]"
+        valueColor="text-[#B91C1C]"
       />
     </div>
   );

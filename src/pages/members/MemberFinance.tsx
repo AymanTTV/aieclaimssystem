@@ -32,15 +32,15 @@ const MemberSummaryCards: React.FC<{
   totalIncome: number; totalExpenses: number; net: number; progressPct: number;
 }> = ({ totalIncome, totalExpenses, net, progressPct }) => {
   const cards = [
-    { key: 'paid', label: 'Total Paid', value: formatCurrency(totalIncome), labelColor: 'text-slate-300', tone: 'text-emerald-400', iconBg: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', icon: <TrendingUp className="w-5 h-5" /> },
-    { key: 'charges', label: 'Total Charges', value: formatCurrency(totalExpenses), labelColor: 'text-slate-300', tone: 'text-rose-400', iconBg: 'bg-rose-500/15 border-rose-500/30 text-rose-400', icon: <TrendingDown className="w-5 h-5" /> },
-    { key: 'balance', label: 'Balance (Paid - Charges)', value: formatCurrency(net), labelColor: 'text-slate-300', tone: net >= 0 ? 'text-emerald-400' : 'text-amber-400', iconBg: 'bg-blue-500/15 border-blue-500/30 text-blue-400', icon: <DollarSign className="w-5 h-5" /> },
-    { key: 'progress', label: 'Payment Progress', value: new Intl.NumberFormat('en-GB', { style: 'percent', maximumFractionDigits: 0 }).format(progressPct / 100), labelColor: 'text-slate-300', tone: 'text-purple-400', iconBg: 'bg-purple-500/15 border-purple-500/30 text-purple-400', icon: <Percent className="w-5 h-5" /> },
+    { key: 'paid', label: 'Total Paid', value: formatCurrency(totalIncome), labelColor: 'text-slate-500', tone: 'text-emerald-600', iconBg: 'bg-emerald-50 border-emerald-200 text-emerald-600', icon: <TrendingUp className="w-5 h-5" /> },
+    { key: 'charges', label: 'Total Charges', value: formatCurrency(totalExpenses), labelColor: 'text-slate-500', tone: 'text-rose-600', iconBg: 'bg-rose-50 border-rose-200 text-rose-600', icon: <TrendingDown className="w-5 h-5" /> },
+    { key: 'balance', label: 'Balance (Paid - Charges)', value: formatCurrency(net), labelColor: 'text-slate-500', tone: net >= 0 ? 'text-emerald-600' : 'text-amber-600', iconBg: 'bg-blue-50 border-blue-200 text-blue-600', icon: <DollarSign className="w-5 h-5" /> },
+    { key: 'progress', label: 'Payment Progress', value: new Intl.NumberFormat('en-GB', { style: 'percent', maximumFractionDigits: 0 }).format(progressPct / 100), labelColor: 'text-slate-500', tone: 'text-purple-600', iconBg: 'bg-purple-50 border-purple-200 text-purple-600', icon: <Percent className="w-5 h-5" /> },
   ];
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map(c => (
-        <div key={c.key} className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-5 shadow-xl text-white hover:border-[#3D456E] transition-all">
+        <div key={c.key} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-xs text-slate-900 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <div className={`text-xs font-bold uppercase tracking-wider ${c.labelColor}`}>{c.label}</div>
             <div className={`p-2 rounded-xl border ${c.iconBg} shadow-xs`}>{c.icon}</div>
@@ -59,32 +59,32 @@ const MemberFilters: React.FC<{
   statusFilter: 'all' | 'paid' | 'unpaid' | 'partially_paid';
   onStatusFilterChange: (s: 'all' | 'paid' | 'unpaid' | 'partially_paid') => void;
 }> = ({ dateRange, onDateRangeChange, statusFilter, onStatusFilterChange }) => (
-  <div className="rounded-2xl border border-[#2B314E] bg-[#16192B] p-4 sm:p-5 shadow-xl text-white">
+  <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs text-slate-900">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">From</label>
         <input
           type="date"
           value={dateRange.start ? new Date(dateRange.start).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: e.target.value ? new Date(e.target.value) : null, end: dateRange.end })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">To</label>
         <input
           type="date"
           value={dateRange.end ? new Date(dateRange.end).toISOString().split('T')[0] : ''}
           onChange={(e) => onDateRangeChange({ start: dateRange.start, end: e.target.value ? new Date(e.target.value) : null })}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Payment Status</label>
+        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Payment Status</label>
         <select
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value as any)}
-          className="w-full rounded-xl border border-[#2B314E] bg-[#0F111A] text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="all">All</option>
           <option value="paid">Paid</option>

@@ -761,17 +761,18 @@ const Claims: React.FC = () => {
 
       {/* ── Top Bar ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Claims</h1>
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Claims</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Accident claims, credit hire tracking, and legal proceedings.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {can('claims', 'recordsPermission') && (
             <button
               onClick={() => setShowPermissionModal(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-indigo-200 rounded-md shadow-sm text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <Shield className="h-5 w-5 mr-1 sm:mr-2" />
+              <Shield className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
               <span className="truncate">Records</span>
               <span className="hidden sm:inline">&nbsp;Permission</span>
             </button>
@@ -780,9 +781,9 @@ const Claims: React.FC = () => {
           {can('claims', 'groups') && (
             <button
               onClick={() => setManageGroupsOpen(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <Layers className="h-5 w-5 mr-1 sm:mr-2" />
+              <Layers className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
               <span className="truncate">Groups</span>
             </button>
           )}
@@ -790,9 +791,9 @@ const Claims: React.FC = () => {
           {can('claims', 'departments') && (
             <button
               onClick={() => setManageDepartmentsOpen(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <Briefcase className="h-5 w-5 mr-1 sm:mr-2" />
+              <Briefcase className="h-5 w-5 mr-1 sm:mr-2 text-teal-600" />
               <span className="truncate">Depts</span>
             </button>
           )}
@@ -800,9 +801,9 @@ const Claims: React.FC = () => {
           {can('claims', 'export') && (
             <button
               onClick={handleGenerateBulkPDF}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <FileText className="h-5 w-5 mr-1 sm:mr-2" />
+              <FileText className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
               <span className="truncate">PDF</span>
               <span className="hidden sm:inline">&nbsp;Bulk</span>
             </button>
@@ -811,9 +812,9 @@ const Claims: React.FC = () => {
           {can('claims', 'export') && (
             <button
               onClick={handleExport}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
             >
-              <Download className="h-5 w-5 mr-1 sm:mr-2" />
+              <Download className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
               <span className="truncate">Export</span>
             </button>
           )}
@@ -821,7 +822,7 @@ const Claims: React.FC = () => {
           {can('claims', 'create') && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+              className="flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
             >
               <Plus className="h-5 w-5 mr-1 sm:mr-2" />
               <span className="truncate">Add</span>
@@ -832,10 +833,10 @@ const Claims: React.FC = () => {
       </div>
 
       {/* ── Search + Filters ── */}
-      <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] mb-6 text-white">
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-[#E2E8F0] mb-6 text-[#0F172A]">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 items-end">
           <div className="relative sm:col-span-2">
-            <label className="block text-sm font-bold text-slate-200 mb-1.5">Search</label>
+            <label className="block text-sm font-semibold text-[#0F172A] mb-1.5">Search</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-slate-400" />
@@ -845,7 +846,7 @@ const Claims: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by client, phone, email, reg, TP name/reg…"
-                className="block w-full pl-11 pr-4 py-2 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm min-h-[38px] font-medium transition-all"
+                className="block w-full pl-11 pr-4 py-2 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm min-h-[38px] font-medium transition-all shadow-xs"
               />
             </div>
           </div>
@@ -853,7 +854,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Show Filter"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={SHOW_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
               value={showFilter}
               onChange={(val) => setShowFilter((val as ShowFilter) || 'Default')}
@@ -865,7 +866,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Progress"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={allProgressOptions}
               value={selectedProgresses}
               onChange={(val) => setSelectedProgresses(val as string[])}
@@ -877,11 +878,11 @@ const Claims: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-[#2B314E] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="mt-4 pt-4 border-t border-[#E2E8F0] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
           <div>
             <SearchableSelect
               label="Group"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={groupOptions}
               value={selectedGroupFilters}
               onChange={(val) => setSelectedGroupFilters(val as string[])}
@@ -895,7 +896,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Department"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={deptOptions}
               value={selectedDepartmentFilters}
               onChange={(val) => setSelectedDepartmentFilters(val as string[])}
@@ -909,7 +910,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Type"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={TYPE_OPTIONS}
               value={selectedTypes}
               onChange={(val) => setSelectedTypes(val as string[])}
@@ -923,7 +924,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Claim Reason"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={REASON_OPTIONS}
               value={selectedReasons}
               onChange={(val) => setSelectedReasons(val as string[])}
@@ -937,7 +938,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Submitter"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={SUBMITTER_OPTIONS}
               value={selectedSubmitters}
               onChange={(val) => setSelectedSubmitters(val as string[])}
@@ -951,7 +952,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="AIE Handler"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={aieHandlerOptions}
               value={selectedAIEHandlers}
               onChange={(val) => setSelectedAIEHandlers(val as string[])}
@@ -965,7 +966,7 @@ const Claims: React.FC = () => {
           <div>
             <SearchableSelect
               label="Legal Handler"
-              labelClassName="searchable-select-label block text-sm font-bold text-slate-200 mb-1.5"
+              labelClassName="searchable-select-label block text-sm font-semibold text-[#0F172A] mb-1.5"
               options={legalHandlerOptions}
               value={selectedLegalHandlers}
               onChange={(val) => setSelectedLegalHandlers(val as string[])}
@@ -977,23 +978,23 @@ const Claims: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-[#2B314E] grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="mt-4 pt-4 border-t border-[#E2E8F0] grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="space-y-1">
-            <label className="block text-sm font-bold text-slate-200 mb-1.5">Incident Date (Start)</label>
+            <label className="block text-sm font-semibold text-[#0F172A] mb-1.5">Incident Date (Start)</label>
             <input
               type="date"
               value={incidentDateStart}
               onChange={(e) => setIncidentDateStart(e.target.value)}
-              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0f1022] text-white border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
+              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors shadow-xs"
             />
           </div>
           <div className="space-y-1">
-            <label className="block text-sm font-bold text-slate-200 mb-1.5">Incident Date (End)</label>
+            <label className="block text-sm font-semibold text-[#0F172A] mb-1.5">Incident Date (End)</label>
             <input
               type="date"
               value={incidentDateEnd}
               onChange={(e) => setIncidentDateEnd(e.target.value)}
-              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-[#0f1022] text-white border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors disabled:opacity-50 [color-scheme:dark]"
+              className="w-full min-h-[38px] px-3 py-1.5 text-sm bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors shadow-xs"
             />
           </div>
         </div>

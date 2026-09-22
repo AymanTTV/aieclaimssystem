@@ -1389,6 +1389,13 @@ export default function BulkEmail() {
   // ─── UI ─────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Bulk Email Communications</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Customer emails, automated statements, service dispatch, and notifications.</p>
+        </div>
+      </div>
+
       {/* Type + Template */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {availableTabs.map(t => (
@@ -1406,41 +1413,41 @@ export default function BulkEmail() {
               if (t === 'finance') setRecipientFilter('customer');
               else setRecipientFilter('all');
             }}
-            className={`px-4 py-2 rounded ${emailType === t ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
           >
             {t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
 
         <select
-          className="col-span-2 md:col-span-2 px-3 py-2 bg-[#0f1022] border border-white/20 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="col-span-2 md:col-span-2 px-3.5 py-2.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-[#0F172A] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer font-medium"
           value={selectedTemplateId}
           onChange={e => setSelectedTemplateId(e.target.value)}
         >
-          <option value="" className="bg-white text-gray-900">– Select Message… (manual) –</option>
-          {templates.map(tpl => (<option key={tpl.id} value={tpl.id} className="bg-white text-gray-900">{tpl.name}</option>))}
+          <option value="">– Select Message… (manual) –</option>
+          {templates.map(tpl => (<option key={tpl.id} value={tpl.id}>{tpl.name}</option>))}
         </select>
       </div>
 
       {/* Monday Auto-Email Bulk Test Action Banner for Rental tab */}
       {emailType === 'rental' && (
-        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 border border-indigo-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+        <div className="bg-gradient-to-r from-blue-50 via-white to-indigo-50 border border-blue-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
           <div className="flex items-start gap-3">
-            <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs mt-0.5 shrink-0">
+            <div className="p-2.5 bg-[#2563EB] text-white rounded-xl shadow-xs mt-0.5 shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h4 className="text-sm font-bold text-gray-900">Monday Automated Bulk Email Scheduler</h4>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                <h4 className="text-sm font-bold text-[#0F172A]">Monday Automated Bulk Email Scheduler</h4>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
                   0 9 * * 1 (Mondays 09:00 AM)
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                   Strict Claim Exclusion
                 </span>
               </div>
-              <p className="text-xs text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                Targets active rentals with an outstanding balance (<span className="font-semibold text-gray-900">owing &gt; £0</span>) and sends weekly statement breakdown without attachments. Automatically ignores and excludes all Claim/Claims rentals.
+              <p className="text-xs text-[#64748B] mt-1 max-w-2xl leading-relaxed">
+                Targets active rentals with an outstanding balance (<span className="font-semibold text-[#0F172A]">owing &gt; £0</span>) and sends weekly statement breakdown without attachments. Automatically ignores and excludes all Claim/Claims rentals.
               </p>
             </div>
           </div>
@@ -1448,7 +1455,7 @@ export default function BulkEmail() {
             type="button"
             onClick={handleRunRentalTestBatch}
             disabled={isRunningRentalTestBatch}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 shrink-0 cursor-pointer"
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 shrink-0 cursor-pointer"
             title="Manually execute full filtering logic and send emails to all eligible active non-claim rentals immediately"
           >
             {isRunningRentalTestBatch ? (
@@ -1462,7 +1469,7 @@ export default function BulkEmail() {
       )}
 
       {/* Recipients */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-3">
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-[#E2E8F0] space-y-4">
         
         {/* Recipient Filter UI */}
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
@@ -1470,7 +1477,7 @@ export default function BulkEmail() {
                 {emailType !== 'finance' && (
                 <button
                     onClick={() => setRecipientFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'all' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                 >
                     All
                 </button>
@@ -1479,7 +1486,7 @@ export default function BulkEmail() {
                 {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
                 <button
                     onClick={() => setRecipientFilter('customer')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'customer' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'customer' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                 >
                     Customers
                 </button>
@@ -1489,13 +1496,13 @@ export default function BulkEmail() {
                   <>
                     <button
                         onClick={() => setRecipientFilter('account')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'account' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'account' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Accounts
                     </button>
                     <button
                         onClick={() => setRecipientFilter('owner')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'owner' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'owner' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Owners
                     </button>
@@ -1505,7 +1512,7 @@ export default function BulkEmail() {
                 {emailType === 'maintenance' && (
                     <button
                         onClick={() => setRecipientFilter('serviceCenter')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'serviceCenter' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'serviceCenter' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Service Centers
                     </button>
@@ -1513,7 +1520,7 @@ export default function BulkEmail() {
                 {emailType === 'claim' && (
                     <button
                         onClick={() => setRecipientFilter('legalHandler')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'legalHandler' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'legalHandler' ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Legal Handlers
                     </button>
@@ -1522,9 +1529,9 @@ export default function BulkEmail() {
         )}
 
         <div className="relative">
-          <Search className="absolute left-3 top-3 text-indigo-400 w-4 h-4"/>
+          <Search className="absolute left-3.5 top-3 text-[#94A3B8] w-4 h-4"/>
           <input
-            className="pl-9 pr-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl w-full text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner transition-colors"
+            className="pl-10 pr-4 py-2.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl w-full text-[#0F172A] placeholder-[#94A3B8] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs transition-colors"
             placeholder="Search recipients…"
             value={searchQuery}
             onChange={e=>setSearchQuery(e.target.value)}
@@ -1848,16 +1855,16 @@ export default function BulkEmail() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white mt-4">
+        <div className="rounded-2xl border border-[#CBD5E1] shadow-xs overflow-hidden bg-white mt-4">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-[#16192B] text-white">
-                <tr className="border-b border-[#2B314E]">
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Date</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Type</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Template</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Recipients</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
+              <thead className="bg-[#F8FAFC] text-[#0F172A] border-b border-[#CBD5E1]">
+                <tr>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Date</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Type</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Template</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Recipients</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
                 </tr>
               </thead>
               <tbody>
@@ -1895,12 +1902,12 @@ export default function BulkEmail() {
             </table>
           </div>
 
-          {/* Consistent Dark Navy Footer */}
-          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          {/* Clean Light Footer */}
+          <div className="bg-[#F8FAFC] border-t border-[#CBD5E1] px-5 py-3.5 flex items-center justify-between text-xs text-[#64748B]">
             <div>
-              Showing <span className="font-bold text-white">{filteredHistory.length}</span> log{filteredHistory.length === 1 ? '' : 's'}
+              Showing <span className="font-bold text-[#0F172A]">{filteredHistory.length}</span> log{filteredHistory.length === 1 ? '' : 's'}
             </div>
-            <div className="text-slate-400">
+            <div className="text-[#64748B] font-medium">
               Email Dispatch History
             </div>
           </div>

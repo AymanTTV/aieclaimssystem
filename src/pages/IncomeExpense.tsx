@@ -222,6 +222,57 @@ export default function IncomeExpense() {
 
   return (
   <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Income & Expenses</h1>
+        <p className="text-sm text-[#64748B] mt-0.5 font-medium">Financial entries, operational expenses, recurring cash flow, and profit splits.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
+        {can('incomeExpense', 'categories') && (
+          <button onClick={() => setShowManageCats(true)} className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] hover:bg-[#F8FAFC] rounded-xl shadow-xs font-semibold text-sm flex items-center justify-center transition-colors">
+            <Settings className="h-4 w-4 mr-1.5 text-[#64748B]"/> Categories
+          </button>
+        )}
+        
+        {can('incomeExpense', 'create') && (
+          <button onClick={() => { setShowIncome(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-3.5 py-2.5 bg-[#059669] hover:bg-[#047857] text-white rounded-xl shadow-xs font-bold text-sm flex items-center justify-center transition-colors cursor-pointer">
+            <Plus className="h-4 w-4 mr-1.5" /> Income
+          </button>
+        )}
+        {can('incomeExpense', 'create') && (
+          <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-3.5 py-2.5 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl shadow-xs font-bold text-sm flex items-center justify-center transition-colors cursor-pointer">
+            <Plus className="h-4 w-4 mr-1.5" /> Expense
+          </button>
+        )}
+        
+        {can('incomeExpense', 'reoccurring') && (
+          <button onClick={() => setShowRecurringSelect(true)} className="px-3.5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl shadow-xs font-bold text-sm flex items-center justify-center transition-colors cursor-pointer">
+            <Repeat className="h-4 w-4 mr-1.5" /> Recurring
+          </button>
+        )}
+
+        <button onClick={() => setShowShares(true)} className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] hover:bg-[#F8FAFC] rounded-xl shadow-xs font-semibold text-sm transition-colors">
+          Shares
+        </button>
+        {can('incomeExpense', 'share') && (
+          <button onClick={() => setShowShare(true)} className="px-3.5 py-2.5 border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl shadow-xs font-semibold text-sm transition-colors">
+            Share Profit
+          </button>
+        )}
+        {can('skylineIncomeExpense', 'export') && (
+          <>
+            <button onClick={handleExportBulkPDF} className="p-2.5 border border-[#CBD5E1] bg-white text-[#64748B] hover:bg-[#F8FAFC] rounded-xl shadow-xs transition-colors" title="Export PDF">
+              <Download className="h-4 w-4" />
+            </button>
+            <button onClick={handleExport} className="p-2.5 bg-[#059669] hover:bg-[#047857] text-white rounded-xl shadow-xs transition-colors" title="Export Spreadsheet">
+              <FileSpreadsheet className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+
     <IncomeExpenseSummary
       entries={historicalFilteredEntries}
       shares={filteredSharesForSummary}
@@ -229,28 +280,6 @@ export default function IncomeExpense() {
       endDate={filter.dateRange.end}
       permissionScope="incomeExpense"
     />
-
-    <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
-      {can('incomeExpense', 'categories') && <button onClick={() => setShowManageCats(true)} className="px-4 py-2 border bg-white rounded w-[48%] sm:w-auto flex items-center justify-center"><Settings className="h-4 w-4 mr-2"/> Cats</button>}
-      
-      {can('incomeExpense', 'create') && <button onClick={() => { setShowIncome(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-4 py-2 bg-primary text-white rounded w-[48%] sm:w-auto flex items-center justify-center"><Plus className="h-4 w-4 mr-2" /> Income</button>}
-      {can('incomeExpense', 'create') && <button onClick={() => { setShowExpense(true); setRecordBeingEdited(null); setIsCreatingRecurring(false); }} className="px-4 py-2 border rounded w-[48%] sm:w-auto flex items-center justify-center"><Plus className="h-4 w-4 mr-2" /> Expense</button>}
-      
-      {can('incomeExpense', 'reoccurring') && (
-        <button onClick={() => setShowRecurringSelect(true)} className="px-4 py-2 border border-transparent bg-indigo-600 text-white rounded w-[48%] sm:w-auto flex items-center justify-center hover:bg-indigo-700">
-            <Repeat className="h-4 w-4 mr-2" /> Recurring
-        </button>
-      )}
-
-      <button onClick={() => setShowShares(true)} className="px-4 py-2 border rounded w-[48%] sm:w-auto">Shares</button>
-      {can('incomeExpense', 'share') && <button onClick={() => setShowShare(true)} className="px-4 py-2 border rounded w-[48%] sm:w-auto">Share Profit</button>}
-      {can('skylineIncomeExpense', 'export') && (
-        <>
-          <button onClick={handleExportBulkPDF} className="px-4 py-2 border bg-white text-gray-700 rounded hover:bg-gray-50"><Download className="h-5 w-5" /></button>
-          <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"><FileSpreadsheet className="h-5 w-5" /></button>
-        </>
-      )}
-    </div>
 
     <IncomeExpenseFilters
       search={filter.search} onSearch={filter.setSearch}

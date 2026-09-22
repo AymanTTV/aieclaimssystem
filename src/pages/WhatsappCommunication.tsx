@@ -1249,8 +1249,11 @@ export default function WhatsappCommunication() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">WhatsApp Messaging</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">WhatsApp Messaging</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Customer notifications, reminders, statements, and direct messaging portal.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -1269,32 +1272,32 @@ export default function WhatsappCommunication() {
               if (t === 'finance') setRecipientFilter('customer');
               else setRecipientFilter('all');
             }}
-            className={`px-4 py-2 rounded ${emailType === t ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'}`}
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
 
         <select
-          className="col-span-2 md:col-span-2 px-3 py-2 bg-[#0f1022] border border-white/20 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="col-span-2 md:col-span-2 px-3.5 py-2.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-[#0F172A] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer font-medium"
           value={selectedTemplateId}
           onChange={e => setSelectedTemplateId(e.target.value)}
         >
-          <option value="" className="bg-[#0f1022] text-white">– Select Message… (manual) –</option>
+          <option value="">– Select Message… (manual) –</option>
           {templates.map(tpl => (
-            <option key={tpl.id} value={tpl.id} className="bg-white text-gray-900">{tpl.name}</option>
+            <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
           ))}
         </select>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm space-y-3 border border-gray-200">
+      <div className="bg-white p-5 rounded-2xl shadow-xs space-y-4 border border-[#E2E8F0]">
         
         {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
             <div className="flex gap-2 mb-2 flex-wrap">
                 {emailType !== 'finance' && (
                 <button
                     onClick={() => setRecipientFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'all' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'all' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                 >
                     All
                 </button>
@@ -1303,7 +1306,7 @@ export default function WhatsappCommunication() {
                 {(emailType === 'maintenance' || emailType === 'claim' || emailType === 'finance') && (
                 <button
                     onClick={() => setRecipientFilter('customer')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'customer' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'customer' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                 >
                     Customers
                 </button>
@@ -1313,13 +1316,13 @@ export default function WhatsappCommunication() {
                   <>
                     <button
                         onClick={() => setRecipientFilter('account')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'account' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'account' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Accounts
                     </button>
                     <button
                         onClick={() => setRecipientFilter('owner')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'owner' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'owner' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Owners
                     </button>
@@ -1329,7 +1332,7 @@ export default function WhatsappCommunication() {
                 {emailType === 'maintenance' && (
                     <button
                         onClick={() => setRecipientFilter('serviceCenter')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'serviceCenter' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'serviceCenter' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Service Centers
                     </button>
@@ -1337,7 +1340,7 @@ export default function WhatsappCommunication() {
                 {emailType === 'claim' && (
                     <button
                         onClick={() => setRecipientFilter('legalHandler')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'legalHandler' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15'}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${recipientFilter === 'legalHandler' ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#475569] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
                     >
                         Legal Handlers
                     </button>
@@ -1346,9 +1349,9 @@ export default function WhatsappCommunication() {
         )}
 
         <div className="relative">
-          <Search className="absolute left-3 top-3 text-emerald-400 w-4 h-4" />
+          <Search className="absolute left-3.5 top-3 text-[#94A3B8] w-4 h-4" />
           <input
-            className="pl-9 pr-4 py-2.5 bg-[#0f1022] border border-white/20 rounded-xl w-full text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner transition-colors"
+            className="pl-10 pr-4 py-2.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl w-full text-[#0F172A] placeholder-[#94A3B8] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs transition-colors"
             placeholder="Search recipients by name or phone..."
             value={searchQuery}
             onChange={e=>setSearchQuery(e.target.value)}
@@ -1674,23 +1677,23 @@ export default function WhatsappCommunication() {
           <h2 className="font-bold text-emerald-700 text-base">WhatsApp History</h2>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="px-3 py-1.5 bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs font-medium"
               value={historyTypeFilter}
               onChange={e => setHistoryTypeFilter(e.target.value as any)}
             >
-              <option value="all" className="bg-[#0f1022] text-white">All Types</option>
-              {availableTabs.map(t => (<option key={t} value={t} className="bg-[#0f1022] text-white">{t}</option>))}
+              <option value="all">All Types</option>
+              {availableTabs.map(t => (<option key={t} value={t}>{t}</option>))}
             </select>
             <select
-              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="px-3 py-1.5 bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs font-medium"
               value={historyTemplateFilter}
               onChange={e => setHistoryTemplateFilter(e.target.value)}
             >
-              <option value="" className="bg-[#0f1022] text-white">All Templates</option>
-              {Array.from(new Set(history.map(h => h.templateId))).map(id => (<option key={id} value={id} className="bg-[#0f1022] text-white">{id}</option>))}
+              <option value="">All Templates</option>
+              {Array.from(new Set(history.map(h => h.templateId))).map(id => (<option key={id} value={id}>{id}</option>))}
             </select>
             <input
-              className="px-3 py-1.5 bg-[#0f1022] border border-white/20 text-white placeholder-slate-400 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="px-3 py-1.5 bg-white border border-[#CBD5E1] text-[#0F172A] placeholder-[#94A3B8] rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
               placeholder="Recipient…"
               value={historyRecipientFilter}
               onChange={e => setHistoryRecipientFilter(e.target.value)}
@@ -1713,16 +1716,16 @@ export default function WhatsappCommunication() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white mt-4">
+        <div className="rounded-2xl border border-[#CBD5E1] shadow-xs overflow-hidden bg-white mt-4">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-[#16192B] text-white">
-                <tr className="border-b border-[#2B314E]">
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Date</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Type</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Template</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Recipients</th>
-                  <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Subject Log</th>
+              <thead className="bg-[#F8FAFC] text-[#0F172A] border-b border-[#CBD5E1]">
+                <tr>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Date</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Type</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Template</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Recipients</th>
+                  <th className="px-5 py-3.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider select-none whitespace-nowrap">Subject Log</th>
                 </tr>
               </thead>
               <tbody>
@@ -1750,12 +1753,12 @@ export default function WhatsappCommunication() {
             </table>
           </div>
 
-          {/* Consistent Dark Navy Footer */}
-          <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+          {/* Consistent Light Footer */}
+          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
             <div>
-              Showing <span className="font-bold text-white">{filteredHistory.length}</span> log{filteredHistory.length === 1 ? '' : 's'}
+              Showing <span className="font-bold text-slate-900">{filteredHistory.length}</span> log{filteredHistory.length === 1 ? '' : 's'}
             </div>
-            <div className="text-slate-400">
+            <div className="text-slate-500">
               WhatsApp Dispatch History
             </div>
           </div>

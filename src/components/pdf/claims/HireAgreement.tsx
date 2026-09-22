@@ -447,44 +447,44 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
             <View style={[compactCardStyles.card, { width: '48%' }]}>
               <Text style={compactCardStyles.title}>Summary</Text>
               
-              {/* NET */}
+              {/* NET: #000000 */}
               <View style={compactCardStyles.row}>
-                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>NET:</Text>
-                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000000' }]}>NET:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000000' }]}>
                   £{totalNet.toFixed(2)}
                 </Text>
               </View>
 
-              {/* VAT */}
+              {/* VAT: #2563EB */}
               <View style={compactCardStyles.row}>
-                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>VAT:</Text>
-                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#2563EB' }]}>VAT:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#2563EB' }]}>
                   £{totalVat.toFixed(2)}
                 </Text>
               </View>
 
-              {/* Gross Total */}
+              {/* Gross Total: #D97706 */}
               <View style={[compactCardStyles.row, { marginTop: 3, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 3 }]}>
-                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Gross Total:</Text>
-                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#D97706' }]}>Gross Total:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#D97706' }]}>
                   £{grandTotal.toFixed(2)}
                 </Text>
               </View>
 
-              {/* Paid */}
+              {/* Paid: #15803D */}
               <View style={compactCardStyles.row}>
-                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#000' }]}>Paid:</Text>
-                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#000' }]}>
+                <Text style={[compactCardStyles.label, { fontFamily: 'Helvetica-Bold', color: '#15803D' }]}>Paid:</Text>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#15803D' }]}>
                   £{paidAmount.toFixed(2)}
                 </Text>
               </View>
 
-              {/* Owing */}
+              {/* Owing: #DC2626 */}
               <View style={compactCardStyles.row}>
-                <Text style={[compactCardStyles.label, { color: owingAmount > 0.001 ? '#DC2626' : '#16A34A', fontFamily: 'Helvetica-Bold' }]}>
+                <Text style={[compactCardStyles.label, { color: owingAmount > 0.001 ? '#DC2626' : '#15803D', fontFamily: 'Helvetica-Bold' }]}>
                   Owing:
                 </Text>
-                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: owingAmount > 0.001 ? '#DC2626' : '#16A34A' }]}>
+                <Text style={[compactCardStyles.value, { textAlign: 'right', fontFamily: 'Helvetica-Bold', color: owingAmount > 0.001 ? '#DC2626' : '#15803D' }]}>
                   £{Math.abs(owingAmount).toFixed(2)}
                 </Text>
               </View>

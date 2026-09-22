@@ -81,34 +81,37 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <div className="flex flex-wrap gap-2"> {/* Added flex-wrap */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">{title}</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Petty cash expenditure records, receipts, category reconciliations, and cash balances.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {/* NEW: Import Button */}
           {can(moduleKey, 'import') && (
             <button
               onClick={onImport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer"
             >
-              <Upload className="h-5 w-5 mr-2" />
+              <Upload className="h-4 w-4 mr-1.5 text-[#64748B]" />
               Import
             </button>
           )}
           {can(moduleKey, 'export') && (
             <button
               onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer"
             >
-              <Download className="h-5 w-5 mr-2" />
+              <Download className="h-4 w-4 mr-1.5 text-[#64748B]" />
               Export
             </button>
           )}
           {can(moduleKey, 'create') && (
             <button
               onClick={onAdd}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+              className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-4 w-4 mr-1.5" />
               Add Transaction
             </button>
           )}
@@ -123,7 +126,7 @@ const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
           type="text"
           placeholder="Search by name, telephone, description..."
           onChange={(e) => onSearch(e.target.value)}
-          className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+          className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-xs"
         />
       </div>
     </div>

@@ -59,7 +59,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     chronologicalTxns.forEach(txn => {
       const impact: Record<string, number> = {};
       if (txn.type === 'income' && txn.accountsTo) {
-        txn.accountsTo.forEach(accId => {
+        Array.from(new Set(txn.accountsTo.filter(Boolean))).forEach(accId => {
           const current = runningTotals.get(accId) || 0;
           const newBal = current + txn.amount;
           runningTotals.set(accId, newBal);
@@ -67,7 +67,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         });
       }
       if (txn.type === 'expense' && txn.accountsFrom) {
-        txn.accountsFrom.forEach(accId => {
+        Array.from(new Set(txn.accountsFrom.filter(Boolean))).forEach(accId => {
           const current = runningTotals.get(accId) || 0;
           const newBal = current - txn.amount;
           runningTotals.set(accId, newBal);
@@ -191,16 +191,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         header: 'Balance',
         cell: ({ row }: { row: { original: Transaction } }) => {
            const txnBalances = transactionBalances.get(row.original.id);
-           const involvedAccounts = row.original.type === 'income' ? row.original.accountsTo : row.original.accountsFrom;
-           if (!involvedAccounts || !txnBalances) return <span className="text-gray-300">-</span>;
+           const rawAccounts = row.original.type === 'income' ? row.original.accountsTo : row.original.accountsFrom;
+           if (!rawAccounts || !txnBalances) return <span className="text-gray-300">-</span>;
+           const involvedAccounts = Array.from(new Set(rawAccounts.filter(Boolean)));
 
            return (
              <div className="flex flex-col gap-1">
-               {involvedAccounts.map(accId => {
+               {involvedAccounts.map((accId, aIdx) => {
                   const bal = txnBalances[accId];
                   if (bal === undefined) return null;
                   return (
-                    <div key={accId} className="flex flex-col items-end leading-none">
+                    <div key={`${row.original.id}-${accId}-${aIdx}`} className="flex flex-col items-end leading-none">
                        <span className={`text-base font-bold ${bal < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(bal)}</span>
                     </div>
                   );
@@ -246,9 +247,19 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     return cols;
   }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, groups, accounts, vehicles, onPrintReceipt, can, formatCurrency, isManager, transactionBalances]);
 
+  const uniqueTransactions = useMemo(() => {
+    const seen = new Set<string>();
+    return transactions.filter(t => {
+      if (!t?.id) return true;
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
+  }, [transactions]);
+
   return (
     <DataTable 
-      data={transactions} 
+      data={uniqueTransactions} 
       columns={columns as any} 
       onRowClick={transaction => can('finance', 'view') && onView(transaction)} 
     />

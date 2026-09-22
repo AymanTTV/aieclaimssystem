@@ -41,13 +41,13 @@ const EmailHistory = () => {
     <div className="mt-10">
       <h2 className="text-xl font-bold mb-4">Email Send History</h2>
 
-      <div className="flex gap-4 flex-wrap mb-4">
+      <div className="flex gap-4 flex-wrap mb-4 bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
         <div>
-          <label>Email Type</label>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Email Type</label>
           <select
             value={typeFilter}
             onChange={e => setTypeFilter(e.target.value)}
-            className="border p-2 w-full"
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
           >
             <option value="">All</option>
             <option value="custom">Custom</option>
@@ -59,36 +59,36 @@ const EmailHistory = () => {
         </div>
 
         <div>
-          <label>From</label>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">From</label>
           <input
             type="date"
             value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
-            className="border p-2 w-full"
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label>To</label>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">To</label>
           <input
             type="date"
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
-            className="border p-2 w-full"
+            className="bg-white border-[1.5px] border-[#CBD5E1] text-[#0F172A] rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-white">
+      <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-[#16192B] text-white">
-              <tr className="border-b border-[#2B314E]">
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Date</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Email Type</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Recipient</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
-                <th className="px-5 py-4 text-xs font-bold text-white uppercase tracking-wider select-none whitespace-nowrap">Sent By</th>
+            <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
+              <tr className="border-b-2 border-[#E2E8F0]">
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">Date</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">Email Type</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">Recipient</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">Subject</th>
+                <th className="px-5 py-4 text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">Sent By</th>
               </tr>
             </thead>
             <tbody>
@@ -118,12 +118,12 @@ const EmailHistory = () => {
           </table>
         </div>
 
-        {/* Consistent Dark Navy Footer */}
-        <div className="bg-[#16192B] border-t border-[#2B314E] px-5 py-3.5 flex items-center justify-between text-xs text-slate-300">
+        {/* Consistent Light Footer */}
+        <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-5 py-3.5 flex items-center justify-between text-xs text-slate-600">
           <div>
-            Showing <span className="font-bold text-white">{filteredLogs.length}</span> log{filteredLogs.length === 1 ? '' : 's'}
+            Showing <span className="font-bold text-slate-900">{filteredLogs.length}</span> log{filteredLogs.length === 1 ? '' : 's'}
           </div>
-          <div className="text-slate-400">
+          <div className="text-slate-500">
             Email System Records
           </div>
         </div>

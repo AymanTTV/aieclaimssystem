@@ -458,13 +458,16 @@ const Invoices: React.FC = () => {
       <input type="file" ref={fileInputRef} hidden accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileImport} />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Invoices & Accounts</h1>
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Invoices & Accounts</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Billing, accounts receivable, and customer statements.</p>
+        </div>
         
-        <div className="flex bg-gray-100 p-1 rounded-lg">
+        <div className="flex bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
           <button
             onClick={() => setActiveTab('invoices')}
-            className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all ${
-              activeTab === 'invoices' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === 'invoices' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
             }`}
           >
             <Receipt className="w-4 h-4 mr-2" />
@@ -472,8 +475,8 @@ const Invoices: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('accounts')}
-            className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all ${
-              activeTab === 'accounts' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === 'accounts' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
             }`}
           >
             <Users className="w-4 h-4 mr-2" />
@@ -484,41 +487,41 @@ const Invoices: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {activeTab === 'invoices' && can('invoices', 'export') && (
             <>
-              <button onClick={handleImportClick} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                <Upload className="h-4 w-4 mr-2" /> Import
+              <button onClick={handleImportClick} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+                <Upload className="h-4 w-4 mr-2 text-[#64748B]" /> Import
               </button>
-              <button onClick={handleExport} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                <Download className="h-4 w-4 mr-2" /> Export
+              <button onClick={handleExport} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+                <Download className="h-4 w-4 mr-2 text-[#64748B]" /> Export
               </button>
-              <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                <FileText className="h-4 w-4 mr-2" /> Bulk PDF
+              <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+                <FileText className="h-4 w-4 mr-2 text-[#64748B]" /> Bulk PDF
               </button>
             </>
           )}
 
           {can('finance', 'accounts') && (
-            <button onClick={() => setShowManageAccounts(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              <Settings className="h-4 w-4 mr-2" /> Accounts
+            <button onClick={() => setShowManageAccounts(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+              <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Accounts
             </button>
           )}
           {can('finance', 'groups') && (
-            <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              <Settings className="h-4 w-4 mr-2" /> Groups
+            <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+              <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Groups
             </button>
           )}
           {can('finance', 'departments') && (
-            <button onClick={() => setShowManageDepartments(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              <Settings className="h-4 w-4 mr-2" /> Depts
+            <button onClick={() => setShowManageDepartments(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
+              <Settings className="h-4 w-4 mr-2 text-teal-600" /> Depts
             </button>
           )}
 
           {can('invoices', 'categories') && (
-            <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
               Categories
             </button>
           )}
           {can('invoices', 'create') && (
-            <button onClick={() => setShowForm(true)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600">
+            <button onClick={() => setShowForm(true)} className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer">
               <Plus className="h-4 w-4 mr-2" /> Create Invoice
             </button>
           )}
@@ -526,30 +529,39 @@ const Invoices: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#F0F9FF] border-[#BAE6FD] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <h4 className="text-xs sm:text-sm font-bold text-blue-300 uppercase tracking-wider">Gross Billing</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-white mt-1">{formatCurrency(totalInvoicesAmount)}</p>
+            <h4 className="text-xs sm:text-sm font-bold text-[#0284C7] uppercase tracking-wider">Gross Billing</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-[#0284C7] mt-1">{formatCurrency(totalInvoicesAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+          <div className="rounded-xl p-3 border border-[#BAE6FD] bg-white text-[#0284C7] shadow-xs">
             <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
-        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#ECFDF5] border-[#A7F3D0] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <h4 className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wider">Total Received</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-300 mt-1">{formatCurrency(totalPaidAmount)}</p>
+            <h4 className="text-xs sm:text-sm font-bold text-[#059669] uppercase tracking-wider">Total Received</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-[#059669] mt-1">{formatCurrency(totalPaidAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+          <div className="rounded-xl p-3 border border-[#A7F3D0] bg-white text-[#059669] shadow-xs">
             <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
-        <div className="bg-[#16192B] p-5 sm:p-6 rounded-2xl shadow-xl border border-[#2B314E] flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+        <div
+          className="bg-[#FEF2F2] border-[#FECACA] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
+          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+        >
           <div>
-            <h4 className="text-xs sm:text-sm font-bold text-rose-300 uppercase tracking-wider">Total Outstanding</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-rose-400 mt-1">{formatCurrency(totalLookingAmount)}</p>
+            <h4 className="text-xs sm:text-sm font-bold text-[#DC2626] uppercase tracking-wider">Total Outstanding</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-[#DC2626] mt-1">{formatCurrency(totalLookingAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+          <div className="rounded-xl p-3 border border-[#FECACA] bg-white text-[#DC2626] shadow-xs">
             <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>

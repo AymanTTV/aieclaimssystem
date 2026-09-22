@@ -12,8 +12,9 @@ interface CardProps {
   icon: React.ReactNode;
   label: string;
   value: number;
-  labelColor: string;
-  iconWrapperClass: string;
+  bgClass: string;
+  borderClass: string;
+  accentClass: string;
 }
 
 const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
@@ -25,16 +26,19 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
   const domesticCount = claims.filter((c) => c.claimType === 'Domestic').length;
   const piCount = claims.filter((c) => c.claimType === 'PI').length;
 
-  const Card = ({ icon, label, value, labelColor, iconWrapperClass }: CardProps) => (
-    <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl hover:shadow-2xl hover:border-[#3D456E] transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden group">
+  const Card = ({ icon, label, value, bgClass, borderClass, accentClass }: CardProps) => (
+    <div
+      className={`${bgClass} ${borderClass} rounded-2xl shadow-xs transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden`}
+      style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
+    >
       <div className="flex items-center justify-between z-10">
         <div>
-          <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider mb-1 ${labelColor}`}>{label}</p>
-          <h3 className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight">{value}</h3>
+          <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider mb-1 ${accentClass}`}>{label}</p>
+          <h3 className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${accentClass}`}>{value}</h3>
         </div>
         
         {/* Icon Wrapper */}
-        <div className={`p-3 rounded-xl border shadow-xs ${iconWrapperClass}`}>
+        <div className={`p-3 rounded-xl border ${borderClass} bg-white shadow-xs ${accentClass}`}>
           {icon}
         </div>
       </div>
@@ -47,29 +51,33 @@ const ClaimSummaryCards: React.FC<ClaimSummaryCardsProps> = ({ claims }) => {
         icon={<Car className="h-6 w-6 sm:h-7 sm:w-7" />} 
         label="Taxi Claims" 
         value={taxiCount} 
-        labelColor="text-amber-300"
-        iconWrapperClass="bg-amber-500/15 border-amber-500/30 text-amber-400"
+        bgClass="bg-[#FFFBEB]"
+        borderClass="border-[#FDE68A]"
+        accentClass="text-[#D97706]"
       />
       <Card 
         icon={<Bus className="h-6 w-6 sm:h-7 sm:w-7" />} 
         label="PCO Claims" 
         value={pcoCount} 
-        labelColor="text-blue-300"
-        iconWrapperClass="bg-blue-500/15 border-blue-500/30 text-blue-400"
+        bgClass="bg-[#F0F9FF]"
+        borderClass="border-[#BAE6FD]"
+        accentClass="text-[#0284C7]"
       />
       <Card 
         icon={<Home className="h-6 w-6 sm:h-7 sm:w-7" />} 
         label="Domestic Claims" 
         value={domesticCount} 
-        labelColor="text-emerald-300"
-        iconWrapperClass="bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+        bgClass="bg-[#ECFDF5]"
+        borderClass="border-[#A7F3D0]"
+        accentClass="text-[#059669]"
       />
       <Card 
         icon={<User className="h-6 w-6 sm:h-7 sm:w-7" />} 
         label="PI Claims" 
         value={piCount} 
-        labelColor="text-indigo-300"
-        iconWrapperClass="bg-indigo-500/15 border-indigo-500/30 text-indigo-400"
+        bgClass="bg-[#FEF2F2]"
+        borderClass="border-[#FECACA]"
+        accentClass="text-[#DC2626]"
       />
     </div>
   );

@@ -76,7 +76,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   };
 
   return (
-    <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white space-y-4">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A] space-y-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-1/3">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -87,29 +87,29 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search invoices, clients, or vehicles..."
-            className="block w-full pl-10 pr-3.5 py-2.5 border border-[#2B314E] rounded-xl leading-5 bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-inner"
+            className="block w-full pl-10 pr-3.5 py-2.5 border-[1.5px] border-[#CBD5E1] rounded-xl leading-5 bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all shadow-xs"
           />
         </div>
         
-        <label className="flex items-center space-x-2.5 cursor-pointer bg-[#0F111A] px-3.5 py-2 rounded-xl border border-[#2B314E] hover:bg-[#16192B] transition-colors">
+        <label className="flex items-center space-x-2.5 cursor-pointer bg-white px-3.5 py-2 rounded-xl border border-[#CBD5E1] hover:bg-[#F8FAFC] transition-colors shadow-xs">
           <input
             type="checkbox"
             checked={showCompleted}
             onChange={(e) => onShowCompletedChange(e.target.checked)}
-            className="rounded border-[#2B314E] text-blue-600 focus:ring-blue-500 h-4 w-4 bg-[#16192B]"
+            className="rounded border-[#CBD5E1] text-[#2563EB] focus:ring-blue-500 h-4 w-4"
           />
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Show Completed / Paid</span>
+          <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Show Completed / Paid</span>
         </label>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Status</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">Status</label>
           <div className="relative">
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
+              className="w-full min-h-[38px] border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3 shadow-xs"
             >
               <option value="all">All Status</option>
               <option value="partially_paid">Partially Paid</option>
@@ -123,7 +123,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Account"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={accountFilter}
           onChange={createMultiHandler(onAccountFilterChange)}
           options={accountOptions}
@@ -136,7 +136,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Group"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={groupFilter}
           onChange={createMultiHandler(onGroupFilterChange)}
           options={groupOptions}
@@ -149,7 +149,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Department"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={departmentFilter}
           onChange={createMultiHandler(onDepartmentFilterChange)}
           options={deptOptions}
@@ -162,7 +162,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
 
         <SearchableSelect
           label="Category"
-          labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+          labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5"
           value={categoryFilter}
           onChange={createMultiHandler(onCategoryFilterChange)}
           options={categoryOptions}
@@ -174,18 +174,18 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         />
 
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">From</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">From</label>
           <input
             type="date"
             value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
             onChange={(e) =>
               onDateRangeChange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })
             }
-            className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
+            className="w-full min-h-[38px] border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3 shadow-xs"
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">To</label>
+          <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1.5">To</label>
           <input
             type="date"
             value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
@@ -193,7 +193,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               onDateRangeChange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })
             }
             min={dateRange.start ? dateRange.start.toISOString().split('T')[0] : undefined}
-            className="w-full min-h-[38px] border border-[#2B314E] rounded-xl bg-[#0F111A] text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3"
+            className="w-full min-h-[38px] border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none px-3 shadow-xs"
           />
         </div>
       </div>

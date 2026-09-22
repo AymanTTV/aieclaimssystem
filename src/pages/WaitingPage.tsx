@@ -367,28 +367,28 @@ const WaitingPage: React.FC = () => {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Total</div>
-          <div className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.total}</div>
+        <div className="p-5 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs hover:border-slate-300 transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-blue-600">Total</div>
+          <div className="mt-1 text-3xl font-black font-mono text-slate-900 tracking-tight">{summary.total}</div>
         </div>
-        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-amber-300">Expiring Offers (24h)</div>
-          <div className="mt-1 text-3xl font-black font-mono text-amber-200 tracking-tight">{summary.expiring}</div>
+        <div className="p-5 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs hover:border-slate-300 transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-600">Expiring Offers (24h)</div>
+          <div className="mt-1 text-3xl font-black font-mono text-amber-600 tracking-tight">{summary.expiring}</div>
         </div>
-        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-purple-300">Avg days in Waiting</div>
-          <div className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.avgWaiting}</div>
+        <div className="p-5 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs hover:border-slate-300 transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-purple-600">Avg days in Waiting</div>
+          <div className="mt-1 text-3xl font-black font-mono text-slate-900 tracking-tight">{summary.avgWaiting}</div>
         </div>
-        <div className="p-5 bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl hover:border-[#3D456E] transition-all duration-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">Booked</div>
-          <div className="mt-1 text-3xl font-black font-mono text-emerald-300 tracking-tight">{summary.byStatus.booked || 0}</div>
+        <div className="p-5 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs hover:border-slate-300 transition-all duration-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Booked</div>
+          <div className="mt-1 text-3xl font-black font-mono text-emerald-600 tracking-tight">{summary.byStatus.booked || 0}</div>
         </div>
       </div>
 
       {/* FILTERS BAR */}
-      <div className="p-4 bg-[#16192B] border border-[#2B314E] rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 items-end shadow-md">
+      <div className="p-4 bg-white border border-[#E2E8F0] rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 items-end shadow-xs text-slate-900">
         <div>
-          <label htmlFor="waiting-search-input" className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
+          <label htmlFor="waiting-search-input" className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
             Search
           </label>
           <div className="relative">
@@ -401,14 +401,14 @@ const WaitingPage: React.FC = () => {
               value={qText}
               onChange={(e) => setQText(e.target.value)}
               placeholder="Name, phone, notes, dates, tags…"
-              className="block w-full pl-9 pr-8 py-2 bg-[#0F111A] border border-white/20 rounded-xl text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors shadow-inner"
+              className="block w-full pl-9 pr-8 py-2 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
             {qText && (
               <button
                 type="button"
                 id="waiting-search-clear"
                 onClick={() => setQText('')}
-                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white"
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-700"
                 title="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
@@ -417,18 +417,18 @@ const WaitingPage: React.FC = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="waiting-status-filter" className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
+          <label htmlFor="waiting-status-filter" className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
             Status
           </label>
           <select
             id="waiting-status-filter"
-            className="block w-full py-2 px-3 bg-[#0F111A] border border-white/20 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer shadow-inner"
+            className="block w-full py-2 px-3 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
           >
-            <option value="all" className="bg-[#0F111A] text-white">All Statuses</option>
+            <option value="all">All Statuses</option>
             {STATUS_FLOW.map((s) => (
-              <option key={s} value={s} className="bg-[#0F111A] text-white">
+              <option key={s} value={s}>
                 {s.replace('_', ' ').toUpperCase()}
               </option>
             ))}
@@ -441,9 +441,9 @@ const WaitingPage: React.FC = () => {
               type="checkbox"
               checked={showCompleted}
               onChange={(e) => setShowCompleted(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-[#0F111A] text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              className="h-4 w-4 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 cursor-pointer"
             />
-            <span className="text-xs sm:text-sm font-semibold text-white">
+            <span className="text-xs sm:text-sm font-semibold text-slate-700">
               Show completed
             </span>
           </label>

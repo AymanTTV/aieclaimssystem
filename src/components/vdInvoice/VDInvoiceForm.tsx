@@ -730,25 +730,25 @@ const VDInvoiceForm: React.FC<VDInvoiceFormProps> = ({
             <span>Paint/Materials:</span>
             <span>£{formData.paintMaterials.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm font-medium pt-2 border-t">
+          <div className="flex justify-between text-sm font-semibold pt-2 border-t text-[#000000]">
             <span>Subtotal (net):</span>
-            <span>£{subtotal.toFixed(2)}</span>
+            <span className="font-mono">£{subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between text-sm font-semibold text-[#2563EB]">
             <span>VAT:</span>
-            <span>£{vatAmount.toFixed(2)}</span>
+            <span className="font-mono">£{vatAmount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-lg font-bold pt-2 border-t">
+          <div className="flex justify-between text-lg font-bold pt-2 border-t text-[#D97706]">
             <span>Total:</span>
-            <span>£{total.toFixed(2)}</span>
+            <span className="font-mono">£{total.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm text-green-600">
+          <div className="flex justify-between text-sm font-bold text-[#15803D]">
             <span>Amount Paid:</span>
-            <span>£{formData.paidAmount.toFixed(2)}</span>
+            <span className="font-mono">£{formData.paidAmount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm text-amber-600">
+          <div className={`flex justify-between text-sm font-bold ${(total - formData.paidAmount) > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
             <span>Remaining Amount:</span>
-            <span>£{(total - formData.paidAmount).toFixed(2)}</span>
+            <span className="font-mono">£{(total - formData.paidAmount).toFixed(2)}</span>
           </div>
         </div>
 

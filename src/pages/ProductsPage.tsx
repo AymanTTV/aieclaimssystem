@@ -120,6 +120,14 @@ const ProductsPage: React.FC = () => {
   const { can } = usePermissions();
   const { user } = useAuth();
 
+  const summary = useMemo(() => {
+    const totalCount = products.length;
+    const totalStock = products.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
+    const outOfStock = products.filter(p => (Number(p.quantity) || 0) <= 0).length;
+    const totalCats = categories.length;
+    return { totalCount, totalStock, outOfStock, totalCats };
+  }, [products, categories]);
+
   const openProductForm = (prod?: Product) => {
     startTransition(() => {
       if (prod) {
@@ -272,42 +280,37 @@ const ProductsPage: React.FC = () => {
     return `£${Math.max(val, 0).toFixed(2)}`;
   };
 
-  const summary = useMemo(() => {
-    const totalCount = products.length;
-    const totalStock = products.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
-    const outOfStock = products.filter(p => (Number(p.quantity) || 0) <= 0).length;
-    const totalCats = categories.length;
-    return { totalCount, totalStock, outOfStock, totalCats };
-  }, [products, categories]);
-
   return (
-    <div className="space-y-6 p-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Products</h1>
-        <div className="flex space-x-2">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Products & Inventory</h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Parts catalogue, vehicle spare assignments, stock levels, and warehouse bin locations.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {can('products', 'categories') && (
             <button
               onClick={() => openCatForm()}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer"
             >
               Manage Categories
-            </button>
-          )}
-          {can('products', 'create') && (
-            <button
-              onClick={() => openProductForm()}
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-600"
-            >
-              + Add Product
             </button>
           )}
           {can('products', 'export') && (
             <button
               onClick={() => handleProductExport(products, categories)}
-              className="inline-flex items-center px-4 py-2 rounded-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer"
             >
-              <Download className="h-5 w-5 mr-2" />
+              <Download className="h-4 w-4 mr-1.5 text-[#64748B]" />
               Export
+            </button>
+          )}
+          {can('products', 'create') && (
+            <button
+              onClick={() => openProductForm()}
+              className="inline-flex items-center px-4 py-2.5 bg-[#059669] hover:bg-[#047857] text-white rounded-xl text-sm font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              + Add Product
             </button>
           )}
         </div>
@@ -316,42 +319,42 @@ const ProductsPage: React.FC = () => {
       {/* SUMMARY CARDS */}
       {can('products', 'cards') && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+          <div className="bg-[#F0F9FF] rounded-2xl border border-[#BAE6FD] shadow-xs p-5 flex items-center justify-between text-[#0F172A] hover:border-sky-300 transition-all">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-300">Total Products</p>
-              <p className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.totalCount}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0284C7]">Total Products</p>
+              <p className="mt-1 text-3xl font-black font-mono text-[#0369A1] tracking-tight">{summary.totalCount}</p>
             </div>
-            <div className="p-3 rounded-xl border bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-xs">
+            <div className="p-3 rounded-xl border border-[#BAE6FD] bg-white text-[#0284C7] shadow-xs">
               <Box className="h-6 w-6" />
             </div>
           </div>
 
-          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+          <div className="bg-[#ECFDF5] rounded-2xl border border-[#A7F3D0] shadow-xs p-5 flex items-center justify-between text-[#0F172A] hover:border-emerald-300 transition-all">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Total Stock Qty</p>
-              <p className="mt-1 text-3xl font-black font-mono text-emerald-300 tracking-tight">{summary.totalStock}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#059669]">Total Stock Qty</p>
+              <p className="mt-1 text-3xl font-black font-mono text-[#047857] tracking-tight">{summary.totalStock}</p>
             </div>
-            <div className="p-3 rounded-xl border bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs">
+            <div className="p-3 rounded-xl border border-[#A7F3D0] bg-white text-[#059669] shadow-xs">
               <Layers className="h-6 w-6" />
             </div>
           </div>
 
-          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+          <div className="bg-[#FEF2F2] rounded-2xl border border-[#FECACA] shadow-xs p-5 flex items-center justify-between text-[#0F172A] hover:border-red-300 transition-all">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-rose-300">Out of Stock</p>
-              <p className="mt-1 text-3xl font-black font-mono text-rose-400 tracking-tight">{summary.outOfStock}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#DC2626]">Out of Stock</p>
+              <p className="mt-1 text-3xl font-black font-mono text-[#B91C1C] tracking-tight">{summary.outOfStock}</p>
             </div>
-            <div className="p-3 rounded-xl border bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-xs">
+            <div className="p-3 rounded-xl border border-[#FECACA] bg-white text-[#DC2626] shadow-xs">
               <AlertCircle className="h-6 w-6" />
             </div>
           </div>
 
-          <div className="bg-[#16192B] rounded-2xl border border-[#2B314E] shadow-xl p-5 flex items-center justify-between text-white hover:border-[#3D456E] transition-all">
+          <div className="bg-[#FAF5FF] rounded-2xl border border-[#E9D5FF] shadow-xs p-5 flex items-center justify-between text-[#0F172A] hover:border-purple-300 transition-all">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Categories</p>
-              <p className="mt-1 text-3xl font-black font-mono text-white tracking-tight">{summary.totalCats}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#7E22CE]">Categories</p>
+              <p className="mt-1 text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{summary.totalCats}</p>
             </div>
-            <div className="p-3 rounded-xl border bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-xs">
+            <div className="p-3 rounded-xl border border-[#E9D5FF] bg-white text-[#7E22CE] shadow-xs">
               <Package className="h-6 w-6" />
             </div>
           </div>
@@ -359,16 +362,16 @@ const ProductsPage: React.FC = () => {
       )}
 
       {/* FILTER & SEARCH BAR */}
-      <div className="bg-[#16192B] border border-[#2B314E] rounded-2xl shadow-xl p-4 sm:p-5 text-white">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A]">
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#64748B] mb-1.5">
               Search Products
             </label>
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
               <input
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#2B314E] bg-[#0F111A] text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner transition-all"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
                 placeholder="Search by Part Number, Product Name, Bin Location…"
                 value={searchTerm}
                 onChange={handleSearch}
@@ -376,17 +379,17 @@ const ProductsPage: React.FC = () => {
             </div>
           </div>
           <div className="w-full sm:w-64">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#64748B] mb-1.5">
               Category
             </label>
             <select
-              className="w-full py-2.5 px-3.5 border border-[#2B314E] rounded-xl bg-[#0F111A] text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-inner cursor-pointer"
+              className="w-full py-2.5 px-3.5 border-[1.5px] border-[#CBD5E1] rounded-xl bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs cursor-pointer font-medium"
               value={filterCat}
               onChange={handleFilter}
             >
-              <option value="" className="bg-[#0F111A] text-white">All Categories</option>
+              <option value="">All Categories</option>
               {categories.map(c => (
-                <option key={c.id} value={c.id} className="bg-[#0F111A] text-white">{c.name}</option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>

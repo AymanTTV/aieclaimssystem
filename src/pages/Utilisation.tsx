@@ -669,18 +669,21 @@ const Utilisation = () => {
     <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* HEADER & ACTIONS */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-          <Activity className="w-8 h-8 text-primary" />
-          Fleet Utilisation
-        </h1>
-        <div className="flex gap-2">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight flex items-center gap-2">
+            <Activity className="w-7 h-7 text-[#2563EB]" />
+            Fleet Utilisation
+          </h1>
+          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Fleet utilisation percentages, rental active days, off-road maintenance, and mileage tracking.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {can('utilisation', 'export') && (
-            <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all">
-              <FileSpreadsheet className="w-4 h-4 text-green-600" /> Export Excel
+            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] hover:bg-[#F8FAFC] shadow-xs transition-colors cursor-pointer">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Excel
             </button>
           )}
           {can('utilisation', 'export') && (
-            <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:bg-primary-600 transition-all">
+            <button onClick={handleExportPDF} className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2563EB] text-white rounded-xl text-sm font-bold shadow-xs hover:bg-[#1D4ED8] transition-colors cursor-pointer">
               <Download className="w-4 h-4" /> Export Report
             </button>
           )}
@@ -689,71 +692,71 @@ const Utilisation = () => {
 
      {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-blue-400/50 transition-colors">
-          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-blue-400 rounded-xl mt-1 shrink-0">
+        <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] flex items-start gap-4 hover:border-sky-300 transition-colors">
+          <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl mt-1 shrink-0 shadow-xs">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Avg Utilisation</p>
-            <p className="text-2xl font-black text-white">{avgUtilisation.toFixed(1)}%</p>
-            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Average time rented vs available time across the fleet.</p>
+            <p className="text-xs font-bold text-[#0284C7] uppercase tracking-wider">Avg Utilisation</p>
+            <p className="text-2xl font-black text-[#0369A1]">{avgUtilisation.toFixed(1)}%</p>
+            <p className="text-[10px] text-[#64748B] mt-1 leading-tight">Average time rented vs available time across the fleet.</p>
           </div>
         </div>
         
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-purple-400/50 transition-colors">
-          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-purple-400 rounded-xl mt-1 shrink-0">
+        <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] flex items-start gap-4 hover:border-purple-300 transition-colors">
+          <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl mt-1 shrink-0 shadow-xs">
             <Car className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Vehicles</p>
-            <p className="text-2xl font-black text-white">{filteredData.length}</p>
-            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Vehicles matching your current search and parameters.</p>
+            <p className="text-xs font-bold text-[#7E22CE] uppercase tracking-wider">Active Vehicles</p>
+            <p className="text-2xl font-black text-[#6B21A8]">{filteredData.length}</p>
+            <p className="text-[10px] text-[#64748B] mt-1 leading-tight">Vehicles matching your current search and parameters.</p>
           </div>
         </div>
 
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-emerald-400/50 transition-colors">
-          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-emerald-400 rounded-xl mt-1 shrink-0">
+        <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] flex items-start gap-4 hover:border-emerald-300 transition-colors">
+          <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl mt-1 shrink-0 shadow-xs">
             <Clock className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total Days Rented</p>
-            <p className="text-2xl font-black text-white">{totalRentedDays}</p>
-            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Sum of all confirmed rental days in this specific period.</p>
+            <p className="text-xs font-bold text-[#059669] uppercase tracking-wider">Total Days Rented</p>
+            <p className="text-2xl font-black text-[#047857]">{totalRentedDays}</p>
+            <p className="text-[10px] text-[#64748B] mt-1 leading-tight">Sum of all confirmed rental days in this specific period.</p>
           </div>
         </div>
         
-        <div className="bg-[#16192B] p-5 rounded-2xl shadow-xl border border-[#2B314E] flex items-start gap-4 hover:border-rose-400/50 transition-colors">
-          <div className="p-3 bg-[#1E2238] border border-[#2B314E] text-rose-400 rounded-xl mt-1 shrink-0">
+        <div className="bg-[#FEF2F2] p-5 rounded-2xl shadow-xs border border-[#FECACA] flex items-start gap-4 hover:border-red-300 transition-colors">
+          <div className="p-3 bg-white border border-[#FECACA] text-[#DC2626] rounded-xl mt-1 shrink-0 shadow-xs">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Underutilised (&lt;30%)</p>
-            <p className="text-2xl font-black text-white">{underutilisedCount}</p>
-            <p className="text-[10px] text-slate-400 mt-1 leading-tight">Vehicles rented for less than 30% of their available time.</p>
+            <p className="text-xs font-bold text-[#DC2626] uppercase tracking-wider">Underutilised (&lt;30%)</p>
+            <p className="text-2xl font-black text-[#B91C1C]">{underutilisedCount}</p>
+            <p className="text-[10px] text-[#64748B] mt-1 leading-tight">Vehicles rented for less than 30% of their available time.</p>
           </div>
         </div>
       </div>
 
       {/* ADVANCED FILTERS */}
-      <div className="rounded-2xl border border-[#2B314E] shadow-xl overflow-hidden bg-[#16192B]">
-        <div className="bg-[#1E2238] text-white px-5 py-3.5 border-b border-[#2B314E] flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-white">
-            <Filter className="w-4 h-4 text-blue-400" />
+      <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
+        <div className="bg-[#F8FAFC] text-[#0F172A] px-5 py-3.5 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#0F172A]">
+            <Filter className="w-4 h-4 text-[#2563EB]" />
             <span>Analysis Parameters</span>
           </div>
-          <span className="text-xs text-slate-300 font-medium">Filter by keyword, vehicle, model, utilisation range & date range</span>
+          <span className="text-xs text-[#64748B] font-medium">Filter by keyword, vehicle, model, utilisation range & date range</span>
         </div>
         
         <div className="p-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
            <div className="lg:col-span-3">
-             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Search Keyword</label>
+             <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Search Keyword</label>
              <div className="relative">
-               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/>
+               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]"/>
                <input 
                  value={searchQuery} 
                  onChange={(e) => setSearchQuery(e.target.value)} 
-                 className="w-full pl-9 py-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500" 
+                 className="w-full pl-9 py-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-[#94A3B8] shadow-xs" 
                  placeholder="Reg, Model, Driver..." 
                />
              </div>
@@ -762,7 +765,7 @@ const Utilisation = () => {
            <div className="lg:col-span-2 z-20">
              <SearchableSelect
                label="Registrations"
-               labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1"
+               labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
                options={vehicleOptions}
                value={selectedVehicles}
                onChange={setSelectedVehicles}
@@ -774,7 +777,7 @@ const Utilisation = () => {
            <div className="lg:col-span-2 z-10">
              <SearchableSelect
                label="Models"
-               labelClassName="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1"
+               labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
                options={modelOptions}
                value={selectedModels}
                onChange={setSelectedModels}
@@ -784,54 +787,54 @@ const Utilisation = () => {
            </div>
 
            <div className="lg:col-span-2">
-             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Utilisation Range (%)</label>
+             <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Utilisation Range (%)</label>
              <div className="flex items-center gap-2">
                <input 
                  type="number" 
                  placeholder="Min" 
                  value={utilMin} 
                  onChange={e => setUtilMin(e.target.value === '' ? '' : Number(e.target.value))} 
-                 className="w-full py-2 px-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center placeholder-slate-500" 
+                 className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
                />
-               <span className="text-slate-400 font-bold">-</span>
+               <span className="text-[#94A3B8] font-bold">-</span>
                <input 
                  type="number" 
                  placeholder="Max" 
                  value={utilMax} 
                  onChange={e => setUtilMax(e.target.value === '' ? '' : Number(e.target.value))} 
-                 className="w-full py-2 px-2 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center placeholder-slate-500" 
+                 className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
                />
              </div>
            </div>
 
            <div className="lg:col-span-3 grid grid-cols-2 gap-2">
              <div>
-               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Start Date</label>
+               <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Start Date</label>
                <input
                  type="date"
                  value={startDate}
                  onChange={e => setStartDate(e.target.value)}
-                 className="w-full py-2 px-3 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+                 className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
                />
              </div>
              <div>
-               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">End Date</label>
+               <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">End Date</label>
                <input
                  type="date"
                  value={endDate}
                  onChange={e => setEndDate(e.target.value)}
-                 className="w-full py-2 px-3 bg-[#0F111A] text-white border border-[#2B314E] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+                 className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
                />
              </div>
            </div>
 
-           <div className="lg:col-span-12 flex items-center mt-4 pt-3 border-t border-[#2B314E]/60">
-             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300 uppercase tracking-wider hover:text-white transition-colors">
+           <div className="lg:col-span-12 flex items-center mt-4 pt-3 border-t border-[#E2E8F0]">
+             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#475569] uppercase tracking-wider hover:text-[#0F172A] transition-colors">
                <input 
                  type="checkbox" 
                  checked={showSold} 
                  onChange={e => setShowSold(e.target.checked)} 
-                 className="rounded border-[#2B314E] bg-[#0F111A] text-blue-500 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
+                 className="rounded border-[#CBD5E1] bg-white text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
                />
                Include Sold Vehicles
              </label>
@@ -889,10 +892,10 @@ const Utilisation = () => {
             </div>
 
             {/* Time Metrics Table Row */}
-            <div className="bg-white border border-[#2B314E] rounded-2xl overflow-hidden shadow-sm">
-               <div className="bg-[#16192B] px-5 py-3 border-b border-[#2B314E] flex items-center gap-2">
-                 <Clock className="w-4 h-4 text-blue-400"/>
-                 <h4 className="font-bold text-xs uppercase tracking-wider text-white">Time & Activity Metrics</h4>
+            <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-xs">
+               <div className="bg-[#F8FAFC] px-5 py-3 border-b border-[#E2E8F0] flex items-center gap-2">
+                 <Clock className="w-4 h-4 text-blue-600"/>
+                 <h4 className="font-bold text-xs uppercase tracking-wider text-[#334155]">Time & Activity Metrics</h4>
                </div>
                <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
                  <div className="p-4 text-center bg-white">
@@ -915,10 +918,10 @@ const Utilisation = () => {
             </div>
 
             {/* Usage Estimates Table Row */}
-            <div className="bg-white border border-[#2B314E] rounded-2xl overflow-hidden shadow-sm">
-               <div className="bg-[#16192B] px-5 py-3 border-b border-[#2B314E] flex items-center gap-2">
-                 <TrendingUp className="w-4 h-4 text-emerald-400"/>
-                 <h4 className="font-bold text-xs uppercase tracking-wider text-white">Calculated Usage Estimates</h4>
+            <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-xs">
+               <div className="bg-[#F8FAFC] px-5 py-3 border-b border-[#E2E8F0] flex items-center gap-2">
+                 <TrendingUp className="w-4 h-4 text-emerald-600"/>
+                 <h4 className="font-bold text-xs uppercase tracking-wider text-[#334155]">Calculated Usage Estimates</h4>
                </div>
                <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
                  <div className="p-4 text-center bg-white">
@@ -941,7 +944,7 @@ const Utilisation = () => {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">
-               <button onClick={() => setSelectedRecord(null)} className="px-6 py-2.5 bg-[#16192B] text-white rounded-xl text-sm font-bold hover:bg-[#2B314E] transition-colors cursor-pointer">Close Details</button>
+               <button onClick={() => setSelectedRecord(null)} className="px-6 py-2.5 bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors cursor-pointer shadow-xs">Close Details</button>
             </div>
           </div>
         )}
