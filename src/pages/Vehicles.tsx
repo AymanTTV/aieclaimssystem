@@ -750,15 +750,15 @@ const Vehicles: React.FC = () => {
       />
 
       {/* Assign to Garage Modal */}
-      <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage" theme="navy">
+      <Modal isOpen={showAssignModal} onClose={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }} title="Assign to Garage">
         <form onSubmit={handleAssignGarageSubmit} className="space-y-4">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-700">
             {assigningSingleVehicle 
               ? `Select a company/garage to assign to ${assigningSingleVehicle.registrationNumber}.`
               : `Select a company/garage to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner min-h-[220px]">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs min-h-[220px]">
             <SearchableSelect
               label="Available Garages / Companies"
               options={[
@@ -771,18 +771,18 @@ const Vehicles: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={() => { setShowAssignModal(false); setAssigningSingleVehicle(null); }}
-              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+              className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 bg-white hover:bg-slate-100 font-semibold transition-all cursor-pointer shadow-2xs"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!selectedGarageId}
-              className="px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm hover:bg-orange-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+              className="px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm hover:bg-orange-700 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
             >
               Confirm Assignment
             </button>
@@ -791,9 +791,9 @@ const Vehicles: React.FC = () => {
       </Modal>
 
       {/* Assign Type Modal */}
-      <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type" theme="navy">
+      <Modal isOpen={showAssignTypeModal} onClose={() => { setShowAssignTypeModal(false); setAssigningTypeSingleVehicle(null); }} title="Assign Vehicle Type">
         <form onSubmit={handleAssignTypeSubmit} className="space-y-4">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-700">
             {assigningTypeSingleVehicle 
               ? `Select a type to assign to ${assigningTypeSingleVehicle.registrationNumber}.`
               : `Select a type to assign to the ${selectedIds.size} selected vehicles.`}
@@ -826,7 +826,7 @@ const Vehicles: React.FC = () => {
             <button
               type="submit"
               disabled={!selectedAssignmentType}
-              className="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+              className="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-700 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
             >
               Confirm Assignment
             </button>
@@ -835,15 +835,15 @@ const Vehicles: React.FC = () => {
       </Modal>
 
       {/* Assign Group Modal */}
-      <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group" theme="navy">
+      <Modal isOpen={showAssignGroupModal} onClose={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }} title="Assign Finance Group">
         <form onSubmit={handleAssignGroupSubmit} className="space-y-4">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-700">
             {assigningGroupSingleVehicle 
               ? `Select a finance group to assign to ${assigningGroupSingleVehicle.registrationNumber}.`
               : `Select a finance group to assign to the ${selectedIds.size} selected vehicles.`}
           </p>
 
-          <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner min-h-[220px]">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs min-h-[220px]">
             <SearchableSelect
               label="Available Groups"
               options={[
@@ -856,18 +856,18 @@ const Vehicles: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-[#2B314E]">
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={() => { setShowAssignGroupModal(false); setAssigningGroupSingleVehicle(null); }}
-              className="px-5 py-2.5 border border-[#2B314E] rounded-xl text-sm text-slate-300 bg-[#0F111A] hover:bg-[#1C2038] hover:text-white font-semibold transition-all cursor-pointer"
+              className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 bg-white hover:bg-slate-100 font-semibold transition-all cursor-pointer shadow-2xs"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!selectedGroupId}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-500 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
+              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50 font-bold shadow-md transition-all cursor-pointer"
             >
               Confirm Assignment
             </button>
@@ -880,7 +880,6 @@ const Vehicles: React.FC = () => {
           isOpen
           onClose={() => setServiceVehicle(null)}
           title="Update Mileage"
-          theme="navy"
         >
           <MileageUpdateForm
             vehicle={serviceVehicle}
@@ -904,7 +903,6 @@ const Vehicles: React.FC = () => {
           }}
           title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
           size="xl"
-          theme="navy"
           contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
         >
           <VehicleForm

@@ -222,7 +222,8 @@ const MemberInvoices: React.FC = () => {
         isOpen={!!selected}
         onClose={() => setSelected(null)}
         title="Invoice Details"
-        size="xl"
+        size="3xl"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
       >
         {selected && (
           <InvoiceDetails

@@ -449,16 +449,16 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     >
       <div className="space-y-5">
         {/* Top Header Controls: Channel & Step Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
           {/* Dual-Channel Dispatch Selector */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800/80 p-1 rounded-xl">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
               onClick={() => setChannel('email')}
               className={`flex items-center px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 channel === 'email'
-                  ? 'bg-white dark:bg-gray-700 text-primary shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Mail className="w-4 h-4 mr-2" />
@@ -470,7 +470,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               className={`flex items-center px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 channel === 'whatsapp'
                   ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <MessageCircle className="w-4 h-4 mr-2" />
@@ -485,8 +485,8 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               onClick={() => setActiveTab('compose')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 activeTab === 'compose'
-                  ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 ring-1 ring-purple-300 dark:ring-purple-700'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Radio className="w-3.5 h-3.5" />
@@ -497,8 +497,8 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               onClick={() => setActiveTab('recipients')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 activeTab === 'recipients'
-                  ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 ring-1 ring-purple-300 dark:ring-purple-700'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -510,7 +510,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 activeTab === 'dispatch'
                   ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Send className="w-3.5 h-3.5" />
@@ -527,15 +527,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             {/* Left: Editor form */}
             <div className="lg:col-span-8 space-y-4">
               {/* Template selector & Save banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200 dark:border-gray-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Select From Template Library
                   </label>
                   <select
                     value={selectedTemplateId}
                     onChange={(e) => handleSelectTemplate(e.target.value)}
-                    className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-purple-500 focus:border-purple-500 py-1.5"
+                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500 py-1.5"
                   >
                     <optgroup label="✨ Preset Announcements">
                       {templates
@@ -576,7 +576,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     type="button"
                     onClick={() => handleSaveTemplate(true)}
                     disabled={isSavingTemplate}
-                    className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 transition-colors"
+                    className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors"
                     title="Save as new copy in database"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
@@ -588,7 +588,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               {/* Template Name & Subject */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
                     Template Name
                   </label>
                   <input
@@ -596,11 +596,11 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
                     placeholder="e.g. Easter Holiday Operations Update"
-                    className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-purple-500 focus:border-purple-500"
+                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
                     Subject Line / Headline
                   </label>
                   <input
@@ -608,7 +608,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     value={subjectTemplate}
                     onChange={(e) => setSubjectTemplate(e.target.value)}
                     placeholder="e.g. Important Service Notice - {customer_name}"
-                    className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-purple-500 focus:border-purple-500"
+                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
                   />
                 </div>
               </div>
@@ -616,19 +616,19 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               {/* Placeholder insertion chips */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center">
                     <Sparkles className="w-3.5 h-3.5 mr-1 text-purple-600" />
                     Insert Placeholder Tags (Click to add):
                   </label>
-                  <span className="text-[11px] text-gray-400">Replaced automatically per recipient</span>
+                  <span className="text-[11px] text-slate-500">Replaced automatically per recipient</span>
                 </div>
-                <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-800">
+                <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
                   {AVAILABLE_PLACEHOLDERS.map((ph) => (
                     <button
                       key={ph.tag}
                       type="button"
                       onClick={() => insertPlaceholder(ph.tag)}
-                      className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors"
+                      className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
                       title={ph.desc}
                     >
                       {ph.tag}
@@ -640,7 +640,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               {/* Message Body Textarea */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-xs font-medium text-slate-700">
                     Message Body Text
                   </label>
                   <button
@@ -657,15 +657,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   value={bodyTemplate}
                   onChange={(e) => setBodyTemplate(e.target.value)}
                   rows={8}
-                  className="w-full text-sm font-sans rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full text-sm font-sans rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Enter message text here..."
                 />
               </div>
 
               {/* Attachment & Media Section */}
-              <div className="p-3.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30">
+              <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center">
+                  <span className="text-xs font-bold text-slate-800 flex items-center">
                     <Paperclip className="w-4 h-4 mr-1.5 text-purple-600" />
                     Attach Document or Media (PDF / Image)
                   </span>
@@ -673,7 +673,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowMediaUrlInput(!showMediaUrlInput)}
-                      className="text-xs text-purple-600 hover:underline"
+                      className="text-xs text-purple-600 hover:underline font-medium"
                     >
                       {showMediaUrlInput ? 'Upload File Instead' : 'Use Existing Media URL'}
                     </button>
@@ -688,7 +688,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                       value={manualMediaUrl}
                       onChange={(e) => setManualMediaUrl(e.target.value)}
                       placeholder="https://example.com/document.pdf or image link"
-                      className="flex-1 text-xs rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white py-1.5"
+                      className="flex-1 text-xs rounded-lg border-slate-300 bg-white text-slate-900 py-1.5"
                     />
                     <button
                       type="button"
@@ -710,7 +710,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     />
                     <label
                       htmlFor="group-msg-file-input"
-                      className="flex items-center justify-center p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/80 cursor-pointer transition-colors"
+                      className="flex items-center justify-center p-3 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors"
                     >
                       {isUploadingAttachment ? (
                         <div className="flex items-center text-xs text-purple-600">
@@ -718,7 +718,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                           Uploading media to cloud storage...
                         </div>
                       ) : (
-                        <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center text-xs text-slate-600">
                           <ImageIcon className="w-4 h-4 mr-2 text-purple-600" />
                           Click to select a JPG, PNG, or PDF file to attach
                         </div>
@@ -729,7 +729,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
                 {/* Attached file badge */}
                 {attachment && (
-                  <div className="mt-2.5 flex items-center justify-between p-2.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <div className="mt-2.5 flex items-center justify-between p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
                     <div className="flex items-center space-x-2.5 overflow-hidden">
                       {attachment.type.startsWith('image/') ? (
                         <img
@@ -739,15 +739,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="w-9 h-9 bg-purple-100 dark:bg-purple-900 text-purple-600 rounded-md flex items-center justify-center">
+                        <div className="w-9 h-9 bg-purple-100 text-purple-600 rounded-md flex items-center justify-center">
                           <FileText className="w-5 h-5" />
                         </div>
                       )}
                       <div className="truncate">
-                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                        <p className="text-xs font-bold text-slate-900 truncate">
                           {attachment.name}
                         </p>
-                        <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                        <p className="text-[11px] text-purple-700">
                           {attachment.type.includes('pdf') ? 'PDF Document' : 'Image File'} •{' '}
                           {attachment.size > 0 ? `${(attachment.size / 1024).toFixed(1)} KB` : 'Attached URL'}
                         </p>
@@ -756,7 +756,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setAttachment(null)}
-                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      className="p-1 text-slate-400 hover:text-red-600 transition-colors"
                       title="Remove Attachment"
                     >
                       <X className="w-4 h-4" />
@@ -769,8 +769,8 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             {/* Right: Quick Target Summary & Live Preview */}
             <div className="lg:col-span-4 space-y-4">
               {/* Audience Target Summary Card */}
-              <div className="p-4 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Target Recipient Group
                 </h4>
 
@@ -780,15 +780,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     onClick={() => setCategory('members')}
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'members'
-                        ? 'border-purple-600 bg-purple-50/80 dark:bg-purple-950/60 ring-1 ring-purple-600'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                        ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
+                        : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-900 dark:text-white">Members</span>
+                      <span className="text-xs font-bold text-slate-900">Members</span>
                       <Users className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-gray-500">{categoryCounts.members} drivers</span>
+                    <span className="text-[11px] text-slate-500">{categoryCounts.members} drivers</span>
                   </button>
 
                   <button
@@ -796,15 +796,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     onClick={() => setCategory('companies')}
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'companies'
-                        ? 'border-purple-600 bg-purple-50/80 dark:bg-purple-950/60 ring-1 ring-purple-600'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                        ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
+                        : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-900 dark:text-white">Companies</span>
+                      <span className="text-xs font-bold text-slate-900">Companies</span>
                       <Building2 className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-gray-500">{categoryCounts.companies} accounts</span>
+                    <span className="text-[11px] text-slate-500">{categoryCounts.companies} accounts</span>
                   </button>
 
                   <button
@@ -812,15 +812,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     onClick={() => setCategory('claims')}
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'claims'
-                        ? 'border-purple-600 bg-purple-50/80 dark:bg-purple-950/60 ring-1 ring-purple-600'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                        ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
+                        : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-900 dark:text-white">Claims</span>
+                      <span className="text-xs font-bold text-slate-900">Claims</span>
                       <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-gray-500">{categoryCounts.claims} contacts</span>
+                    <span className="text-[11px] text-slate-500">{categoryCounts.claims} contacts</span>
                   </button>
 
                   <button
@@ -828,21 +828,21 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     onClick={() => setCategory('all')}
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'all'
-                        ? 'border-purple-600 bg-purple-50/80 dark:bg-purple-950/60 ring-1 ring-purple-600'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                        ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
+                        : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-900 dark:text-white">All</span>
+                      <span className="text-xs font-bold text-slate-900">All</span>
                       <Radio className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-gray-500">{categoryCounts.all} total</span>
+                    <span className="text-[11px] text-slate-500">{categoryCounts.all} total</span>
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-xs text-gray-600 dark:text-gray-300">
+                <div className="pt-2 border-t border-slate-200 flex justify-between text-xs text-slate-600">
                   <span>Selected for Dispatch:</span>
-                  <span className="font-bold text-purple-600 dark:text-purple-400">
+                  <span className="font-bold text-purple-600">
                     {eligibleRecipients.length} / {categoryRecipients.length}
                   </span>
                 </div>
@@ -850,7 +850,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('recipients')}
-                  className="w-full py-1.5 text-xs text-center font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 rounded-lg hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
+                  className="w-full py-1.5 text-xs text-center font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
                 >
                   Manage Individual Recipients
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -858,28 +858,28 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               </div>
 
               {/* Live Preview Card */}
-              <div className="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2.5 shadow-xs">
+              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center">
+                  <span className="text-xs font-bold text-slate-800 flex items-center">
                     <Eye className="w-3.5 h-3.5 mr-1 text-purple-600" />
                     Live Rendered Preview
                   </span>
-                  <span className="text-[11px] text-gray-400 font-mono">
+                  <span className="text-[11px] text-slate-500 font-mono">
                     Sample: {sampleRecipient.name}
                   </span>
                 </div>
 
-                <div className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg border border-gray-100 dark:border-gray-800 text-xs space-y-2 overflow-y-auto max-h-[300px]">
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2 overflow-y-auto max-h-[300px]">
                   {channel === 'email' && (
-                    <div className="border-b border-gray-200 dark:border-gray-700 pb-1.5 mb-1.5">
-                      <span className="font-semibold text-gray-500">Subject: </span>
-                      <span className="font-bold text-gray-900 dark:text-white">
+                    <div className="border-b border-slate-200 pb-1.5 mb-1.5">
+                      <span className="font-semibold text-slate-500">Subject: </span>
+                      <span className="font-bold text-slate-900">
                         {previewSubject || '(Empty subject)'}
                       </span>
                     </div>
                   )}
 
-                  <div className="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200 leading-relaxed text-[12px]">
+                  <div className="whitespace-pre-wrap font-sans text-slate-800 leading-relaxed text-[12px]">
                     {previewBody || '(Empty body)'}
                   </div>
                 </div>
@@ -923,7 +923,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                         active
                           ? 'bg-purple-600 text-white shadow-xs'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
@@ -935,19 +935,19 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
               {/* Search Bar */}
               <div className="relative min-w-[240px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
                   value={recipientSearch}
                   onChange={(e) => setRecipientSearch(e.target.value)}
                   placeholder="Search recipients by name, phone, email..."
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border-slate-300 bg-white text-slate-900"
                 />
               </div>
             </div>
 
             {/* Selection Toolbar */}
-            <div className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-800 text-xs">
+            <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
               <div className="flex items-center space-x-3">
                 <button
                   type="button"
@@ -964,14 +964,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     </>
                   )}
                 </button>
-                <span className="text-gray-400">|</span>
-                <span className="text-gray-600 dark:text-gray-300">
+                <span className="text-slate-300">|</span>
+                <span className="text-slate-700">
                   Selected: <strong className="text-purple-600">{selectedRecipientIds.size}</strong> total (
                   {eligibleRecipients.length} valid for {channel === 'email' ? 'Email' : 'WhatsApp'})
                 </span>
               </div>
 
-              <span className="text-[11px] text-gray-500">
+              <span className="text-[11px] text-slate-500">
                 Channel: <strong>{channel === 'email' ? 'Bulk Email' : 'Bulk WhatsApp'}</strong>
               </span>
             </div>
@@ -1072,7 +1072,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('compose')}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-700 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                className="px-4 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50"
               >
                 Back to Compose
               </button>
@@ -1094,13 +1094,13 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
         {activeTab === 'dispatch' && (
           <div className="space-y-4">
             {/* Dispatch Summary Banner */}
-            <div className="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 bg-purple-50 rounded-xl border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-bold text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+                <h4 className="text-sm font-bold text-purple-950 flex items-center gap-1.5">
                   <Send className="w-4 h-4 text-purple-600" />
                   Ready to Dispatch: {channel === 'email' ? 'Bulk Email Broadcast' : 'Bulk WhatsApp Broadcast'}
                 </h4>
-                <p className="text-xs text-purple-800 dark:text-purple-300 mt-0.5">
+                <p className="text-xs text-purple-800 mt-0.5">
                   Template: <strong>{templateName}</strong> • Targeted Audience:{' '}
                   <strong className="capitalize">{category}</strong> • Eligible Recipients:{' '}
                   <strong>{eligibleRecipients.length}</strong>
@@ -1142,8 +1142,8 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
             {/* EMAIL PROGRESS BAR */}
             {channel === 'email' && emailProgress.total > 0 && (
-              <div className="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2">
-                <div className="flex justify-between text-xs font-semibold">
+              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between text-xs font-semibold text-slate-700">
                   <span>
                     Progress: {emailProgress.completed} / {emailProgress.total} completed
                   </span>
@@ -1152,7 +1152,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     <strong className="text-red-600">{emailProgress.failed}</strong>
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                   <div
                     className="bg-purple-600 h-full transition-all duration-300"
                     style={{
@@ -1175,7 +1175,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             {/* WHATSAPP RECIPIENT QUEUE */}
             {channel === 'whatsapp' && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>
                     Click each recipient below to launch their customized WhatsApp message with attachment payload:
                   </span>
@@ -1184,7 +1184,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   </span>
                 </div>
 
-                <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden max-h-[380px] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[380px] overflow-y-auto divide-y divide-slate-100">
                   {eligibleRecipients.map((rec) => {
                     const isOpened = !!openedWhatsAppIds[rec.id];
                     return (
@@ -1192,8 +1192,8 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                         key={rec.id}
                         className={`p-3 flex items-center justify-between gap-3 transition-colors ${
                           isOpened
-                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20'
-                            : 'bg-white dark:bg-gray-900 hover:bg-gray-50'
+                            ? 'bg-emerald-50/40'
+                            : 'bg-white hover:bg-slate-50'
                         }`}
                       >
                         <div className="flex items-center space-x-3 overflow-hidden">
@@ -1201,16 +1201,16 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                               isOpened
                                 ? 'bg-emerald-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600'
+                                : 'bg-slate-100 text-slate-700'
                             }`}
                           >
                             {isOpened ? <CheckCircle2 className="w-4 h-4" /> : rec.name[0]}
                           </div>
                           <div className="truncate">
-                            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                            <p className="text-xs font-bold text-slate-900 truncate">
                               {rec.name}
                             </p>
-                            <p className="text-[11px] text-gray-500 font-mono">
+                            <p className="text-[11px] text-slate-500 font-mono">
                               {rec.phone} • <span className="capitalize">{rec.category}</span>
                             </p>
                           </div>
@@ -1224,7 +1224,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                               navigator.clipboard.writeText(previewMsg);
                               toast.success('Personalized message copied!');
                             }}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md border border-gray-200 dark:border-gray-700"
+                            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md border border-slate-200"
                             title="Copy message text"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -1234,7 +1234,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                             onClick={() => handleOpenWhatsAppRecipient(rec)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
                               isOpened
-                                ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300'
+                                ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                             }`}
                           >
@@ -1250,18 +1250,18 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             )}
 
             {/* Final Navigation Actions */}
-            <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setActiveTab('compose')}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-700 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                className="px-4 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50"
               >
                 Back to Compose
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-800 dark:text-gray-200 text-xs font-semibold rounded-lg"
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg"
               >
                 Done / Close
               </button>

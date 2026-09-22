@@ -307,23 +307,21 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           className={`w-full min-h-[38px] border-[1.5px] transition-all ${
             error
               ? 'border-red-500'
-              : isDark
-              ? 'border-white/20'
               : required
               ? 'border-[#CBD5E1] border-l-4 border-l-red-500'
               : 'border-[#CBD5E1]'
-          } ${isDark ? 'rounded-xl bg-[#0f1022] text-white shadow-inner' : 'rounded-xl bg-white text-[#0F172A] shadow-2xs'} ${
+          } rounded-xl bg-white text-[#0F172A] shadow-2xs ${
             disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           } relative`}
           onClick={() => !disabled && setIsOpen(true)}
         >
           <div className="flex flex-wrap items-center gap-1 p-1 pr-8">
             {!isMulti && !isOpen && (
-              <div className={`px-2 py-1 w-full truncate text-sm font-medium ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>
+              <div className="px-2 py-1 w-full truncate text-sm font-medium text-[#0F172A]">
                 {selectedIds.length > 0 && selectedIds[0] !== allId ? (
                   <span>{getOptionLabel(selectedIds[0])}</span>
                 ) : (
-                  <span className={isDark ? 'text-slate-400' : 'text-slate-400 font-normal'}>{placeholder}</span>
+                  <span className="text-slate-400 font-normal">{placeholder}</span>
                 )}
               </div>
             )}
@@ -335,25 +333,25 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             {isClearable && !isValueEmpty && !disabled && (
               <button
                 type="button"
-                className={`p-1 rounded-full mr-1 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                className="p-1 rounded-full mr-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                 onClick={clearAll}
                 aria-label="Clear selection"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
-            {!isOpen && !isMulti && <Search className={`h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />}
+            {!isOpen && !isMulti && <Search className="h-4 w-4 text-slate-400" />}
           </div>
 
           {isOpen && !isMulti && (
-            <div className={`absolute inset-0 z-10 rounded-xl flex items-center px-3 border ${isDark ? 'bg-[#0f1022] border-indigo-500/50' : 'bg-white border-blue-500 shadow-xs'}`}>
-              <Search className={`h-4 w-4 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
+            <div className="absolute inset-0 z-10 rounded-xl flex items-center px-3 border bg-white border-blue-500 shadow-xs">
+              <Search className="h-4 w-4 mr-2 text-slate-400" />
               <input
                 ref={inputRef}
                 type="text"
                 autoComplete="off"
                 data-lpignore="true"
-                className={`flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none ${isDark ? 'text-white placeholder-slate-400' : 'text-[#0F172A] placeholder-slate-400'}`}
+                className="flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none text-[#0F172A] placeholder-slate-400"
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

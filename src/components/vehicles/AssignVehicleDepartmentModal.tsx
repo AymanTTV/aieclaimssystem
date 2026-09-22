@@ -67,15 +67,15 @@ const AssignVehicleDepartmentModal: React.FC<AssignVehicleDepartmentModalProps> 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Department" size="sm" theme="navy">
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Department" size="sm">
       <form onSubmit={handleAssign} className="space-y-4">
-        <p className="text-sm text-slate-300">
+        <p className="text-sm text-slate-700">
           {singleVehicle 
             ? `Select a department to assign to ${singleVehicle.registrationNumber}.`
             : `Select a department to assign to the ${selectedIds.size} selected vehicles.`}
         </p>
 
-        <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-4 shadow-inner">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-2xs">
           <SearchableSelect
             label="Select Department"
             options={[
@@ -88,19 +88,19 @@ const AssignVehicleDepartmentModal: React.FC<AssignVehicleDepartmentModalProps> 
           />
         </div>
 
-        <div className="flex justify-end space-x-3 pt-4 border-t border-[#2B314E]">
+        <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 border border-[#2B314E] rounded-xl bg-[#0F111A] text-slate-300 font-semibold hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
+            className="px-4 py-2 border border-slate-300 rounded-xl bg-white text-slate-700 font-semibold hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading || !selectedDepartment}
-            className="px-4 py-2 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-500 disabled:opacity-50 shadow-sm transition-all cursor-pointer"
+            className="px-4 py-2 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50 shadow-sm transition-all cursor-pointer"
           >
             {loading ? 'Assigning...' : 'Assign Department'}
           </button>

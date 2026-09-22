@@ -16,13 +16,13 @@ const VehicleDocumentsUpload: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-100 dark:border-[#2B2B40]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-100">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
             Vehicle Documents
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             {regNumber ? (
               <span>
                 Upload compliance and licensing documentation for{' '}
@@ -35,7 +35,7 @@ const VehicleDocumentsUpload: React.FC = () => {
             )}
           </p>
         </div>
-        <div className="inline-flex items-center gap-1.5 text-xs bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 flex-shrink-0">
+        <div className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 flex-shrink-0">
           <Info className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Documents can be uploaded now or updated later</span>
         </div>

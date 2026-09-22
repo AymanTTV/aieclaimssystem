@@ -1123,11 +1123,18 @@ const Finance: React.FC = () => {
       </Modal>
 
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
-      <Modal isOpen={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} title="Transaction Details" size="xl">
+      <Modal 
+        isOpen={showDetailsModal} 
+        onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} 
+        title="Transaction Details" 
+        size="2xl"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
+      >
         {selectedTransaction && ( 
           <TransactionDetails 
             transaction={selectedTransaction} 
             vehicle={vehicles.find(v => v.id === selectedTransaction.vehicleId)} 
+            customer={customers.find(c => c.id === selectedTransaction.customerId)}
             accounts={accounts} 
             groups={groups} 
             departments={departments} 

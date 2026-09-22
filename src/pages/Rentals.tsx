@@ -475,96 +475,113 @@ const Rentals = () => {
       <RentalSummaryCards rentals={filteredRentals} vehicles={vehicles} />
 
       {/* --- ENHANCED HEADER ACTION BAR --- */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+      <div className="space-y-4 mb-2">
+        {/* Title Section (Top) */}
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Rentals</h1>
+          <h1 className="text-2xl sm:text-[26px] font-bold text-[#0F172A] tracking-tight leading-tight">Rentals</h1>
           <p className="text-sm text-[#64748B] mt-0.5 font-medium">Manage hire agreements, bookings, documents, and payments.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {can('rentals', 'export') && (
-            <>
-              <button 
-                onClick={handleGenerateBulkDocument} 
-                className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
-              >
-                <FileText className="h-4 w-4 mr-2 text-[#64748B]" />
-                <span className="truncate">PDF Report</span>
-              </button>
-              <button 
-                onClick={handleExport} 
-                className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
-              >
-                <Download className="h-4 w-4 mr-2 text-[#64748B]" />
-                <span className="truncate">Export CSV</span>
-              </button>
-            </>
-          )}
-          {(can('rentals', 'template') || can('rentals', 'templateEdit') || isAdmin) && (
-            <button 
-              onClick={() => {
-                setRentalTemplatesInitialTab('whatsapp');
-                setShowRentalTemplatesModal(true);
-              }} 
-              className="flex items-center px-4 py-2 border border-emerald-300 rounded-xl shadow-xs text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all cursor-pointer"
-              title="Open WhatsApp & Email Template Navigation Tabs"
-            >
-              <MessageSquare className="h-4 w-4 mr-2 text-emerald-600" />
-              <span className="truncate">Message Templates</span>
-            </button>
-          )}
-          {can('rentals', 'reminder') && (
-            <button 
-              onClick={() => {
-                setMondayAutoEmailTab('templates');
-                setShowMondayAutoEmailModal(true);
-              }} 
-              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
-              title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
-            >
-              <Settings2 className="h-4 w-4 mr-2 text-[#64748B]" />
-              <span className="truncate">Reminder Templates</span>
-            </button>
-          )}
-          {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && (
-            <button 
-              onClick={() => {
-                setMondayAutoEmailTab('list');
-                setShowMondayAutoEmailModal(true);
-              }} 
-              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
-              title="Manage Monday Auto-Email for Active Rentals"
-            >
-              <Mail className="h-4 w-4 mr-2 text-[#64748B]" />
-              <span className="truncate">Monday Auto-Email</span>
-            </button>
-          )}
-          {can('rentals', 'availableVehicles') && (
-            <button 
-              onClick={() => setShowAvailableVehicles(true)} 
-              className="flex items-center px-4 py-2 border border-amber-300 rounded-xl shadow-xs text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all"
-            >
-              <Car className="h-4 w-4 mr-2 text-amber-600" />
-              <span className="truncate">Available Vehicles</span>
-            </button>
-          )}
-          {can('rentals', 'syncStatus') && (
-            <button 
-              onClick={syncVehicleStatuses} 
-              className="flex items-center px-4 py-2 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-all"
-            >
-              <RefreshCwIcon className="h-4 w-4 mr-2 text-[#64748B]" />
-              <span className="truncate">Sync Statuses</span>
-            </button>
-          )}
-          {can('rentals', 'create') && (
-            <button 
-              onClick={() => setShowForm(true)} 
-              className="flex items-center px-5 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-all cursor-pointer"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              <span className="truncate">Schedule Rental</span>
-            </button>
-          )}
+
+        {/* Single-Line Action Bar (Bottom) */}
+        <div className="w-full overflow-x-auto pb-1">
+          <div className="min-w-[1020px] flex items-center justify-between gap-3">
+            {/* Left side: Utility & Export buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              {can('rentals', 'export') && (
+                <>
+                  <button 
+                    onClick={handleGenerateBulkDocument} 
+                    className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                    title="Export PDF Report"
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                    <span>PDF Report</span>
+                  </button>
+                  <button 
+                    onClick={handleExport} 
+                    className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                    title="Export CSV"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                    <span>Export CSV</span>
+                  </button>
+                </>
+              )}
+              {can('rentals', 'syncStatus') && (
+                <button 
+                  onClick={syncVehicleStatuses} 
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                  title="Sync Vehicle Statuses"
+                >
+                  <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                  <span>Sync Statuses</span>
+                </button>
+              )}
+            </div>
+
+            {/* Right side: Management & Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              {(can('rentals', 'template') || can('rentals', 'templateEdit') || isAdmin) && (
+                <button 
+                  onClick={() => {
+                    setRentalTemplatesInitialTab('whatsapp');
+                    setShowRentalTemplatesModal(true);
+                  }} 
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                  title="Open Message Templates"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                  <span>Message Templates</span>
+                </button>
+              )}
+              {can('rentals', 'reminder') && (
+                <button 
+                  onClick={() => {
+                    setMondayAutoEmailTab('templates');
+                    setShowMondayAutoEmailModal(true);
+                  }} 
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                  title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
+                >
+                  <Settings2 className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                  <span>Reminder Templates</span>
+                </button>
+              )}
+              {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && (
+                <button 
+                  onClick={() => {
+                    setMondayAutoEmailTab('list');
+                    setShowMondayAutoEmailModal(true);
+                  }} 
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                  title="Manage Monday Auto-Email for Active Rentals"
+                >
+                  <Mail className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                  <span>Monday Auto-Email</span>
+                </button>
+              )}
+              {can('rentals', 'availableVehicles') && (
+                <button 
+                  onClick={() => setShowAvailableVehicles(true)} 
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
+                  title="View Available Vehicles"
+                >
+                  <Car className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                  <span>Available Vehicles</span>
+                </button>
+              )}
+              {can('rentals', 'create') && (
+                <button 
+                  onClick={() => setShowForm(true)} 
+                  className="inline-flex items-center px-4 py-2 rounded-xl shadow-sm text-xs sm:text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+                  title="Schedule New Rental"
+                >
+                  <Plus className="h-4 w-4 mr-1.5 text-white" />
+                  <span>+ Schedule Rental</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

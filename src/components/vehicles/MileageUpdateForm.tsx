@@ -119,7 +119,7 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-[#0F111A] border border-[#2B314E] rounded-2xl p-5 shadow-inner space-y-4">
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 text-slate-800">
         <FormField
           type="date"
           label="Record Date"
@@ -129,8 +129,8 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose,
         />
         <div>
           {!editingRecord && (
-            <p className="text-xs font-semibold text-slate-400 mb-2">
-              Current mileage: <span className="text-white font-bold">{(vehicle.mileage || 0).toLocaleString()} mi</span>
+            <p className="text-xs font-semibold text-slate-500 mb-2">
+              Current mileage: <span className="text-slate-900 font-black font-mono">{(vehicle.mileage || 0).toLocaleString()} mi</span>
             </p>
           )}
           <FormField
@@ -159,14 +159,14 @@ const MileageUpdateForm: React.FC<MileageUpdateFormProps> = ({ vehicle, onClose,
         <button
           type="button"
           onClick={onClose}
-          className="px-5 py-2.5 text-sm font-semibold text-slate-300 bg-[#0F111A] border border-[#2B314E] rounded-xl hover:bg-[#1C2038] hover:text-white transition-all cursor-pointer"
+          className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+          className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
         >
           {loading ? 'Saving...' : editingRecord ? 'Save Changes' : 'Update Mileage'}
         </button>

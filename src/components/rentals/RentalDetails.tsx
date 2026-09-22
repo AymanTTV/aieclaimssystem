@@ -2192,15 +2192,15 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
 
             {/* WhatsApp Message Preview & Textarea */}
-            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-[#0c1317] shadow-inner">
-              <div className="bg-[#075e54] text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between">
+            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+              <div className="bg-emerald-700 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse" />
                   <span>WhatsApp Message Preview</span>
                 </div>
-                <span className="text-[10px] text-emerald-200 font-normal">Fully editable message</span>
+                <span className="text-[10px] text-emerald-100 font-normal">Fully editable message</span>
               </div>
-              <div className="p-4">
+              <div className="p-4 bg-emerald-50/20">
                 <textarea
                   rows={9}
                   value={commMessage}

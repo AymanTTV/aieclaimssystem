@@ -87,7 +87,6 @@ const VehicleSaleModal: React.FC<VehicleSaleModalProps> = ({ vehicle, onClose })
       isOpen={true}
       onClose={onClose}
       title="Mark Vehicle as Sold"
-      theme="navy"
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

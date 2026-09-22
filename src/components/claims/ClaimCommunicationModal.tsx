@@ -776,16 +776,16 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
         </div>
 
         {/* Template Picker */}
-        <div className="bg-gray-50 dark:bg-[#1E1E2D] p-3.5 rounded-xl border border-gray-200 dark:border-[#2B2B40]">
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <label className="block text-xs font-semibold text-slate-700">
               Select Template ({filteredTemplates.length} available)
             </label>
             {canChangeTemplate && (
               <button
                 type="button"
                 onClick={handleRefreshPlaceholders}
-                className="text-xs text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1 font-medium transition-colors"
+                className="text-xs text-primary hover:text-primary-700 flex items-center gap-1 font-medium transition-colors"
                 title="Re-populate template with current field values"
               >
                 <RefreshCw className="h-3 w-3" />
@@ -984,29 +984,29 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
         )}
 
         {/* SELECTABLE ATTACHMENTS (OPTIONAL) SECTION */}
-        <div className="bg-[#1E1E2D] rounded-xl p-4 border border-[#2B2B40] space-y-3.5 shadow-sm attachment-container" data-attachment-box="true">
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3.5 shadow-2xs attachment-container" data-attachment-box="true">
           {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#2B2B40]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 bg-primary/20 text-primary-300 rounded-lg">
+              <div className="p-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">
                 <Paperclip className="h-4 w-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-gray-200 uppercase tracking-wider attachment-title">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wider attachment-title">
                     Select Attachments (Optional)
                   </label>
                   {selectedFileIds.length > 0 ? (
-                    <span className="px-2 py-0.5 text-[11px] font-semibold bg-primary/20 text-primary-300 rounded-full border border-primary/30">
+                    <span className="px-2 py-0.5 text-[11px] font-semibold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
                       {selectedFileIds.length} selected
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 text-[11px] text-gray-400 bg-[#13131A] border border-[#2B2B40] rounded-full">
+                    <span className="px-2 py-0.5 text-[11px] text-slate-500 bg-white border border-slate-200 rounded-full">
                       No files selected (text only)
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {channel === 'whatsapp'
                     ? 'Selected files will have secure download links appended to the bottom of the WhatsApp message body.'
                     : 'Selected documents, evidence files, and photos will be attached directly to the outbound email dispatch.'}
@@ -1019,17 +1019,17 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="text-primary-400 hover:text-primary-300 font-medium px-1.5 py-0.5 rounded hover:bg-primary/10 transition-colors"
+                className="text-indigo-600 hover:text-indigo-800 font-medium px-1.5 py-0.5 rounded hover:bg-indigo-50 transition-colors"
               >
                 Select All ({availableFiles.length})
               </button>
               {imageFiles.length > 0 && (
                 <>
-                  <span className="text-[#3E3E5B]">|</span>
+                  <span className="text-slate-300">|</span>
                   <button
                     type="button"
                     onClick={handleSelectAllImages}
-                    className="text-gray-300 hover:text-white font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+                    className="text-slate-600 hover:text-slate-900 font-medium px-1.5 py-0.5 rounded hover:bg-slate-200 transition-colors"
                   >
                     Photos ({imageFiles.length})
                   </button>
@@ -1037,21 +1037,21 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               )}
               {evidenceDocFiles.length > 0 && (
                 <>
-                  <span className="text-[#3E3E5B]">|</span>
+                  <span className="text-slate-300">|</span>
                   <button
                     type="button"
                     onClick={handleSelectAllDocuments}
-                    className="text-gray-300 hover:text-white font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+                    className="text-slate-600 hover:text-slate-900 font-medium px-1.5 py-0.5 rounded hover:bg-slate-200 transition-colors"
                   >
                     Documents
                   </button>
                 </>
               )}
-              <span className="text-[#3E3E5B]">|</span>
+              <span className="text-slate-300">|</span>
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-gray-400 hover:text-gray-200 font-medium px-1.5 py-0.5 rounded hover:bg-[#252538] transition-colors"
+                className="text-slate-500 hover:text-slate-800 font-medium px-1.5 py-0.5 rounded hover:bg-slate-200 transition-colors"
               >
                 Clear
               </button>
@@ -1061,26 +1061,26 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           {/* 1. Official Generated Claim Card PDF */}
           {claimCardFile && (
             <div className="space-y-1.5">
-              <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-emerald-400" />
+                  <FileText className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Generated Claim Card PDF</span>
                   {recipientType === 'legalHandler' && (
-                    <span className="text-[10px] text-purple-300 bg-purple-950/60 border border-purple-700/50 px-1.5 py-0.2 rounded font-normal normal-case">
+                    <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded font-semibold normal-case">
                       Default for Legal Handler
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-gray-400 font-mono">
+                <span className="text-[10px] text-slate-500 font-mono">
                   {claimCardAttachment?.filename || claimCardFile.filename}
                 </span>
               </div>
 
               <div
-                className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border text-xs transition-all attachment-item ${
+                className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border text-xs transition-all attachment-item ${
                   selectedFileIds.includes('claim_card_pdf')
-                    ? 'is-selected bg-emerald-950/40 border-emerald-500/80 shadow-xs ring-1 ring-emerald-500/30'
-                    : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                    ? 'is-selected bg-emerald-50/80 border-emerald-300 shadow-2xs ring-1 ring-emerald-400/30'
+                    : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
                 }`}
               >
                 <label className="flex items-start sm:items-center space-x-2.5 cursor-pointer select-none flex-1 pr-2">
@@ -1088,22 +1088,22 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                     type="checkbox"
                     checked={selectedFileIds.includes('claim_card_pdf')}
                     onChange={() => handleToggleFile('claim_card_pdf')}
-                    className="h-4 w-4 mt-0.5 sm:mt-0 rounded border-[#3E3E5B] bg-[#1E1E2D] text-emerald-500 focus:ring-emerald-500 shrink-0"
+                    className="h-4 w-4 mt-0.5 sm:mt-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={`font-semibold ${
-                          selectedFileIds.includes('claim_card_pdf') ? 'text-white' : 'text-gray-200'
+                          selectedFileIds.includes('claim_card_pdf') ? 'text-emerald-950 font-bold' : 'text-slate-800'
                         }`}
                       >
                         {claimCardFile.name}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-900/60 border border-emerald-700/50 text-emerald-200 rounded font-semibold">
+                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-100 border border-emerald-200 text-emerald-800 rounded font-semibold">
                         Official PDF
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
+                    <p className="text-[11px] text-slate-500 mt-0.5">
                       Comprehensive incident particulars, insured & third-party details, vehicle specifications, and client statement.
                     </p>
                   </div>
@@ -1115,7 +1115,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                       href={claimCardAttachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300 hover:text-white bg-[#1E1E2D] border border-emerald-500/40 px-2.5 py-1 rounded shadow-2xs hover:bg-emerald-950/40 transition-colors"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shadow-2xs hover:bg-emerald-100 transition-colors"
                     >
                       <ExternalLink className="h-3 w-3" />
                       Preview PDF
@@ -1125,7 +1125,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                       type="button"
                       onClick={handleRegeneratePdf}
                       disabled={generatingPdf}
-                      className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:underline"
                     >
                       {generatingPdf ? 'Generating...' : 'Generate Preview'}
                     </button>
@@ -1135,10 +1135,10 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                     type="button"
                     onClick={handleRegeneratePdf}
                     disabled={generatingPdf}
-                    className="inline-flex items-center gap-1 text-[11px] text-gray-300 hover:text-white px-2 py-1 rounded border border-[#2B2B40] bg-[#1E1E2D] hover:bg-[#252538] transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-600 hover:text-slate-900 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50"
                     title="Re-generate Claim Card PDF"
                   >
-                    <RefreshCw className={`h-3 w-3 ${generatingPdf ? 'animate-spin text-emerald-400' : ''}`} />
+                    <RefreshCw className={`h-3 w-3 ${generatingPdf ? 'animate-spin text-emerald-600' : ''}`} />
                     <span className="hidden sm:inline">Refresh</span>
                   </button>
                 </div>
@@ -1148,12 +1148,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
           {/* 2. Evidence Files & Documents uploaded to the claim record */}
           <div className="space-y-1.5 pt-1">
-            <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-blue-400" />
+                <FileText className="h-3.5 w-3.5 text-blue-600" />
                 <span>Evidence Files & Documents</span>
               </div>
-              <span className="text-[10px] text-gray-400 font-normal">
+              <span className="text-[10px] text-slate-500 font-normal">
                 {evidenceDocFiles.length} file{evidenceDocFiles.length !== 1 ? 's' : ''} available
               </span>
             </div>
@@ -1165,10 +1165,10 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                   return (
                     <div
                       key={docFile.id}
-                      className={`flex items-center justify-between p-2.5 rounded-lg border text-xs transition-all attachment-item ${
+                      className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all attachment-item ${
                         isSelected
-                          ? 'is-selected bg-blue-950/40 border-blue-500/80 shadow-xs ring-1 ring-blue-500/30'
-                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                          ? 'is-selected bg-blue-50/80 border-blue-300 shadow-2xs ring-1 ring-blue-400/30'
+                          : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
                       }`}
                     >
                       <label className="flex items-center space-x-2 cursor-pointer select-none flex-1 min-w-0 pr-2">
@@ -1176,14 +1176,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleFile(docFile.id)}
-                          className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-blue-500 focus:ring-blue-500 shrink-0"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
                         />
-                        <FileText className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue-400' : 'text-gray-400'}`} />
+                        <FileText className={`h-4 w-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
                         <div className="truncate">
-                          <div className={`truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                          <div className={`truncate font-medium ${isSelected ? 'text-blue-950 font-bold' : 'text-slate-800'}`}>
                             {docFile.name}
                           </div>
-                          <div className="text-[10px] text-gray-400 truncate font-mono">{docFile.filename}</div>
+                          <div className="text-[10px] text-slate-500 truncate font-mono">{docFile.filename}</div>
                         </div>
                       </label>
 
@@ -1192,7 +1192,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                           href={docFile.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-gray-400 hover:text-blue-400 p-1 shrink-0"
+                          className="text-slate-400 hover:text-blue-600 p-1 shrink-0"
                           title="View document in new tab"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -1203,7 +1203,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                 })}
               </div>
             ) : (
-              <div className="text-xs text-gray-400 italic bg-[#13131A] p-2.5 rounded-lg border border-dashed border-[#2B2B40] text-center">
+              <div className="text-xs text-slate-500 italic bg-white p-2.5 rounded-xl border border-dashed border-slate-300 text-center">
                 No additional evidence documents (engineer reports, bank statements, hire forms) uploaded on this claim record.
               </div>
             )}
@@ -1211,12 +1211,12 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
           {/* 3. Claim Images & Photos uploaded under the claim record */}
           <div className="space-y-1.5 pt-1">
-            <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
+            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
+                <ImageIcon className="h-3.5 w-3.5 text-amber-600" />
                 <span>Claim Images & Accident Photos</span>
               </div>
-              <span className="text-[10px] text-gray-400 font-normal">
+              <span className="text-[10px] text-slate-500 font-normal">
                 {imageFiles.length} photo{imageFiles.length !== 1 ? 's' : ''} available
               </span>
             </div>
@@ -1229,13 +1229,13 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                     <div
                       key={imgFile.id}
                       onClick={() => handleToggleFile(imgFile.id)}
-                      className={`group relative flex flex-col p-1.5 rounded-lg border cursor-pointer select-none transition-all attachment-item ${
+                      className={`group relative flex flex-col p-1.5 rounded-xl border cursor-pointer select-none transition-all attachment-item ${
                         isSelected
-                          ? 'is-selected bg-amber-950/40 border-amber-500/80 shadow-xs ring-2 ring-amber-500/40'
-                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:border-[#3E3E5B]'
+                          ? 'is-selected bg-amber-50/80 border-amber-300 shadow-2xs ring-2 ring-amber-400/40'
+                          : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
                       }`}
                     >
-                      <div className="relative w-full h-20 bg-[#0d0e1a] rounded overflow-hidden mb-1.5">
+                      <div className="relative w-full h-20 bg-slate-100 rounded-lg overflow-hidden mb-1.5 border border-slate-200">
                         <img
                           src={imgFile.url}
                           alt={imgFile.name}
@@ -1250,7 +1250,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                               e.stopPropagation();
                               handleToggleFile(imgFile.id);
                             }}
-                            className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-amber-500 focus:ring-amber-500 shadow-xs"
+                            className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 shadow-xs"
                           />
                         </div>
                         <a
@@ -1258,14 +1258,14 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="absolute bottom-1 right-1 p-1 bg-black/70 hover:bg-black/90 text-white rounded text-[10px] transition-colors"
+                          className="absolute bottom-1 right-1 p-1 bg-black/60 hover:bg-black/80 text-white rounded text-[10px] transition-colors"
                           title="View full image"
                         >
                           <Eye className="h-3 w-3" />
                         </a>
                       </div>
                       <div className="px-0.5 truncate">
-                        <div className={`text-[11px] truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                        <div className={`text-[11px] truncate font-medium ${isSelected ? 'text-amber-950 font-bold' : 'text-slate-800'}`}>
                           {imgFile.name}
                         </div>
                       </div>
@@ -1274,7 +1274,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                 })}
               </div>
             ) : (
-              <div className="text-xs text-gray-400 italic bg-[#13131A] p-2.5 rounded-lg border border-dashed border-[#2B2B40] text-center">
+              <div className="text-xs text-slate-500 italic bg-white p-2.5 rounded-xl border border-dashed border-slate-300 text-center">
                 No accident scene or vehicle damage photos uploaded under this claim record.
               </div>
             )}
@@ -1283,8 +1283,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           {/* 4. Evidence Videos (if any) */}
           {videoFiles.length > 0 && (
             <div className="space-y-1.5 pt-1">
-              <div className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
-                <VideoIcon className="h-3.5 w-3.5 text-purple-400" />
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <VideoIcon className="h-3.5 w-3.5 text-purple-600" />
                 <span>Incident Videos ({videoFiles.length})</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1293,8 +1293,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                   return (
                     <div
                       key={vFile.id}
-                      className={`flex items-center justify-between p-2 rounded-lg border text-xs attachment-item ${
-                        isSelected ? 'is-selected bg-purple-950/40 border-purple-500/80 ring-1 ring-purple-500/30' : 'bg-[#13131A] border-[#2B2B40]'
+                      className={`flex items-center justify-between p-2 rounded-xl border text-xs attachment-item ${
+                        isSelected ? 'is-selected bg-purple-50/80 border-purple-300 ring-1 ring-purple-400/30' : 'bg-white border-slate-200'
                       }`}
                     >
                       <label className="flex items-center space-x-2 cursor-pointer select-none flex-1 truncate pr-2">
@@ -1302,17 +1302,17 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleFile(vFile.id)}
-                          className="h-4 w-4 rounded border-[#3E3E5B] bg-[#1E1E2D] text-purple-500 focus:ring-purple-500 shrink-0"
+                          className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 shrink-0"
                         />
-                        <VideoIcon className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-                        <span className={`truncate font-medium ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>{vFile.name}</span>
+                        <VideoIcon className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                        <span className={`truncate font-medium ${isSelected ? 'text-purple-950 font-bold' : 'text-slate-800'}`}>{vFile.name}</span>
                       </label>
                       {vFile.url && (
                         <a
                           href={vFile.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-gray-400 hover:text-purple-400 p-1"
+                          className="text-slate-400 hover:text-purple-600 p-1"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
@@ -1325,15 +1325,15 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           )}
 
           {/* Selection Live Status Footer */}
-          <div className="pt-2 border-t border-[#2B2B40] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+          <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
             {selectedFileIds.length > 0 ? (
-              <span className="text-primary-300 font-medium flex items-center gap-1.5">
-                <Paperclip className="h-3.5 w-3.5 text-primary-400" />
-                <strong className="text-white">{selectedFileIds.length} attachment{selectedFileIds.length > 1 ? 's' : ''}</strong> will be included ({channel === 'whatsapp' ? 'appended as secure download links' : 'directly attached to email'}).
+              <span className="text-indigo-700 font-medium flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5 text-indigo-600" />
+                <strong className="text-slate-900">{selectedFileIds.length} attachment{selectedFileIds.length > 1 ? 's' : ''}</strong> will be included ({channel === 'whatsapp' ? 'appended as secure download links' : 'directly attached to email'}).
               </span>
             ) : (
-              <span className="text-gray-400 italic">
-                💬 <strong className="text-gray-300 font-semibold">No attachments selected.</strong> Only message text will be dispatched.
+              <span className="text-slate-500 italic">
+                💬 <strong className="text-slate-700 font-semibold">No attachments selected.</strong> Only message text will be dispatched.
               </span>
             )}
 
@@ -1341,7 +1341,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-[11px] text-gray-400 hover:text-white underline self-end sm:self-auto"
+                className="text-[11px] text-slate-500 hover:text-slate-800 underline self-end sm:self-auto cursor-pointer"
               >
                 Clear all attachments
               </button>

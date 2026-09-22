@@ -512,18 +512,18 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
       {/* --- DYNAMIC DROPDOWN SELECTION INTERFACE --- */}
       <div className="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 1. WEEKLY RENTALS TEMPLATE SELECTOR */}
-        <div className="bg-[#181938] rounded-2xl border border-white/10 p-4 sm:p-5 flex flex-col justify-between shadow-md">
+        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col justify-between shadow-xs">
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-lg">
+                <span className="p-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg">
                   <Calendar className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-black text-white uppercase tracking-wide">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                     Weekly Rentals Templates
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-[10px] text-slate-500 font-medium">
                     Strictly sourced from Bulk Email module
                   </span>
                 </div>
@@ -533,7 +533,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 <button
                   type="button"
                   onClick={() => setPreviewTab(previewTab === 'weekly' ? null : 'weekly')}
-                  className="text-xs font-bold text-indigo-300 hover:text-white bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1.5 rounded-lg border border-indigo-400/30 shadow-xs flex items-center gap-1 transition cursor-pointer"
+                  className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs flex items-center gap-1 transition cursor-pointer"
                   title="Toggle rendered email preview"
                 >
                   {previewTab === 'weekly' ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -542,7 +542,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
               </div>
             </div>
 
-            <label className="block text-xs text-slate-200 font-bold mb-1.5">
+            <label className="block text-xs text-slate-800 font-bold mb-1.5">
               Assigned Weekly Template:
             </label>
             
@@ -558,13 +558,13 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 typeBadge="Weekly"
               />
 
-              <div className="bg-[#0c0d1c] p-3 rounded-xl border border-white/10 text-xs text-slate-300 space-y-1.5">
-                <div className="font-semibold text-white truncate">
-                  <span className="text-indigo-300 font-normal mr-1.5">Subject:</span>
+              <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5 shadow-2xs">
+                <div className="font-semibold text-slate-900 truncate">
+                  <span className="text-indigo-700 font-semibold mr-1.5">Subject:</span>
                   {selectedWeekly.subjectTemplate}
                 </div>
-                <div className="text-slate-400 line-clamp-2 leading-relaxed">
-                  <span className="text-slate-400 font-normal mr-1.5">Body:</span>
+                <div className="text-slate-600 line-clamp-2 leading-relaxed">
+                  <span className="text-slate-500 font-medium mr-1.5">Body:</span>
                   {selectedWeekly.bodyTemplate}
                 </div>
               </div>
@@ -572,19 +572,19 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
           </div>
 
           {/* Action Row for Weekly: Edit & Select Alternate */}
-          <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] text-indigo-300 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-indigo-400" />
+          <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-indigo-700 font-semibold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-indigo-600" />
               Prior to {formattedTime} dispatch ({dayInfo.shortName}s)
             </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleOpenCreateAlternate('weekly')}
-                className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg shadow-xs transition cursor-pointer"
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-xs transition cursor-pointer"
                 title="Create a new alternate template under Bulk Email module"
               >
-                <Plus className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                <Plus className="w-3.5 h-3.5 mr-1 text-slate-500" />
                 + Alternate
               </button>
               <button
@@ -601,18 +601,18 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
         </div>
 
         {/* 2. DAILY RENTALS TEMPLATE SELECTOR */}
-        <div className="bg-[#181938] rounded-2xl border border-white/10 p-4 sm:p-5 flex flex-col justify-between shadow-md">
+        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col justify-between shadow-xs">
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-lg">
+                <span className="p-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
                   <Clock className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-black text-white uppercase tracking-wide">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                     Daily Rentals Templates
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-[10px] text-slate-500 font-medium">
                     Strictly sourced from Bulk Email module
                   </span>
                 </div>
@@ -622,7 +622,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 <button
                   type="button"
                   onClick={() => setPreviewTab(previewTab === 'daily' ? null : 'daily')}
-                  className="text-xs font-bold text-blue-300 hover:text-white bg-blue-500/20 hover:bg-blue-500/30 px-3 py-1.5 rounded-lg border border-blue-400/30 shadow-xs flex items-center gap-1 transition cursor-pointer"
+                  className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs flex items-center gap-1 transition cursor-pointer"
                   title="Toggle rendered email preview"
                 >
                   {previewTab === 'daily' ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -631,7 +631,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
               </div>
             </div>
 
-            <label className="block text-xs text-slate-200 font-bold mb-1.5">
+            <label className="block text-xs text-slate-800 font-bold mb-1.5">
               Assigned Daily Template:
             </label>
             
@@ -647,13 +647,13 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 typeBadge="Daily"
               />
 
-              <div className="bg-[#0c0d1c] p-3 rounded-xl border border-white/10 text-xs text-slate-300 space-y-1.5">
-                <div className="font-semibold text-white truncate">
-                  <span className="text-blue-300 font-normal mr-1.5">Subject:</span>
+              <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5 shadow-2xs">
+                <div className="font-semibold text-slate-900 truncate">
+                  <span className="text-blue-700 font-semibold mr-1.5">Subject:</span>
                   {selectedDaily.subjectTemplate}
                 </div>
-                <div className="text-slate-400 line-clamp-2 leading-relaxed">
-                  <span className="text-slate-400 font-normal mr-1.5">Body:</span>
+                <div className="text-slate-600 line-clamp-2 leading-relaxed">
+                  <span className="text-slate-500 font-medium mr-1.5">Body:</span>
                   {selectedDaily.bodyTemplate}
                 </div>
               </div>
@@ -661,19 +661,19 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
           </div>
 
           {/* Action Row for Daily: Edit & Select Alternate */}
-          <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] text-blue-300 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-blue-400" />
+          <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-blue-600" />
               Prior to {formattedTime} dispatch ({dayInfo.shortName}s)
             </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleOpenCreateAlternate('daily')}
-                className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg shadow-xs transition cursor-pointer"
+                className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-xs transition cursor-pointer"
                 title="Create a new alternate template under Bulk Email module"
               >
-                <Plus className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                <Plus className="w-3.5 h-3.5 mr-1 text-slate-500" />
                 + Alternate
               </button>
               <button
@@ -692,20 +692,20 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
       {/* --- INLINE TEMPLATE EDITOR MODAL / EXPANDABLE PANEL --- */}
       {editingTarget && (
-        <div className="p-4 sm:p-5 bg-[#14152c] border-t border-white/10 animate-in fade-in duration-200">
-          <div className="max-w-4xl mx-auto bg-[#181938] rounded-2xl border border-indigo-500/30 shadow-2xl p-4 sm:p-6 space-y-4 text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="p-4 sm:p-5 bg-slate-100 border-t border-slate-200 animate-in fade-in duration-200">
+          <div className="max-w-4xl mx-auto bg-white rounded-2xl border border-indigo-200 shadow-xl p-4 sm:p-6 space-y-4 text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 rounded-xl">
+                <div className="p-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl">
                   <Edit3 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-white">
+                  <h4 className="text-sm font-black text-slate-900">
                     {editingTarget === 'new' 
                       ? 'Create Alternate Bulk Email Template' 
                       : `Edit ${editingTarget === 'weekly' ? 'Weekly' : 'Daily'} Rentals Template`}
                   </h4>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-slate-500">
                     Strictly stored in the Bulk Email module (category = &apos;Bulk Email&apos;) for {dayInfo.shortName} {formattedTime} auto-dispatch.
                   </p>
                 </div>
@@ -714,7 +714,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
               <button
                 type="button"
                 onClick={() => setEditingTarget(null)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -722,7 +722,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
             {/* Template Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-200 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Template Name:
               </label>
               <input
@@ -730,14 +730,14 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 value={editorForm.name}
                 onChange={e => setEditorForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="e.g. Weekly Rental Payment Reminder (Alternate)"
-                className="w-full text-xs font-bold text-white bg-[#0c0d1c] border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400"
+                className="w-full text-xs font-bold text-[#0F172A] bg-white border-[1.5px] border-[#CBD5E1] rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400 shadow-xs"
               />
             </div>
 
             {/* Subject Line Template */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-200">
+                <label className="text-xs font-bold text-slate-700">
                   Subject Line Template:
                 </label>
                 <button
@@ -747,7 +747,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                     subjectInputRef.current?.focus();
                   }}
                   className={`text-[10px] font-bold px-2 py-0.5 rounded transition cursor-pointer ${
-                    activeEditorField === 'subject' ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-400/30' : 'text-slate-400 hover:text-slate-200'
+                    activeEditorField === 'subject' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Active for placeholder insertion
@@ -760,22 +760,22 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 onFocus={() => setActiveEditorField('subject')}
                 onChange={e => setEditorForm(prev => ({ ...prev, subjectTemplate: e.target.value }))}
                 placeholder="e.g. Weekly Rental Statement Breakdown - {rental_id}"
-                className="w-full text-xs font-mono font-bold text-white bg-[#0c0d1c] border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400"
+                className="w-full text-xs font-mono font-bold text-[#0F172A] bg-white border-[1.5px] border-[#CBD5E1] rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400 shadow-xs"
               />
             </div>
 
             {/* Dynamic Placeholders Toolbar */}
-            <div className="p-3 bg-indigo-950/40 rounded-xl border border-indigo-500/30">
+            <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-indigo-200 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                <span className="text-[11px] font-bold text-indigo-900 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
                   Click to Insert Dynamic Placeholder into{' '}
-                  <span className="underline uppercase tracking-wide text-white">
+                  <span className="underline uppercase tracking-wide text-indigo-950 font-black">
                     {activeEditorField === 'subject' ? 'Subject' : 'Message Body'}
                   </span>
                   :
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium">
+                <span className="text-[10px] text-slate-500 font-medium">
                   Auto-populated on {dayInfo.shortName} {formattedTime} dispatch
                 </span>
               </div>
@@ -785,7 +785,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                     key={item.tag}
                     type="button"
                     onClick={() => handleInsertTag(item.tag)}
-                    className="px-2 py-1 bg-white/10 hover:bg-indigo-600 hover:text-white text-indigo-200 font-mono text-[10px] font-bold rounded-lg border border-indigo-400/30 transition cursor-pointer"
+                    className="px-2 py-1 bg-white hover:bg-indigo-600 hover:text-white text-indigo-800 font-mono text-[10px] font-bold rounded-lg border border-indigo-200 hover:border-indigo-600 transition cursor-pointer shadow-2xs"
                     title={item.desc}
                   >
                     {item.tag}
@@ -797,7 +797,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
             {/* Body Template */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-200">
+                <label className="text-xs font-bold text-slate-700">
                   Message Body Template (Strict Text Only - No Attachments):
                 </label>
                 <button
@@ -807,7 +807,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                     bodyTextareaRef.current?.focus();
                   }}
                   className={`text-[10px] font-bold px-2 py-0.5 rounded transition cursor-pointer ${
-                    activeEditorField === 'body' ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-400/30' : 'text-slate-400 hover:text-slate-200'
+                    activeEditorField === 'body' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Active for placeholder insertion
@@ -820,14 +820,14 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 onFocus={() => setActiveEditorField('body')}
                 onChange={e => setEditorForm(prev => ({ ...prev, bodyTemplate: e.target.value }))}
                 placeholder="Enter email message body..."
-                className="w-full text-xs font-mono text-white bg-[#0c0d1c] border border-white/20 rounded-xl p-3 leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400"
+                className="w-full text-xs font-mono text-[#0F172A] bg-white border-[1.5px] border-[#CBD5E1] rounded-xl p-3 leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400 shadow-xs"
               />
             </div>
 
             {/* Editor Footer Action Buttons */}
-            <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10">
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200">
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Strict Rule: No PDF attachments will be attached to automated dispatches.</span>
               </div>
 
@@ -835,7 +835,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 <button
                   type="button"
                   onClick={() => setEditingTarget(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer shadow-xs"
                 >
                   Cancel
                 </button>
@@ -845,7 +845,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                     type="button"
                     onClick={() => handleSaveTemplateChanges(true)}
                     disabled={savingTemplate}
-                    className="px-3.5 py-2 text-xs font-bold text-indigo-300 hover:text-white bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-xl transition disabled:opacity-50 cursor-pointer"
+                    className="px-3.5 py-2 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-2xs"
                     title="Save this edited version as a new alternate template in Bulk Email"
                   >
                     Save as New Alternate
@@ -890,7 +890,7 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
               <button
                 type="button"
                 onClick={() => setPreviewTab(null)}
-                className="text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 font-bold transition cursor-pointer"
+                className="text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 font-bold transition cursor-pointer shadow-xs"
               >
                 Close Preview
               </button>
@@ -903,21 +903,19 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
                 <div className="space-y-3 text-xs">
                   {/* Subject Field Preview */}
                   <div 
-                    className="p-3 rounded-xl border border-white/15 font-mono text-white text-xs shadow-inner flex items-center gap-2"
-                    style={{ backgroundColor: '#090a18', color: '#ffffff' }}
+                    className="p-3 rounded-xl border border-slate-200 font-mono text-slate-900 text-xs shadow-inner flex items-center gap-2 bg-slate-50"
                   >
-                    <span className="font-bold text-indigo-300 font-sans shrink-0 uppercase tracking-wider text-[11px]">
+                    <span className="font-bold text-indigo-700 font-sans shrink-0 uppercase tracking-wider text-[11px]">
                       Subject:
                     </span>
-                    <span className="text-white font-semibold select-all" style={{ color: '#ffffff' }}>
+                    <span className="text-slate-900 font-semibold select-all">
                       {rendered.subject}
                     </span>
                   </div>
 
                   {/* Body Field Preview */}
                   <div 
-                    className="p-4 rounded-xl border border-white/15 font-mono whitespace-pre-wrap text-slate-100 min-h-[220px] max-h-[500px] overflow-y-auto leading-relaxed text-xs shadow-inner select-all"
-                    style={{ backgroundColor: '#090a18', color: '#f1f5f9' }}
+                    className="p-4 rounded-xl border border-slate-200 font-mono whitespace-pre-wrap text-slate-800 min-h-[220px] max-h-[500px] overflow-y-auto leading-relaxed text-xs shadow-inner select-all bg-white"
                   >
                     {rendered.body}
                   </div>
@@ -940,24 +938,24 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
       {/* --- SYSTEM ENFORCEMENT FOOTER --- */}
       {!isCompact && (
-        <div className="px-5 py-3 bg-[#111224] border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+            <span className="flex items-center gap-1 text-emerald-700 font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               Targeting: Active Daily &amp; Weekly (owing &gt; £0)
             </span>
-            <span className="flex items-center gap-1 text-amber-400 font-bold">
-              <AlertCircle className="w-3.5 h-3.5" />
+            <span className="flex items-center gap-1 text-amber-700 font-bold">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
               Strict Claim/Claims Exclusion
             </span>
-            <span className="flex items-center gap-1 text-slate-300 font-bold">
-              <FileText className="w-3.5 h-3.5" />
+            <span className="flex items-center gap-1 text-slate-700 font-bold">
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
               Strictly No Attachments
             </span>
           </div>
 
-          <div className="text-slate-400 font-medium">
-            Next Scheduled Run: <span className="font-bold text-white">{dayInfo.shortName} at {formattedTime}</span>
+          <div className="text-slate-600 font-medium">
+            Next Scheduled Run: <span className="font-bold text-slate-900">{dayInfo.shortName} at {formattedTime}</span>
           </div>
         </div>
       )}

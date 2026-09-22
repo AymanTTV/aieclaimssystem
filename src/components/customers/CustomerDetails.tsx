@@ -68,13 +68,13 @@ const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string)
   const isPdf = url.toLowerCase().includes('.pdf');
 
   return (
-    <div className="border border-[#2B2B40] bg-[#1E1E2D] rounded-lg p-4 relative group shadow-sm attachment-container">
-      <h4 className="text-sm font-medium text-gray-200 mb-2 truncate">{title}</h4>
-      <div className="w-full h-32 flex flex-col items-center justify-center bg-[#13131A] rounded-md text-center overflow-hidden border border-[#2B2B40]">
+    <div className="border border-slate-200 bg-slate-50 rounded-lg p-4 relative group shadow-xs attachment-container">
+      <h4 className="text-sm font-medium text-slate-800 mb-2 truncate">{title}</h4>
+      <div className="w-full h-32 flex flex-col items-center justify-center bg-white rounded-md text-center overflow-hidden border border-slate-200">
         {isPdf ? (
           <>
-            <FileText className="h-10 w-10 text-gray-400" />
-            <p className="text-xs text-gray-400 mt-2">PDF Document</p>
+            <FileText className="h-10 w-10 text-slate-400" />
+            <p className="text-xs text-slate-500 mt-2">PDF Document</p>
           </>
         ) : (
           <img src={url} alt={title} className="w-full h-full object-cover" />
@@ -82,10 +82,10 @@ const DocumentItem: React.FC<{ title: string; url: string; onView: (url: string)
       </div>
       <button 
         onClick={() => onView(url)} 
-        className="absolute top-2 right-2 p-1.5 bg-[#1E1E2D] border border-[#2B2B40] rounded-full shadow-md hover:bg-[#2A2A3E] text-gray-200 transition-opacity opacity-0 group-hover:opacity-100" 
+        className="absolute top-2 right-2 p-1.5 bg-white border border-slate-200 rounded-full shadow-md hover:bg-slate-100 text-slate-700 transition-opacity opacity-0 group-hover:opacity-100" 
         title="View Document"
       >
-        <Eye className="h-4 w-4 text-gray-300" />
+        <Eye className="h-4 w-4 text-slate-600" />
       </button>
     </div>
   );
@@ -271,9 +271,9 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer }) => {
 
       {/* --- Signature Section --- */}
       {!isCompany && customer.signature && (
-        <div className="pt-6 border-t border-[#2B2B40]">
-          <h3 className="text-lg font-medium text-gray-200 mb-4">Customer Signature</h3>
-          <div className="bg-[#1E1E2D] border border-[#2B2B40] p-4 rounded-lg flex justify-start">
+        <div className="pt-6 border-t border-slate-200">
+          <h3 className="text-lg font-medium text-slate-900 mb-4">Customer Signature</h3>
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex justify-start">
             <img src={customer.signature} alt="Customer Signature" className="max-h-32 object-contain bg-white rounded border border-gray-200 p-2" />
           </div>
         </div>

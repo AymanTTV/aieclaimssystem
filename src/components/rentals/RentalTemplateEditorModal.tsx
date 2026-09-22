@@ -626,10 +626,10 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
                   type="button"
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-300 bg-red-950/50 hover:bg-red-900/60 border border-red-700/50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                   title="Delete this template from database"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
                   <span>{deleting ? 'Deleting...' : 'Delete'}</span>
                 </button>
               )}
@@ -705,9 +705,9 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
                       key={cat}
                       type="button"
                       onClick={() => setToolCategoryFilter(cat)}
-                      className={`px-2 py-0.5 rounded font-medium capitalize transition-all cursor-pointer ${
+                      className={`px-2 py-0.5 rounded font-bold capitalize transition-all cursor-pointer ${
                         toolCategoryFilter === cat
-                          ? 'bg-indigo-600 text-slate-900 shadow-xs'
+                          ? 'bg-indigo-600 text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                       }`}
                     >
@@ -732,8 +732,8 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
                         isReadOnly
                           ? 'opacity-60 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                           : isPayment 
-                            ? 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/40 cursor-pointer active:scale-95' 
-                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 cursor-pointer active:scale-95 shadow-xs'
+                            ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 cursor-pointer active:scale-95 shadow-2xs' 
+                            : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200 cursor-pointer active:scale-95 shadow-2xs'
                       }`}
                     >
                       <Plus className="w-2.5 h-2.5 text-slate-400" />
@@ -742,9 +742,9 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
                   );
                 })}
               </div>
-              <div className="text-[10px] text-slate-400 flex items-center justify-between pt-0.5 border-t border-slate-200">
-                <span>Target: <strong className="text-indigo-400">{activeField === 'subject' ? 'Subject' : 'Message Body'}</strong></span>
-                <span className="text-emerald-400 font-medium">Auto-populates live data</span>
+              <div className="text-[10px] text-slate-500 flex items-center justify-between pt-0.5 border-t border-slate-200">
+                <span>Target: <strong className="text-indigo-700">{activeField === 'subject' ? 'Subject' : 'Message Body'}</strong></span>
+                <span className="text-emerald-700 font-bold">Auto-populates live data</span>
               </div>
             </div>
 
@@ -799,7 +799,7 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center justify-center px-4 py-1.5 text-xs sm:text-sm font-semibold text-slate-900 bg-indigo-600 hover:bg-indigo-700 rounded-lg focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
+                className="inline-flex items-center justify-center px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
               >
                 <Save className="w-3.5 h-3.5 mr-1.5" />
                 {saving ? 'Saving...' : mode === 'create' ? 'Create Template' : 'Save Changes'}

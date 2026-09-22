@@ -638,7 +638,13 @@ const Invoices: React.FC = () => {
   <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} groups={groups} departments={departments} onClose={() => setShowForm(false)} />
 </Modal>
 
-      <Modal isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} title="Invoice Details" size="3xl">
+      <Modal 
+        isOpen={!!selectedInvoice} 
+        onClose={() => setSelectedInvoice(null)} 
+        title="Invoice Details" 
+        size="3xl"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
+      >
   {selectedInvoice && (
     <InvoiceDetails 
       invoice={selectedInvoice} 

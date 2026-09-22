@@ -141,15 +141,15 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           {getBadgeIcon()}
-          {label && <span className="text-xs font-bold text-slate-200">{label}</span>}
-          {sublabel && <span className="text-[10px] text-slate-400 font-medium">({sublabel})</span>}
+          {label && <span className="text-xs font-bold text-slate-900">{label}</span>}
+          {sublabel && <span className="text-[10px] text-slate-500 font-medium">({sublabel})</span>}
         </div>
 
         {selectedTemplate && onEditTemplate && (
           <button
             type="button"
             onClick={() => onEditTemplate(selectedTemplate)}
-            className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center gap-1 py-0.5 px-2 rounded-md hover:bg-indigo-500/20 transition cursor-pointer"
+            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 py-0.5 px-2 rounded-md hover:bg-indigo-50 transition cursor-pointer"
             title="Edit this template layout and subject"
           >
             <Edit3 className="w-3 h-3" />
@@ -162,39 +162,39 @@ export const BulkEmailTemplateSearchableSelect: React.FC<BulkEmailTemplateSearch
       <div
         ref={triggerRef}
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[44px] px-3 py-2 bg-[#131427] border rounded-xl flex items-center justify-between gap-2 transition select-none ${
+        className={`w-full min-h-[44px] px-3 py-2 bg-white border rounded-xl flex items-center justify-between gap-2 transition select-none shadow-2xs ${
           disabled
-            ? 'opacity-50 bg-[#0f1020] cursor-not-allowed border-white/10'
+            ? 'opacity-50 bg-slate-100 cursor-not-allowed border-slate-200 text-slate-400'
             : isOpen
             ? 'border-indigo-500 ring-2 ring-indigo-500/30 shadow-md cursor-pointer'
-            : 'border-white/15 hover:border-indigo-400/50 hover:bg-[#181a33] cursor-pointer shadow-sm'
+            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 cursor-pointer shadow-xs'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="p-1.5 bg-indigo-500/20 text-indigo-300 rounded-lg shrink-0">
+          <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shrink-0 border border-indigo-100">
             <Mail className="w-4 h-4" />
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white truncate">
+              <span className="text-xs font-bold text-slate-900 truncate">
                 {selectedTemplate ? selectedTemplate.name : 'Choose template...'}
               </span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                 Bulk Email
               </span>
             </div>
             {selectedTemplate && selectedTemplate.subjectTemplate && (
-              <p className="text-[11px] text-slate-300 truncate mt-0.5">
-                <span className="font-semibold text-indigo-300">Subj:</span> {selectedTemplate.subjectTemplate}
+              <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                <span className="font-semibold text-indigo-700">Subj:</span> {selectedTemplate.subjectTemplate}
               </p>
             )}
           </div>
         </div>
 
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
-            isOpen ? 'rotate-180 text-indigo-400' : ''
+          className={`w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200 ${
+            isOpen ? 'rotate-180 text-indigo-600' : ''
           }`}
         />
       </div>

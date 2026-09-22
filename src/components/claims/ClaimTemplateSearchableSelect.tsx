@@ -195,10 +195,10 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all duration-150 select-none shadow-xs ${
           disabled
-            ? 'opacity-60 cursor-not-allowed bg-gray-100 border-gray-200 dark:bg-[#1A1A26] dark:border-[#2B2B40]'
+            ? 'opacity-60 cursor-not-allowed bg-gray-100 border-gray-200'
             : isOpen
-            ? 'border-primary ring-2 ring-primary/20 bg-white dark:bg-[#1E1E2D] dark:border-primary'
-            : 'border-gray-300 bg-white hover:border-gray-400 dark:bg-[#1E1E2D] dark:border-[#2B2B40] dark:hover:border-[#3E3E5B]'
+            ? 'border-primary ring-2 ring-primary/20 bg-white'
+            : 'border-gray-300 bg-white hover:border-gray-400'
         }`}
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -214,7 +214,7 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
 
           {selectedTemplate ? (
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              <span className="text-sm font-medium text-gray-900 truncate">
                 {selectedTemplate.name}
               </span>
               {getCategoryBadge(selectedTemplate.category, selectedTemplate.isCustom)}
@@ -251,10 +251,10 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
               width: `${dropdownPosition.width}px`,
               zIndex: 9999,
             }}
-            className="rounded-xl border border-gray-200 dark:border-[#2B2B40] bg-white dark:bg-[#1E1E2D] shadow-2xl overflow-hidden flex flex-col max-h-[380px] animate-in fade-in-50 zoom-in-95 duration-100"
+            className="rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[380px] animate-in fade-in-50 zoom-in-95 duration-100"
           >
             {/* Search Input Bar (search-as-you-type) */}
-            <div className="p-2.5 border-b border-gray-100 dark:border-[#2B2B40] bg-gray-50/80 dark:bg-[#161622]/90 sticky top-0 z-10">
+            <div className="p-2.5 border-b border-gray-100 bg-gray-50/80 sticky top-0 z-10">
               <div className="relative flex items-center">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
                 <input
@@ -263,7 +263,7 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Type to filter templates instantly..."
-                  className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#2B2B40] bg-white dark:bg-[#13131A] text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 />
                 {searchTerm && (
                   <button
@@ -272,14 +272,14 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                       setSearchTerm('');
                       searchInputRef.current?.focus();
                     }}
-                    className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-[#252538]"
+                    className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
                     title="Clear search"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
-              <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-gray-500 dark:text-gray-400">
+              <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-gray-500">
                 <span>
                   {filteredTemplates.length}{' '}
                   {filteredTemplates.length === 1 ? 'template' : 'templates'} found
@@ -293,7 +293,7 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
             </div>
 
             {/* Template List */}
-            <div className="overflow-y-auto flex-1 p-1.5 divide-y divide-gray-50 dark:divide-[#2B2B40]/40">
+            <div className="overflow-y-auto flex-1 p-1.5 divide-y divide-gray-100">
               {filteredTemplates.length > 0 ? (
                 filteredTemplates.map((tpl) => {
                   const isSelected = tpl.id === selectedTemplateId;
@@ -303,8 +303,8 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                       onClick={() => handleSelect(tpl.id)}
                       className={`p-2.5 rounded-lg cursor-pointer transition-all flex flex-col gap-1.5 select-none ${
                         isSelected
-                          ? 'bg-primary/10 border border-primary/30 dark:bg-primary/20 dark:border-primary/40'
-                          : 'hover:bg-gray-50 dark:hover:bg-[#252538] border border-transparent'
+                          ? 'bg-primary/10 border border-primary/30'
+                          : 'hover:bg-gray-50 border border-transparent'
                       }`}
                       role="option"
                       aria-selected={isSelected}
@@ -316,13 +316,13 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                               <Check className="w-2.5 h-2.5 text-white stroke-[3]" />
                             </div>
                           ) : (
-                            <div className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600 flex-shrink-0" />
+                            <div className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0" />
                           )}
                           <span
                             className={`text-sm font-semibold truncate ${
                               isSelected
-                                ? 'text-primary dark:text-primary-300'
-                                : 'text-gray-800 dark:text-gray-200'
+                                ? 'text-primary'
+                                : 'text-gray-800'
                             }`}
                           >
                             {tpl.name}
@@ -332,7 +332,7 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {getCategoryBadge(tpl.category, tpl.isCustom)}
                           {tpl.channel && tpl.channel !== 'all' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-[#13131A] text-gray-500 uppercase tracking-wide">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase tracking-wide">
                               {tpl.channel}
                             </span>
                           )}
@@ -341,13 +341,13 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
 
                       {/* Subject or snippet preview */}
                       {tpl.subjectTemplate && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate pl-6">
-                          <span className="font-medium text-gray-600 dark:text-gray-300">Subject: </span>
+                        <p className="text-xs text-gray-500 truncate pl-6">
+                          <span className="font-medium text-gray-700">Subject: </span>
                           {tpl.subjectTemplate}
                         </p>
                       )}
                       {tpl.bodyTemplate && (
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate pl-6">
+                        <p className="text-[11px] text-gray-500 truncate pl-6">
                           {tpl.bodyTemplate.replace(/\n+/g, ' ')}
                         </p>
                       )}
@@ -356,7 +356,7 @@ export const ClaimTemplateSearchableSelect: React.FC<ClaimTemplateSearchableSele
                 })
               ) : (
                 <div className="py-8 px-4 text-center">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  <p className="text-sm font-medium text-gray-600">
                     No matching templates found
                   </p>
                   <p className="text-xs text-gray-400 mt-1">

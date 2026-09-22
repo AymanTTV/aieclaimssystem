@@ -1542,16 +1542,16 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     >
       <div className="space-y-4">
         {/* Top Control Bar: Mode Toggle & Status Badges */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#2B314E]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
           {/* Modal Navigation Tabs: WhatsApp & Email */}
-          <div className="inline-flex rounded-xl p-1.5 bg-[#0F111A] border border-[#2B314E] shadow-sm">
+          <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200 shadow-2xs">
             <button
               type="button"
               onClick={() => setMode('whatsapp')}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 mode === 'whatsapp'
-                  ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-400'
-                  : 'text-slate-300 hover:text-white hover:bg-[#181C2E]'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
               <MessageCircle className="w-4 h-4" />
@@ -1562,8 +1562,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               onClick={() => setMode('email')}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 mode === 'email'
-                  ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-400'
-                  : 'text-slate-300 hover:text-white hover:bg-[#181C2E]'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
               <Mail className="w-4 h-4" />
@@ -1577,43 +1577,43 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               type="button"
               onClick={handlePrintOrDownloadPDF}
               disabled={isPrintingPdf}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-300 bg-purple-950/40 border border-purple-500/40 hover:bg-purple-900/50 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
               title="Print or download rental PDF"
             >
-              <Printer className="h-3.5 w-3.5 mr-1 text-purple-400" />
+              <Printer className="h-3.5 w-3.5 mr-1 text-purple-600" />
               {isPrintingPdf ? 'Generating...' : 'Print / PDF'}
             </button>
 
             {/* Rental State Badge */}
             {rentalState === 'overdue' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-950/50 text-red-300 border border-red-700/50">
-                <AlertTriangle className="h-3.5 w-3.5 mr-1 text-red-400" />
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
+                <AlertTriangle className="h-3.5 w-3.5 mr-1 text-red-600" />
                 Overdue
               </span>
             )}
             {rentalState === 'full_payment' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950/50 text-emerald-300 border border-emerald-700/50">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-400" />
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
                 Fully Paid
               </span>
             )}
             {rentalState === 'partial_payment' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-950/50 text-amber-300 border border-amber-700/50">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 Partially Paid
               </span>
             )}
             {rentalState === 'outstanding_balance' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-950/50 text-orange-300 border border-orange-700/50">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-800 border border-orange-200">
                 Balance Outstanding
               </span>
             )}
             {rentalState === 'active' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-950/50 text-blue-300 border border-blue-700/50">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                 Active Rental
               </span>
             )}
             {rentalState === 'completed' && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                 Completed
               </span>
             )}
@@ -1621,28 +1621,28 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         </div>
 
         {/* Rental Summary Card */}
-        <div className="bg-[#121524] rounded-xl p-3 border border-[#2B314E] text-xs sm:text-sm grid grid-cols-2 sm:grid-cols-4 gap-2 text-white">
+        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs sm:text-sm grid grid-cols-2 sm:grid-cols-4 gap-3 shadow-2xs">
           <div>
-            <span className="text-slate-400 block text-xs">Agreement #:</span>
-            <span className="font-bold text-white">{rental.rentalAgreementNumber || rental.id || 'N/A'}</span>
+            <span className="text-slate-500 font-semibold block text-xs">Agreement #:</span>
+            <span className="font-bold text-slate-900">{rental.rentalAgreementNumber || rental.id || 'N/A'}</span>
           </div>
           <div>
-            <span className="text-slate-400 block text-xs">Customer:</span>
-            <span className="font-bold text-white truncate block" title={customer?.name || (rental as any).customerName}>
+            <span className="text-slate-500 font-semibold block text-xs">Customer:</span>
+            <span className="font-bold text-slate-900 truncate block" title={customer?.name || (rental as any).customerName}>
               {customer?.name || (rental as any).customerName || 'Customer'}
             </span>
           </div>
           <div>
-            <span className="text-slate-400 block text-xs">Vehicle:</span>
-            <span className="font-bold text-white truncate block">
+            <span className="text-slate-500 font-semibold block text-xs">Vehicle:</span>
+            <span className="font-bold text-slate-900 truncate block">
               {vehicle ? `${vehicle.make} ${vehicle.model}` : 'Assigned Vehicle'}
             </span>
-            <span className="text-[11px] font-mono text-slate-400">{vehicle?.registrationNumber || ''}</span>
+            <span className="text-[11px] font-mono font-semibold text-slate-600">{vehicle?.registrationNumber || ''}</span>
           </div>
           <div>
-            <span className="text-slate-400 block text-xs">Total / Owing:</span>
-            <span className="font-bold text-white">{formatCurrency(rental.cost ?? 0)}</span>
-            <span className={`block text-xs font-bold ${Number(rental.remainingAmount ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            <span className="text-slate-500 font-semibold block text-xs">Total / Owing:</span>
+            <span className="font-bold text-slate-900">{formatCurrency(rental.cost ?? 0)}</span>
+            <span className={`block text-xs font-bold ${Number(rental.remainingAmount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
               Owing: {formatCurrency(rental.remainingAmount ?? 0)}
             </span>
           </div>
@@ -1652,12 +1652,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         <div>
           <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Communication Template
               </label>
               {!canEditTemplates && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
-                  <Lock className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <Lock className="w-3 h-3 text-amber-600" />
                   Read-Only
                 </span>
               )}
@@ -1668,10 +1668,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={() => setIsTemplatesModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-300 bg-[#16192A] hover:bg-[#1E2338] border border-[#2B314E] rounded-lg transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                 title="Manage templates in WhatsApp & Email Navigation Tabs"
               >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Template Tabs</span>
               </button>
 
@@ -1689,14 +1689,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                     setTemplateEditorMode('edit');
                     setIsTemplateEditorOpen(true);
                   }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors border cursor-pointer ${
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-colors border cursor-pointer shadow-2xs ${
                     canEditTemplates
-                      ? 'text-indigo-300 bg-indigo-950/50 hover:bg-indigo-900/60 border-indigo-500/40'
-                      : 'text-slate-300 bg-[#181C2E] hover:bg-[#20253D] border-[#2B314E]'
+                      ? 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'
+                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-200'
                   }`}
                   title={canEditTemplates ? "Edit this template in the Template Editor" : "View template details (Read-Only)"}
                 >
-                  {canEditTemplates ? <Pencil className="w-3.5 h-3.5 text-indigo-400" /> : <Lock className="w-3.5 h-3.5 text-amber-400" />}
+                  {canEditTemplates ? <Pencil className="w-3.5 h-3.5 text-indigo-600" /> : <Lock className="w-3.5 h-3.5 text-amber-600" />}
                   <span>{canEditTemplates ? 'Edit Template' : 'View Template'}</span>
                 </button>
               )}
@@ -1709,46 +1709,46 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                     setTemplateEditorMode('create');
                     setIsTemplateEditorOpen(true);
                   }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 rounded-lg transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                   title="Create a new communication template"
                 >
-                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
                   <span>New Template</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-500 bg-[#181C2E] border border-[#2B314E] rounded-lg opacity-60 cursor-not-allowed"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg opacity-60 cursor-not-allowed"
                   title="Template editing permission required to create templates"
                 >
-                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
                   <span>New Template</span>
                 </button>
               )}
 
               {rentalState === 'overdue' && currentTemplate && (
-                <span className="text-[11px] text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/40 font-medium">
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
                   ⚡ Pre-selected for Overdue
                 </span>
               )}
               {rentalState === 'full_payment' && currentTemplate && (
-                <span className="text-[11px] text-emerald-300 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/40 font-medium">
+                <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
                   ⚡ Pre-selected Paid Receipt
                 </span>
               )}
               {rentalState === 'partial_payment' && currentTemplate && (
-                <span className="text-[11px] text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/40 font-medium">
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
                   ⚡ Pre-selected Partial Payment
                 </span>
               )}
               {rentalState === 'outstanding_balance' && currentTemplate && (
-                <span className="text-[11px] text-orange-300 bg-orange-950/40 px-2 py-0.5 rounded border border-orange-500/40 font-medium">
+                <span className="text-[11px] text-orange-800 bg-orange-50 px-2 py-0.5 rounded border border-orange-200 font-bold">
                   ⚡ Pre-selected Outstanding Balance
                 </span>
               )}
               {rentalState === 'active' && currentTemplate && (
-                <span className="text-[11px] text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/40 font-medium">
+                <span className="text-[11px] text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-bold">
                   ⚡ Pre-selected Rental Agreement
                 </span>
               )}
@@ -1760,11 +1760,11 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               type="button"
               onClick={() => setIsTemplateDropdownOpen((prev) => !prev)}
               disabled={loadingTemplates}
-              className="flex items-center justify-between w-full px-3.5 py-2.5 text-sm text-left bg-[#0F111A] border border-[#2B314E] rounded-lg shadow-sm hover:border-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-60 cursor-pointer"
+              className="flex items-center justify-between w-full px-3.5 py-2.5 text-sm text-left bg-white border border-slate-300 rounded-lg shadow-2xs hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-60 cursor-pointer"
             >
               <div className="flex items-center space-x-2 truncate">
-                <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span className="font-semibold text-white truncate">
+                <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span className="font-bold text-slate-900 truncate">
                   {currentTemplate
                     ? currentTemplate.name
                     : loadingTemplates
@@ -1774,22 +1774,22 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                     : 'Select a template...'}
                 </span>
                 {currentTemplate && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-[#1E2338] text-indigo-300 rounded border border-[#2B314E] uppercase">
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 rounded border border-indigo-200 uppercase">
                     {currentTemplate.category || 'Rental'}
                   </span>
                 )}
               </div>
               <ChevronDown
-                className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${
+                className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${
                   isTemplateDropdownOpen ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {isTemplateDropdownOpen && (
-              <div className="absolute z-50 w-full mt-1.5 bg-[#121524] rounded-xl shadow-2xl border border-[#2B314E] overflow-hidden animate-in fade-in duration-100">
+              <div className="absolute z-50 w-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in duration-100">
                 {/* Combobox Search Filter Input */}
-                <div className="p-2 border-b border-[#2B314E] bg-[#0F111A]">
+                <div className="p-2 border-b border-slate-200 bg-slate-50">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                     <input
@@ -1798,15 +1798,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       value={templateSearchQuery}
                       onChange={(e) => setTemplateSearchQuery(e.target.value)}
                       placeholder="Search communication templates by name or keyword..."
-                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#16192A] text-white border border-[#2B314E] rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-500"
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 placeholder-slate-400"
                     />
                   </div>
                 </div>
 
                 {/* Combobox Options List */}
-                <div className="max-h-56 overflow-y-auto py-1 divide-y divide-[#1A1F36]">
+                <div className="max-h-56 overflow-y-auto py-1 divide-y divide-slate-100">
                   {filteredTemplates.length === 0 ? (
-                    <div className="px-4 py-5 text-center text-xs text-slate-400">
+                    <div className="px-4 py-5 text-center text-xs text-slate-500">
                       {templates.length === 0
                         ? 'No communication templates available.'
                         : `No templates match "${templateSearchQuery}"`}
@@ -1825,24 +1825,24 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                           }}
                           className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                             isSelected
-                              ? 'bg-indigo-950/60 text-white font-semibold border-l-2 border-indigo-500'
-                              : 'text-slate-300 hover:bg-[#181C2E] hover:text-white'
+                              ? 'bg-indigo-50 text-indigo-900 font-bold border-l-2 border-indigo-600'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                           }`}
                         >
                           <div className="truncate pr-2">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-white">{t.name}</span>
-                              <span className="px-1.5 py-0.2 text-[9px] font-semibold bg-[#1E2338] text-slate-300 rounded border border-[#2B314E] uppercase">
+                              <span className="font-bold text-slate-900">{t.name}</span>
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-slate-100 text-slate-700 rounded border border-slate-200 uppercase">
                                 {t.category || 'general'}
                               </span>
                             </div>
                             {t.subjectTemplate && (
-                              <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              <div className="text-[11px] text-slate-500 truncate mt-0.5">
                                 {t.subjectTemplate}
                               </div>
                             )}
                           </div>
-                          {isSelected && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
+                          {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
                         </button>
                       );
                     })
@@ -1855,7 +1855,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
         {/* Recipient Contact Input */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
             {mode === 'whatsapp' ? 'Recipient WhatsApp Phone Number' : 'Recipient Email Address'}
           </label>
           <input
@@ -1863,10 +1863,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             value={recipientContact}
             onChange={(e) => setRecipientContact(e.target.value)}
             placeholder={mode === 'whatsapp' ? 'e.g. 07552 553441 or +447552553441' : 'customer@example.com'}
-            className="block w-full px-3 py-2 text-sm bg-[#0F111A] text-white border border-[#2B314E] rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-500"
+            className="block w-full px-3 py-2 text-sm bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 placeholder-slate-400 shadow-2xs"
           />
           {mode === 'whatsapp' && (
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Local numbers (e.g. 07xxx) are automatically formatted with international digits for WhatsApp.
             </p>
           )}
@@ -1875,28 +1875,28 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         {/* Subject (for Email only) */}
         {mode === 'email' && (
           <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
               Email Subject
             </label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="block w-full px-3 py-2 text-sm bg-[#0F111A] text-white border border-[#2B314E] rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-500"
+              className="block w-full px-3 py-2 text-sm bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 placeholder-slate-400 shadow-2xs"
             />
           </div>
         )}
 
         {/* Document Attachment Selection (Optional) */}
-        <div className="bg-[#121524] rounded-xl p-3.5 border border-[#2B314E] shadow-sm attachment-container dark-attachment" data-attachment-box="true">
+        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 shadow-2xs attachment-container" data-attachment-box="true">
           <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
             <div className="flex items-center space-x-2">
-              <Paperclip className="w-4 h-4 text-indigo-400" />
-              <label className="text-xs font-bold text-white uppercase tracking-wider attachment-title">
+              <Paperclip className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider attachment-title">
                 Attach Documents (Instant Links)
-              </label>
+              </span>
               {selectedDocIds.length > 0 && (
-                <span className="px-2 py-0.5 text-[11px] font-bold bg-indigo-500/25 text-indigo-200 border border-indigo-500/50 rounded-full">
+                <span className="px-2 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-full">
                   {selectedDocIds.length} selected
                 </span>
               )}
@@ -1911,7 +1911,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       await ensureDocUrl(item);
                     }
                   }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-200 bg-indigo-900/70 hover:bg-indigo-800/80 border border-indigo-500/50 rounded-md transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors shadow-2xs cursor-pointer"
                 >
                   ⚡ Generate Selected Links Now
                 </button>
@@ -1919,15 +1919,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSelectAllDocs}
-                className="text-indigo-300 hover:text-white font-semibold transition-colors cursor-pointer"
+                className="text-indigo-600 hover:text-indigo-800 font-bold transition-colors cursor-pointer"
               >
                 Select All
               </button>
-              <span className="text-slate-500">|</span>
+              <span className="text-slate-400">|</span>
               <button
                 type="button"
                 onClick={handleClearAllDocs}
-                className="text-slate-300 hover:text-white font-semibold transition-colors cursor-pointer"
+                className="text-slate-600 hover:text-slate-900 font-bold transition-colors cursor-pointer"
               >
                 Clear
               </button>
@@ -1945,30 +1945,36 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <label
                   key={docItem.id}
                   data-attachment-item="true"
-                  className={`flex items-center space-x-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all select-none attachment-item dark-attachment-item ${
+                  title={docItem.label}
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition-all select-none attachment-item ${
                     isSelected
-                      ? 'is-selected bg-indigo-950/70 border-indigo-500 text-white shadow-xs ring-1 ring-indigo-500/50'
-                      : 'bg-[#0F111A] border-[#2B314E] text-slate-100 hover:bg-[#181C2E] hover:border-slate-400'
+                      ? 'is-selected bg-indigo-50/90 border-indigo-400 text-indigo-950 shadow-2xs ring-1 ring-indigo-400'
+                      : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleDoc(docItem.id)}
-                    className="h-4 w-4 rounded border-[#2B314E] bg-[#0F111A] text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+                    className="h-4 w-4 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
                   />
-                  <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-indigo-300' : 'text-slate-400'}`} />
-                  <span className={`truncate attachment-label ${isSelected ? 'font-bold text-white' : 'text-slate-100 font-semibold'}`}>
+                  <IconComp className={`w-4 h-4 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
+                  <span
+                    title={docItem.label}
+                    className={`flex-1 min-w-0 truncate text-xs font-semibold attachment-label ${
+                      isSelected ? 'font-bold text-indigo-950' : 'text-slate-900'
+                    }`}
+                  >
                     {docItem.label}
                   </span>
                   {hasUrl && !isGen && (
-                    <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-200 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/50 shrink-0">
-                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                    <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                      <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[2.5]" />
                       Ready
                     </span>
                   )}
                   {isGen && (
-                    <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-200 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/50 animate-pulse shrink-0">
+                    <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 animate-pulse">
                       Generating...
                     </span>
                   )}
@@ -1980,7 +1986,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                         e.preventDefault();
                         ensureDocUrl(docItem);
                       }}
-                      className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-200 bg-indigo-900/70 hover:bg-indigo-800/80 px-2 py-0.5 rounded border border-indigo-500/50 shrink-0 transition-colors"
+                      className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded border border-indigo-300 transition-colors cursor-pointer"
                       title="Generate instant link now"
                     >
                       ⚡ Generate
@@ -1991,7 +1997,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             })}
           </div>
           
-          <p className="text-xs text-slate-300 mt-2.5 leading-relaxed font-medium">
+          <p className="text-xs text-slate-600 mt-2.5 leading-relaxed font-normal">
             {mode === 'whatsapp'
               ? 'Selected documents generate instant download links automatically embedded in the WhatsApp message.'
               : 'Selected documents generate instant links and PDF attachments for email dispatch.'}
@@ -2001,14 +2007,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         {/* Message Editor & Live Preview Area */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               {mode === 'whatsapp' ? 'WhatsApp Message Preview & Edit' : 'Email Message Body'}
             </label>
             <div className="flex items-center space-x-2">
               <button
                 type="button"
                 onClick={handleResetToTemplate}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium cursor-pointer"
+                className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 font-bold cursor-pointer"
                 title="Reset back to unmodified template text"
               >
                 <RefreshCw className="w-3 h-3" />
@@ -2017,25 +2023,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleCopy}
-                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold ml-2 cursor-pointer"
+                className="text-xs text-indigo-700 hover:text-indigo-900 flex items-center gap-1 font-bold ml-2 cursor-pointer"
               >
-                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
           </div>
 
           {/* Quick Data Tools Bar */}
-          <div className="bg-[#121524] border border-[#2B314E] rounded-lg p-2.5 mb-2.5 space-y-2 shadow-2xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300 border-b border-[#2B314E]/60 pb-2">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2.5 space-y-2 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700 border-b border-slate-200 pb-2">
               <div className="flex items-center gap-2">
-                <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-200">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-800">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                   Data Tools:
                 </span>
 
                 {/* Category Filter Pills */}
-                <div className="flex items-center bg-[#0C0F1D] p-0.5 rounded-md border border-[#2B314E]/80">
+                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                   {(
                     [
                       { id: 'all', label: 'All' },
@@ -2048,10 +2054,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       key={cat.id}
                       type="button"
                       onClick={() => setDataToolCategory(cat.id)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
                         dataToolCategory === cat.id
-                          ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       {cat.label}
@@ -2062,14 +2068,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
               <div className="flex items-center gap-3">
                 {/* Insert Mode Toggle (Value vs Tag) */}
-                <div className="flex items-center bg-[#0C0F1D] p-0.5 rounded-md border border-[#2B314E]/80 text-[10px]">
+                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs text-[10px]">
                   <button
                     type="button"
                     onClick={() => setDataToolInsertMode('value')}
-                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
                       dataToolInsertMode === 'value'
-                        ? 'bg-emerald-600 text-white font-semibold shadow-2xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                     title="Insert real current dynamic value into message"
                   >
@@ -2078,10 +2084,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => setDataToolInsertMode('tag')}
-                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
                       dataToolInsertMode === 'tag'
-                        ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                     title="Insert dynamic template tag {tag} into message"
                   >
@@ -2092,7 +2098,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <button
                   type="button"
                   onClick={() => setIsTemplatesModalOpen(true)}
-                  className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px]"
+                  className="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer flex items-center gap-1 text-[11px]"
                 >
                   Manage Templates &rarr;
                 </button>
@@ -2107,7 +2113,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{date_paid}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Date Paid (e.g. 18/09/2026)"
                   >
                     + Date Paid: {latestPaymentDetails.date || 'N/A'}
@@ -2116,7 +2122,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{last_payment_amount}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 border border-blue-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Last Payment Amount"
                   >
                     + Last Paid: {latestPaymentDetails.amount}
@@ -2125,7 +2131,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{last_payment_type}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-cyan-50 text-cyan-800 border border-cyan-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Payment Method (Bank Transfer, Card, Cash, Cheque)"
                   >
                     + Type: {latestPaymentDetails.method}
@@ -2134,7 +2140,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{last_payment_ref}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-950/40 hover:bg-teal-900/50 text-teal-300 border border-teal-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Transaction Reference"
                   >
                     + Ref: {latestPaymentDetails.ref || rental.rentalAgreementNumber || 'Ref'}
@@ -2143,7 +2149,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{owing_amount}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-red-50 text-red-700 border border-red-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Total Current Outstanding Balance"
                   >
                     + Outstanding: {formatCurrency(rental.remainingAmount ?? 0)}
@@ -2152,7 +2158,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{paid_amount}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Total Amount Paid"
                   >
                     + Total Paid: {formatCurrency(rental.paidAmount ?? 0)}
@@ -2161,7 +2167,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{total_amount}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-950/40 hover:bg-violet-900/50 text-violet-300 border border-violet-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-violet-50 text-violet-800 border border-violet-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Total Rental Cost"
                   >
                     + Total Cost: {formatCurrency(rental.cost ?? 0)}
@@ -2170,7 +2176,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{payment_status}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Payment Status (Paid, Partially Paid, Pending)"
                   >
                     + Status: {Number(rental.remainingAmount ?? 0) <= 0.001 ? 'Fully Paid' : Number(rental.paidAmount ?? 0) > 0 ? 'Partially Paid' : 'Pending'}
@@ -2179,7 +2185,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{transaction_payment}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-900/40 hover:bg-blue-800/50 text-blue-200 border border-blue-400/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert single-line Last Transaction summary"
                   >
                     + Last Txn Summary
@@ -2188,7 +2194,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{payment_statement}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-900/40 hover:bg-amber-800/50 text-amber-200 border border-amber-400/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert complete statement listing all recorded payment transactions"
                   >
                     + Full Statement ({rental.payments?.length || 0} Txns)
@@ -2197,7 +2203,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{payment_details}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-purple-50 text-purple-800 border border-purple-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Lloyds Bank Transfer Instructions"
                   >
                     + Lloyds Bank Details
@@ -2211,7 +2217,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{vehicle_reg}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Vehicle Registration Plate"
                   >
                     + Reg: {(internalVehicle || vehicle)?.registrationNumber || 'N/A'}
@@ -2220,7 +2226,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{vehicle_name}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Vehicle Make & Model"
                   >
                     + Vehicle: {((internalVehicle || vehicle)?.make || '')} {((internalVehicle || vehicle)?.model || '')}
@@ -2229,7 +2235,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{agreement_number}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Agreement Number"
                   >
                     + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
@@ -2238,7 +2244,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{rental_type}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Rental Type"
                   >
                     + Type: {rental.type || 'Standard'}
@@ -2247,7 +2253,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{start_date}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Start Date"
                   >
                     + Start: {formatDateValue(rental.startDate)}
@@ -2256,7 +2262,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{end_date}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert End / Due Date"
                   >
                     + Due: {formatDateValue(rental.endDate)}
@@ -2265,7 +2271,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{weekly_rate}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Weekly Rental Rate"
                   >
                     + Weekly: {formatCurrency(rental.lockedWeeklyRate || (internalVehicle || vehicle)?.weeklyRentalPrice || 0)}
@@ -2274,7 +2280,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{daily_rate}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Daily Rental Rate"
                   >
                     + Daily: {formatCurrency(rental.lockedDailyRate || (internalVehicle || vehicle)?.dailyRentalPrice || 0)}
@@ -2288,7 +2294,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{client_name}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Customer / Driver Name"
                   >
                     + Customer: {(internalCustomer || customer)?.name || 'Customer'}
@@ -2297,7 +2303,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{client_phone}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Customer Phone / Mobile"
                   >
                     + Phone: {(internalCustomer || customer)?.mobile || (internalCustomer || customer)?.phone || 'N/A'}
@@ -2306,7 +2312,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{client_email}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#181C2E] hover:bg-[#20253D] text-slate-200 border border-[#2B314E] transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Customer Email"
                   >
                     + Email: {(internalCustomer || customer)?.email || 'N/A'}
@@ -2315,7 +2321,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <button
                     type="button"
                     onClick={() => handleInsertDataTool('{pdf_link}')}
-                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-950/40 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-500/40 transition-colors shadow-2xs cursor-pointer"
+                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-indigo-50 text-indigo-800 border border-indigo-300 transition-colors shadow-2xs cursor-pointer"
                     title="Insert Document PDF download link"
                   >
                     + PDF Doc Link
@@ -2327,63 +2333,63 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
           {mode === 'whatsapp' ? (
             /* WhatsApp styled container */
-            <div className="border border-[#2B314E] rounded-xl overflow-hidden bg-[#0A1815] shadow-inner">
-              <div className="bg-[#075e54] text-white px-3 py-2 text-xs font-bold flex items-center justify-between">
+            <div className="border border-emerald-300 rounded-xl overflow-hidden bg-white shadow-2xs">
+              <div className="bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
                   <span>WhatsApp Message Preview</span>
                 </div>
-                <span className="text-[10px] font-normal opacity-80">Variables injected live</span>
+                <span className="text-[10px] font-normal text-emerald-100">Variables injected live</span>
               </div>
-              <div className="p-3 bg-[#0C1210]">
+              <div className="p-3 bg-emerald-50/30">
                 <textarea
                   ref={messageTextareaRef}
                   rows={8}
                   value={message}
                   onChange={(e) => handleMessageChange(e.target.value)}
-                  className="w-full bg-[#070D0B] text-slate-100 text-xs sm:text-sm p-3 rounded-lg shadow-sm border border-emerald-900/60 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y font-sans leading-relaxed"
+                  className="w-full bg-white text-slate-900 text-xs sm:text-sm p-3 rounded-lg shadow-2xs border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-y font-sans leading-relaxed"
                   placeholder="Type your WhatsApp message..."
                 />
               </div>
             </div>
           ) : (
             /* Email styled container */
-            <div className="border border-[#2B314E] rounded-xl overflow-hidden bg-[#0A1420] shadow-sm">
-              <div className="bg-sky-800 text-white px-3 py-2 text-xs font-bold flex items-center justify-between">
+            <div className="border border-sky-300 rounded-xl overflow-hidden bg-white shadow-2xs">
+              <div className="bg-sky-700 text-white px-3.5 py-2 text-xs font-bold flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Mail className="w-3.5 h-3.5" />
+                  <Mail className="w-3.5 h-3.5 text-sky-200" />
                   <span>Email Body Preview</span>
                 </div>
-                <span className="text-[10px] font-normal opacity-80">Variables injected live</span>
+                <span className="text-[10px] font-normal text-sky-100">Variables injected live</span>
               </div>
-              <div className="p-3 bg-[#0B131E]">
+              <div className="p-3 bg-sky-50/30">
                 <textarea
                   ref={messageTextareaRef}
                   rows={8}
                   value={message}
                   onChange={(e) => handleMessageChange(e.target.value)}
-                  className="w-full bg-[#070D14] text-slate-100 text-xs sm:text-sm p-3 rounded-lg border border-sky-900/60 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-y font-sans leading-relaxed"
+                  className="w-full bg-white text-slate-900 text-xs sm:text-sm p-3 rounded-lg border border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-y font-sans leading-relaxed shadow-2xs"
                   placeholder="Type your email message body..."
                 />
               </div>
             </div>
           )}
 
-          <p className="text-[11px] text-slate-400 mt-1">
-            Dynamic variables like <span className="font-mono text-slate-300">{'{client_name}'}</span>, <span className="font-mono text-slate-300">{'{rental_id}'}</span>, <span className="font-mono text-slate-300">{'{paid_amount}'}</span>, <span className="font-mono text-slate-300">{'{owing_amount}'}</span>, <span className="font-mono text-slate-300">{'{last_payment_paid}'}</span>, <span className="font-mono text-slate-300">{'{date_paid}'}</span>, and <span className="font-mono text-slate-300">{'{vehicle_reg}'}</span> are replaced automatically.
+          <p className="text-[11px] text-slate-500 mt-1">
+            Dynamic variables like <span className="font-mono text-slate-700 font-semibold">{'{client_name}'}</span>, <span className="font-mono text-slate-700 font-semibold">{'{rental_id}'}</span>, <span className="font-mono text-slate-700 font-semibold">{'{paid_amount}'}</span>, <span className="font-mono text-red-600 font-semibold">{'{owing_amount}'}</span>, <span className="font-mono text-slate-700 font-semibold">{'{last_payment_paid}'}</span>, <span className="font-mono text-slate-700 font-semibold">{'{date_paid}'}</span>, and <span className="font-mono text-slate-700 font-semibold">{'{vehicle_reg}'}</span> are replaced automatically.
           </p>
         </div>
 
         {/* Modal Action Buttons Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#2B314E]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
           <button
             type="button"
             onClick={handlePrintOrDownloadPDF}
             disabled={isPrintingPdf}
-            className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-semibold text-purple-300 bg-purple-950/40 border border-purple-500/40 rounded-lg hover:bg-purple-900/50 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-bold text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 focus:outline-none shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
             title="Print or download rental PDF"
           >
-            <Printer className="h-4 w-4 mr-1.5 text-purple-400" />
+            <Printer className="h-4 w-4 mr-1.5 text-purple-600" />
             {isPrintingPdf ? 'Preparing...' : 'Print / Download PDF'}
           </button>
 
@@ -2391,7 +2397,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-300 bg-[#181C2E] border border-[#2B314E] rounded-lg hover:bg-[#20253D] hover:text-white transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
             >
               Cancel
             </button>
@@ -2400,28 +2406,28 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all cursor-pointer active:scale-95"
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all cursor-pointer active:scale-95"
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Open in WhatsApp
-                <ExternalLink className="h-3.5 w-3.5 ml-1.5 opacity-70" />
+                <ExternalLink className="h-3.5 w-3.5 ml-1.5 opacity-80" />
               </button>
             ) : (
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleSendMailto}
-                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-semibold text-sky-300 bg-sky-950/40 border border-sky-500/40 rounded-lg hover:bg-sky-900/50 focus:outline-none shadow-sm transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-2xs transition-all cursor-pointer"
                   title="Open default email application"
                 >
-                  <Mail className="h-4 w-4 mr-1.5 text-sky-400" />
+                  <Mail className="h-4 w-4 mr-1.5 text-sky-600" />
                   Open in Email Client
                 </button>
                 <button
                   type="button"
                   onClick={handleSendDirectEmail}
                   disabled={sendingEmail}
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
                 >
                   <Send className="h-4 w-4 mr-2" />
                   {sendingEmail ? 'Sending...' : 'Send Direct Email'}

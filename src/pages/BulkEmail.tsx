@@ -1705,31 +1705,31 @@ export default function BulkEmail() {
                 {emailType === 'finance' && (
                   <>
                     {!transactions.find(t => t.id === selectedRecordId)?.documentUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('finance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Finance Document'}
                       </button>
                     )}
                     {!transactions.find(t => t.id === selectedRecordId)?.receiptUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-500/40 bg-indigo-950/40 text-indigo-300 hover:bg-indigo-900/50 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('receipt')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Receipt'}
                       </button>
                     )}
                   </>
                 )}
                 {emailType === 'invoice' && !invoices.find(i => i.id === selectedRecordId)?.documentUrl && (
-                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-500/40 bg-purple-950/40 text-purple-300 hover:bg-purple-900/50 disabled:opacity-50 transition-colors">
+                  <button type="button" onClick={() => handleGenerateMissingDocument('invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors">
                     {isGeneratingDoc ? 'Generating...' : '+ Generate Invoice PDF'}
                   </button>
                 )}
                 {emailType === 'maintenance' && (
                   <>
                     {!maintenanceLogs.find(m => m.id === selectedRecordId)?.documentUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-orange-500/40 bg-orange-950/40 text-orange-300 hover:bg-orange-900/50 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Work Order'}
                       </button>
                     )}
                     {!maintenanceLogs.find(m => m.id === selectedRecordId)?.invoiceUrl && (
-                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance_invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-900/50 disabled:opacity-50 transition-colors">
+                      <button type="button" onClick={() => handleGenerateMissingDocument('maintenance_invoice')} disabled={isGeneratingDoc} className="px-3 py-1.5 rounded-full text-sm font-medium border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors">
                         {isGeneratingDoc ? 'Generating...' : '+ Generate Maintenance Invoice'}
                       </button>
                     )}
@@ -1765,8 +1765,8 @@ export default function BulkEmail() {
                       onClick={() => toggleSystemDoc(doc)}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 attachment-item ${
                         isSelected 
-                          ? 'is-selected bg-blue-600 border-blue-400 text-white shadow-xs' 
-                          : 'bg-[#13131A] border-[#2B2B40] text-gray-200 hover:bg-[#1A1A26] hover:border-[#3E3E5B]'
+                          ? 'is-selected bg-blue-600 border-blue-600 text-white shadow-xs' 
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-slate-400'
                       }`}
                     >
                       <span className="attachment-label">{getCleanAttachmentName(doc.name)}</span>
@@ -1789,14 +1789,14 @@ export default function BulkEmail() {
                   setCustomFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                 }
               }}
-              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-950/60 file:text-blue-300 hover:file:bg-blue-900/60"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
             {customFiles.length > 0 && (
               <div className="mt-2 space-y-1">
                 {customFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm bg-[#13131A] border border-[#2B2B40] px-3 py-1.5 rounded-lg text-gray-200">
+                  <div key={idx} className="flex items-center justify-between text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-slate-800">
                     <span className="truncate max-w-[80%]">{getCleanAttachmentName(file.name)}</span>
-                    <button onClick={() => setCustomFiles(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300">
+                    <button onClick={() => setCustomFiles(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
                       <X className="w-4 h-4" />
                     </button>
                   </div>

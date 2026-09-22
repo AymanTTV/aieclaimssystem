@@ -226,12 +226,6 @@
   .bg-\[\#161622\] label,
   .bg-\[\#13131A\] label,
   .dark-navy-card label,
-  .attachment-container label,
-  .attachment-item,
-  .attachment-title,
-  .attachment-label,
-  [data-attachment-box] label,
-  [data-attachment-item],
   .bg-\[\#16192B\] .searchable-select-label,
   .bg-\[\#1E2238\] .searchable-select-label,
   .bg-\[\#0F111A\] .searchable-select-label,
@@ -321,6 +315,32 @@
     background-color: rgba(66, 63, 189, 0.08);
     border-color: #423fbd;
     color: #212049;
+  }
+
+  body:not(.dark) :not(.modal-navy) .attachment-title {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  body:not(.dark) :not(.modal-navy) .attachment-label {
+    color: #0f172a !important;
+    font-weight: 600 !important;
+  }
+
+  body:not(.dark) :not(.modal-navy) .attachment-item.is-selected .attachment-label,
+  body:not(.dark) :not(.modal-navy) .attachment-item:has(input:checked) .attachment-label,
+  body:not(.dark) :not(.modal-navy) [data-attachment-item].is-selected .attachment-label {
+    color: #1e1b4b !important;
+    font-weight: 700 !important;
+  }
+
+  body:not(.dark) :not(.modal-navy) .attachment-item.bg-blue-600 .attachment-label,
+  body:not(.dark) :not(.modal-navy) .attachment-item.bg-emerald-600 .attachment-label,
+  body:not(.dark) :not(.modal-navy) .attachment-item.text-white .attachment-label,
+  body:not(.dark) :not(.modal-navy) [data-attachment-item].bg-blue-600 .attachment-label,
+  body:not(.dark) :not(.modal-navy) [data-attachment-item].bg-emerald-600 .attachment-label,
+  body:not(.dark) :not(.modal-navy) [data-attachment-item].text-white .attachment-label {
+    color: #ffffff !important;
   }
 
   /* Navy modal & dark mode attachment container: Crystal clear readability & high contrast */

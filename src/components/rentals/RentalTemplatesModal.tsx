@@ -250,20 +250,20 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
           <div className="shrink-0 space-y-3">
             {/* Permission Status Banner if Read Only */}
             {isReadOnly ? (
-              <div className="flex items-start gap-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs">
-                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-amber-300 mr-1.5">Read-Only Mode:</span>
+                  <span className="font-bold text-amber-900 mr-1.5">Read-Only Mode:</span>
                   You have permission to view, search, and copy templates. Editing and creating templates requires the <span className="underline font-semibold">Edit Message Templates</span> permission in User Roles.
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-200 text-xs">
+              <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>You have full permission to <strong>create, customize, and edit</strong> all WhatsApp and Email templates.</span>
                 </div>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-semibold rounded-md text-[11px] border border-emerald-500/30">
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-md text-[11px] border border-emerald-300">
                   Editor Access
                 </span>
               </div>
@@ -428,10 +428,10 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                           {/* Channel Badge */}
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border ${
                             t.channel === 'whatsapp'
-                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               : t.channel === 'email'
-                                ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                                ? 'bg-sky-50 text-sky-800 border-sky-200'
+                                : 'bg-purple-50 text-purple-800 border-purple-200'
                           }`}>
                             {t.channel === 'whatsapp' && <MessageCircle className="w-3 h-3" />}
                             {t.channel === 'email' && <Mail className="w-3 h-3" />}
@@ -442,7 +442,7 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
 
                         {/* Subject Line for Email */}
                         {t.subjectTemplate && (
-                          <div className="text-xs text-slate-300 flex items-center gap-1.5">
+                          <div className="text-xs text-slate-600 flex items-center gap-1.5">
                             <span className="text-slate-500 font-semibold">Subject:</span>
                             <span className="text-slate-800 font-medium">
                               {isPreviewing ? evaluatedSubject : t.subjectTemplate}
@@ -461,7 +461,7 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                               onSelectTemplate(t);
                               onClose();
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 rounded-lg cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
                             title="Select and use this template in communication"
                           >
                             <Check className="w-3 h-3" />
@@ -473,9 +473,9 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setPreviewingId(isPreviewing ? null : (t.id || 'preview'))}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
                             isPreviewing
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-2xs'
                               : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 shadow-xs'
                           }`}
                           title="Toggle live evaluation with active rental data"
@@ -491,21 +491,21 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                           className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition-colors shadow-xs"
                           title="Copy raw template body"
                         >
-                          {copiedId === t.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === t.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         </button>
 
                         {/* Edit or View Template */}
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(t)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
                             isReadOnly
-                              ? 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 shadow-xs'
-                              : 'bg-indigo-950/60 hover:bg-indigo-900/70 text-indigo-300 border-indigo-500/40'
+                              ? 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
+                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
                           }`}
                           title={isReadOnly ? 'View template details (read-only)' : 'Edit template'}
                         >
-                          {isReadOnly ? <Lock className="w-3 h-3 text-amber-400" /> : <Edit3 className="w-3 h-3" />}
+                          {isReadOnly ? <Lock className="w-3 h-3 text-amber-600" /> : <Edit3 className="w-3 h-3 text-indigo-600" />}
                           <span>{isReadOnly ? 'View' : 'Edit'}</span>
                         </button>
 
@@ -526,12 +526,12 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                     {/* Body Snippet Box - Clean display without nested scrollbars */}
                     <div className={`p-3 rounded-lg border text-xs font-sans leading-relaxed whitespace-pre-wrap ${
                       isPreviewing 
-                        ? 'bg-[#0B0D14] text-amber-200 border-amber-500/30' 
+                        ? 'bg-amber-50/70 text-slate-900 border-amber-300' 
                         : 'bg-slate-50 text-slate-800 border-slate-200'
                     }`}>
                       {isPreviewing && (
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1 flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1 flex items-center gap-1">
+                          <Eye className="w-3 h-3 text-amber-600" />
                           <span>Evaluated with Real Data</span>
                         </div>
                       )}
