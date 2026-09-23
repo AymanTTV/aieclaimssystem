@@ -557,36 +557,22 @@
     border-bottom-color: rgba(245, 158, 11, 0.5) !important;
   }
   /* Urgent row: pure solid deep rich red - NO semi-transparent light white overlay or alpha layer */
-  .public-mirror-table tbody tr.row-urgent,
-  .public-mirror-table tbody tr.row-urgent:hover {
+  .public-mirror-table tbody tr.row-urgent {
     background-color: #26070b !important;
-    background: #26070b !important;
-    background-image: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    box-shadow: none !important;
-    opacity: 1 !important;
   }
   .public-mirror-table tbody tr.row-urgent td {
     background-color: #26070b !important;
-    background: #26070b !important;
-    background-image: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    box-shadow: none !important;
-    opacity: 1 !important;
-    border-top: 1px solid #991b1b !important;
-    border-bottom: 1px solid #991b1b !important;
+    border-top-color: #991b1b !important;
+    border-bottom-color: #991b1b !important;
   }
   .public-mirror-table tbody tr.row-urgent td:first-child {
-    border-left: 4px solid #ef4444 !important;
+    border-left-color: #ef4444 !important;
   }
   .public-mirror-table tbody tr.row-urgent td:last-child {
-    border-right: 1px solid #991b1b !important;
+    border-right-color: #991b1b !important;
   }
   .public-mirror-table tbody tr.row-urgent:hover td {
     background-color: #380a10 !important;
-    background: #380a10 !important;
     border-top-color: #ef4444 !important;
     border-bottom-color: #ef4444 !important;
   }
@@ -594,13 +580,11 @@
     border-right-color: #ef4444 !important;
   }
 
-  /* Ensure strictly no semi-transparent white overlays, tints, pseudo-elements or alpha layers */
+  /* Ensure no semi-transparent white overlays or pseudo-elements */
   .public-mirror-table tbody tr.row-urgent::before,
   .public-mirror-table tbody tr.row-urgent::after,
   .public-mirror-table tbody tr.row-urgent td::before,
-  .public-mirror-table tbody tr.row-urgent td::after,
-  .public-mirror-table tbody tr.row-urgent *::before,
-  .public-mirror-table tbody tr.row-urgent *::after {
+  .public-mirror-table tbody tr.row-urgent td::after {
     display: none !important;
     content: none !important;
     background: none !important;
@@ -827,17 +811,18 @@
 
   /* Modal Background Scroll Lock */
   body.modal-open,
-  html:has(.modal-navy) {
+  html:has(.modal-navy),
+  body:has(.schedule-rental-modal) {
     overflow: hidden !important;
   }
 
   /* ==========================================================================
-     SCHEDULE RENTAL MODAL - INLINE WITH SYSTEM COLOUR PALETTE (LIGHT CLEAN THEME)
+     SCHEDULE RENTAL MODAL - PRIMARY DARK NAVY PALETTE (#0F111A / #16192B / #1E2238)
      ========================================================================== */
   .schedule-rental-modal,
-  .rental-form-container {
-    background-color: #FFFFFF !important;
-    color: #0F172A !important;
+  .modal-navy .rental-form-container {
+    background-color: #16192B !important;
+    color: #FFFFFF !important;
   }
 
   .schedule-rental-modal input:not([type="checkbox"]):not([type="radio"]),
@@ -846,11 +831,11 @@
   .rental-form-container input:not([type="checkbox"]):not([type="radio"]),
   .rental-form-container select,
   .rental-form-container textarea {
-    background-color: #FFFFFF !important;
-    border-color: #CBD5E1 !important;
-    color: #0F172A !important;
-    -webkit-text-fill-color: #0F172A !important;
-    caret-color: #2563EB !important;
+    background-color: #0F111A !important;
+    border-color: #2B314E !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    caret-color: #3b82f6 !important;
   }
 
   .schedule-rental-modal input::placeholder,
@@ -868,46 +853,40 @@
   .rental-form-container input:focus,
   .rental-form-container select:focus,
   .rental-form-container textarea:focus {
-    border-color: #2563EB !important;
+    border-color: #3b82f6 !important;
     outline: none !important;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
   }
 
-  /* Signature Canvas specific: canvas white for black ink visibility */
+  /* Signature Canvas specific exception: canvas remains white for black ink visibility */
   .schedule-rental-modal canvas.signature-canvas,
   .rental-form-container canvas.signature-canvas {
     background-color: #FFFFFF !important;
   }
 
-  /* FileUpload Dropzone in Schedule Rental */
+  /* FileUpload Dropzone in Navy Modals */
   .schedule-rental-modal .border-dashed,
-  .rental-form-container .border-dashed {
-    background-color: #F8FAFC !important;
-    border-color: #CBD5E1 !important;
+  .modal-navy .border-dashed {
+    background-color: #0F111A !important;
+    border-color: #2B314E !important;
   }
   .schedule-rental-modal .border-dashed:hover,
-  .rental-form-container .border-dashed:hover {
-    background-color: #F1F5F9 !important;
+  .modal-navy .border-dashed:hover {
+    background-color: #121524 !important;
   }
   .schedule-rental-modal .border-dashed label,
-  .rental-form-container .border-dashed label {
-    color: #2563EB !important;
+  .modal-navy .border-dashed label {
+    color: #60A5FA !important;
   }
   .schedule-rental-modal .border-dashed p,
-  .rental-form-container .border-dashed p {
-    color: #64748B !important;
+  .modal-navy .border-dashed p {
+    color: #94A3B8 !important;
   }
 
   /* Date and time input native icon and calendar color scheme */
   .schedule-rental-modal input[type="date"],
   .schedule-rental-modal input[type="time"],
   .schedule-rental-modal input[type="datetime-local"],
-  .rental-form-container input[type="date"],
-  .rental-form-container input[type="time"],
-  .rental-form-container input[type="datetime-local"] {
-    color-scheme: light !important;
-  }
-
   .modal-navy input[type="date"],
   .modal-navy input[type="time"],
   .modal-navy input[type="datetime-local"] {
@@ -915,7 +894,8 @@
   }
 
   /* Compulsory notice tag */
-  .modal-navy span[title="Compulsory field - Must fill in"] {
+  .modal-navy span[title="Compulsory field - Must fill in"],
+  .schedule-rental-modal span[title="Compulsory field - Must fill in"] {
     background-color: rgba(239, 68, 68, 0.2) !important;
     border-color: rgba(239, 68, 68, 0.4) !important;
     color: #FCA5A5 !important;
@@ -923,31 +903,31 @@
 
   /* Modal custom scrollbar styling */
   .schedule-rental-modal .custom-scrollbar,
-  .rental-form-container .custom-scrollbar {
+  .modal-navy .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #CBD5E1 #F8FAFC;
+    scrollbar-color: #2B314E #16192B;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar,
-  .rental-form-container .custom-scrollbar::-webkit-scrollbar {
+  .modal-navy .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-track,
-  .rental-form-container .custom-scrollbar::-webkit-scrollbar-track {
-    background: #F8FAFC;
+  .modal-navy .custom-scrollbar::-webkit-scrollbar-track {
+    background: #16192B;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-thumb,
-  .rental-form-container .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
+  .modal-navy .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #2B314E;
     border-radius: 9999px;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-thumb:hover,
-  .rental-form-container .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #94A3B8;
+  .modal-navy .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #3E466B;
   }
 
   /* Tables */

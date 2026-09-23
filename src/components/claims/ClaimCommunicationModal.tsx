@@ -1382,25 +1382,6 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           </div>
         )}
 
-        {/* Google Workspace Sender Indicator (for Email) */}
-        {channel === 'email' && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-lg text-xs">
-            <div className="flex items-center space-x-2">
-              <span className="p-1 bg-indigo-600 text-white rounded">
-                <Mail className="h-3.5 w-3.5" />
-              </span>
-              <div>
-                <span className="text-slate-600 font-medium">Outbound Email Sender: </span>
-                <strong className="text-indigo-950 font-bold font-mono">claims@aieclaims.co.uk</strong>
-                <span className="text-slate-500 ml-1.5">(AIE Claims Department • Google Workspace)</span>
-              </div>
-            </div>
-            <span className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 self-start sm:self-auto">
-              ✓ Direct Claims Mailbox
-            </span>
-          </div>
-        )}
-
         {/* Subject (for Email) */}
         {channel === 'email' && (
           <div>

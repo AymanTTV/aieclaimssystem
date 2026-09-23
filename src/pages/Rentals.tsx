@@ -510,10 +510,10 @@ const Rentals = () => {
               {can('rentals', 'syncStatus') && (
                 <button 
                   onClick={syncVehicleStatuses} 
-                  className="inline-flex items-center px-3.5 py-2 border border-orange-600 rounded-xl shadow-sm text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
                   title="Sync Vehicle Statuses"
                 >
-                  <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5 text-white" />
+                  <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
                   <span>Sync Statuses</span>
                 </button>
               )}
@@ -563,10 +563,10 @@ const Rentals = () => {
               {can('rentals', 'availableVehicles') && (
                 <button 
                   onClick={() => setShowAvailableVehicles(true)} 
-                  className="inline-flex items-center px-3.5 py-2 border border-green-600 rounded-xl shadow-sm text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
                   title="View Available Vehicles"
                 >
-                  <Car className="h-3.5 w-3.5 mr-1.5 text-white" />
+                  <Car className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
                   <span>Available Vehicles</span>
                 </button>
               )}
@@ -639,9 +639,9 @@ const Rentals = () => {
         onClose={() => setShowForm(false)} 
         title="Schedule Rental" 
         size="xl"
-        className="w-full max-h-[calc(100dvh-2.5rem)] flex flex-col"
+        className="schedule-rental-modal h-[85vh] max-h-[90vh] min-h-[500px] flex flex-col"
         contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0"
-        theme="default"
+        theme="navy"
       >
         <RentalForm vehicles={vehicles} customers={customers} onClose={() => setShowForm(false)} />
       </Modal>

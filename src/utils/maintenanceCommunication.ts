@@ -947,9 +947,6 @@ export async function executeMaintenanceEmail(params: {
     subject: params.subject,
     message: params.message,
     reference: params.log.orderNumber || params.log.id,
-    from_email: 'admin@aieskyline.co.uk',
-    from_name: 'AIE Skyline Fleet System',
-    source_page: 'maintenance',
   });
 
   // Log to email history

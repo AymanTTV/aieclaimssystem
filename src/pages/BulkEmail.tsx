@@ -35,12 +35,6 @@ import { emailTemplates, EmailType } from '../constants/emailTemplates';
 import { fillPlaceholders } from '../utils/templateUtils';
 import { sendEmail } from '../utils/emailService';
 import { useEmailHistory, logEmailHistory } from '../hooks/useEmailHistory';
-import { 
-  SYSTEM_SENDERS, 
-  connectGoogleWorkspace, 
-  subscribeGoogleAuth, 
-  disconnectGoogleWorkspace 
-} from '../utils/googleWorkspaceAuth';
 
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { LegalHandler } from '../types/legalHandler';
@@ -312,31 +306,6 @@ export default function BulkEmail() {
   const [templateEditMode, setTemplateEditMode] = useState<'create' | 'edit'>('create');
   const [templateToEdit, setTemplateToEdit] = useState<AppMessageTemplate | null>(null);
   const [templateGuideOpen, setTemplateGuideOpen] = useState(false);
-
-  // Google Workspace Connection & Confirmation State
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
-  const [connectedGoogleEmail, setConnectedGoogleEmail] = useState<string | null>(null);
-  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-
-  useEffect(() => {
-    const unsub = subscribeGoogleAuth((connected, email) => {
-      setIsGoogleConnected(connected);
-      setConnectedGoogleEmail(email);
-    });
-    return unsub;
-  }, []);
-
-  const handleConnectGoogle = async () => {
-    setIsConnectingGoogle(true);
-    try {
-      await connectGoogleWorkspace(SYSTEM_SENDERS.FLEET_ADMIN);
-    } catch (err: any) {
-      console.warn('Google Workspace auth notice:', err);
-    } finally {
-      setIsConnectingGoogle(false);
-    }
-  };
 
   const fetchLiveTemplates = useCallback(async () => {
     try {
@@ -1359,10 +1328,7 @@ export default function BulkEmail() {
             to_name, 
             subject: finalSubject, 
             message: finalMessage,
-            attachments: allAttachments.length > 0 ? allAttachments : undefined,
-            from_email: SYSTEM_SENDERS.FLEET_ADMIN,
-            from_name: 'AIE Skyline Fleet System',
-            source_page: 'bulk_email',
+            attachments: allAttachments.length > 0 ? allAttachments : undefined 
           });
           sent++;
         } catch {
@@ -1392,17 +1358,6 @@ export default function BulkEmail() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleInitiateSend = () => {
-    if (!subject || !message) return toast.error('Subject & message required');
-    if (selectedRecipients.length === 0) return toast.error('Pick at least one recipient');
-    setShowConfirmModal(true);
-  };
-
-  const handleConfirmSend = async () => {
-    setShowConfirmModal(false);
-    await handleSend();
   };
 
   // ─── HISTORY FILTERS ────────────────────────────────────────────
@@ -1760,45 +1715,6 @@ export default function BulkEmail() {
 
       {/* Composer */}
       <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4 border border-gray-200">
-        {/* Outbound Google Workspace Sender Status Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl text-xs">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-2xs">
-              <Mail className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-700">Outbound Email Sender:</span>
-                <strong className="font-mono text-blue-950 font-bold text-sm">admin@aieskyline.co.uk</strong>
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-800 rounded-full border border-blue-200">
-                  Google Workspace
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500">
-                All system, fleet, rental, and bulk communications are sent through this mailbox.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isGoogleConnected ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-semibold rounded-full border border-emerald-200">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                Authorized: {connectedGoogleEmail || 'admin@aieskyline.co.uk'}
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleConnectGoogle}
-                disabled={isConnectingGoogle}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-blue-700 border border-blue-300 text-xs font-semibold rounded-lg shadow-2xs transition cursor-pointer"
-              >
-                <Mail className="w-3.5 h-3.5 text-blue-600" />
-                {isConnectingGoogle ? 'Connecting…' : 'Connect Google Workspace'}
-              </button>
-            )}
-          </div>
-        </div>
-
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Subject</label>
           <input
@@ -1943,93 +1859,14 @@ export default function BulkEmail() {
         </div>
         {/* --- END ATTACHMENTS SECTION --- */}
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-          <div className="text-xs text-slate-500">
-            Sending from <strong className="font-mono text-slate-800">admin@aieskyline.co.uk</strong> via Google Workspace Gmail API.
-          </div>
-          <button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed transition shadow-xs cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto"
-            onClick={handleInitiateSend}
-            disabled={loading || !can('bulkEmail', 'send')}
-          >
-            <Send className="w-4 h-4" />
-            <span>{loading ? 'Sending…' : `Send Email (${selectedRecipients.length})`}</span>
-          </button>
-        </div>
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+          onClick={handleSend}
+          disabled={loading || !can('bulkEmail', 'send')}
+        >
+          {loading ? 'Sending…' : `Send Email (${selectedRecipients.length})`}
+        </button>
       </div>
-
-      {/* User Confirmation Dialog for Destructive/Sending Operation (Google Workspace Requirement) */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
-                <Mail className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Confirm Google Workspace Dispatch</h3>
-                <p className="text-xs text-slate-500">Please review outbound message details before sending</p>
-              </div>
-            </div>
-
-            <div className="space-y-2.5 bg-slate-50 p-4 rounded-xl text-xs border border-slate-200">
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Outbound Mailbox:</span>
-                <span className="font-mono font-bold text-blue-900">admin@aieskyline.co.uk</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Recipient Count:</span>
-                <span className="font-bold text-slate-900">{selectedRecipients.length} recipient{selectedRecipients.length !== 1 ? 's' : ''}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Subject Line:</span>
-                <span className="font-semibold text-slate-900 truncate max-w-[240px]">{subject}</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-500 font-medium">Attachments:</span>
-                <span className="font-medium text-slate-700">
-                  {selectedSystemDocs.length + customFiles.length > 0 
-                    ? `${selectedSystemDocs.length + customFiles.length} file(s) attached` 
-                    : 'None (Text email)'}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 italic">
-              Emails will be sent directly on behalf of your Google Workspace account with user permission.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer"
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSend}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    <span>Confirm &amp; Send ({selectedRecipients.length})</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* History */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-4">

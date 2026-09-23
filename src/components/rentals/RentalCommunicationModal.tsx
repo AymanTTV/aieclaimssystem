@@ -1497,9 +1497,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         message: finalBody,
         reference: `Rental ${rental.rentalAgreementNumber || rental.id || ''}`,
         attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
-        from_email: 'admin@aieskyline.co.uk',
-        from_name: 'AIE Skyline Fleet System',
-        source_page: 'rentals',
       });
 
       await logEmailHistory({

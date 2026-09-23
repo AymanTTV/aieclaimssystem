@@ -680,10 +680,19 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       return;
     }
 
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
     let finalBody = message;
     const pdfUrl = cachedPdfUrl || invoice.documentUrl;
     if (pdfUrl && !finalBody.includes(pdfUrl)) {
       finalBody = `${finalBody}\n\n📄 View / Download Invoice PDF:\n${pdfUrl}`;
+    }
+
+    if (!serviceId || !templateId || !publicKey) {
+      handleSendMailto();
+      return;
     }
 
     setSendingEmail(true);
@@ -694,9 +703,6 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         subject: subject,
         message: finalBody,
         reference: invoice.invoiceNumber || invoice.id,
-        from_email: 'admin@aieskyline.co.uk',
-        from_name: 'AIE Skyline Fleet System',
-        source_page: 'invoices',
       });
 
       await logEmailHistory({

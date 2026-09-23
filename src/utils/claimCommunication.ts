@@ -1118,6 +1118,10 @@ export async function executeClaimEmail(params: {
     throw new Error('A valid email address is required.');
   }
 
+  const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
   const claimRef = params.claim.claimId || (params.claim.id ? params.claim.id.slice(-8).toUpperCase() : 'N/A');
 
   // Format message body to cleanly include attachment links if present
@@ -1157,38 +1161,37 @@ export async function executeClaimEmail(params: {
     }
   }
 
-  // Dispatch directly via Google Workspace Gmail sender (claims@aieclaims.co.uk)
-  try {
-    await sendEmail({
-      to_email: params.email,
-      to_name: params.recipientName,
-      subject: params.subject,
-      message: finalBody,
-      reference: `Claim ${claimRef}`,
-      attachments: params.attachments,
-      from_email: 'claims@aieclaims.co.uk',
-      from_name: 'AIE Claims Department',
-      source_page: 'claims',
-    });
-
-    // Log email history
+  // If EmailJS credentials are configured, send directly
+  if (serviceId && templateId && publicKey) {
     try {
-      await logEmailHistory({
-        sentBy: params.userName || 'Admin',
-        type: 'claim',
-        templateId: params.templateId || 'claim_email_direct',
-        recipients: [params.email],
+      await sendEmail({
+        to_email: params.email,
+        to_name: params.recipientName,
         subject: params.subject,
-        timestamp: new Date(),
+        message: finalBody,
+        reference: `Claim ${claimRef}`,
+        attachments: params.attachments,
       });
-    } catch (histErr) {
-      console.warn('Failed to log email history:', histErr);
-    }
 
-    return { mode: 'provider' };
-  } catch (err: any) {
-    console.warn('Google Workspace email sending failed or was cancelled, providing mailto option:', err);
-    // Fallback to mailto below if direct send was not completed
+      // Log email history
+      try {
+        await logEmailHistory({
+          sentBy: params.userName || 'Admin',
+          type: 'claim',
+          templateId: params.templateId || 'claim_email_direct',
+          recipients: [params.email],
+          subject: params.subject,
+          timestamp: new Date(),
+        });
+      } catch (histErr) {
+        console.warn('Failed to log email history:', histErr);
+      }
+
+      return { mode: 'provider' };
+    } catch (err: any) {
+      console.warn('Provider email failed, falling back to mailto:', err);
+      // Fallback to mailto below
+    }
   }
 
   // Mailto fallback
