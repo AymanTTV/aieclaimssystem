@@ -256,10 +256,22 @@ const Accidents = () => {
             setShowViewModal(false);
             setSelectedAccident(null);
           }}
-          title="Accident Details"
-          size="xl"
+          title="Accident Claim Details"
+          subtitle={
+            selectedAccident
+              ? `Ref #${selectedAccident.refNo || selectedAccident.referenceNo || 'N/A'} • ${selectedAccident.vehicleVRN || 'Vehicle'} • ${selectedAccident.driverName || 'Driver'}`
+              : undefined
+          }
+          size="2xl"
+          contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0 bg-white"
         >
-          <AccidentClaimView accident={selectedAccident} />
+          <AccidentClaimView
+            accident={selectedAccident}
+            onClose={() => {
+              setShowViewModal(false);
+              setSelectedAccident(null);
+            }}
+          />
         </Modal>
       )}
 

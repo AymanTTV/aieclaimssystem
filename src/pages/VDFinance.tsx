@@ -854,8 +854,24 @@ const VDFinance: React.FC = () => {
         <VDFinanceForm record={editingRecord} vehicles={vehicles} onClose={() => { setShowForm(false); setEditingRecord(null); }} />
       </Modal>
 
-      <Modal isOpen={!!selectedRecord} onClose={() => setSelectedRecord(null)} title="VD Finance Details" size="lg">
-        {selectedRecord && <VDFinanceDetails record={selectedRecord} />}
+      <Modal
+        isOpen={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        title="VD Finance Details"
+        subtitle={
+          selectedRecord
+            ? `${selectedRecord.reg || (selectedRecord as any).registration || 'Vehicle'} • Ref: #${selectedRecord.ref || (selectedRecord as any).reference || 'N/A'} • ${selectedRecord.name || ''}`
+            : undefined
+        }
+        size="2xl"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0 bg-white"
+      >
+        {selectedRecord && (
+          <VDFinanceDetails
+            record={selectedRecord}
+            onClose={() => setSelectedRecord(null)}
+          />
+        )}
       </Modal>
 
       <ManageVDFinanceCategoriesModal isOpen={showManageCategories} onClose={() => setShowManageCategories(false)} />
