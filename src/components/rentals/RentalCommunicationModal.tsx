@@ -110,9 +110,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
   const { can, isAdmin } = usePermissions();
+  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send');
+  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send');
+  const canUseTemplates = isAdmin || can('rentals', 'template');
   const canEditTemplates = isAdmin || can('rentals', 'templateEdit');
-  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp');
-  const canSendEmail = isAdmin || can('rentals', 'email');
+  const canCreateTemplates = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
+  const canDeleteTemplates = isAdmin || can('rentals', 'templateDelete');
   
   const [mode, setMode] = useState<'whatsapp' | 'email'>(initialMode);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
@@ -1494,6 +1497,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         message: finalBody,
         reference: `Rental ${rental.rentalAgreementNumber || rental.id || ''}`,
         attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
+        from_email: 'admin@aieskyline.co.uk',
+        from_name: 'AIE Skyline Fleet System',
+        source_page: 'rentals',
       });
 
       await logEmailHistory({
@@ -1701,7 +1707,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 </button>
               )}
 
-              {canEditTemplates ? (
+              {canCreateTemplates ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1720,7 +1726,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   type="button"
                   disabled
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg opacity-60 cursor-not-allowed"
-                  title="Template editing permission required to create templates"
+                  title="Permission required: You do not have permission to create templates"
                 >
                   <Lock className="w-3.5 h-3.5 text-slate-400" />
                   <span>New Template</span>
@@ -1934,7 +1940,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {availableDocs.map((docItem) => {
               const isSelected = selectedDocIds.includes(docItem.id);
               const isGen = isGeneratingDocs[docItem.id];
@@ -1945,10 +1951,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <label
                   key={docItem.id}
                   data-attachment-item="true"
-                  title={docItem.label}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition-all select-none attachment-item ${
+                  className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all select-none attachment-item ${
                     isSelected
-                      ? 'is-selected bg-indigo-50/90 border-indigo-400 text-indigo-950 shadow-2xs ring-1 ring-indigo-400'
+                      ? 'is-selected bg-indigo-50/90 border-indigo-500 text-indigo-950 shadow-sm ring-1 ring-indigo-500/30'
                       : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
@@ -1956,46 +1961,67 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleDoc(docItem.id)}
-                    className="h-4 w-4 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+                    className="h-4 w-4 mt-1 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
                   />
-                  <IconComp className={`w-4 h-4 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
-                  <span
-                    title={docItem.label}
-                    className={`flex-1 min-w-0 truncate text-xs font-semibold attachment-label ${
-                      isSelected ? 'font-bold text-indigo-950' : 'text-slate-900'
-                    }`}
-                  >
-                    {docItem.label}
-                  </span>
-                  {hasUrl && !isGen && (
-                    <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                      <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[2.5]" />
-                      Ready
-                    </span>
-                  )}
-                  {isGen && (
-                    <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 animate-pulse">
-                      Generating...
-                    </span>
-                  )}
-                  {!hasUrl && !isGen && isSelected && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        ensureDocUrl(docItem);
-                      }}
-                      className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded border border-indigo-300 transition-colors cursor-pointer"
-                      title="Generate instant link now"
-                    >
-                      ⚡ Generate
-                    </button>
-                  )}
+                  <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <IconComp className="w-4 h-4" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-bold text-slate-900 leading-snug block break-words">
+                        {docItem.label}
+                      </span>
+                      {hasUrl && !isGen && (
+                        <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                          <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                          Ready
+                        </span>
+                      )}
+                      {isGen && (
+                        <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 animate-pulse">
+                          Generating Link...
+                        </span>
+                      )}
+                      {!hasUrl && !isGen && isSelected && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            ensureDocUrl(docItem);
+                          }}
+                          className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded-md border border-indigo-300 transition-colors cursor-pointer"
+                          title="Generate instant download link"
+                        >
+                          ⚡ Generate
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        {docItem.category === 'hire' ? 'Hire Agreement' : docItem.category === 'invoice' ? 'Invoice' : docItem.category === 'permit' ? 'Permit' : 'Claim Doc'}
+                      </span>
+                      {hasUrl && (
+                        <span className="text-[11px] text-emerald-700 font-semibold truncate">
+                          Attachment ready
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </label>
               );
             })}
           </div>
+
+          {selectedDocIds.length > 0 && (
+            <div className="mt-3 p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs flex items-center gap-2">
+              <span className="font-black text-indigo-950 uppercase tracking-wider text-[11px]">Selected to Send ({selectedDocIds.length}):</span>
+              <span className="font-bold text-indigo-900 truncate">
+                {selectedDocIds.map((id) => availableDocs.find((d) => d.id === id)?.label).filter(Boolean).join(' • ')}
+              </span>
+            </div>
+          )}
           
           <p className="text-xs text-slate-600 mt-2.5 leading-relaxed font-normal">
             {mode === 'whatsapp'
@@ -2406,7 +2432,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all cursor-pointer active:scale-95"
+                disabled={!canSendWhatsApp}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canSendWhatsApp ? "Permission required: You do not have permission to send WhatsApp messages" : undefined}
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Open in WhatsApp
@@ -2417,8 +2445,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <button
                   type="button"
                   onClick={handleSendMailto}
-                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-2xs transition-all cursor-pointer"
-                  title="Open default email application"
+                  disabled={!canSendEmail}
+                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-2xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendEmail ? "Permission required: You do not have permission to send emails" : "Open default email application"}
                 >
                   <Mail className="h-4 w-4 mr-1.5 text-sky-600" />
                   Open in Email Client
@@ -2426,8 +2455,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <button
                   type="button"
                   onClick={handleSendDirectEmail}
-                  disabled={sendingEmail}
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
+                  disabled={sendingEmail || !canSendEmail}
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95 disabled:cursor-not-allowed"
+                  title={!canSendEmail ? "Permission required: You do not have permission to send emails" : undefined}
                 >
                   <Send className="h-4 w-4 mr-2" />
                   {sendingEmail ? 'Sending...' : 'Send Direct Email'}

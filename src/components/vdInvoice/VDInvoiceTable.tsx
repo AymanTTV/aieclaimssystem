@@ -241,6 +241,7 @@ const VDInvoiceTable: React.FC<VDInvoiceTableProps> = ({
           mobile: commModal.invoice.customerPhone || '',
         } as any) : undefined}
         initialMode={commModal.mode}
+        moduleContext="vdInvoice"
       />
     </>
   );

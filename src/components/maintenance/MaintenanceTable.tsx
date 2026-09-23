@@ -381,15 +381,15 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           } else if (days === 0) {
             dateTextColor = 'text-red-700 font-bold';
             badge = (
-              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs animate-pulse">
-                Due Today!
+              <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs">
+                Due Today
               </span>
             );
           } else if (days <= 7) {
             dateTextColor = 'text-red-700 font-bold';
             badge = (
               <span className="inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs">
-                {days === 1 ? 'Due Tmrw' : `Due in ${days}d`}
+                {days === 1 ? 'Due in 1d' : `Due in ${days}d`}
               </span>
             );
           } else {

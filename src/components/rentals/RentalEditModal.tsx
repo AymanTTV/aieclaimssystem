@@ -1286,40 +1286,40 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
           )}
 
           {/* Quick Actions / Share section */}
-          <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl space-y-3">
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Quick Actions</span>
-              <span className="text-xs text-gray-400">Trigger on Save</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Quick Actions</span>
+              <span className="text-xs text-slate-500 font-medium">Trigger on Save</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 cursor-pointer transition text-xs font-semibold text-slate-800 shadow-2xs">
                 <input
                   type="checkbox"
                   checked={postSaveActions.whatsapp}
                   onChange={(e) => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
-                  className="rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-900"
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white"
                 />
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Send via WhatsApp</span>
               </label>
-              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 cursor-pointer transition text-xs font-semibold text-slate-800 shadow-2xs">
                 <input
                   type="checkbox"
                   checked={postSaveActions.email}
                   onChange={(e) => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
-                  className="rounded border-gray-600 text-sky-500 focus:ring-sky-500 bg-gray-900"
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 bg-white"
                 />
-                <Mail className="w-3.5 h-3.5 text-sky-400" />
+                <Mail className="w-3.5 h-3.5 text-blue-600" />
                 <span>Send via Email</span>
               </label>
-              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-gray-200">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-purple-500 hover:bg-purple-50/50 cursor-pointer transition text-xs font-semibold text-slate-800 shadow-2xs">
                 <input
                   type="checkbox"
                   checked={postSaveActions.printPdf}
                   onChange={(e) => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
-                  className="rounded border-gray-600 text-purple-500 focus:ring-purple-500 bg-gray-900"
+                  className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 bg-white"
                 />
-                <Printer className="w-3.5 h-3.5 text-purple-400" />
+                <Printer className="w-3.5 h-3.5 text-purple-600" />
                 <span>Print / Download PDF</span>
               </label>
             </div>

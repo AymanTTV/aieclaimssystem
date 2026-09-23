@@ -24,6 +24,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import RentalTemplateEditorModal, { RentalTemplateData, RENTAL_DATA_TOOLS } from './RentalTemplateEditorModal';
 import { Rental, Vehicle, Customer } from '../../types';
 import toast from 'react-hot-toast';
+import { loadTemplatesForCategory, markTemplateAsDeleted } from '../../utils/templateManager';
 
 export interface RentalTemplatesModalProps {
   isOpen: boolean;
@@ -46,9 +47,11 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
 }) => {
   const { can, isAdmin } = usePermissions();
   
-  // Permission check: admin or explicit templateEdit permission
-  const canEdit = isAdmin || can('rentals', 'templateEdit');
-  const isReadOnly = !canEdit;
+  // Granular template permissions: admin or specific permission
+  const canCreate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit') || can('automation', 'create') || can('whatsapp', 'template');
+  const canEdit = isAdmin || can('rentals', 'templateEdit') || can('automation', 'update') || can('whatsapp', 'template');
+  const canDelete = isAdmin || can('rentals', 'templateDelete') || can('automation', 'delete') || can('whatsapp', 'delete');
+  const isReadOnly = !canEdit && !canCreate;
 
   // Active Navigation Tab: 'whatsapp' or 'email'
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'email'>(initialTab);
@@ -73,45 +76,19 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
   const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
   const [selectedTemplateForEdit, setSelectedTemplateForEdit] = useState<RentalTemplateData | null>(null);
 
-  // Load templates from Firestore and fallbacks
+  // Load templates from unified template manager
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'messageTemplates'));
-      const list: RentalTemplateData[] = [];
-      const seenIds = new Set<string>();
-
-      if (!snap.empty) {
-        snap.docs.forEach((d) => {
-          const data = d.data() as any;
-          list.push({
-            id: d.id,
-            name: data.name || 'Untitled Template',
-            category: String(data.category || 'Rental').trim(),
-            channel: (data.channel as 'all' | 'whatsapp' | 'email') || 'all',
-            subjectTemplate: data.subjectTemplate || data.subject || '',
-            bodyTemplate: data.bodyTemplate || data.body || '',
-          });
-          seenIds.add(d.id);
-        });
-      }
-
-      // Add default system rental templates if not already in Firestore
-      (emailTemplates.rental || []).forEach((et) => {
-        if (!seenIds.has(et.id)) {
-          list.push({
-            id: et.id,
-            name: et.name,
-            category: 'Rental',
-            channel: 'all',
-            subjectTemplate: et.subjectTemplate,
-            bodyTemplate: et.bodyTemplate,
-          });
-          seenIds.add(et.id);
-        }
-      });
-
-      setTemplates(list);
+      const list = await loadTemplatesForCategory('rental');
+      setTemplates(list.map(t => ({
+        id: t.id,
+        name: t.name,
+        category: t.category || 'Rental',
+        channel: (t.channel as any) || 'all',
+        subjectTemplate: t.subjectTemplate || '',
+        bodyTemplate: t.bodyTemplate || '',
+      })));
     } catch (err) {
       console.error('Failed to load message templates:', err);
       toast.error('Failed to load templates from database');
@@ -201,8 +178,8 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
   };
 
   const handleOpenCreate = () => {
-    if (isReadOnly) {
-      toast.error('You have read-only access. You do not have permission to create templates.');
+    if (!canCreate) {
+      toast.error('Permission denied: You do not have permission to create templates.');
       return;
     }
     setSelectedTemplateForEdit(null);
@@ -217,16 +194,16 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
   };
 
   const handleDeleteTemplate = async (t: RentalTemplateData) => {
-    if (isReadOnly) {
-      toast.error('You do not have permission to delete templates (Read-Only access)');
+    if (!canDelete) {
+      toast.error('Permission denied: You do not have permission to delete templates.');
       return;
     }
     if (!t.id) return;
-    if (!window.confirm(`Are you sure you want to delete "${t.name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${t.name}"? This will permanently remove it from your template choices.`)) return;
 
     try {
-      await deleteDoc(doc(db, 'messageTemplates', t.id));
-      toast.success(`Template "${t.name}" deleted`);
+      await markTemplateAsDeleted(t.id, t.category);
+      toast.success(`Template "${t.name}" deleted permanently`);
       loadTemplates();
     } catch (err) {
       console.error('Delete template error:', err);
@@ -320,10 +297,10 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenCreate}
-                  disabled={isReadOnly}
-                  title={isReadOnly ? 'You do not have permission to create templates' : 'Create new template'}
+                  disabled={!canCreate}
+                  title={!canCreate ? 'You do not have permission to create templates' : 'Create new template'}
                   className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
-                    isReadOnly
+                    !canCreate
                       ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer active:scale-95'
                   }`}
@@ -509,15 +486,15 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                           <span>{isReadOnly ? 'View' : 'Edit'}</span>
                         </button>
 
-                        {/* Delete (only if edit permission) */}
-                        {!isReadOnly && t.id && (
+                        {/* Delete (only if protected delete permission) */}
+                        {canDelete && t.id && (
                           <button
                             type="button"
                             onClick={() => handleDeleteTemplate(t)}
                             className="p-1 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg cursor-pointer transition-colors"
-                            title="Delete template"
+                            title="Delete template (Protected)"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3 h-3 text-red-500" />
                           </button>
                         )}
                       </div>

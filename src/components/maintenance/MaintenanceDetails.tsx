@@ -97,7 +97,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
       if (daysUntilDue <= 7) {
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200 shadow-xs">
-            ⚠️ Scheduled (Due in {daysUntilDue <= 0 ? 'Today' : `${daysUntilDue}d`})
+            ⚠️ Scheduled — Due in {daysUntilDue <= 0 ? 'Today' : `${daysUntilDue}d`}
           </span>
         );
       }

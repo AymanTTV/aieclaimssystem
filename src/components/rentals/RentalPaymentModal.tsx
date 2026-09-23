@@ -306,23 +306,26 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     <div className="space-y-6">
       
       {/* Financial Breakdown Card */}
-      <div className="bg-gray-900 rounded-2xl p-6 shadow-xl text-white">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white/90">
-          <Receipt className="w-5 h-5 text-green-400" /> Financial Summary
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-2xs text-slate-900">
+        <h3 className="text-base font-bold mb-4 flex items-center gap-2 text-slate-900">
+          <Receipt className="w-5 h-5 text-emerald-600" /> Financial Summary
         </h3>
         
         <div className="grid grid-cols-2 gap-4">
-           <div>
-             <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Calculated Total</p>
-             <p className="text-xl font-mono">{formatCurrency(totalAmountDue)}</p>
+           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Calculated Total</p>
+             <p className="text-xl font-mono font-bold text-slate-900 mt-1">{formatCurrency(totalAmountDue)}</p>
            </div>
-           <div>
-             <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Amount Paid</p>
-             <p className="text-xl font-mono text-green-400">{formatCurrency(paid)}</p>
+           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Amount Paid</p>
+             <p className="text-xl font-mono font-bold text-emerald-600 mt-1">{formatCurrency(paid)}</p>
            </div>
-           <div className="col-span-2 bg-white/10 p-4 rounded-xl border border-white/20 flex items-center justify-between">
-             <p className="text-white text-sm font-bold uppercase tracking-wider">Gross Remaining</p>
-             <p className={`text-3xl font-black font-mono ${remainingAmount <= 0.001 ? 'text-green-400' : 'text-amber-400'}`}>
+           <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
+             <div>
+               <p className="text-slate-700 text-xs font-bold uppercase tracking-wider">Gross Remaining</p>
+               <span className="text-xs text-slate-500">Balance due on completion</span>
+             </div>
+             <p className={`text-2xl sm:text-3xl font-black font-mono ${remainingAmount <= 0.001 ? 'text-emerald-600' : 'text-amber-600'}`}>
                 {formatCurrency(remainingAmount)}
              </p>
            </div>

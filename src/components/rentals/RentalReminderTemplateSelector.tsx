@@ -32,6 +32,7 @@ import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'fireba
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { BulkEmailTemplateSearchableSelect } from './BulkEmailTemplateSearchableSelect';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   DAYS_OF_WEEK,
   SCHEDULE_TIME_OPTIONS,
@@ -67,6 +68,13 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
   className = '',
   isCompact = false,
 }) => {
+  const { can, isAdmin } = usePermissions();
+  const canCreateTemplate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
+  const canEditTemplate = isAdmin || can('rentals', 'templateEdit');
+  const canManageReminder = isAdmin || can('rentals', 'reminderTemplate') || can('rentals', 'templateEdit');
+  const canManageMondayEmail = isAdmin || can('automation', 'mondayAutoEmail') || can('automation', 'update');
+  const canManageScheduler = isAdmin || can('automation', 'scheduler') || can('automation', 'update');
+
   const [loading, setLoading] = useState(true);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [runningTestBatch, setRunningTestBatch] = useState(false);
@@ -237,6 +245,18 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
   // Save changes to current template or create alternate
   const handleSaveTemplateChanges = async (asNewAlternate: boolean = false) => {
+    if (asNewAlternate || editingTarget === 'new' || !editorForm.id) {
+      if (!canCreateTemplate) {
+        toast.error('You do not have permission to create templates.');
+        return;
+      }
+    } else {
+      if (!canEditTemplate) {
+        toast.error('You do not have permission to edit templates.');
+        return;
+      }
+    }
+
     if (!editorForm.name.trim() || !editorForm.subjectTemplate.trim() || !editorForm.bodyTemplate.trim()) {
       toast.error('Template Name, Subject, and Body are required.');
       return;
@@ -308,6 +328,10 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
   // Save dropdown selections & automated schedule preferences
   const handleSavePreferences = async () => {
+    if (!canManageReminder && !canManageMondayEmail && !canManageScheduler) {
+      toast.error('You do not have permission to save reminder template settings.');
+      return;
+    }
     setSavingPreferences(true);
     const toastId = toast.loading('Saving reminder templates and schedule preferences...');
     try {
@@ -336,6 +360,10 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
 
   // Run Test Batch
   const handleRunTestBatch = async () => {
+    if (!canManageMondayEmail) {
+      toast.error('You do not have permission to trigger Monday auto-email batches.');
+      return;
+    }
     setRunningTestBatch(true);
     const toastId = toast.loading('Executing Monday Auto-Email test dispatch...');
     try {

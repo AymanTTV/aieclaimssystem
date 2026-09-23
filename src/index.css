@@ -54,52 +54,134 @@
   animation: fadingBlink 2.6s ease-in-out infinite;
 }
 
-/* Very very slow fade blinking for Public Mirror < 8 days urgent schedule highlight */
-@keyframes slowFadeBlinkRed {
+/* Vivid glowing color background blinking for Public Mirror urgent schedule & live status */
+@keyframes moreColorBlinkBadgeRed {
   0%, 100% {
-    background-color: rgba(220, 38, 38, 0.26);
-    border-color: rgba(239, 68, 68, 0.95);
-    box-shadow: 0 0 20px -2px rgba(239, 68, 68, 0.45);
+    background-color: #ef4444; /* vibrant red-500 */
+    border-color: #fca5a5;     /* red-300 */
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.75);
+  }
+  35% {
+    background-color: #dc2626; /* intense red-600 */
+    border-color: #f87171;     /* red-400 */
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.5);
+  }
+  70% {
+    background-color: #991b1b; /* deep crimson red-800 */
+    border-color: #ef4444;     /* red-500 */
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.85);
+  }
+}
+
+@keyframes moreColorBlinkBadgeAmber {
+  0%, 100% {
+    background-color: #f59e0b; /* amber-500 */
+    border-color: #fde68a;     /* amber-200 */
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
   }
   50% {
-    background-color: rgba(220, 38, 38, 0.07);
-    border-color: rgba(239, 68, 68, 0.35);
+    background-color: #b45309; /* amber-700 */
+    border-color: #fbbf24;     /* amber-400 */
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  }
+}
+
+@keyframes moreColorBlinkBadgeBlue {
+  0%, 100% {
+    background-color: #2563eb; /* blue-600 */
+    border-color: #93c5fd;     /* blue-300 */
+    box-shadow: 0 0 14px rgba(37, 99, 235, 0.6);
+  }
+  50% {
+    background-color: #1e3a8a; /* deep blue-900 */
+    border-color: #3b82f6;     /* blue-500 */
+    box-shadow: 0 0 5px rgba(37, 99, 235, 0.35);
+  }
+}
+
+@keyframes caretBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-more-color-blink-red {
+  animation: moreColorBlinkBadgeRed 2.6s ease-in-out infinite;
+}
+
+.animate-more-color-blink-amber {
+  animation: moreColorBlinkBadgeAmber 2.6s ease-in-out infinite;
+}
+
+.animate-more-color-blink-blue {
+  animation: moreColorBlinkBadgeBlue 2.6s ease-in-out infinite;
+}
+
+.animate-caret {
+  animation: caretBlink 0.75s ease-in-out infinite;
+}
+
+@keyframes steadyColorFadeRed {
+  0%, 100% {
+    background-color: #ef4444; /* red-500 */
+    border-color: #fca5a5;     /* red-300 */
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    background-color: #991b1b; /* red-800 - deep crimson */
+    border-color: #ef4444;     /* red-500 */
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+  }
+}
+
+@keyframes slowFadeBlinkRed {
+  0%, 100% {
+    background-color: rgba(220, 38, 38, 0.22);
+    border-color: rgba(239, 68, 68, 0.85);
+    box-shadow: 0 0 16px -2px rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    background-color: rgba(220, 38, 38, 0.08);
+    border-color: rgba(239, 68, 68, 0.4);
     box-shadow: 0 0 2px 0px rgba(239, 68, 68, 0.05);
   }
 }
 
 @keyframes slowFadeBlinkRedTable {
   0%, 100% {
-    background-color: rgba(220, 38, 38, 0.22);
-    border-color: rgba(239, 68, 68, 0.85);
+    background-color: #2b080d;
+    border-color: #dc2626;
   }
   50% {
-    background-color: rgba(220, 38, 38, 0.05);
-    border-color: rgba(239, 68, 68, 0.3);
+    background-color: #1a0507;
+    border-color: #991b1b;
   }
 }
 
 @keyframes slowFadeBlinkDot {
   0%, 100% {
+    background-color: #ffffff;
     opacity: 1;
-    transform: scale(1.1);
   }
   50% {
-    opacity: 0.3;
-    transform: scale(0.9);
+    background-color: #fca5a5;
+    opacity: 0.75;
   }
 }
 
 .animate-slow-fade-blink-red {
-  animation: slowFadeBlinkRed 4.5s ease-in-out infinite;
+  animation: slowFadeBlinkRed 7.5s ease-in-out infinite;
 }
 
 .animate-slow-fade-blink-table {
-  animation: slowFadeBlinkRedTable 4.5s ease-in-out infinite;
+  animation: slowFadeBlinkRedTable 7.5s ease-in-out infinite;
 }
 
 .animate-slow-fade-blink-dot {
-  animation: slowFadeBlinkDot 4.5s ease-in-out infinite;
+  animation: slowFadeBlinkDot 7.5s ease-in-out infinite;
+}
+
+.animate-slow-color-fade-badge {
+  animation: steadyColorFadeRed 7.5s ease-in-out infinite;
 }
 
 @layer utilities {
@@ -474,10 +556,69 @@
     border-top-color: rgba(245, 158, 11, 0.5) !important;
     border-bottom-color: rgba(245, 158, 11, 0.5) !important;
   }
+  /* Urgent row: pure solid deep rich red - NO semi-transparent light white overlay or alpha layer */
+  .public-mirror-table tbody tr.row-urgent,
+  .public-mirror-table tbody tr.row-urgent:hover {
+    background-color: #26070b !important;
+    background: #26070b !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+  }
+  .public-mirror-table tbody tr.row-urgent td {
+    background-color: #26070b !important;
+    background: #26070b !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    border-top: 1px solid #991b1b !important;
+    border-bottom: 1px solid #991b1b !important;
+  }
+  .public-mirror-table tbody tr.row-urgent td:first-child {
+    border-left: 4px solid #ef4444 !important;
+  }
+  .public-mirror-table tbody tr.row-urgent td:last-child {
+    border-right: 1px solid #991b1b !important;
+  }
   .public-mirror-table tbody tr.row-urgent:hover td {
-    background-color: rgba(69, 10, 10, 0.6) !important;
-    border-top-color: rgba(239, 68, 68, 0.65) !important;
-    border-bottom-color: rgba(239, 68, 68, 0.65) !important;
+    background-color: #380a10 !important;
+    background: #380a10 !important;
+    border-top-color: #ef4444 !important;
+    border-bottom-color: #ef4444 !important;
+  }
+  .public-mirror-table tbody tr.row-urgent:hover td:last-child {
+    border-right-color: #ef4444 !important;
+  }
+
+  /* Ensure strictly no semi-transparent white overlays, tints, pseudo-elements or alpha layers */
+  .public-mirror-table tbody tr.row-urgent::before,
+  .public-mirror-table tbody tr.row-urgent::after,
+  .public-mirror-table tbody tr.row-urgent td::before,
+  .public-mirror-table tbody tr.row-urgent td::after,
+  .public-mirror-table tbody tr.row-urgent *::before,
+  .public-mirror-table tbody tr.row-urgent *::after {
+    display: none !important;
+    content: none !important;
+    background: none !important;
+    opacity: 0 !important;
+  }
+
+  /* Prevent browser text selection from causing ugly white background blocks in Public Mirror */
+  .public-mirror-table ::selection,
+  .public-mirror-badge ::selection {
+    background-color: rgba(239, 68, 68, 0.5) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+  }
+  .public-mirror-table ::-moz-selection,
+  .public-mirror-badge ::-moz-selection {
+    background-color: rgba(239, 68, 68, 0.5) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
   }
 
   /* Blue / Indigo accents */

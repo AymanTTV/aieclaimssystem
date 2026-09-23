@@ -16,6 +16,8 @@ import {
   MessageCircle,
   Scale,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Shield,
   Clock,
   Paperclip,
@@ -102,6 +104,66 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   const displayStatus = useMemo(() => deriveDisplayStatus(claim) ?? 'N/A', [claim]);
   const [serverHistory, setServerHistory] = useState(claim.progressHistory || []);
   const historyToShow = serverHistory?.length ? serverHistory : (claim.progressHistory || []);
+
+  const tabs = useMemo(() => [
+    {
+      id: 'client_vehicle' as const,
+      title: 'Client & Vehicle',
+      icon: User,
+      badge: (claim as any).clientVehicle?.registration
+        ? String((claim as any).clientVehicle.registration).toUpperCase()
+        : 'Details',
+    },
+    {
+      id: 'vehicle_docs' as const,
+      title: 'Vehicle Docs',
+      icon: FileText,
+      badge: `${Object.keys(claim.clientVehicle?.documents || {}).length} Docs`,
+    },
+    {
+      id: 'incident' as const,
+      title: 'Incident Details',
+      icon: Calendar,
+      badge: formatDate((claim as any).incidentDetails?.date),
+    },
+    {
+      id: 'third_party' as const,
+      title: 'Third Party',
+      icon: Users,
+      badge: (claim as any).thirdParty?.name || 'Third Party',
+    },
+    {
+      id: 'evidence' as const,
+      title: 'Evidence',
+      icon: Camera,
+      badge: `${
+        ((claim as any).evidence?.images?.length || 0) +
+        ((claim as any).evidence?.videos?.length || 0) +
+        ((claim as any).evidence?.clientVehiclePhotos?.length || 0) +
+        ((claim as any).evidence?.engineerReport?.length || 0) +
+        ((claim as any).evidence?.bankStatement?.length || 0) +
+        ((claim as any).evidence?.adminDocuments?.length || 0)
+      } Items`,
+    },
+    {
+      id: 'progress' as const,
+      title: 'Progress History',
+      icon: Activity,
+      badge: `${historyToShow.length} Updates`,
+    },
+  ], [claim, historyToShow.length]);
+
+  const currentTabIndex = tabs.findIndex((t) => t.id === activeTab);
+  const handlePrevTab = () => {
+    if (currentTabIndex > 0) {
+      setActiveTab(tabs[currentTabIndex - 1].id);
+    }
+  };
+  const handleNextTab = () => {
+    if (currentTabIndex < tabs.length - 1) {
+      setActiveTab(tabs[currentTabIndex + 1].id);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -432,115 +494,39 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* TOP SELECTABLE CARDS / TABS */}
+      {/* 1. MODAL NAVIGATION BAR (PINNED AT THE TOP)                               */}
       {/* ========================================================================= */}
-      <div className="bg-slate-50 p-2 sm:p-2.5 rounded-2xl border border-slate-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {[
-            {
-              id: 'client_vehicle' as const,
-              title: 'Client & Vehicle',
-              icon: User,
-              badge: (claim as any).clientVehicle?.registration
-                ? String((claim as any).clientVehicle.registration).toUpperCase()
-                : 'Details',
-            },
-            {
-              id: 'vehicle_docs' as const,
-              title: 'Vehicle Docs',
-              icon: FileText,
-              badge: `${Object.keys(claim.clientVehicle?.documents || {}).length} Docs`,
-            },
-            {
-              id: 'incident' as const,
-              title: 'Incident Details',
-              icon: Calendar,
-              badge: formatDate((claim as any).incidentDetails?.date),
-            },
-            {
-              id: 'third_party' as const,
-              title: 'Third Party',
-              icon: Users,
-              badge: (claim as any).thirdParty?.name || 'Third Party',
-            },
-            {
-              id: 'evidence' as const,
-              title: 'Evidence',
-              icon: Camera,
-              badge: `${
-                ((claim as any).evidence?.images?.length || 0) +
-                ((claim as any).evidence?.videos?.length || 0) +
-                ((claim as any).evidence?.clientVehiclePhotos?.length || 0) +
-                ((claim as any).evidence?.engineerReport?.length || 0) +
-                ((claim as any).evidence?.bankStatement?.length || 0) +
-                ((claim as any).evidence?.adminDocuments?.length || 0)
-              } Items`,
-            },
-            {
-              id: 'progress' as const,
-              title: 'Progress History',
-              icon: Activity,
-              badge: `${historyToShow.length} Updates`,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`claim-tab-${tab.id}`}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={clsx(
-                  'relative text-left p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border transition-all duration-150 flex flex-col justify-between min-h-[92px] group cursor-pointer',
-                  isActive
-                    ? 'bg-blue-50 border-blue-500 shadow-xs ring-2 ring-blue-500/20'
-                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
-                )}
-              >
-                <div className="flex items-center justify-end w-full mb-3">
-                  <div
-                    className={clsx(
-                      'w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center transition-colors',
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-500 group-hover:text-blue-600 group-hover:bg-blue-50'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                </div>
+      <div className="flex overflow-x-auto sm:grid sm:grid-cols-6 w-full border border-slate-200 shrink-0 bg-slate-100/70 select-none divide-x divide-slate-200 rounded-xl overflow-hidden no-scrollbar shadow-2xs">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
 
-                <div>
-                  <h4
-                    className={clsx(
-                      'text-xs sm:text-sm font-bold leading-tight truncate',
-                      isActive
-                        ? 'text-blue-900'
-                        : 'text-slate-700 group-hover:text-slate-900'
-                    )}
-                  >
-                    {tab.title}
-                  </h4>
-                  <span
-                    className={clsx(
-                      'text-[11px] font-medium leading-tight truncate block mt-0.5',
-                      isActive
-                        ? 'text-blue-600 font-semibold'
-                        : 'text-slate-500'
-                    )}
-                  >
-                    {tab.badge}
-                  </span>
-                </div>
-
-                {isActive && (
-                  <div className="absolute -bottom-[1px] left-3 right-3 h-0.5 bg-blue-600 rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+          return (
+            <button
+              key={tab.id}
+              id={`claim-tab-${tab.id}`}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center justify-center gap-1.5 py-3 px-2 border-b-2 text-xs sm:text-sm transition-all cursor-pointer truncate ${
+                isActive
+                  ? 'border-blue-600 text-blue-700 font-extrabold bg-white shadow-xs'
+                  : 'border-transparent text-slate-600 font-semibold hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0 pointer-events-none" />
+              <span className="truncate">{tab.title}</span>
+              {tab.badge && (
+                <span
+                  className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 ${
+                    isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ========================================================================= */}
@@ -1668,6 +1654,33 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           </div>
         )}
       </FormalSectionCard>
+
+      {/* Tab Navigation Footer */}
+      <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shrink-0 shadow-2xs">
+        <button
+          type="button"
+          onClick={handlePrevTab}
+          disabled={currentTabIndex === 0}
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span>Previous</span>
+        </button>
+
+        <span className="text-xs font-semibold text-slate-500">
+          Tab {currentTabIndex + 1} of {tabs.length}
+        </span>
+
+        <button
+          type="button"
+          onClick={handleNextTab}
+          disabled={currentTabIndex === tabs.length - 1}
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
+        >
+          <span>Next</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Metadata & Audit Footer */}
       <div className="text-xs text-[#64748B] border-t border-[#E2E8F0] pt-4 flex flex-col sm:flex-row justify-between gap-2">

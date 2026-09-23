@@ -726,6 +726,9 @@ export async function sendSingleRentalTestEmail(
       subject: finalSubject,
       message: finalBody,
       reference: bankReference,
+      from_email: 'admin@aieskyline.co.uk',
+      from_name: 'AIE Skyline Fleet System',
+      source_page: 'monday_auto_email',
       // Strictly no attachments parameter passed
     });
   } catch (emailErr) {
@@ -941,6 +944,9 @@ export async function runMondayAutoEmailJob(options?: {
         subject: finalSubject,
         message: finalBody,
         reference: bankReference,
+        from_email: 'admin@aieskyline.co.uk',
+        from_name: 'AIE Skyline Fleet System',
+        source_page: 'monday_auto_email',
       });
     } catch (emailErr) {
       console.warn(`[MondayAutoEmailJob] Email dispatch error for ${rentalId}:`, emailErr);

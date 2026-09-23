@@ -325,8 +325,10 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
   onDeleted,
 }) => {
   const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
   const canEdit = isAdmin || can('rentals', 'templateEdit');
-  const isReadOnly = Boolean(readOnly !== undefined ? readOnly : !canEdit);
+  const canDelete = isAdmin || can('rentals', 'templateDelete');
+  const isReadOnly = Boolean(readOnly || (mode === 'create' ? !canCreate : !canEdit));
 
   const activeTemplate = templateToEdit || initialTemplate || null;
   const [name, setName] = useState('');
@@ -409,8 +411,12 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
 
   // Save / Update Handler
   const handleSave = async () => {
-    if (isReadOnly) {
-      toast.error('You do not have permission to modify templates (Read-Only access)');
+    if (mode === 'create' && !canCreate) {
+      toast.error('Permission denied: You do not have permission to create templates.');
+      return;
+    }
+    if (mode === 'edit' && !canEdit) {
+      toast.error('Permission denied: You do not have permission to edit templates.');
       return;
     }
     if (!name.trim()) {
@@ -464,8 +470,8 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
 
   // Delete Handler
   const handleDelete = async () => {
-    if (isReadOnly) {
-      toast.error('You do not have permission to delete templates');
+    if (!canDelete) {
+      toast.error('Permission denied: Template deletion is protected. You do not have permission to delete templates.');
       return;
     }
     if (!activeTemplate?.id) return;
@@ -787,6 +793,18 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
           </div>
 
           <div className="flex items-center gap-2">
+            {mode === 'edit' && activeTemplate?.id && canDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg focus:outline-none cursor-pointer transition-colors shadow-xs mr-2 flex items-center gap-1"
+                title="Permanently delete template (Protected Permission)"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                {deleting ? 'Deleting...' : 'Delete Template'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

@@ -25,6 +25,7 @@ import {
   DEFAULT_TEMPLATES,
 } from '../../utils/groupMessaging';
 import { formatWhatsAppNumber } from '../../utils/whatsapp';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   Mail,
   MessageCircle,
@@ -70,11 +71,23 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
   claims = [],
   preselectedCustomerIds = [],
 }) => {
+  const { can, isAdmin } = usePermissions();
+
+  const canSendWhatsApp = isAdmin || can('customers', 'whatsapp') || can('customers', 'send');
+  const canSendEmail = isAdmin || can('customers', 'email') || can('customers', 'send');
+  const canUseTemplates = isAdmin || can('customers', 'template');
+  const canEditTemplates = isAdmin || can('customers', 'templateEdit');
+  const canCreateTemplates = isAdmin || can('customers', 'templateCreate') || can('customers', 'templateEdit');
+
   // Navigation tabs in modal
   const [activeTab, setActiveTab] = useState<'compose' | 'recipients' | 'dispatch'>('compose');
 
   // Channel & Target settings
-  const [channel, setChannel] = useState<MessagingChannel>('email');
+  const [channel, setChannel] = useState<MessagingChannel>(() => {
+    if (canSendEmail) return 'email';
+    if (canSendWhatsApp) return 'whatsapp';
+    return 'email';
+  });
   const [category, setCategory] = useState<RecipientCategory>('members');
 
   // Recipient selection state
@@ -206,6 +219,15 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
   // Save template to database
   const handleSaveTemplate = async (saveAsNew: boolean = false) => {
+    if (saveAsNew && !canCreateTemplates) {
+      toast.error('You do not have permission to create templates.');
+      return;
+    }
+    if (!saveAsNew && !canEditTemplates && !canCreateTemplates) {
+      toast.error('You do not have permission to edit or save templates.');
+      return;
+    }
+
     if (!templateName.trim()) {
       toast.error('Please enter a Template Name');
       return;
@@ -340,6 +362,10 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
   // Bulk Email Dispatcher
   const handleStartBulkEmail = async () => {
+    if (!canSendEmail) {
+      toast.error('You do not have permission to dispatch bulk emails.');
+      return;
+    }
     if (eligibleRecipients.length === 0) {
       toast.error('No eligible recipients with valid email addresses selected.');
       return;
@@ -398,6 +424,10 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
   // Open single WhatsApp from queue
   const handleOpenWhatsAppRecipient = (recipient: MessagingRecipient) => {
+    if (!canSendWhatsApp) {
+      toast.error('You do not have permission to dispatch WhatsApp messages.');
+      return;
+    }
     const ok = openWhatsAppChat({
       recipient,
       subjectTemplate,
@@ -565,9 +595,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSaveTemplate(false)}
-                    disabled={isSavingTemplate}
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors shadow-xs"
-                    title="Save current template back to database"
+                    disabled={isSavingTemplate || (!canEditTemplates && !canCreateTemplates)}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canEditTemplates ? "Permission required to edit templates" : "Save current template back to database"}
                   >
                     <Save className="w-3.5 h-3.5 mr-1.5" />
                     Save Template
@@ -575,9 +605,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSaveTemplate(true)}
-                    disabled={isSavingTemplate}
-                    className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors"
-                    title="Save as new copy in database"
+                    disabled={isSavingTemplate || !canCreateTemplates}
+                    className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canCreateTemplates ? "Permission required to create templates" : "Save as new copy in database"}
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
                     As New Copy
@@ -1112,8 +1142,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                 <button
                   type="button"
                   onClick={handleStartBulkEmail}
-                  disabled={emailProgress.isSending || eligibleRecipients.length === 0}
-                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all disabled:opacity-50"
+                  disabled={emailProgress.isSending || eligibleRecipients.length === 0 || !canSendEmail}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendEmail ? "Permission required to dispatch emails" : undefined}
                 >
                   {emailProgress.isSending ? (
                     <>
@@ -1131,8 +1162,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenNextPendingWhatsApp}
-                  disabled={eligibleRecipients.length === 0}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+                  disabled={eligibleRecipients.length === 0 || !canSendWhatsApp}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp messages" : undefined}
                 >
                   <MessageCircle className="w-4 h-4" />
                   Launch Next WhatsApp Chat
@@ -1232,11 +1264,13 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenWhatsAppRecipient(rec)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                            disabled={!canSendWhatsApp}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${
                               isOpened
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                             }`}
+                            title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp" : undefined}
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                             {isOpened ? 'Re-open Chat' : 'Open WhatsApp'}

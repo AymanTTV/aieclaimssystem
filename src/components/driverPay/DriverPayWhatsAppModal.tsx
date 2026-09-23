@@ -12,6 +12,7 @@ import {
   dispatchDriverPayWhatsApp,
 } from '../../utils/driverPayWhatsApp';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { MessageCircle, ExternalLink, Copy, Check, AlertCircle, Phone, User, Calendar, CreditCard, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -29,6 +30,10 @@ export const DriverPayWhatsAppModal: React.FC<DriverPayWhatsAppModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const { can, isAdmin } = usePermissions();
+
+  const canSendWhatsApp = isAdmin || can('driverPay', 'whatsapp') || can('driverPay', 'send');
+  const canUseTemplates = isAdmin || can('driverPay', 'template');
   const [templates, setTemplates] = useState<DriverPayTemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [customMessage, setCustomMessage] = useState<string>('');
@@ -109,6 +114,10 @@ export const DriverPayWhatsAppModal: React.FC<DriverPayWhatsAppModalProps> = ({
   const { url, isValidPhone } = buildDriverPayWhatsAppLink(currentRecordWithPhone, customMessage);
 
   const handleOpenWhatsApp = async () => {
+    if (!canSendWhatsApp) {
+      toast.error('You do not have permission to send WhatsApp messages for driver pay.');
+      return;
+    }
     if (!isValidPhone) {
       toast.error('Please enter a valid driver phone number before launching WhatsApp.');
       return;
@@ -296,9 +305,9 @@ export const DriverPayWhatsAppModal: React.FC<DriverPayWhatsAppModalProps> = ({
           <button
             type="button"
             onClick={handleCopyLink}
-            disabled={!isValidPhone}
-            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
-            title="Copy wa.me link"
+            disabled={!isValidPhone || !canSendWhatsApp}
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!canSendWhatsApp ? "Permission required to use WhatsApp" : "Copy wa.me link"}
           >
             {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4 text-gray-500" />}
             <span>{copied ? 'Copied Link' : 'Copy WhatsApp Link'}</span>
@@ -315,8 +324,9 @@ export const DriverPayWhatsAppModal: React.FC<DriverPayWhatsAppModalProps> = ({
             <button
               type="button"
               onClick={handleOpenWhatsApp}
-              disabled={!isValidPhone}
+              disabled={!isValidPhone || !canSendWhatsApp}
               className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp messages" : undefined}
             >
               <MessageCircle className="h-4 w-4" />
               <span>Open in WhatsApp</span>

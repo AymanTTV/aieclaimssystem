@@ -71,6 +71,103 @@ interface PublicJobItem {
   isOverdue?: boolean;
 }
 
+interface LiveTypingBadgeProps {
+  messages: string[];
+  variant?: 'urgent' | 'in-progress' | 'scheduled';
+  showDot?: boolean;
+  className?: string;
+}
+
+const LiveTypingBadge: React.FC<LiveTypingBadgeProps> = ({
+  messages,
+  variant = 'scheduled',
+  showDot = true,
+  className = '',
+}) => {
+  const [msgIdx, setMsgIdx] = useState(0);
+  const [text, setText] = useState(messages[0] || '');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+
+  // Hard 3-minute cycle as requested: "EVERY 3MIN"
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      setMsgIdx(0);
+      setText('');
+      setIsDeleting(false);
+      setIsTyping(true);
+    }, 180000); // 3 minutes = 180,000ms
+
+    return () => clearInterval(syncInterval);
+  }, []);
+
+  // Smooth typewriter sliding transition between messages
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    const currentFullText = messages[msgIdx % messages.length];
+
+    if (!isDeleting) {
+      if (text.length < currentFullText.length) {
+        setIsTyping(true);
+        const timeout = setTimeout(() => {
+          setText(currentFullText.slice(0, text.length + 1));
+        }, 50); // typing speed
+        return () => clearTimeout(timeout);
+      } else {
+        setIsTyping(false);
+        // Hold text for 5 seconds so it is crystal clear to read
+        const timeout = setTimeout(() => {
+          if (messages.length > 1) {
+            setIsDeleting(true);
+          }
+        }, 5000);
+        return () => clearTimeout(timeout);
+      }
+    } else {
+      if (text.length > 0) {
+        setIsTyping(true);
+        const timeout = setTimeout(() => {
+          setText(text.slice(0, -1));
+        }, 25); // deleting speed
+        return () => clearTimeout(timeout);
+      } else {
+        setIsDeleting(false);
+        setMsgIdx((prev) => (prev + 1) % messages.length);
+      }
+    }
+  }, [text, isDeleting, msgIdx, messages]);
+
+  const variantClasses =
+    variant === 'urgent'
+      ? 'text-white border shadow-md animate-more-color-blink-red'
+      : variant === 'in-progress'
+      ? 'text-white border shadow-md animate-more-color-blink-amber'
+      : 'bg-slate-800 text-slate-200 border border-slate-700';
+
+  return (
+    <span
+      className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${variantClasses} ${className}`}
+      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+    >
+      {showDot && (
+        <span
+          className={`h-2 w-2 rounded-full shrink-0 ${
+            variant === 'urgent'
+              ? 'bg-white animate-slow-fade-blink-dot'
+              : variant === 'in-progress'
+              ? 'bg-amber-200 animate-pulse'
+              : 'bg-slate-400'
+          }`}
+        />
+      )}
+      <span className="truncate select-none drop-shadow-xs">
+        {text}
+        {isTyping && <span className="animate-caret font-normal opacity-90 ml-0.5">|</span>}
+      </span>
+    </span>
+  );
+};
+
 const PublicMirror: React.FC = () => {
   const { user: authContextUser } = useAuth();
 
@@ -512,63 +609,101 @@ const PublicMirror: React.FC = () => {
   const getRelativeBadge = (d: Date, status: string, isOverdue?: boolean) => {
     if (status === 'in-progress') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-          <span className="h-2 w-2 rounded-full bg-amber-400"></span>
-          Active In Progress
-        </span>
+        <LiveTypingBadge
+          messages={['IN PROGRESS', 'ACTIVE SERVICE', 'IN WORKSHOP']}
+          variant="in-progress"
+        />
       );
     }
 
     const days = isValid(d) ? differenceInCalendarDays(d, new Date()) : null;
 
-    // "if the schedule is lessthan 8 days make red highlight very very slow fade blinking"
+    // Schedule < 8 days: vibrant color background blinking & typing/sliding text
     if (days !== null && days < 8) {
-      const label =
+      const scheduleMessages =
         days < 0
-          ? `${Math.abs(days)}d Overdue`
+          ? [`${Math.abs(days)}D OVERDUE`, `${format(d, 'dd/MM HH:mm')}`, `${Math.abs(days)}D OVERDUE`]
           : days === 0
-          ? 'Due Today!'
-          : days === 1
-          ? 'Due Tomorrow'
-          : `Due in ${days}d (<8d)`;
+          ? ['DUE TODAY', `${format(d, 'HH:mm')} TODAY`, 'DUE TODAY']
+          : [`DUE IN ${days}D`, `${format(d, 'dd/MM HH:mm')}`, `DUE IN ${days}D`];
 
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-600/90 text-white border border-red-400 shadow-sm animate-slow-fade-blink-dot">
-          <span className="h-2 w-2 rounded-full bg-white animate-slow-fade-blink-dot"></span>
-          {label}
-        </span>
+        <LiveTypingBadge
+          messages={scheduleMessages}
+          variant="urgent"
+        />
       );
     }
 
     if (isOverdue) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40">
-          <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-          Pending / Due
-        </span>
+        <LiveTypingBadge
+          messages={['PENDING / DUE', 'OVERDUE NOTICE']}
+          variant="urgent"
+        />
       );
     }
     if (isToday(d)) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40">
-          <Clock className="w-3.5 h-3.5" />
-          Scheduled Today
-        </span>
+        <LiveTypingBadge
+          messages={['SCHEDULED TODAY', format(d, 'HH:mm')]}
+          variant="scheduled"
+          className="bg-blue-600/90 text-white border-blue-400/80 shadow-xs"
+        />
       );
     }
     if (isTomorrow(d)) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-          <Calendar className="w-3.5 h-3.5" />
-          Tomorrow
-        </span>
+        <LiveTypingBadge
+          messages={['TOMORROW', format(d, 'HH:mm')]}
+          variant="scheduled"
+          className="bg-indigo-600/90 text-white border-indigo-400/80 shadow-xs"
+        />
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
-        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-        {days !== null ? `In ${days}d (${format(d, 'dd MMM')})` : format(d, 'dd MMM (EEE)')}
-      </span>
+      <LiveTypingBadge
+        messages={[
+          days !== null ? `In ${days}d (${format(d, 'dd MMM')})` : format(d, 'dd MMM (EEE)'),
+          format(d, 'dd/MM/yyyy HH:mm')
+        ]}
+        variant="scheduled"
+        showDot={false}
+      />
+    );
+  };
+
+  const getLiveStatusBadge = (item: any, isUrgent: boolean, isInProgress: boolean) => {
+    if (isInProgress) {
+      return (
+        <LiveTypingBadge
+          messages={['IN PROGRESS', 'ACTIVE JOB', 'WORKSHOP IN-PROGRESS']}
+          variant="in-progress"
+        />
+      );
+    }
+    if (item?.status === 'completed') {
+      return (
+        <LiveTypingBadge
+          messages={['COMPLETED', 'READY FOR DISPATCH']}
+          variant="scheduled"
+          className="bg-emerald-900/90 text-white border-emerald-500/60 shadow-xs"
+        />
+      );
+    }
+    if (isUrgent) {
+      return (
+        <LiveTypingBadge
+          messages={['SCHEDULED', 'ON SCHEDULE', 'LIVE DISPATCH', 'CONFIRMED']}
+          variant="urgent"
+        />
+      );
+    }
+    return (
+      <LiveTypingBadge
+        messages={['SCHEDULED', 'ON SCHEDULE', 'CONFIRMED']}
+        variant="scheduled"
+      />
     );
   };
 
@@ -1180,12 +1315,6 @@ const PublicMirror: React.FC = () => {
                             <span className="text-xs sm:text-sm font-bold text-white truncate">
                               {item.vehicleMake} {item.vehicleModel || 'Vehicle'}
                             </span>
-                            {isUrgent && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-red-600 text-white px-1.5 py-0.5 rounded border border-red-400 shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-slow-fade-blink-dot shrink-0"></span>
-                                Urgent &lt; 8d
-                              </span>
-                            )}
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -1232,7 +1361,7 @@ const PublicMirror: React.FC = () => {
                         {/* Footer Schedule Timestamp */}
                         <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-[#2B314E]/40 gap-2 flex-wrap min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0 truncate">
-                            <Clock className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? 'text-red-400 animate-pulse' : 'text-blue-400'}`} />
+                            <Clock className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? 'text-red-400' : 'text-blue-400'}`} />
                             <span className={`font-semibold truncate ${isUrgent ? 'text-red-300 font-bold' : 'text-white'}`}>
                               {formatScheduledTime(item.scheduledDate)}
                             </span>
@@ -1296,22 +1425,7 @@ const PublicMirror: React.FC = () => {
                           </span>
                         ) : null}
 
-                        {isInProgress ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                            In Progress
-                          </span>
-                        ) : isUrgent ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-600 text-white border border-red-400 shadow-xs animate-slow-fade-blink-dot">
-                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-slow-fade-blink-dot"></span>
-                            Urgent
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            Scheduled
-                          </span>
-                        )}
+                        {getLiveStatusBadge(item, isUrgent, isInProgress)}
                       </div>
                     </div>
 
@@ -1351,7 +1465,7 @@ const PublicMirror: React.FC = () => {
                     {/* Footer: Date & Time + Relative Badge */}
                     <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-[#2B314E]/40 gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 min-w-0 truncate">
-                        <Clock className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? 'text-red-400 animate-pulse' : 'text-blue-400'}`} />
+                        <Clock className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? 'text-red-400' : 'text-blue-400'}`} />
                         <span className={`font-semibold truncate ${isUrgent ? 'text-red-300 font-black' : 'text-slate-200'}`}>
                           {format(item.scheduledDate, 'dd/MM/yyyy HH:mm')}
                         </span>
@@ -1402,7 +1516,7 @@ const PublicMirror: React.FC = () => {
                           key={item.id}
                           className={`group transition-all duration-150 rounded-xl cursor-default ${
                             isUrgent
-                              ? 'row-urgent bg-red-950/25 animate-slow-fade-blink-table'
+                              ? 'row-urgent animate-slow-fade-blink-table'
                               : isInProgress
                               ? 'row-in-progress bg-amber-500/[0.08]'
                               : 'row-normal bg-[#121524]'
@@ -1412,7 +1526,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-l-4 !border-l-red-600 border-y-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60'
+                                ? 'border-l-4 !border-l-red-500 border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-l-4 !border-l-amber-500 border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1437,7 +1551,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1462,7 +1576,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1484,7 +1598,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1514,23 +1628,23 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
                             }`}
                           >
                             <div className="min-w-0">
-                              <span className={`text-xs font-bold block truncate ${
+                              <span className={`text-xs block truncate select-none ${
                                 isUrgent
-                                  ? 'text-red-300 font-black'
+                                  ? 'text-red-200 font-black tracking-wide'
                                   : isInProgress
-                                  ? 'text-amber-300 font-bold'
-                                  : 'text-slate-200'
+                                  ? 'text-amber-200 font-bold'
+                                  : 'text-slate-100 font-bold'
                               }`}>
                                 {format(item.scheduledDate, 'dd/MM/yyyy HH:mm')}
                               </span>
-                              <div className="mt-1 truncate">
+                              <div className="mt-1 truncate select-none">
                                 {getRelativeBadge(item.scheduledDate, item.status, item.isOverdue)}
                               </div>
                             </div>
@@ -1540,29 +1654,14 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-r border-y-red-500/40 border-r-red-500/40 bg-red-950/25 group-hover:bg-red-950/50 group-hover:border-y-red-400/60 group-hover:border-r-red-400/60'
+                                ? 'border-y-[#991b1b] border-r-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
                                 : isInProgress
                                 ? 'border-r border-y-amber-500/30 border-r-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50 group-hover:border-r-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
                             }`}
                           >
-                            <div className="truncate">
-                              {isInProgress ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse truncate">
-                                  <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span>
-                                  In Progress
-                                </span>
-                              ) : isUrgent ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-600 text-white border border-red-400 shadow-sm animate-slow-fade-blink-dot truncate">
-                                  <span className="h-2 w-2 rounded-full bg-white animate-slow-fade-blink-dot shrink-0"></span>
-                                  Urgent Schedule
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700 truncate">
-                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  Scheduled
-                                </span>
-                              )}
+                            <div className="truncate select-none">
+                              {getLiveStatusBadge(item, isUrgent, isInProgress)}
                             </div>
                           </td>
                         </tr>

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Modal from '../ui/Modal';
 import { MaintenanceLog } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   ResolvedMaintenanceContext,
   MaintenanceChannelMode,
@@ -55,8 +56,20 @@ export const MaintenanceCommunicationModal: React.FC<
   initialRecipient = 'driver',
 }) => {
   const { user } = useAuth();
+  const { can, isAdmin } = usePermissions();
 
-  const [mode, setMode] = useState<MaintenanceChannelMode>(initialMode);
+  const canSendWhatsApp = isAdmin || can('maintenance', 'whatsapp') || can('maintenance', 'send');
+  const canSendEmail = isAdmin || can('maintenance', 'email') || can('maintenance', 'send');
+  const canUseTemplates = isAdmin || can('maintenance', 'template');
+  const canEditTemplates = isAdmin || can('maintenance', 'templateEdit');
+  const canCreateTemplates = isAdmin || can('maintenance', 'templateCreate') || can('maintenance', 'templateEdit');
+  const canDeleteTemplates = isAdmin || can('maintenance', 'templateDelete');
+
+  const [mode, setMode] = useState<MaintenanceChannelMode>(() => {
+    if (initialMode === 'whatsapp' && canSendWhatsApp) return 'whatsapp';
+    if (initialMode === 'email' && canSendEmail) return 'email';
+    return canSendWhatsApp ? 'whatsapp' : canSendEmail ? 'email' : 'whatsapp';
+  });
   const [recipientType, setRecipientType] = useState<MaintenanceRecipientType>(initialRecipient);
   const [templates, setTemplates] = useState<MaintenanceTemplateOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -186,6 +199,10 @@ export const MaintenanceCommunicationModal: React.FC<
   // Handle WhatsApp dispatch
   const handleOpenWhatsApp = async () => {
     if (!context || !log) return;
+    if (!canSendWhatsApp) {
+      toast.error('You do not have permission to send or dispatch WhatsApp messages for maintenance.');
+      return;
+    }
     const digits = formatWhatsAppNumber(recipientContact);
     if (!digits) {
       toast.error('Please enter a valid phone number with country code (e.g. +44...).');
@@ -210,6 +227,10 @@ export const MaintenanceCommunicationModal: React.FC<
   // Handle Email dispatch
   const handleSendEmail = async () => {
     if (!context || !log) return;
+    if (!canSendEmail) {
+      toast.error('You do not have permission to send or dispatch emails for maintenance.');
+      return;
+    }
     if (!recipientContact || !recipientContact.includes('@')) {
       toast.error('Please provide a valid recipient email address.');
       return;
@@ -576,7 +597,9 @@ export const MaintenanceCommunicationModal: React.FC<
                 <button
                   type="button"
                   onClick={handleCopyWhatsAppLink}
-                  className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                  disabled={!canSendWhatsApp}
+                  className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendWhatsApp ? "Permission required to use WhatsApp" : undefined}
                 >
                   {copiedLink ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                   <span>{copiedLink ? 'Link Copied' : 'Copy Direct Link'}</span>
@@ -584,7 +607,9 @@ export const MaintenanceCommunicationModal: React.FC<
                 <button
                   type="button"
                   onClick={handleOpenWhatsApp}
-                  className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  disabled={!canSendWhatsApp}
+                  className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp messages" : undefined}
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>Open WhatsApp Direct</span>
@@ -595,8 +620,9 @@ export const MaintenanceCommunicationModal: React.FC<
               <button
                 type="button"
                 onClick={handleSendEmail}
-                disabled={isSending}
-                className="px-5 py-2 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                disabled={isSending || !canSendEmail}
+                className="px-5 py-2 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed"
+                title={!canSendEmail ? "Permission required to dispatch emails" : undefined}
               >
                 {isSending ? (
                   <>

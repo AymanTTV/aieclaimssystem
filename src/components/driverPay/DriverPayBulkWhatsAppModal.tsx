@@ -12,6 +12,7 @@ import {
   dispatchDriverPayWhatsApp,
 } from '../../utils/driverPayWhatsApp';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   MessageCircle,
   ExternalLink,
@@ -47,6 +48,9 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
   onComplete,
 }) => {
   const { user } = useAuth();
+  const { can, isAdmin } = usePermissions();
+
+  const canSendWhatsApp = isAdmin || can('driverPay', 'whatsapp') || can('driverPay', 'send');
   const [templates, setTemplates] = useState<DriverPayTemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -104,6 +108,10 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
   // Handle single dispatch from sequential button
   const handleDispatchCurrent = async () => {
     if (!currentItem) return;
+    if (!canSendWhatsApp) {
+      toast.error('You do not have permission to dispatch WhatsApp messages for driver pay.');
+      return;
+    }
 
     if (!currentItem.isValidPhone) {
       toast.error(`Cannot send to ${currentItem.record.name}: Invalid phone number.`);
@@ -142,6 +150,10 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
 
   // Handle individual dispatch directly from table row
   const handleDispatchSpecific = async (index: number) => {
+    if (!canSendWhatsApp) {
+      toast.error('You do not have permission to dispatch WhatsApp messages for driver pay.');
+      return;
+    }
     const item = queue[index];
     if (!item) return;
 
@@ -291,8 +303,9 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
               <button
                 type="button"
                 onClick={handleDispatchCurrent}
-                disabled={!currentItem.isValidPhone}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 border border-transparent rounded text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow transition-colors disabled:opacity-50"
+                disabled={!currentItem.isValidPhone || !canSendWhatsApp}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 border border-transparent rounded text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp messages" : undefined}
               >
                 <MessageCircle className="h-4 w-4" />
                 <span>Launch WhatsApp for {currentItem.record.name}</span>
@@ -382,9 +395,9 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
                             setCurrentIndex(idx);
                             handleDispatchSpecific(idx);
                           }}
-                          disabled={!item.isValidPhone}
-                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-30 cursor-pointer"
-                          title="Open WhatsApp chat for this driver"
+                          disabled={!item.isValidPhone || !canSendWhatsApp}
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                          title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp" : "Open WhatsApp chat for this driver"}
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
                           <span>Open</span>

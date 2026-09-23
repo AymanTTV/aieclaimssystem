@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
 import { calculateRentalCostDetailed, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
-import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X } from 'lucide-react'; 
+import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Edit3, Plus, HelpCircle } from 'lucide-react'; 
 import {
   collection,
   query,
@@ -42,6 +42,13 @@ import { Account } from '../types';
 import { generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { FinanceDocument, InvoiceDocument } from '../components/pdf/documents';
 import ReceiptDocument from '../components/pdf/documents/ReceiptDocument';
+import { 
+  AppMessageTemplate, 
+  loadTemplatesForCategory, 
+  markTemplateAsDeleted 
+} from '../utils/templateManager';
+import { TemplateEditModal } from '../components/common/TemplateEditModal';
+import { TemplateGuideModal } from '../components/common/TemplateGuideModal';
 
 const DEBUG = true;
 const dlog = (...args: any[]) => DEBUG && console.log(...args);
@@ -197,35 +204,66 @@ export default function WhatsappCommunication() {
 
   const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
   const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
-  const [dbTemplates, setDbTemplates] = useState<Record<string, any[]>>({});
+  const [liveTemplates, setLiveTemplates] = useState<AppMessageTemplate[]>([]);
+  const [templateEditModalOpen, setTemplateEditModalOpen] = useState(false);
+  const [templateEditMode, setTemplateEditMode] = useState<'create' | 'edit'>('create');
+  const [templateToEdit, setTemplateToEdit] = useState<AppMessageTemplate | null>(null);
+  const [templateGuideOpen, setTemplateGuideOpen] = useState(false);
+
+  const fetchLiveTemplates = useCallback(async () => {
+    try {
+      const list = await loadTemplatesForCategory(emailType);
+      setLiveTemplates(list);
+    } catch (e) {
+      console.error('Failed to load live templates', e);
+    }
+  }, [emailType]);
 
   useEffect(() => {
-    const fetchLiveTemplates = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'messageTemplates'));
-        if (!snap.empty) {
-          const templatesData: Record<string, any[]> = {
-            custom: [], rental: [], maintenance: [], invoice: [], claim: [], finance: []
-          };
-          snap.docs.forEach(doc => {
-            const data = doc.data();
-            if (data.category && templatesData[data.category]) {
-              templatesData[data.category].push({ id: doc.id, ...data });
-            }
-          });
-          setDbTemplates(templatesData);
-        }
-      } catch (e) {
-        console.error('Failed to load live templates', e);
-      }
-    };
     fetchLiveTemplates();
-  }, []);
+    const handleSync = () => fetchLiveTemplates();
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
+  }, [fetchLiveTemplates]);
 
-  const templates = dbTemplates[emailType]?.length > 0 
-    ? dbTemplates[emailType] 
-    : (emailTemplates[emailType] || []);
+  const templates = liveTemplates;
   const currentTemplate = templates.find(t => t.id === selectedTemplateId);
+
+  const handleOpenEditTemplate = () => {
+    if (!currentTemplate) return;
+    setTemplateToEdit(currentTemplate);
+    setTemplateEditMode('edit');
+    setTemplateEditModalOpen(true);
+  };
+
+  const handleDeleteSelectedTemplate = async () => {
+    if (!currentTemplate) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${currentTemplate.name}"?\n\nThis action will permanently delete the template from your system.`
+    );
+    if (!confirmed) return;
+    try {
+      await markTemplateAsDeleted(currentTemplate.id, emailType);
+      toast.success(`Template "${currentTemplate.name}" deleted permanently`);
+      setSelectedTemplateId('');
+      setSubject('');
+      setMessage('');
+      fetchLiveTemplates();
+    } catch (err: any) {
+      console.error('Delete template error:', err);
+      toast.error('Failed to delete template');
+    }
+  };
+
+  const handleOpenNewTemplate = () => {
+    setTemplateToEdit(null);
+    setTemplateEditMode('create');
+    setTemplateEditModalOpen(true);
+  };
 
   useEffect(() => {
     if (emailType === 'claim') {
@@ -1256,7 +1294,7 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
         {availableTabs.map(t => (
           <button
             key={t}
@@ -1277,17 +1315,70 @@ export default function WhatsappCommunication() {
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
+      </div>
 
-        <select
-          className="col-span-2 md:col-span-2 px-3.5 py-2.5 bg-white border-[1.5px] border-[#CBD5E1] rounded-xl text-[#0F172A] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer font-medium"
-          value={selectedTemplateId}
-          onChange={e => setSelectedTemplateId(e.target.value)}
-        >
-          <option value="">– Select Message… (manual) –</option>
-          {templates.map(tpl => (
-            <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-          ))}
-        </select>
+      {/* Template Management & Selector Bar */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <select
+              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-[1.5px] border-slate-300 rounded-xl text-[#0F172A] text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-2xs cursor-pointer"
+              value={selectedTemplateId}
+              onChange={e => setSelectedTemplateId(e.target.value)}
+            >
+              <option value="">– Select Message Template… (or write manual) –</option>
+              {templates.map(tpl => (
+                <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {selectedTemplateId && currentTemplate && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleOpenEditTemplate}
+                title="Edit this template text, subject, or placeholder tags"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Edit Template</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteSelectedTemplate}
+                title="Delete this template permanently"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100">
+          <button
+            type="button"
+            onClick={handleOpenNewTemplate}
+            title="Create a brand new template for this category"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Template</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTemplateGuideOpen(true)}
+            title="Learn how WhatsApp templates and placeholders work"
+            className="inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden sm:inline">How It Works</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-5 rounded-2xl shadow-xs space-y-4 border border-[#E2E8F0]">
@@ -1764,6 +1855,34 @@ export default function WhatsappCommunication() {
           </div>
         </div>
       </div>
+
+      {/* Template Edit & Create Modal */}
+      <TemplateEditModal
+        isOpen={templateEditModalOpen}
+        onClose={() => setTemplateEditModalOpen(false)}
+        template={templateEditMode === 'edit' ? templateToEdit : null}
+        defaultCategory={emailType}
+        defaultChannel="whatsapp"
+        onSaved={(saved) => {
+          fetchLiveTemplates();
+          setSelectedTemplateId(saved.id);
+        }}
+        onDeleted={(deletedId) => {
+          if (selectedTemplateId === deletedId) {
+            setSelectedTemplateId('');
+            setSubject('');
+            setMessage('');
+          }
+          fetchLiveTemplates();
+        }}
+      />
+
+      {/* Template Guide Modal */}
+      <TemplateGuideModal
+        isOpen={templateGuideOpen}
+        onClose={() => setTemplateGuideOpen(false)}
+        channel="whatsapp"
+      />
     </div>
   );
 }

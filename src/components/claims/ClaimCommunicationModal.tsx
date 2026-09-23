@@ -73,10 +73,11 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   const { user } = useAuth();
   const permissions = usePermissions();
   const can = typeof permissions?.can === 'function' ? permissions.can : () => true;
+  const isAdmin = permissions?.isAdmin;
 
-  const hasWhatsAppPermission = can('claims', 'whatsapp');
-  const hasEmailPermission = can('claims', 'email');
-  const canChangeTemplate = can('claims', 'template');
+  const hasWhatsAppPermission = isAdmin || can('claims', 'whatsapp') || can('claims', 'send');
+  const hasEmailPermission = isAdmin || can('claims', 'email') || can('claims', 'send');
+  const canChangeTemplate = isAdmin || can('claims', 'template');
 
   // Primary selections
   const [channel, setChannel] = useState<ClaimCommunicationChannel>(() => {
@@ -473,6 +474,10 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     }
 
     if (channel === 'whatsapp') {
+      if (!hasWhatsAppPermission) {
+        toast.error('You do not have permission to send or dispatch WhatsApp messages for claims.');
+        return;
+      }
       const targetPhone = recipientType === 'legalHandler' ? legalHandlerPhone : clientPhone;
       const targetName =
         recipientType === 'legalHandler'
@@ -519,6 +524,10 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
       }
     } else {
       // Email channel
+      if (!hasEmailPermission) {
+        toast.error('You do not have permission to send or dispatch emails for claims.');
+        return;
+      }
       const targetEmail = recipientType === 'legalHandler' ? legalHandlerEmail : clientEmail;
       const targetName =
         recipientType === 'legalHandler'
@@ -1373,6 +1382,25 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           </div>
         )}
 
+        {/* Google Workspace Sender Indicator (for Email) */}
+        {channel === 'email' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-lg text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="p-1 bg-indigo-600 text-white rounded">
+                <Mail className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <span className="text-slate-600 font-medium">Outbound Email Sender: </span>
+                <strong className="text-indigo-950 font-bold font-mono">claims@aieclaims.co.uk</strong>
+                <span className="text-slate-500 ml-1.5">(AIE Claims Department • Google Workspace)</span>
+              </div>
+            </div>
+            <span className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 self-start sm:self-auto">
+              ✓ Direct Claims Mailbox
+            </span>
+          </div>
+        )}
+
         {/* Subject (for Email) */}
         {channel === 'email' && (
           <div>
@@ -1516,8 +1544,9 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={sending}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                disabled={sending || !hasWhatsAppPermission}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!hasWhatsAppPermission ? "Permission required to send WhatsApp messages for claims" : undefined}
               >
                 <MessageCircle className="h-4 w-4 mr-1.5" />
                 {sending
@@ -1528,8 +1557,9 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={sending}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                disabled={sending || !hasEmailPermission}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!hasEmailPermission ? "Permission required to send emails for claims" : undefined}
               >
                 <Send className="h-4 w-4 mr-1.5" />
                 {sending

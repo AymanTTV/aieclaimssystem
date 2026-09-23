@@ -368,35 +368,34 @@ const ReturnConditionForm: React.FC<ReturnConditionFormProps> = ({
       </div>
 
       {/* --- FINANCIAL SUMMARY --- */}
-      <div className="bg-gray-900 text-white p-5 rounded-xl shadow-lg relative overflow-hidden">
-        <Receipt className="absolute -right-4 -top-4 w-24 h-24 text-white/5" />
-        <h4 className="font-bold text-gray-200 mb-4 flex items-center gap-2 relative z-10">
-           <Receipt className="w-4 h-4 text-gray-400" /> Penalty Charges Summary
+      <div className="bg-slate-50 border border-slate-200 text-slate-900 p-5 rounded-xl shadow-2xs relative overflow-hidden">
+        <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+           <Receipt className="w-4 h-4 text-emerald-600" /> Penalty Charges Summary
         </h4>
         
-        <div className="space-y-2 relative z-10">
+        <div className="space-y-2">
           {formData.hasDamage && (
             <div className="flex justify-between text-sm items-center">
-              <span className="text-gray-400 font-medium">Damage Cost:</span>
-              <span className="font-mono text-red-400">{formatCurrency(Number(formData.damageCost || 0))}</span>
+              <span className="text-slate-600 font-medium">Damage Cost:</span>
+              <span className="font-mono font-bold text-rose-600">{formatCurrency(Number(formData.damageCost || 0))}</span>
             </div>
           )}
           {showFuelChargeField && (
             <div className="flex justify-between text-sm items-center">
-              <span className="text-gray-400 font-medium">Fuel Deficit Charge:</span>
-              <span className="font-mono text-orange-400">{formatCurrency(Number(formData.fuelCharge || 0))}</span>
+              <span className="text-slate-600 font-medium">Fuel Deficit Charge:</span>
+              <span className="font-mono font-bold text-amber-600">{formatCurrency(Number(formData.fuelCharge || 0))}</span>
             </div>
           )}
           {showCleaningChargeField && (
             <div className="flex justify-between text-sm items-center">
-              <span className="text-gray-400 font-medium">Cleaning Charge:</span>
-              <span className="font-mono text-amber-400">{formatCurrency(Number(formData.cleaningCharge || 0))}</span>
+              <span className="text-slate-600 font-medium">Cleaning Charge:</span>
+              <span className="font-mono font-bold text-amber-600">{formatCurrency(Number(formData.cleaningCharge || 0))}</span>
             </div>
           )}
           
-          <div className="flex justify-between text-base font-bold pt-3 mt-2 border-t border-white/20 items-center">
-            <span className="uppercase tracking-wider text-xs">Total Added to Balance:</span>
-            <span className="font-mono text-xl text-green-400">{formatCurrency(calculateCharges())}</span>
+          <div className="flex justify-between text-base font-bold pt-3 mt-2 border-t border-slate-200 items-center">
+            <span className="uppercase tracking-wider text-xs text-slate-700">Total Added to Balance:</span>
+            <span className="font-mono text-xl text-emerald-600 font-black">{formatCurrency(calculateCharges())}</span>
           </div>
         </div>
       </div>

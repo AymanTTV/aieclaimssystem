@@ -399,7 +399,10 @@ export async function dispatchBulkEmail(params: {
         to_name: recipient.name,
         subject: personalizedSubject,
         message: personalizedBody,
-        reply_to: 'admin@aieskyline.com',
+        reply_to: 'admin@aieskyline.co.uk',
+        from_email: 'admin@aieskyline.co.uk',
+        from_name: 'AIE Skyline Fleet System',
+        source_page: 'group_messaging',
         attachments: params.attachment?.url ? [params.attachment.url] : undefined,
       });
 

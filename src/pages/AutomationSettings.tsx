@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, writeBatch, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert, Trash2, Mail, Play, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { Save, Tag, FileText, MessageSquare, Plus, Undo2, Redo2, ShieldAlert, Trash2, Mail, Play, Loader2, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
 import { usePermissions } from '../hooks/usePermissions';
@@ -16,6 +16,13 @@ import {
   fetchSchedulerPreferences,
   saveSchedulerPreferences,
 } from '../utils/schedulerConfig';
+import { 
+  AppMessageTemplate, 
+  loadTemplatesForCategory, 
+  saveAppTemplate, 
+  markTemplateAsDeleted 
+} from '../utils/templateManager';
+import { TemplateGuideModal } from '../components/common/TemplateGuideModal';
 
 // Valid tags based on BulkEmail and Whatsapp context builders
 const AVAILABLE_TAGS: Record<string, string[]> = {
@@ -46,10 +53,12 @@ const AVAILABLE_TAGS: Record<string, string[]> = {
 const CATEGORIES: EmailType[] = ['custom', 'rental', 'maintenance', 'invoice', 'claim', 'finance', 'Bulk Email'];
 
 export default function AutomationSettings() {
-  const { can } = usePermissions();
-  const canUpdate = can('automation', 'update');
-  const canDelete = can('automation', 'delete');
-  const canCreate = can('automation', 'create');
+  const { can, isAdmin } = usePermissions();
+  const canUpdate = isAdmin || can('automation', 'update') || can('automation', 'templateEdit') || can('whatsapp', 'template') || can('bulkEmail', 'template');
+  const canDelete = isAdmin || can('automation', 'delete') || can('automation', 'templateDelete') || can('whatsapp', 'delete') || can('bulkEmail', 'delete');
+  const canCreate = isAdmin || can('automation', 'create') || can('automation', 'templateCreate') || can('whatsapp', 'template') || can('bulkEmail', 'template');
+  const canToggleMondayAutoEmail = isAdmin || can('automation', 'mondayAutoEmail') || can('automation', 'toggleGlobal') || can('automation', 'update');
+  const canManageScheduler = isAdmin || can('automation', 'scheduler') || can('automation', 'update');
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -59,6 +68,7 @@ export default function AutomationSettings() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   // Global Automated Weekly Email Scheduler State
   const [globalAutoEmailEnabled, setGlobalAutoEmailEnabled] = useState<boolean>(true);
@@ -113,6 +123,10 @@ export default function AutomationSettings() {
   }, []);
 
   const handleToggleGlobalAutoEmail = async () => {
+    if (!canToggleMondayAutoEmail) {
+      toast.error('You do not have permission to modify Monday auto-email settings.');
+      return;
+    }
     if (isUpdatingGlobalToggle) return;
     const nextVal = !globalAutoEmailEnabled;
     setIsUpdatingGlobalToggle(true);
@@ -150,6 +164,10 @@ export default function AutomationSettings() {
   };
 
   const handleManualRunJob = async () => {
+    if (!canToggleMondayAutoEmail) {
+      toast.error('You do not have permission to run Monday auto-email batches.');
+      return;
+    }
     setIsRunningMondayJob(true);
     const toastId = toast.loading('Running Automated Auto-Email test batch...');
     try {
@@ -164,6 +182,10 @@ export default function AutomationSettings() {
   };
 
   const handleSaveScheduleConfig = async (newDay: number, newTime: string) => {
+    if (!canManageScheduler) {
+      toast.error('You do not have permission to modify scheduler preferences.');
+      return;
+    }
     setIsSavingSchedule(true);
     const toastId = toast.loading('Saving schedule preferences...');
     try {
@@ -204,56 +226,36 @@ export default function AutomationSettings() {
   // Evaluate the permission into a simple boolean first
   const canViewAutomation = can('automation', 'view');
 
-  // Load templates from Firestore
+  // Load templates from Firestore or unified template manager
   useEffect(() => {
     if (canViewAutomation) {
       fetchTemplates();
     } else {
       setLoading(false);
     }
+
+    const handleSync = () => {
+      if (canViewAutomation) fetchTemplates();
+    };
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
   }, [canViewAutomation]);
 
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'messageTemplates'));
-      if (snap.empty) {
-        await seedDatabase();
-      } else {
-        const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setTemplates(fetched);
-      }
+      const allTemplates = await loadTemplatesForCategory('all');
+      setTemplates(allTemplates);
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast.error('Failed to load templates.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const seedDatabase = async () => {
-    if (!canCreate) {
-      toast.error('Database empty, and you lack permissions to initialize default templates.');
-      return;
-    }
-
-    toast.loading('Initializing database with default templates...');
-    const batch = writeBatch(db);
-    const seededTemplates: any[] = [];
-
-    Object.entries(emailTemplates).forEach(([category, tpls]) => {
-      tpls.forEach(tpl => {
-        const docRef = doc(collection(db, 'messageTemplates'), tpl.id);
-        const tplData = { ...tpl, category };
-        batch.set(docRef, tplData);
-        seededTemplates.push({ id: tpl.id, ...tplData });
-      });
-    });
-
-    await batch.commit();
-    setTemplates(seededTemplates);
-    toast.dismiss();
-    toast.success('Default templates loaded.');
   };
 
   const pushToHistory = useCallback((tpl: any) => {
@@ -333,8 +335,8 @@ export default function AutomationSettings() {
     if (!editingTemplate || !canUpdate) return;
     setSaving(true);
     try {
-      await setDoc(doc(db, 'messageTemplates', editingTemplate.id), editingTemplate, { merge: true });
-      setTemplates(prev => prev.map(t => (t.id === editingTemplate.id ? editingTemplate : t)));
+      const saved = await saveAppTemplate(editingTemplate);
+      setTemplates(prev => prev.map(t => (t.id === saved.id ? saved : t)));
       toast.success('Template saved successfully!');
     } catch (error) {
       console.error(error);
@@ -346,11 +348,11 @@ export default function AutomationSettings() {
 
   const handleDelete = async () => {
     if (!editingTemplate || !canDelete) return;
-    if (!window.confirm(`Are you sure you want to delete "${editingTemplate.name}"? This action cannot be undone.`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${editingTemplate.name}"?\n\nThis will permanently remove it from your WhatsApp and Email template menus.`)) return;
 
     setSaving(true);
     try {
-      await deleteDoc(doc(db, 'messageTemplates', editingTemplate.id));
+      await markTemplateAsDeleted(editingTemplate.id, editingTemplate.category);
       setTemplates(prev => prev.filter(t => t.id !== editingTemplate.id));
       setSelectedTemplateId(null);
       setEditingTemplate(null);
@@ -453,8 +455,8 @@ export default function AutomationSettings() {
                       setScheduleDay(newDay);
                       handleSaveScheduleConfig(newDay, scheduleTime);
                     }}
-                    disabled={isSavingSchedule}
-                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    disabled={isSavingSchedule || !canManageScheduler}
+                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {DAYS_OF_WEEK.map(d => (
                       <option key={d.value} value={d.value}>
@@ -473,8 +475,8 @@ export default function AutomationSettings() {
                       setScheduleTime(newTime);
                       handleSaveScheduleConfig(scheduleDay, newTime);
                     }}
-                    disabled={isSavingSchedule}
-                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    disabled={isSavingSchedule || !canManageScheduler}
+                    className="px-2.5 py-1 text-xs font-bold bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {!SCHEDULE_TIME_OPTIONS.some(o => o.value === scheduleTime) && (
                       <option value={scheduleTime}>
@@ -499,12 +501,21 @@ export default function AutomationSettings() {
           </div>
 
           {/* Toggle Switch & Actions */}
-          <div className="flex items-center gap-4 shrink-0 self-start md:self-center">
+          <div className="flex items-center gap-3 shrink-0 self-start md:self-center flex-wrap">
+            <button
+              onClick={() => setShowGuideModal(true)}
+              className="flex items-center px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition cursor-pointer"
+              title="Learn how templates and placeholders work"
+            >
+              <HelpCircle className="w-4 h-4 mr-1.5 text-slate-500" />
+              How Templates Work
+            </button>
+
             <button
               onClick={handleManualRunJob}
-              disabled={isRunningMondayJob}
-              className="flex items-center px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition disabled:opacity-50"
-              title="Trigger manual run of the full filtering logic and send emails to eligible active non-claim rentals immediately"
+              disabled={isRunningMondayJob || !canToggleMondayAutoEmail}
+              className="flex items-center px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              title={!canToggleMondayAutoEmail ? "Permission required to run Monday auto-email" : "Trigger manual run of the full filtering logic and send emails to eligible active non-claim rentals immediately"}
             >
               {isRunningMondayJob ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin text-indigo-600" />
@@ -522,11 +533,12 @@ export default function AutomationSettings() {
                 type="button"
                 role="switch"
                 aria-checked={globalAutoEmailEnabled}
-                disabled={isUpdatingGlobalToggle}
+                disabled={isUpdatingGlobalToggle || !canToggleMondayAutoEmail}
                 onClick={handleToggleGlobalAutoEmail}
+                title={!canToggleMondayAutoEmail ? "Permission required to toggle Monday auto-email" : undefined}
                 className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
                   globalAutoEmailEnabled ? 'bg-indigo-600' : 'bg-gray-300'
-                } ${isUpdatingGlobalToggle ? 'opacity-60 cursor-not-allowed' : ''}`}
+                } ${isUpdatingGlobalToggle || !canToggleMondayAutoEmail ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <span className="sr-only">Toggle Global Monday Auto-Email</span>
                 <span
@@ -620,8 +632,14 @@ export default function AutomationSettings() {
                   </div>
 
                   {canDelete && (
-                    <button onClick={handleDelete} disabled={saving} className="p-2 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition">
-                      <Trash2 className="w-5 h-5" />
+                    <button 
+                      onClick={handleDelete} 
+                      disabled={saving} 
+                      title="Permanently delete this template"
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                      <span className="hidden sm:inline">Delete Template</span>
                     </button>
                   )}
 
@@ -741,6 +759,11 @@ export default function AutomationSettings() {
            </div>
         </div>
       </div>
+
+      <TemplateGuideModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+      />
     </div>
   );
 }

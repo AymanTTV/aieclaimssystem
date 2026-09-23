@@ -7,6 +7,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { 
   MessageCircle, 
   Mail, 
@@ -37,6 +38,7 @@ interface InvoiceCommunicationModalProps {
   customer?: Customer;
   vehicle?: Vehicle;
   initialMode?: 'whatsapp' | 'email';
+  moduleContext?: 'invoices' | 'vdInvoice';
 }
 
 interface TemplateOption {
@@ -54,9 +56,19 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   customer,
   vehicle,
   initialMode = 'whatsapp',
+  moduleContext = 'invoices',
 }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
+  const { can, isAdmin } = usePermissions();
+
+  const targetModule = moduleContext === 'vdInvoice' ? 'vdInvoice' : 'invoices';
+  const canSendWhatsApp = isAdmin || can(targetModule, 'whatsapp') || can(targetModule, 'send');
+  const canSendEmail = isAdmin || can(targetModule, 'email') || can(targetModule, 'send');
+  const canUseTemplates = isAdmin || can(targetModule, 'template');
+  const canEditTemplates = isAdmin || can(targetModule, 'templateEdit');
+  const canCreateTemplates = isAdmin || can(targetModule, 'templateCreate') || can(targetModule, 'templateEdit');
+  const canDeleteTemplates = isAdmin || can(targetModule, 'templateDelete');
   const [mode, setMode] = useState<'whatsapp' | 'email'>(initialMode);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -560,6 +572,10 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   // Send Trigger: WhatsApp (Appends PDF download URL directly into message text)
   const handleSendWhatsApp = async () => {
     if (!invoice) return;
+    if (!canSendWhatsApp) {
+      toast.error(`You do not have permission to send WhatsApp messages for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}`);
+      return;
+    }
 
     const rawPhone = recipientContact.trim();
     if (!rawPhone) {
@@ -610,6 +626,10 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   // Send Trigger: Email via mailto: (Includes PDF download link in body)
   const handleSendMailto = async () => {
     if (!invoice) return;
+    if (!canSendEmail) {
+      toast.error(`You do not have permission to send emails for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}`);
+      return;
+    }
 
     const email = recipientContact.trim();
     if (!email) {
@@ -649,6 +669,10 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   // Send Trigger: Direct Email via provider
   const handleSendDirectEmail = async () => {
     if (!invoice) return;
+    if (!canSendEmail) {
+      toast.error(`You do not have permission to send emails for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}`);
+      return;
+    }
 
     const email = recipientContact.trim();
     if (!email) {
@@ -656,19 +680,10 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       return;
     }
 
-    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-
     let finalBody = message;
     const pdfUrl = cachedPdfUrl || invoice.documentUrl;
     if (pdfUrl && !finalBody.includes(pdfUrl)) {
       finalBody = `${finalBody}\n\n📄 View / Download Invoice PDF:\n${pdfUrl}`;
-    }
-
-    if (!serviceId || !templateId || !publicKey) {
-      handleSendMailto();
-      return;
     }
 
     setSendingEmail(true);
@@ -679,6 +694,9 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         subject: subject,
         message: finalBody,
         reference: invoice.invoiceNumber || invoice.id,
+        from_email: 'admin@aieskyline.co.uk',
+        from_name: 'AIE Skyline Fleet System',
+        source_page: 'invoices',
       });
 
       await logEmailHistory({
@@ -1043,7 +1061,9 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all"
+                disabled={!canSendWhatsApp}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canSendWhatsApp ? `Permission required to send WhatsApp messages for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}` : undefined}
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Open in WhatsApp
@@ -1054,8 +1074,9 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                 <button
                   type="button"
                   onClick={handleSendMailto}
-                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-sm transition-all"
-                  title="Open default email application"
+                  disabled={!canSendEmail}
+                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendEmail ? `Permission required to send emails for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}` : "Open default email application"}
                 >
                   <Mail className="h-4 w-4 mr-1.5" />
                   Email App (mailto:)
@@ -1063,8 +1084,9 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
                 <button
                   type="button"
                   onClick={handleSendDirectEmail}
-                  disabled={sendingEmail}
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50"
+                  disabled={sendingEmail || !canSendEmail}
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!canSendEmail ? `Permission required to send emails for ${moduleContext === 'vdInvoice' ? 'VD invoices' : 'invoices'}` : undefined}
                 >
                   <Send className="h-4 w-4 mr-1.5" />
                   {sendingEmail ? 'Sending...' : 'Send via Email'}
