@@ -7,7 +7,7 @@ import { auth, db } from '../lib/firebase';
 import { Car, Mail, Lock, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ForgotPassword from '../components/auth/ForgotPassword';
-import { connectGoogleWorkspace } from '../utils/googleWorkspaceAuth';
+import { connectGoogleWorkspace, getWorkspaceCurrentUser } from '../utils/googleWorkspaceAuth';
 
 const Login: React.FC = () => {
   const [email, setEmail]               = useState('');
@@ -21,7 +21,7 @@ const Login: React.FC = () => {
     setGoogleLoading(true);
     try {
       const { email: gEmail } = await connectGoogleWorkspace();
-      const currentUser = auth.currentUser;
+      const currentUser = getWorkspaceCurrentUser() || auth.currentUser;
       if (currentUser) {
         const userRef = doc(db, 'users', currentUser.uid);
         const userDoc = await getDoc(userRef);

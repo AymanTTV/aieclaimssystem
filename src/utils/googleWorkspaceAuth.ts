@@ -1,6 +1,8 @@
 // src/utils/googleWorkspaceAuth.ts
-import { GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { initializeApp, getApps } from 'firebase/app';
+import { GoogleAuthProvider, signInWithPopup, User as FirebaseUser, getAuth } from 'firebase/auth';
+import { auth as fallbackAuth } from '../lib/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import toast from 'react-hot-toast';
 
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
@@ -11,6 +13,12 @@ export const SYSTEM_SENDERS = {
 } as const;
 
 export type SenderCategory = 'fleet' | 'claims';
+
+// Dedicated Firebase App for Google Workspace OAuth per AI Studio integration skill guidelines
+const workspaceApp = getApps().find((a) => a.name === 'workspace-auth') ||
+  (firebaseConfig?.apiKey ? initializeApp(firebaseConfig, 'workspace-auth') : null);
+
+export const workspaceAuth = workspaceApp ? getAuth(workspaceApp) : fallbackAuth;
 
 // In-memory token storage (Do NOT store in localStorage/sessionStorage per security requirements)
 interface CachedToken {
@@ -40,15 +48,20 @@ function notifyListeners() {
   listeners.forEach((fn) => fn(isConnected, cachedTokenEmail));
 }
 
-// Clear memory cache on sign-out
-auth.onAuthStateChanged((user: FirebaseUser | null) => {
+// Clear memory cache on sign-out from either auth instance
+const clearCacheOnSignOut = (user: FirebaseUser | null) => {
   if (!user) {
     cachedAccessToken = null;
     cachedTokenEmail = null;
     cachedTokenExpiry = 0;
     notifyListeners();
   }
-});
+};
+
+workspaceAuth.onAuthStateChanged(clearCacheOnSignOut);
+if (fallbackAuth !== workspaceAuth) {
+  fallbackAuth.onAuthStateChanged(clearCacheOnSignOut);
+}
 
 /**
  * Returns currently cached Google access token if valid
@@ -71,6 +84,13 @@ export function getConnectedGoogleEmail(): string | null {
 }
 
 /**
+ * Returns current user from workspace auth or fallback auth
+ */
+export function getWorkspaceCurrentUser(): FirebaseUser | null {
+  return workspaceAuth.currentUser || fallbackAuth.currentUser;
+}
+
+/**
  * Prompts Google Workspace Sign-In/Authorization popup with the Gmail send scope
  */
 export async function connectGoogleWorkspace(targetSender?: string): Promise<{ accessToken: string; email: string }> {
@@ -82,7 +102,18 @@ export async function connectGoogleWorkspace(targetSender?: string): Promise<{ a
   });
 
   try {
-    const result = await signInWithPopup(auth, provider);
+    let result;
+    try {
+      result = await signInWithPopup(workspaceAuth, provider);
+    } catch (primaryErr: any) {
+      if (primaryErr?.code === 'auth/unauthorized-domain' && workspaceAuth !== fallbackAuth) {
+        console.warn('Workspace auth domain unauthorized on applet project, retrying with fallback...', primaryErr);
+        result = await signInWithPopup(fallbackAuth, provider);
+      } else {
+        throw primaryErr;
+      }
+    }
+
     const credential = GoogleAuthProvider.credentialFromResult(result);
 
     if (!credential?.accessToken) {
@@ -104,6 +135,11 @@ export async function connectGoogleWorkspace(targetSender?: string): Promise<{ a
     if (error.code === 'auth/popup-closed-by-user') {
       throw new Error('Google Workspace authorization cancelled by user.');
     }
+    if (error.code === 'auth/unauthorized-domain') {
+      const currentHost = window.location.hostname;
+      toast.error(`Domain "${currentHost}" needs to be authorized for Google Workspace OAuth.`);
+      throw new Error(`Domain "${currentHost}" is not authorized for OAuth in Google Workspace/Firebase. Please authorize this domain or complete the OAuth setup.`);
+    }
     throw error;
   }
 }
@@ -118,3 +154,4 @@ export function disconnectGoogleWorkspace() {
   notifyListeners();
   toast.success('Disconnected Google Workspace session.');
 }
+
