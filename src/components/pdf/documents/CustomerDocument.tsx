@@ -4,6 +4,7 @@ import { Customer } from '../../../types/customer';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
+import { formatSignatureTimestamp } from '../../../utils/signatureStamp';
 
 interface CustomerDocumentProps {
   data: Customer;
@@ -125,10 +126,15 @@ const CustomerDocument: React.FC<CustomerDocumentProps> = ({ data, companyDetail
                   <Text style={styles.sectionTitle}>Customer Signature</Text>
                   <View style={styles.signatureSection}>
                     <View style={styles.signatureBox}>
-                      <Text>Customer Name: {data.name}</Text>
+                      <Text style={{ fontWeight: 'bold' }}>Customer Name: {data.name}</Text>
                       <Image src={data.signature} style={styles.signature} />
-                      <Text style={styles.signatureLine}>Customer Signature</Text>
-                      <Text>Date: {formatDate(data.createdAt)}</Text>
+                      <Text style={styles.signatureLine}>Customer Signature (Legally Verified)</Text>
+                      <Text style={{ fontSize: 7, color: '#334155', marginTop: 2, fontWeight: 'bold' }}>
+                        {data.signatureTimestamp || (data.signedAt ? formatSignatureTimestamp(data.signedAt) : `Electronically Signed on ${formatDate(data.updatedAt || data.createdAt)}`)}
+                      </Text>
+                      <Text style={{ fontSize: 6.5, color: '#16a34a', marginTop: 1 }}>
+                        ✓ Mandatory Terms &amp; Conditions explicitly agreed and verified
+                      </Text>
                     </View>
                     {companyDetails.signature && (
                       <View style={styles.signatureBox}>

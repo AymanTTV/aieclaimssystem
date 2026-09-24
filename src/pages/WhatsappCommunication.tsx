@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
 import { calculateRentalCostDetailed, calculateOverdueCost, RENTAL_RATES } from '../utils/rentalCalculations';
-import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Edit3, Plus, HelpCircle } from 'lucide-react'; 
+import { Search, MessageSquareText, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Edit3, Plus, HelpCircle, ExternalLink, Settings2 } from 'lucide-react'; 
 import {
   collection,
   query,
@@ -27,7 +27,7 @@ import { useInvoices } from '../hooks/useInvoices';
 import { useClaims } from '../hooks/useClaims';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFinances } from '../hooks/useFinances'; 
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
 
 import { fetchLegalHandlers } from '../utils/legalHandlers';
@@ -139,15 +139,18 @@ const getInvoiceManualPhone = (inv: any) =>
 type RecipientFilterType = 'all' | 'customer' | 'serviceCenter' | 'legalHandler' | 'invoiceManual' | 'account' | 'owner';
 
 const TARGET_PERMISSIONS: Record<string, any> = {
-  custom: 'targetCustom',
+  finance: 'targetFinance',
   rental: 'targetRental',
   maintenance: 'targetMaintenance',
   invoice: 'targetInvoice',
-  finance: 'targetFinance',
   claim: 'targetClaim',
+  driverPay: 'targetDriverPay',
+  members: 'targetMembers',
+  custom: 'targetCustom',
 };
 
 export default function WhatsappCommunication() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { can, isManager }  = usePermissions();
 
@@ -156,11 +159,12 @@ export default function WhatsappCommunication() {
   }
 
   const availableTabs = useMemo(() => {
-    return (Object.keys(emailTemplates) as EmailType[]).filter(type => {
-       const permKey = TARGET_PERMISSIONS[type];
-       return permKey ? can('whatsapp', permKey) : false;
+    const allTabs: EmailType[] = ['finance', 'rental', 'maintenance', 'invoice', 'claim', 'driverPay', 'members', 'custom'];
+    return allTabs.filter(type => {
+      const permKey = TARGET_PERMISSIONS[type];
+      return permKey ? (can('whatsapp', permKey) || can('whatsapp', 'send') || isManager) : true;
     });
-  }, [can]);
+  }, [can, isManager]);
 
   const [emailType, setEmailType] = useState<EmailType>(availableTabs[0] || 'custom');
   const [recipientFilter, setRecipientFilter] = useState<RecipientFilterType>('all');
@@ -212,7 +216,7 @@ export default function WhatsappCommunication() {
 
   const fetchLiveTemplates = useCallback(async () => {
     try {
-      const list = await loadTemplatesForCategory(emailType);
+      const list = await loadTemplatesForCategory(emailType, 'whatsapp');
       setLiveTemplates(list);
     } catch (e) {
       console.error('Failed to load live templates', e);
@@ -1294,7 +1298,7 @@ export default function WhatsappCommunication() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {availableTabs.map(t => (
           <button
             key={t}
@@ -1310,9 +1314,9 @@ export default function WhatsappCommunication() {
               if (t === 'finance') setRecipientFilter('customer');
               else setRecipientFilter('all');
             }}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-center transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#059669] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'driverPay' ? 'Driver Pay' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -1332,41 +1336,18 @@ export default function WhatsappCommunication() {
               ))}
             </select>
           </div>
-
-          {selectedTemplateId && currentTemplate && (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleOpenEditTemplate}
-                title="Edit this template text, subject, or placeholder tags"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Edit Template</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteSelectedTemplate}
-                title="Delete this template permanently"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Delete</span>
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100">
           <button
             type="button"
-            onClick={handleOpenNewTemplate}
-            title="Create a brand new template for this category"
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            onClick={() => navigate(ROUTES.AUTOMATION)}
+            title="Create, edit, or configure templates in Automation Control"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Template</span>
+            <Settings2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Manage in Automation Control</span>
+            <ExternalLink className="w-3 h-3 text-emerald-600" />
           </button>
 
           <button
@@ -1855,27 +1836,6 @@ export default function WhatsappCommunication() {
           </div>
         </div>
       </div>
-
-      {/* Template Edit & Create Modal */}
-      <TemplateEditModal
-        isOpen={templateEditModalOpen}
-        onClose={() => setTemplateEditModalOpen(false)}
-        template={templateEditMode === 'edit' ? templateToEdit : null}
-        defaultCategory={emailType}
-        defaultChannel="whatsapp"
-        onSaved={(saved) => {
-          fetchLiveTemplates();
-          setSelectedTemplateId(saved.id);
-        }}
-        onDeleted={(deletedId) => {
-          if (selectedTemplateId === deletedId) {
-            setSelectedTemplateId('');
-            setSubject('');
-            setMessage('');
-          }
-          fetchLiveTemplates();
-        }}
-      />
 
       {/* Template Guide Modal */}
       <TemplateGuideModal

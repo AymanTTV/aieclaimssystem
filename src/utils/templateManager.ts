@@ -25,6 +25,54 @@ export interface AppMessageTemplate {
   createdAt?: any;
 }
 
+export const AUTOMATION_CATEGORIES = [
+  { id: 'finance', label: 'Finance' },
+  { id: 'rental', label: 'Rental' },
+  { id: 'maintenance', label: 'Maintenance' },
+  { id: 'invoice', label: 'Invoice' },
+  { id: 'claim', label: 'Claim' },
+  { id: 'driverPay', label: 'Driver Pay' },
+  { id: 'members', label: 'Members' },
+  { id: 'custom', label: 'Custom' },
+] as const;
+
+export type AutomationCategoryKey = typeof AUTOMATION_CATEGORIES[number]['id'];
+
+/**
+ * Normalizes and checks if a template's category matches a target category folder
+ */
+export function isTemplateInCategory(templateCategory: string | undefined, targetCategory: string): boolean {
+  if (!templateCategory) return targetCategory.toLowerCase() === 'custom';
+  const tc = templateCategory.toLowerCase().trim();
+  const tgt = targetCategory.toLowerCase().trim();
+
+  if (tgt === 'driverpay' || tgt === 'driver_pay' || tgt === 'driver pay') {
+    return tc === 'driverpay' || tc === 'driver_pay' || tc === 'driver pay';
+  }
+  if (tgt === 'members' || tgt === 'member' || tgt === 'customers' || tgt === 'customer') {
+    return tc === 'members' || tc === 'member' || tc === 'customers' || tc === 'customer' || tc.includes('group');
+  }
+  if (tgt === 'finance') {
+    return tc === 'finance';
+  }
+  if (tgt === 'rental') {
+    return tc === 'rental';
+  }
+  if (tgt === 'maintenance') {
+    return tc === 'maintenance';
+  }
+  if (tgt === 'invoice') {
+    return tc === 'invoice';
+  }
+  if (tgt === 'claim') {
+    return tc === 'claim' || tc === 'claims' || tc === 'legal_handler' || tc === 'legal';
+  }
+  if (tgt === 'custom') {
+    return tc === 'custom' || tc === 'general';
+  }
+  return tc === tgt;
+}
+
 const LOCAL_STORAGE_DELETED_KEY = 'aie_deleted_template_ids_v1';
 const TEMPLATE_CONFIG_DOC = 'template_config';
 
@@ -214,18 +262,44 @@ export async function saveAppTemplate(template: {
 }
 
 /**
- * Fetch all active templates for a given category (or all categories),
+ * Fetch all active templates for a given category (or all categories) and optional channel,
  * cleanly merging Firestore customizations with default templates,
- * and strictly omitting any deleted templates.
+ * enforcing dynamic module-to-folder mapping rules:
+ * - Module receives templates belonging strictly to its assigned folder
+ * - PLUS templates stored under universal "Custom" folder
+ * - Modules strictly do NOT have access to templates belonging to unrelated specific folders.
  */
-export async function loadTemplatesForCategory(category?: string): Promise<AppMessageTemplate[]> {
+export async function loadTemplatesForCategory(
+  category?: string,
+  channel?: 'whatsapp' | 'email' | 'all',
+  options?: { includeCustom?: boolean; strictExactCategory?: boolean }
+): Promise<AppMessageTemplate[]> {
   const deletedIds = await getDeletedTemplateIds();
   const templatesMap = new Map<string, AppMessageTemplate>();
 
+  // Determine if Custom folder templates should be included universally
+  // For operational modules (e.g. maintenance, rental, invoice, claim, driverPay, members, finance),
+  // custom templates MUST be accessible by default unless strictExactCategory is requested.
+  const isModuleCategory = category && category !== 'all' && category !== 'custom';
+  const includeCustom = options?.strictExactCategory 
+    ? false 
+    : (options?.includeCustom !== undefined ? options.includeCustom : isModuleCategory);
+
   // 1. First, seed in built-in default templates from constants/emailTemplates (unless marked deleted)
-  const categoriesToCheck = category && category !== 'all' 
-    ? [category as EmailType] 
-    : (Object.keys(emailTemplates) as EmailType[]);
+  const categoriesToCheck: EmailType[] = [];
+  if (!category || category === 'all') {
+    categoriesToCheck.push(...(Object.keys(emailTemplates) as EmailType[]));
+  } else {
+    // Find matching keys in emailTemplates
+    const matchedKeys = (Object.keys(emailTemplates) as EmailType[]).filter(k => isTemplateInCategory(k, category));
+    categoriesToCheck.push(...matchedKeys);
+    if (includeCustom) {
+      const customKey: EmailType = 'custom';
+      if (!categoriesToCheck.includes(customKey) && emailTemplates[customKey]) {
+        categoriesToCheck.push(customKey);
+      }
+    }
+  }
 
   for (const cat of categoriesToCheck) {
     const list = emailTemplates[cat] || [];
@@ -261,9 +335,16 @@ export async function loadTemplatesForCategory(category?: string): Promise<AppMe
         }
 
         const tCategory = (data.category || 'custom').trim();
-        // If category filter applied, check match (case-insensitive)
-        if (category && category !== 'all' && tCategory.toLowerCase() !== category.toLowerCase()) {
-          return;
+
+        // Enforce folder-level isolation:
+        // Operational pages strictly pull templates ONLY from their designated folder + universal Custom folder.
+        if (category && category !== 'all') {
+          const isDirectMatch = isTemplateInCategory(tCategory, category);
+          const isCustomMatch = includeCustom && isTemplateInCategory(tCategory, 'custom');
+          // If not matching designated folder AND not matching universal Custom, strictly exclude!
+          if (!isDirectMatch && !isCustomMatch) {
+            return;
+          }
         }
 
         // Overwrite or add live version from Firestore
@@ -285,7 +366,16 @@ export async function loadTemplatesForCategory(category?: string): Promise<AppMe
     console.error('[templateManager] Error loading messageTemplates from Firestore:', err);
   }
 
-  return Array.from(templatesMap.values());
+  let result = Array.from(templatesMap.values());
+
+  // Apply channel filter if specified
+  if (channel && channel !== 'all') {
+    result = result.filter(
+      (t) => !t.channel || t.channel === 'all' || t.channel === channel
+    );
+  }
+
+  return result;
 }
 
 /**
@@ -306,6 +396,16 @@ export const TEMPLATE_AVAILABLE_TAGS: TemplatePlaceholderTag[] = [
   { tag: '[Driver Name]', label: 'Driver Name', description: 'Assigned driver full name', sample: 'John Doe', category: 'recipient' },
   { tag: '[Phone]', label: 'Phone Number', description: 'Customer or contact telephone', sample: '07123 456789', category: 'recipient' },
   { tag: '[Email]', label: 'Email Address', description: 'Customer email address', sample: 'customer@example.com', category: 'recipient' },
+
+  // Driver Pay
+  { tag: '{driver_name}', label: 'Driver Name (Pay)', description: 'Driver name for payout', sample: 'John Doe', category: 'recipient' },
+  { tag: '{payment_id}', label: 'Payment Ref', description: 'Payment reference ID', sample: 'PAY-10023', category: 'finance' },
+  { tag: '{amount_paid}', label: 'Amount Paid (Pay)', description: 'Payout amount', sample: '£350.00', category: 'finance' },
+  { tag: '{payment_date}', label: 'Payment Date', description: 'Date of payment transfer', sample: '23/09/2026', category: 'finance' },
+  { tag: '{payment_status}', label: 'Payment Status', description: 'Payment completion status', sample: 'Paid', category: 'finance' },
+  { tag: '{period_start}', label: 'Period Start', description: 'Start of pay cycle', sample: '16/09/2026', category: 'finance' },
+  { tag: '{period_end}', label: 'Period End', description: 'End of pay cycle', sample: '22/09/2026', category: 'finance' },
+  { tag: '{notes}', label: 'Notes', description: 'Remarks or deductions note', sample: 'Standard week payout', category: 'finance' },
 
   // Vehicle
   { tag: '[Vehicle Reg]', label: 'Vehicle Reg (VRM)', description: 'License plate registration number', sample: 'BD18 XYZ', category: 'vehicle' },

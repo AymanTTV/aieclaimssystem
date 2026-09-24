@@ -28,27 +28,37 @@ service cloud.firestore {
 
     match /vehicles/{vehicleId} {
       allow read: if true;
-      allow write: if isAdmin() || isManager();
+      allow write: if isAuthenticated();
     }
 
     match /maintenanceLogs/{logId} {
       allow read: if true;
-      allow write: if isAdmin() || isManager();
+      allow write: if isAuthenticated();
     }
 
     match /jobs/{jobId} {
       allow read: if true;
-      allow write: if isAdmin() || isManager();
+      allow write: if isAuthenticated();
     }
 
     match /rentals/{rentalId} {
       allow read: if true;
-      allow write: if isAdmin() || isManager();
+      allow write: if isAuthenticated();
+    }
+
+    match /communication_logs/{logId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /automated_email_logs/{logId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     match /mileageHistory/{historyId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || isManager();
+      allow write: if isAuthenticated();
     }
 
     match /todos/{userId}/items/{itemId} {

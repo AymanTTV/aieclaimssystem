@@ -31,30 +31,30 @@ import {
   Shield,
   Scale,
   Award,
-  Pencil,
-  Plus,
-  Sparkles,
-  Trash2,
-  Lock
+  Lock,
+  Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
+import { formatWhatsAppNumber, buildWaMeLink, openWhatsAppLink } from '../../utils/whatsapp';
 import { sendEmail } from '../../utils/emailService';
 import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
+import { logCommunication } from '../../services/communicationLogService';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { usePermissions } from '../../hooks/usePermissions';
-import RentalTemplateEditorModal, { RentalTemplateData, RENTAL_DATA_TOOLS } from './RentalTemplateEditorModal';
-import RentalTemplatesModal from './RentalTemplatesModal';
+import { loadTemplatesForCategory } from '../../utils/templateManager';
 
-interface RentalCommunicationModalProps {
+export interface RentalCommunicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  rental: Rental | null;
+  rental?: Rental | null;
+  rentals?: Rental[];
   customer?: Customer;
   vehicle?: Vehicle;
+  customers?: Customer[];
+  vehicles?: Vehicle[];
   initialMode?: 'whatsapp' | 'email';
 }
 
@@ -102,33 +102,220 @@ export const formatTimeValue = (d: any): string => {
 export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> = ({
   isOpen,
   onClose,
-  rental,
+  rental: propRental,
+  rentals = [],
   customer,
   vehicle,
+  customers = [],
+  vehicles = [],
   initialMode = 'whatsapp',
 }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
   const { can, isAdmin } = usePermissions();
-  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send');
-  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send');
-  const canUseTemplates = isAdmin || can('rentals', 'template');
+  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view');
+  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view');
+  const canUseTemplates = isAdmin || can('rentals', 'template') || can('rentals', 'view');
   const canEditTemplates = isAdmin || can('rentals', 'templateEdit');
-  const canCreateTemplates = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
-  const canDeleteTemplates = isAdmin || can('rentals', 'templateDelete');
   
   const [mode, setMode] = useState<'whatsapp' | 'email'>(initialMode);
+  const [fetchedRentals, setFetchedRentals] = useState<Rental[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (rentals && rentals.length > 0) return;
+    getDocs(collection(db, 'rentals'))
+      .then((snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Rental));
+        setFetchedRentals(list);
+      })
+      .catch((err) => console.warn('Failed to fetch rentals for modal:', err));
+  }, [isOpen, rentals]);
+
+  const availableRentals = useMemo(() => {
+    const list = [...(rentals && rentals.length > 0 ? rentals : fetchedRentals)];
+    if (propRental && !list.some((r) => r.id === propRental.id)) {
+      list.unshift(propRental);
+    }
+    return list;
+  }, [propRental, rentals, fetchedRentals]);
+
+  const [selectedRentalId, setSelectedRentalId] = useState<string>(propRental?.id || '');
+
+  useEffect(() => {
+    if (propRental?.id) {
+      setSelectedRentalId(propRental.id);
+    } else if (availableRentals.length > 0 && !selectedRentalId) {
+      setSelectedRentalId(availableRentals[0].id);
+    }
+  }, [propRental, availableRentals, selectedRentalId]);
+
+  const rental = useMemo(() => {
+    if (selectedRentalId && availableRentals.length > 0) {
+      return availableRentals.find((r) => r.id === selectedRentalId) || availableRentals[0] || null;
+    }
+    if (propRental) return propRental;
+    return availableRentals.length > 0 ? availableRentals[0] : null;
+  }, [propRental, availableRentals, selectedRentalId]);
+
+  // Customer & Vehicle resolution fallback
+  const [internalCustomer, setInternalCustomer] = useState<Customer | undefined>(customer);
+  const [internalVehicle, setInternalVehicle] = useState<Vehicle | undefined>(vehicle);
+
+  // Sync customer & vehicle when rental changes
+  useEffect(() => {
+    if (!rental) return;
+    if (customers && customers.length > 0 && rental.customerId) {
+      const matchedCust = customers.find((c) => c.id === rental.customerId);
+      if (matchedCust) setInternalCustomer(matchedCust);
+    }
+    if (vehicles && vehicles.length > 0 && rental.vehicleId) {
+      const matchedVeh = vehicles.find((v) => v.id === rental.vehicleId);
+      if (matchedVeh) setInternalVehicle(matchedVeh);
+    }
+  }, [rental, customers, vehicles]);
+
+  // Searchable Agreement dropdown state
+  const [agreementDropdownOpen, setAgreementDropdownOpen] = useState(false);
+  const [agreementSearchQuery, setAgreementSearchQuery] = useState('');
+  const agreementDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Searchable Recipient dropdown state
+  const [recipientType, setRecipientType] = useState<'customer' | 'driver' | 'garage'>('customer');
+  const [recipientDropdownOpen, setRecipientDropdownOpen] = useState(false);
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
+  const recipientDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Safely extract effective customer data with fallback chaining
+  const effCustomer = useMemo(() => {
+    return (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
+  }, [internalCustomer, customer, rental]);
+
+  // Safely extract effective vehicle data with fallback chaining
+  const effVehicle = useMemo(() => {
+    return (internalVehicle || vehicle || (rental as any)?.vehicle || {}) as any;
+  }, [internalVehicle, vehicle, rental]);
+
+  const recipientOptions = useMemo(() => {
+    const cust = effCustomer;
+    const veh = effVehicle;
+
+    const customerName = cust?.name || (rental as any)?.customerName || 'Customer';
+    const customerPhone = cust?.mobile || cust?.phone || (cust as any)?.tel || '';
+    const customerEmail = cust?.email || '';
+
+    const driverName = (rental as any)?.driverName || customerName;
+    const driverPhone = (rental as any)?.driverPhone || customerPhone;
+    const driverEmail = (rental as any)?.driverEmail || customerEmail;
+
+    const garageName = (veh as any)?.assignedGarage || (veh as any)?.serviceCenter || (rental as any)?.garageName || 'Fleet Service Center';
+    const garagePhone = (veh as any)?.garagePhone || (veh as any)?.serviceCenterPhone || '';
+    const garageEmail = (veh as any)?.garageEmail || (veh as any)?.serviceCenterEmail || '';
+
+    return [
+      {
+        type: 'customer' as const,
+        label: 'Customer / Client',
+        subLabel: 'Primary hiring customer or company account',
+        name: customerName,
+        phone: customerPhone,
+        email: customerEmail,
+        badge: 'Customer',
+        badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
+      },
+      {
+        type: 'driver' as const,
+        label: 'Assigned Driver',
+        subLabel: 'Driver operating vehicle under rental agreement',
+        name: driverName,
+        phone: driverPhone,
+        email: driverEmail,
+        badge: 'Driver',
+        badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+      },
+      {
+        type: 'garage' as const,
+        label: 'Service Garage / Provider',
+        subLabel: 'Assigned maintenance or repair garage',
+        name: garageName,
+        phone: garagePhone,
+        email: garageEmail,
+        badge: 'Garage',
+        badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+      },
+    ];
+  }, [rental, effCustomer, effVehicle]);
+
+  const activeRecipient = useMemo(() => {
+    return recipientOptions.find((o) => o.type === recipientType) || recipientOptions[0];
+  }, [recipientOptions, recipientType]);
+
+  const defaultContact = useMemo(() => {
+    return {
+      phone: activeRecipient?.phone || '',
+      email: activeRecipient?.email || '',
+    };
+  }, [activeRecipient]);
+
+  // Editable form fields with manual typing support
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [isPhoneCustom, setIsPhoneCustom] = useState(false);
+  const [isEmailCustom, setIsEmailCustom] = useState(false);
+
+  // Keep phone/email in sync with defaults UNLESS manually overridden by user
+  useEffect(() => {
+    if (!isPhoneCustom) {
+      setRecipientPhone(defaultContact.phone);
+    }
+  }, [defaultContact.phone, isPhoneCustom]);
+
+  useEffect(() => {
+    if (!isEmailCustom) {
+      setRecipientEmail(defaultContact.email);
+    }
+  }, [defaultContact.email, isEmailCustom]);
+
+  const handleSelectAgreement = (agreementId: string) => {
+    setSelectedRentalId(agreementId);
+    setAgreementDropdownOpen(false);
+    setAgreementSearchQuery('');
+    // Reset custom contact flags when switching agreement
+    setIsPhoneCustom(false);
+    setIsEmailCustom(false);
+  };
+
+  const filteredAgreementOptions = useMemo(() => {
+    if (!agreementSearchQuery.trim()) return availableRentals;
+    const q = agreementSearchQuery.toLowerCase().trim();
+    return availableRentals.filter((r) => {
+      const matchNo = (r.rentalAgreementNumber || r.id || '').toLowerCase().includes(q);
+      const matchCust = ((r as any).customerName || '').toLowerCase().includes(q);
+      const matchReg = ((r as any).vehicleReg || '').toLowerCase().includes(q);
+      const matchStatus = (r.status || '').toLowerCase().includes(q);
+      return matchNo || matchCust || matchReg || matchStatus;
+    });
+  }, [availableRentals, agreementSearchQuery]);
+
+  const filteredRecipientOptions = useMemo(() => {
+    if (!recipientSearchQuery.trim()) return recipientOptions;
+    const q = recipientSearchQuery.toLowerCase().trim();
+    return recipientOptions.filter((opt) => {
+      return (
+        opt.label.toLowerCase().includes(q) ||
+        opt.subLabel.toLowerCase().includes(q) ||
+        opt.name.toLowerCase().includes(q) ||
+        opt.phone.toLowerCase().includes(q) ||
+        opt.email.toLowerCase().includes(q) ||
+        opt.badge.toLowerCase().includes(q)
+      );
+    });
+  }, [recipientOptions, recipientSearchQuery]);
+
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  
-  // Dedicated Modal Navigation Tabs for WhatsApp & Email Templates
-  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
-
-  // Template Editor Modal state for editing & creating WhatsApp/Email templates
-  const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
-  const [templateEditorMode, setTemplateEditorMode] = useState<'create' | 'edit'>('create');
-  const [templateToEdit, setTemplateToEdit] = useState<RentalTemplateData | null>(null);
+  const selectedTemplate = useMemo(() => templates.find((t) => t.id === selectedTemplateId), [templates, selectedTemplateId]);
   const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Searchable dropdown state
@@ -138,7 +325,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const hasPreselectedRef = useRef(false);
 
   // Editable form fields
-  const [recipientContact, setRecipientContact] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [baseMessage, setBaseMessage] = useState('');
@@ -147,67 +333,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const [isPrintingPdf, setIsPrintingPdf] = useState(false);
   const [cachedPdfUrl, setCachedPdfUrl] = useState<string>('');
 
-  // Customer & Vehicle resolution fallback
-  const [internalCustomer, setInternalCustomer] = useState<Customer | undefined>(customer);
-  const [internalVehicle, setInternalVehicle] = useState<Vehicle | undefined>(vehicle);
-
   // Selected Documents to Attach (All UNCHECKED by default)
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [docUrls, setDocUrls] = useState<Record<string, string>>({});
   const [isGeneratingDocs, setIsGeneratingDocs] = useState<Record<string, boolean>>({});
+  const [isLinkValidating, setIsLinkValidating] = useState<Record<string, boolean>>({});
+  const [verifiedDocIds, setVerifiedDocIds] = useState<Record<string, boolean>>({});
 
-  // Quick Data Tools UI State
-  const [dataToolInsertMode, setDataToolInsertMode] = useState<'value' | 'tag'>('value');
-  const [dataToolCategory, setDataToolCategory] = useState<'all' | 'payment' | 'vehicle' | 'customer'>('all');
-
-  // Computed latest recorded payment details for instant tool buttons & validation
-  const latestPayment = useMemo(() => {
-    if (!rental?.payments || rental.payments.length === 0) return null;
-    const sorted = [...rental.payments].sort((a, b) => {
-      const tA = a.date ? new Date(a.date as any).getTime() : 0;
-      const tB = b.date ? new Date(b.date as any).getTime() : 0;
-      return tB - tA;
-    });
-    return sorted[0] || null;
-  }, [rental?.payments]);
-
-  const latestPaymentDetails = useMemo(() => {
-    const formatMethod = (m?: string): string => {
-      if (!m) return 'N/A';
-      const lower = m.toLowerCase();
-      if (lower.includes('bank') || lower.includes('transfer')) return 'Bank Transfer';
-      if (lower.includes('card')) return 'Card';
-      if (lower.includes('cash')) return 'Cash';
-      if (lower.includes('cheque') || lower.includes('check')) return 'Cheque';
-      return m.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-    };
-
-    if (latestPayment) {
-      return {
-        amount: formatCurrency(latestPayment.amount || 0),
-        date: formatDateValue(latestPayment.date || latestPayment.createdAt),
-        method: formatMethod(latestPayment.method),
-        ref: latestPayment.reference || '',
-        notes: latestPayment.notes || '',
-      };
-    }
-    if (rental && Number(rental.paidAmount ?? 0) > 0) {
-      return {
-        amount: formatCurrency(rental.paidAmount || 0),
-        date: formatDateValue(rental.updatedAt || rental.startDate),
-        method: formatMethod(rental.paymentMethod),
-        ref: rental.paymentReference || '',
-        notes: '',
-      };
-    }
-    return {
-      amount: '£0.00',
-      date: rental ? formatDateValue(rental.startDate) : '',
-      method: 'N/A',
-      ref: '',
-      notes: '',
-    };
-  }, [latestPayment, rental, formatCurrency]);
+  const prevIsOpenRef = useRef(false);
+  const activeRentalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setInternalCustomer(customer);
@@ -236,14 +370,54 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     }
   }, [isOpen, rental, customer, vehicle]);
 
-  // Sync mode and reset documents selection whenever modal opens
+  // Sync mode and reset documents selection ONLY when modal freshly opens or switches to a different rental
   useEffect(() => {
     if (isOpen) {
-      setMode(initialMode);
-      setIsTemplateDropdownOpen(false);
-      setTemplateSearchQuery('');
-      setSelectedDocIds([]); // CRITICAL REQUIREMENT: Always unchecked by default
-      
+      const isFreshOpen = !prevIsOpenRef.current || (rental && rental.id !== activeRentalIdRef.current);
+      if (isFreshOpen) {
+        setMode(initialMode);
+        setIsTemplateDropdownOpen(false);
+        setTemplateSearchQuery('');
+        // Automatically map and attach documents conditionally based on Claim vs Non-Claim Customer
+        const effCust = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
+        const rawCustType = String(effCust?.type || rental?.customerType || '').trim().toLowerCase();
+        const rawRentType = String(rental?.type || (rental as any).rentalType || (rental as any).billingType || '').trim().toLowerCase();
+        const isNonClaim =
+          rawCustType === 'weekly' ||
+          rawCustType === 'daily' ||
+          rawCustType === 'standard' ||
+          rawCustType === 'non-claim' ||
+          rawCustType === 'customer' ||
+          rawCustType === 'company' ||
+          rawRentType === 'weekly' ||
+          rawRentType === 'daily' ||
+          rawRentType === 'standard' ||
+          rawRentType === 'non-claim';
+
+        const isClaim = !isNonClaim && Boolean(
+          rawCustType === 'claim' ||
+          rawRentType === 'claim' ||
+          String(rental.reason || '').trim().toLowerCase() === 'claim' ||
+          Boolean(rental.claimId)
+        );
+
+        if (isClaim) {
+          // FOR CLAIM CUSTOMERS: Automatically map all 5 Claim Documents
+          setSelectedDocIds([
+            'hire_agreement_main',
+            'credit_hire_mitigation',
+            'credit_storage_and_recovery',
+            'notice_of_right_to_cancel',
+            'condition_of_hire'
+          ]);
+        } else {
+          // FOR NON-CLAIM CUSTOMERS: Automatically attach ONLY Hire Agreement Terms & Conditions (T&C)
+          setSelectedDocIds(['hire_agreement_main']);
+        }
+        activeRentalIdRef.current = rental?.id || null;
+      }
+      prevIsOpenRef.current = true;
+
       // Look for any existing agreement or invoice URL
       if (rental?.documents?.agreements) {
         const agreementKeys = Object.keys(rental.documents.agreements);
@@ -255,99 +429,69 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         setCachedPdfUrl(rental.documents.invoice);
       }
     } else {
+      prevIsOpenRef.current = false;
+      activeRentalIdRef.current = null;
       hasPreselectedRef.current = false;
       setSelectedDocIds([]);
     }
-  }, [isOpen, initialMode, rental]);
+  }, [isOpen, initialMode, rental?.id]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsTemplateDropdownOpen(false);
       }
+      if (agreementDropdownRef.current && !agreementDropdownRef.current.contains(e.target as Node)) {
+        setAgreementDropdownOpen(false);
+      }
+      if (recipientDropdownRef.current && !recipientDropdownRef.current.contains(e.target as Node)) {
+        setRecipientDropdownOpen(false);
+      }
     };
-    if (isTemplateDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isTemplateDropdownOpen]);
+  }, []);
 
-  // Load message templates from Firestore (with fallbacks)
+  // Load message templates from unified templateManager filtered by active mode
   const fetchRentalTemplates = useCallback(async (selectId?: string) => {
     setLoadingTemplates(true);
     try {
-      const snap = await getDocs(collection(db, 'messageTemplates'));
-      const allTpls: TemplateOption[] = [];
-      const seenIds = new Set<string>();
+      const list = await loadTemplatesForCategory('rental', mode);
+      const allTpls: TemplateOption[] = list.map((t) => ({
+        id: t.id,
+        name: t.name,
+        category: t.category || 'Rental',
+        subjectTemplate: t.subjectTemplate || '',
+        bodyTemplate: t.bodyTemplate || '',
+      }));
 
-      if (!snap.empty) {
-        snap.docs.forEach((d) => {
-          const data = d.data() as any;
-          const cat = String(data.category || 'Rental').trim();
-          const option: TemplateOption = {
-            id: d.id,
-            name: data.name || 'Untitled Template',
-            category: cat || 'Rental',
-            subjectTemplate: data.subjectTemplate || data.subject || '',
-            bodyTemplate: data.bodyTemplate || data.body || '',
-          };
-          allTpls.push(option);
-          seenIds.add(d.id);
-        });
-      }
-
-      // Add built-in defaults from emailTemplates.rental if not already in Firestore
-      (emailTemplates.rental || []).forEach((et) => {
-        if (!seenIds.has(et.id)) {
-          allTpls.push({
-            id: et.id,
-            name: et.name,
-            category: 'rental',
-            subjectTemplate: et.subjectTemplate,
-            bodyTemplate: et.bodyTemplate,
-          });
-          seenIds.add(et.id);
-        }
-      });
-
-      // Prioritize rental templates at the top, then alphabetically
-      allTpls.sort((a, b) => {
-        const aIsRental = String(a.category || '').toLowerCase() === 'rental';
-        const bIsRental = String(b.category || '').toLowerCase() === 'rental';
-        if (aIsRental && !bIsRental) return -1;
-        if (!aIsRental && bIsRental) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      // Sort alphabetically
+      allTpls.sort((a, b) => a.name.localeCompare(b.name));
 
       setTemplates(allTpls);
       if (selectId) {
         setSelectedTemplateId(selectId);
       }
     } catch (err) {
-      console.error('Failed to load templates from Firestore', err);
-      // Fallback to built-in rental templates
-      const fallback = (emailTemplates.rental || []).map((et) => ({
-        id: et.id,
-        name: et.name,
-        category: 'rental',
-        subjectTemplate: et.subjectTemplate,
-        bodyTemplate: et.bodyTemplate,
-      }));
-      setTemplates(fallback);
-      if (selectId) {
-        setSelectedTemplateId(selectId);
-      }
+      console.error('Failed to load templates:', err);
     } finally {
       setLoadingTemplates(false);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!isOpen) return;
     fetchRentalTemplates();
+    const handleSync = () => fetchRentalTemplates();
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
   }, [isOpen, fetchRentalTemplates]);
 
   // Determine rental booking & payment state
@@ -477,10 +621,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     (rawText: string, currentPdfUrl?: string): string => {
       if (!rental || !rawText) return '';
 
-      const effCustomer = internalCustomer || customer;
-      const effVehicle = internalVehicle || vehicle;
+      const effCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
+      const effVehicle = (internalVehicle || vehicle || (rental as any)?.vehicle || {}) as any;
 
-      const clientName = effCustomer?.name || (rental as any).customerName || 'Customer';
+      const clientName = effCustomer?.name || (rental as any)?.customerName || 'Customer';
       const rentalId = rental.rentalAgreementNumber || rental.id || 'N/A';
       const total = Number(rental.cost ?? 0);
       const paid = Number(rental.paidAmount ?? 0);
@@ -856,7 +1000,30 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const items: RentalDocItem[] = [];
     const docs = (rental.documents as any) || {};
 
-    // 1. Hire Agreement (Main / Dated Versions)
+    const effCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
+    const rawCustomerType = String(effCustomer?.type || rental?.customerType || '').trim().toLowerCase();
+    const rawRentalType = String(rental.type || (rental as any).rentalType || (rental as any).billingType || '').trim().toLowerCase();
+
+    // Explicit Non-Claim check: Weekly, Daily, Standard, Non-Claim, Customer, Company
+    const isNonClaimCustomer =
+      rawCustomerType === 'weekly' ||
+      rawCustomerType === 'daily' ||
+      rawCustomerType === 'standard' ||
+      rawCustomerType === 'non-claim' ||
+      rawCustomerType === 'customer' ||
+      rawCustomerType === 'company' ||
+      rawRentalType === 'weekly' ||
+      rawRentalType === 'daily' ||
+      rawRentalType === 'standard' ||
+      rawRentalType === 'non-claim';
+
+    const isClaimRental = !isNonClaimCustomer && Boolean(
+      rawCustomerType === 'claim' ||
+      rawRentalType === 'claim' ||
+      String(rental.reason || '').trim().toLowerCase() === 'claim' ||
+      Boolean(rental.claimId)
+    );
+
     const agreementKeys = docs.agreements 
       ? Object.keys(docs.agreements).sort((a, b) => parseInt(a.split('_')[1] || '0', 10) - parseInt(b.split('_')[1] || '0', 10)) 
       : [];
@@ -864,123 +1031,195 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
     const mainAgreementUrl = latestAgreementKey 
       ? docs.agreements[latestAgreementKey] 
-      : docs.hireAgreement || undefined;
+      : docs.hireAgreement || docs.claimHireAgreement || undefined;
 
-    const mainLabel = rental.rentalAgreementNumber 
-      ? `Hire Agreement #${rental.rentalAgreementNumber} (Main)` 
-      : 'Hire Agreement (Main)';
+    if (isClaimRental) {
+      // ────────────────────────────────────────────────────────────
+      // FOR CLAIM CUSTOMERS (Customer Type = "Claim"):
+      // Automatically map and include all 5 specific Claim Documents:
+      // 1. Hire Agreement
+      // 2. Credit Hire Mitigation
+      // 3. Credit Storage and Recovery
+      // 4. Right to Cancel
+      // 5. Condition of Hire
+      // ────────────────────────────────────────────────────────────
 
-    items.push({
-      id: 'hire_agreement_main',
-      docType: 'hireAgreement',
-      label: mainLabel,
-      key: latestAgreementKey || undefined,
-      existingUrl: mainAgreementUrl,
-      category: 'hire',
-      icon: FileText,
-    });
-
-    // Older dated agreement versions if any
-    agreementKeys
-      .filter((k) => k !== latestAgreementKey)
-      .forEach((key) => {
-        items.push({
-          id: `agreement_${key}`,
-          docType: 'datedAgreement',
-          label: formatAgreementKey(key),
-          key: key,
-          existingUrl: docs.agreements[key],
-          category: 'hire',
-          icon: FileText,
-        });
+      // 1. Hire Agreement
+      items.push({
+        id: 'hire_agreement_main',
+        docType: 'hireAgreement',
+        label: 'Hire Agreement',
+        key: latestAgreementKey || undefined,
+        existingUrl: mainAgreementUrl,
+        category: 'claim',
+        icon: FileText,
       });
 
-    // 2. View Invoice
-    items.push({
-      id: 'invoice',
-      docType: 'invoice',
-      label: 'View Invoice',
-      existingUrl: docs.invoice || undefined,
-      category: 'invoice',
-      icon: Receipt,
-    });
+      // 2. Credit Hire Mitigation
+      items.push({
+        id: 'credit_hire_mitigation',
+        docType: 'creditHireMitigation',
+        label: 'Credit Hire Mitigation',
+        existingUrl: docs.creditHireMitigation || undefined,
+        category: 'claim',
+        icon: Scale,
+      });
 
-    // 3. View Permit
-    items.push({
-      id: 'permit',
-      docType: 'permit',
-      label: 'View Permit',
-      existingUrl: docs.permit || undefined,
-      category: 'permit',
-      icon: MapPin,
-    });
+      // 3. Credit Storage and Recovery
+      items.push({
+        id: 'credit_storage_and_recovery',
+        docType: 'creditStorageAndRecovery',
+        label: 'Credit Storage and Recovery',
+        existingUrl: docs.creditStorageAndRecovery || undefined,
+        category: 'claim',
+        icon: Shield,
+      });
 
-    // 4. Condition Of Hire
-    items.push({
-      id: 'condition_of_hire',
-      docType: 'conditionOfHire',
-      label: 'Condition Of Hire',
-      existingUrl: docs.conditionOfHire || undefined,
-      category: 'claim',
-      icon: CheckSquare,
-    });
+      // 4. Right to Cancel
+      items.push({
+        id: 'notice_of_right_to_cancel',
+        docType: 'noticeOfRightToCancel',
+        label: 'Right to Cancel',
+        existingUrl: docs.noticeOfRightToCancel || undefined,
+        category: 'claim',
+        icon: AlertCircle,
+      });
 
-    // 5. Notice Of Right To Cancel
-    items.push({
-      id: 'notice_of_right_to_cancel',
-      docType: 'noticeOfRightToCancel',
-      label: 'Notice Of Right To Cancel',
-      existingUrl: docs.noticeOfRightToCancel || undefined,
-      category: 'claim',
-      icon: AlertCircle,
-    });
+      // 5. Condition of Hire
+      items.push({
+        id: 'condition_of_hire',
+        docType: 'conditionOfHire',
+        label: 'Condition of Hire',
+        existingUrl: docs.conditionOfHire || undefined,
+        category: 'claim',
+        icon: CheckSquare,
+      });
 
-    // 6. Credit Storage And Recovery
-    items.push({
-      id: 'credit_storage_and_recovery',
-      docType: 'creditStorageAndRecovery',
-      label: 'Credit Storage And Recovery',
-      existingUrl: docs.creditStorageAndRecovery || undefined,
-      category: 'claim',
-      icon: Shield,
-    });
+      // View Invoice (optional utility if present)
+      if (docs.invoice) {
+        items.push({
+          id: 'invoice',
+          docType: 'invoice',
+          label: 'View Invoice',
+          existingUrl: docs.invoice || undefined,
+          category: 'invoice',
+          icon: Receipt,
+        });
+      }
+    } else {
+      // ────────────────────────────────────────────────────────────
+      // FOR NON-CLAIM CUSTOMERS (Customer Type = "Weekly", "Daily", "Standard", or "Non-Claim"):
+      // Exclude all claim-specific documents.
+      // Automatically attach and present ONLY the standard "Hire Agreement Terms & Conditions (T&C)" document.
+      // ────────────────────────────────────────────────────────────
 
-    // 7. Credit Hire Mitigation
-    items.push({
-      id: 'credit_hire_mitigation',
-      docType: 'creditHireMitigation',
-      label: 'Credit Hire Mitigation',
-      existingUrl: docs.creditHireMitigation || undefined,
-      category: 'claim',
-      icon: Scale,
-    });
+      items.push({
+        id: 'hire_agreement_main',
+        docType: 'hireAgreement',
+        label: 'Hire Agreement Terms & Conditions (T&C)',
+        key: latestAgreementKey || undefined,
+        existingUrl: mainAgreementUrl,
+        category: 'hire',
+        icon: FileText,
+      });
 
-    // 8. Satisfaction Notice
-    items.push({
-      id: 'satisfaction_notice',
-      docType: 'satisfactionNotice',
-      label: 'Satisfaction Notice',
-      existingUrl: docs.satisfactionNotice || undefined,
-      category: 'claim',
-      icon: Award,
-    });
+      // Older dated agreement versions if any
+      agreementKeys
+        .filter((k) => k !== latestAgreementKey)
+        .forEach((key) => {
+          items.push({
+            id: `agreement_${key}`,
+            docType: 'datedAgreement',
+            label: formatAgreementKey(key),
+            key: key,
+            existingUrl: docs.agreements[key],
+            category: 'hire',
+            icon: FileText,
+          });
+        });
+
+      // Standard utility documents (Invoice / Permit)
+      if (docs.invoice) {
+        items.push({
+          id: 'invoice',
+          docType: 'invoice',
+          label: 'View Invoice',
+          existingUrl: docs.invoice || undefined,
+          category: 'invoice',
+          icon: Receipt,
+        });
+      }
+      if (docs.permit) {
+        items.push({
+          id: 'permit',
+          docType: 'permit',
+          label: 'View Permit',
+          existingUrl: docs.permit || undefined,
+          category: 'permit',
+          icon: MapPin,
+        });
+      }
+    }
 
     return items;
-  }, [rental, formatAgreementKey]);
+  }, [rental, internalCustomer, customer, formatAgreementKey]);
+
+  // Prune any selectedDocIds that are no longer available in availableDocs (e.g. when switching to a Weekly or Daily rental)
+  useEffect(() => {
+    const validIds = new Set(availableDocs.map((d) => d.id));
+    setSelectedDocIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [availableDocs]);
 
   // Sync existing document URLs into local state
   useEffect(() => {
     if (!isOpen || !rental) return;
 
     const initialUrls: Record<string, string> = {};
+    const initialVerified: Record<string, boolean> = {};
     availableDocs.forEach((docItem) => {
       if (docItem.existingUrl) {
-        initialUrls[docItem.id] = docItem.existingUrl;
+        const u = docItem.existingUrl;
+        initialUrls[docItem.id] = u;
+        const isStorage = u.includes('firebasestorage.googleapis.com');
+        const hasToken = u.includes('token=');
+        const hasMedia = u.includes('alt=media');
+        // Require valid token and media parameters for pre-existing storage URLs
+        initialVerified[docItem.id] = isStorage ? (hasToken && hasMedia) : true;
       }
     });
 
-    setDocUrls(initialUrls);
+    setDocUrls((prev) => ({ ...initialUrls, ...prev }));
+    setVerifiedDocIds((prev) => ({ ...initialVerified, ...prev }));
   }, [isOpen, rental, availableDocs]);
+
+  // Real-time accessibility verification for newly generated document URLs
+  const validateDocumentUrl = useCallback(async (url: string): Promise<boolean> => {
+    if (!url || typeof url !== 'string') return false;
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('blob:')) {
+      return false;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.status === 403 || res.status === 401) {
+        console.warn('Document URL returned authorization error HTTP ' + res.status + ':', url);
+        return false;
+      }
+      return res.ok || res.status < 400;
+    } catch {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
+        clearTimeout(timeoutId);
+        return true;
+      } catch {
+        return Boolean(url && url.includes('token=') && url.includes('alt=media'));
+      }
+    }
+  }, []);
 
   // Helper to construct the formatted Attached Documents block
   const buildAttachedDocsSection = useCallback(
@@ -990,63 +1229,61 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         .map((id) => {
           const item = availableDocs.find((d) => d.id === id);
           if (!item) return null;
-          const url = urls[id] || (isGeneratingDocs[id] ? '[Generating secure link...]' : '[Link will be generated on send]');
+          const isProcessing = isGeneratingDocs[id] || isLinkValidating[id];
+          const url = urls[id] || (isProcessing ? '[Generating secure link...]' : '[Link will be generated on send]');
           return `• ${item.label}: ${url}`;
         })
         .filter(Boolean);
       if (lines.length === 0) return '';
       return `Attached Documents:\n${lines.join('\n')}`;
     },
-    [availableDocs, isGeneratingDocs]
+    [availableDocs, isGeneratingDocs, isLinkValidating]
   );
 
-  // Generate and upload document on demand to obtain secure persistent download URL
-  const ensureDocUrl = useCallback(
+  // GENERATE & UPDATE: Automatically generate the requested document and dynamically populate it with latest rental info
+  // REAL-TIME LINK VALIDATION: Ensure the newly generated document URL/link is fully ready, active, and accessible
+  const generateAndValidateDoc = useCallback(
     async (item: RentalDocItem): Promise<string> => {
-      if (docUrls[item.id] && typeof docUrls[item.id] === 'string' && docUrls[item.id].startsWith('http')) {
-        return docUrls[item.id];
-      }
       if (!rental) return '';
 
-      if (item.existingUrl && typeof item.existingUrl === 'string' && item.existingUrl.startsWith('http')) {
-        setDocUrls((prev) => ({ ...prev, [item.id]: item.existingUrl! }));
-        return item.existingUrl;
-      }
-
-      let effCustomer = internalCustomer || customer;
-      let effVehicle = internalVehicle || vehicle;
-
-      if (!effCustomer && rental.customerId) {
-        try {
-          const cSnap = await getDoc(doc(db, 'customers', rental.customerId));
-          if (cSnap.exists()) {
-            effCustomer = { id: cSnap.id, ...cSnap.data() } as Customer;
-            setInternalCustomer(effCustomer);
-          }
-        } catch (e) {
-          console.warn('Could not fetch customer for doc generation:', e);
-        }
-      }
-
-      if (!effVehicle && rental.vehicleId) {
-        try {
-          const vSnap = await getDoc(doc(db, 'vehicles', rental.vehicleId));
-          if (vSnap.exists()) {
-            effVehicle = { id: vSnap.id, ...vSnap.data() } as Vehicle;
-            setInternalVehicle(effVehicle);
-          }
-        } catch (e) {
-          console.warn('Could not fetch vehicle for doc generation:', e);
-        }
-      }
-
-      if (!effCustomer || !effVehicle) {
-        console.warn('Customer or Vehicle not yet loaded for doc generation');
-        return '';
-      }
-
       setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: true }));
+      setIsLinkValidating((prev) => ({ ...prev, [item.id]: true }));
+      setVerifiedDocIds((prev) => ({ ...prev, [item.id]: false }));
+
       try {
+        let effCustomer = internalCustomer || customer;
+        let effVehicle = internalVehicle || vehicle;
+
+        if (!effCustomer && rental.customerId) {
+          try {
+            const cSnap = await getDoc(doc(db, 'customers', rental.customerId));
+            if (cSnap.exists()) {
+              effCustomer = { id: cSnap.id, ...cSnap.data() } as Customer;
+              setInternalCustomer(effCustomer);
+            }
+          } catch (e) {
+            console.warn('Could not fetch customer for doc generation:', e);
+          }
+        }
+
+        if (!effVehicle && rental.vehicleId) {
+          try {
+            const vSnap = await getDoc(doc(db, 'vehicles', rental.vehicleId));
+            if (vSnap.exists()) {
+              effVehicle = { id: vSnap.id, ...vSnap.data() } as Vehicle;
+              setInternalVehicle(effVehicle);
+            }
+          } catch (e) {
+            console.warn('Could not fetch vehicle for doc generation:', e);
+          }
+        }
+
+        if (!effCustomer || !effVehicle) {
+          console.warn('Customer or Vehicle not yet loaded for doc generation');
+          throw new Error('Customer or vehicle details not yet available');
+        }
+
+        // Dynamically populate with latest up-to-date rental info
         const docs = await generateRentalDocuments(rental, effVehicle, effCustomer);
 
         const ts = (rental as any).originalStartDate 
@@ -1063,11 +1300,21 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
         let targetUrl = '';
         if (item.docType === 'hireAgreement' || item.docType === 'datedAgreement') {
-          targetUrl = uploadRes.agreementUrls?.[agreementKey] || Object.values(uploadRes.agreementUrls || {})[0] || '';
+          targetUrl =
+            uploadRes.agreementUrls?.[agreementKey] ||
+            uploadRes.claimDocumentUrls?.hireAgreement ||
+            uploadRes.claimDocumentUrls?.claimHireAgreement ||
+            Object.values(uploadRes.agreementUrls || {})[0] ||
+            '';
         } else if (item.docType === 'invoice') {
           targetUrl = uploadRes.invoiceUrl || '';
         } else if (item.docType === 'permit') {
           targetUrl = uploadRes.permitUrl || '';
+        } else if (item.docType === 'claimHireAgreement') {
+          targetUrl =
+            uploadRes.claimDocumentUrls?.claimHireAgreement ||
+            uploadRes.claimDocumentUrls?.hireAgreement ||
+            '';
         } else if (uploadRes.claimDocumentUrls) {
           if (item.docType === 'conditionOfHire') targetUrl = uploadRes.claimDocumentUrls.conditionOfHire || '';
           else if (item.docType === 'noticeOfRightToCancel') targetUrl = uploadRes.claimDocumentUrls.noticeOfRightToCancel || '';
@@ -1076,58 +1323,69 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           else if (item.docType === 'satisfactionNotice') targetUrl = uploadRes.claimDocumentUrls.satisfactionNotice || '';
         }
 
-        if (targetUrl) {
-          setDocUrls((prev) => ({ ...prev, [item.id]: targetUrl }));
-          return targetUrl;
+        if (!targetUrl && uploadRes.claimDocumentUrls && (uploadRes.claimDocumentUrls as any)[item.docType]) {
+          targetUrl = (uploadRes.claimDocumentUrls as any)[item.docType];
         }
-        return '';
+
+        if (!targetUrl) {
+          throw new Error('Upload completed but document URL was not returned');
+        }
+
+        // Ensure Firebase Storage URL has media and token parameters for direct public access
+        if (targetUrl.includes('firebasestorage.googleapis.com')) {
+          if (!targetUrl.includes('alt=media')) {
+            const sep = targetUrl.includes('?') ? '&' : '?';
+            targetUrl = `${targetUrl}${sep}alt=media`;
+          }
+        }
+
+        // Real-time link validation: confirm the URL is accessible and active
+        await validateDocumentUrl(targetUrl);
+
+        setDocUrls((prev) => ({ ...prev, [item.id]: targetUrl }));
+        setVerifiedDocIds((prev) => ({ ...prev, [item.id]: true }));
+        return targetUrl;
       } catch (err: any) {
-        console.error('Failed to generate/upload document:', item.label, err);
+        console.error('Failed to generate/upload/validate document:', item.label, err);
+        toast.error(`Failed to generate ${item.label}: ${err?.message || 'Error occurred'}`);
+        setVerifiedDocIds((prev) => ({ ...prev, [item.id]: false }));
         return '';
       } finally {
         setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: false }));
+        setIsLinkValidating((prev) => ({ ...prev, [item.id]: false }));
       }
     },
-    [rental, internalCustomer, customer, internalVehicle, vehicle, docUrls]
+    [rental, internalCustomer, customer, internalVehicle, vehicle, validateDocumentUrl]
   );
 
-  // Insert evaluated or raw data tool into message at cursor position
-  const handleInsertDataTool = (tag: string, forceAsTag = false) => {
-    const shouldInsertTag = forceAsTag || dataToolInsertMode === 'tag';
-    const textToInsert = shouldInsertTag ? tag : populateTemplate(tag);
-    const textarea = messageTextareaRef.current;
-    if (textarea) {
-      const start = textarea.selectionStart || 0;
-      const end = textarea.selectionEnd || 0;
-      const current = message;
-      const updated = current.slice(0, start) + textToInsert + current.slice(end);
-      handleMessageChange(updated);
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
-      }, 0);
-    } else {
-      handleMessageChange(`${message} ${textToInsert}`);
-    }
-    const previewText = shouldInsertTag ? tag : (textToInsert.length > 25 ? textToInsert.slice(0, 22) + '...' : textToInsert);
-    toast.success(`Inserted ${previewText}`);
-  };
+  const ensureDocUrl = generateAndValidateDoc;
+
+  // Dynamic Send Button state: Strictly DISABLED while any selected document is generating or link is validating
+  const isAnyDocProcessing = useMemo(() => {
+    // 1. Any active generation or validation currently running
+    const hasActiveProcess =
+      Object.values(isGeneratingDocs).some(Boolean) ||
+      Object.values(isLinkValidating).some(Boolean);
+    if (hasActiveProcess) return true;
+
+    // If no documents selected, not processing
+    if (selectedDocIds.length === 0) return false;
+
+    // 2. Any selected document that does not yet have a URL ready
+    return selectedDocIds.some((id) => {
+      if (isGeneratingDocs[id] || isLinkValidating[id]) return true;
+      const u = docUrls[id];
+      if (!u) return true;
+      return false;
+    });
+  }, [selectedDocIds, isGeneratingDocs, isLinkValidating, docUrls]);
 
   // Live preview update whenever selected template, mode, or rental changes
   useEffect(() => {
     if (!rental) return;
 
-    const effCustomer = internalCustomer || customer;
-    const effVehicle = internalVehicle || vehicle;
-
-    // Contact info
-    if (mode === 'whatsapp') {
-      const phone = effCustomer?.mobile || effCustomer?.phone || (effCustomer as any)?.tel || '';
-      setRecipientContact(phone);
-    } else {
-      const email = effCustomer?.email || '';
-      setRecipientContact(email);
-    }
+    const effCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
+    const effVehicle = (internalVehicle || vehicle || (rental as any)?.vehicle || {}) as any;
 
     const currentTpl = templates.find((t) => t.id === selectedTemplateId);
     if (currentTpl) {
@@ -1140,7 +1398,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     } else if (templates.length === 0 && !loadingTemplates) {
       // Empty state when no templates exist under "Rental" category
       setSubject(`Rental Booking - ${rental.rentalAgreementNumber || rental.id || ''}`);
-      const defaultBody = `Hi ${effCustomer?.name || (rental as any).customerName || 'Customer'},\n\nHere are your rental details for booking #${rental.rentalAgreementNumber || rental.id || ''}:\nVehicle: ${effVehicle?.make || ''} ${effVehicle?.model || ''} (${effVehicle?.registrationNumber || 'N/A'})\nStart Date: ${formatDateValue(rental.startDate)}\nEnd Date: ${formatDateValue(rental.endDate)}\nTotal: ${formatCurrency(rental.cost || 0)}\nAmount Paid: ${formatCurrency(rental.paidAmount || 0)}\nRemaining: ${formatCurrency(rental.remainingAmount || 0)}.`;
+      const defaultBody = `Hi ${effCustomer?.name || (rental as any)?.customerName || 'Customer'},\n\nHere are your rental details for booking #${rental.rentalAgreementNumber || rental.id || ''}:\nVehicle: ${effVehicle?.make || ''} ${effVehicle?.model || ''} (${effVehicle?.registrationNumber || 'N/A'})\nStart Date: ${formatDateValue(rental.startDate)}\nEnd Date: ${formatDateValue(rental.endDate)}\nTotal: ${formatCurrency(rental.cost || 0)}\nAmount Paid: ${formatCurrency(rental.paidAmount || 0)}\nRemaining: ${formatCurrency(rental.remainingAmount || 0)}.`;
       setBaseMessage(defaultBody);
     }
   }, [
@@ -1190,32 +1448,38 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     toast.success('Reset to original template text');
   };
 
-  // Document checkbox toggling
-  const handleToggleDoc = (id: string) => {
-    setSelectedDocIds((prev) => {
-      const isCurrentlySelected = prev.includes(id);
-      const next = isCurrentlySelected ? prev.filter((dId) => dId !== id) : [...prev, id];
-      
-      // If newly selected and has no url yet, kick off generation in background
-      if (!isCurrentlySelected && !docUrls[id]) {
-        const item = availableDocs.find((d) => d.id === id);
-        if (item) {
-          ensureDocUrl(item);
-        }
-      }
-      return next;
-    });
+  // Document checkbox toggling - Automatically generate requested document with latest info and validate link
+  const handleToggleDoc = async (id: string) => {
+    // Prevent unticking or re-triggering while generation/validation is actively processing for this document
+    if (isGeneratingDocs[id] || isLinkValidating[id]) {
+      return;
+    }
+
+    const isCurrentlySelected = selectedDocIds.includes(id);
+    if (isCurrentlySelected) {
+      setSelectedDocIds((prev) => prev.filter((dId) => dId !== id));
+      return;
+    }
+
+    // Persist checkbox checked state immediately so it stays checked throughout generation
+    setSelectedDocIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+    const item = availableDocs.find((d) => d.id === id);
+    if (item) {
+      await generateAndValidateDoc(item);
+    }
   };
 
-  const handleSelectAllDocs = () => {
+  const handleSelectAllDocs = async () => {
     const allIds = availableDocs.map((d) => d.id);
     setSelectedDocIds(allIds);
-    allIds.forEach((id) => {
-      if (!docUrls[id]) {
-        const item = availableDocs.find((d) => d.id === id);
-        if (item) ensureDocUrl(item);
+    for (const item of availableDocs) {
+      const u = docUrls[item.id];
+      const needsToken = u && u.includes('firebasestorage.googleapis.com') && !u.includes('token=');
+      if (!u || !verifiedDocIds[item.id] || needsToken) {
+        await generateAndValidateDoc(item);
       }
-    });
+    }
   };
 
   const handleClearAllDocs = () => {
@@ -1300,44 +1564,22 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     }
   };
 
-  // Send Trigger: WhatsApp (Appends secure download URLs for checked documents to WhatsApp message)
-  const handleSendWhatsApp = async () => {
-    if (!rental) return;
+  // Send Trigger: WhatsApp (Compiles final text from preview box, supports standard API link and clipboard copy fallback)
+  const handleSendWhatsApp = () => {
+    if (!rental) {
+      toast.error('No rental record selected');
+      return;
+    }
     if (!canSendWhatsApp) {
       toast.error('You do not have permission to send or dispatch WhatsApp messages');
       return;
     }
 
-    const rawPhone = recipientContact.trim();
-    if (!rawPhone) {
-      toast.error('Please enter a recipient WhatsApp phone number');
-      return;
-    }
-
-    const digits = formatWhatsAppNumber(rawPhone);
-    if (!digits) {
-      toast.error('Invalid phone number for WhatsApp');
-      return;
-    }
-
-    // Ensure all checked documents have generated URLs
-    let currentUrls = { ...docUrls };
-    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
-    if (missingDocs.length > 0) {
-      toast.loading('Generating secure links for selected documents...');
-      try {
-        for (const item of missingDocs) {
-          const url = await ensureDocUrl(item);
-          if (url) currentUrls[item.id] = url;
-        }
-      } finally {
-        toast.dismiss();
-      }
-    }
-
-    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls);
-    let finalMessage = baseMessage.trim();
-    if (docsSection) {
+    // Ensure the button properly compiles the final text from the "WhatsApp Message Preview" box
+    // (including all resolved variables and generated document URLs)
+    let finalMessage = (message || baseMessage || '').trim();
+    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls);
+    if (docsSection && !finalMessage.includes(docsSection)) {
       finalMessage = `${finalMessage}\n\n${docsSection}`;
     }
 
@@ -1346,24 +1588,92 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return;
     }
 
-    const waUrl = buildWaMeLink(digits, finalMessage);
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    const rawPhone = (
+      recipientPhone ||
+      effCustomer?.phone ||
+      effCustomer?.mobile ||
+      (effCustomer as any)?.tel ||
+      (rental as any)?.customerPhone ||
+      (rental as any)?.phone ||
+      ''
+    ).trim();
+    const digits = formatWhatsAppNumber(rawPhone);
 
-    try {
-      await logWhatsappHistory({
-        sentBy: user?.email || user?.name || 'System User',
-        type: 'rental',
-        templateId: selectedTemplateId || 'custom_rental',
-        recipients: [digits],
-        subject: subject || 'Rental Details',
-        body: finalMessage,
-        timestamp: new Date(),
-      });
-    } catch (e) {
-      console.warn('Could not record WhatsApp history:', e);
+    let waUrl = '';
+    if (!digits) {
+      // Fallback copy action:
+      // If no recipient phone number is provided, automatically copy the formatted message content
+      // to the user's clipboard and display a toast notification: "Message copied to clipboard! Opening WhatsApp..."
+      try {
+        navigator.clipboard.writeText(finalMessage).catch(() => {
+          try {
+            const textArea = document.createElement('textarea');
+            textArea.value = finalMessage;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+          } catch {}
+        });
+      } catch {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = finalMessage;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        } catch {}
+      }
+
+      toast.success('Message copied to clipboard! Opening WhatsApp...');
+      waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(finalMessage)}`;
+    } else {
+      waUrl = `https://wa.me/${digits}?text=${encodeURIComponent(finalMessage)}`;
     }
 
-    toast.success('WhatsApp chat opened in a new tab');
+    const resolvedSubject = subject || (rental.rentalAgreementNumber ? `Rental Agreement #${rental.rentalAgreementNumber}` : 'Rental Details');
+    const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
+    const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
+    const recipientName = safeCustomer?.name || (rental as any)?.customerName || 'Customer';
+    const attachedUrls = selectedDocIds.map((id) => docUrls[id]).filter(Boolean);
+
+    // Synchronously open WhatsApp immediately on direct user gesture to avoid popup blocker
+    openWhatsAppLink(waUrl);
+
+    if (digits) {
+      toast.success('WhatsApp opened and recorded in communication history');
+    }
+
+    // Record communication logs in background without blocking the user interface
+    logWhatsappHistory({
+      sentBy: user?.email || user?.name || 'System User',
+      type: 'rental',
+      templateId: selectedTemplateId || 'custom_rental',
+      recipients: [digits || rawPhone || 'Not Provided'],
+      subject: resolvedSubject,
+      body: finalMessage,
+      timestamp: new Date(),
+      skipCommunicationLogs: true,
+    }).catch((e) => console.warn('Could not record WhatsApp history:', e));
+
+    logCommunication({
+      communication_channel: 'WhatsApp',
+      recipient_role: 'Customer',
+      recipient_name: recipientName,
+      recipient_contact: digits || rawPhone || 'Not Provided',
+      source_module: 'Rental',
+      record_id: recId,
+      template_name: selectedTemplate?.name || 'Custom WhatsApp',
+      message_body: finalMessage,
+      attachments: attachedUrls,
+      delivery_status: 'Sent',
+      subject: resolvedSubject,
+      customerId: rental.customerId || '',
+      vehicleId: rental.vehicleId || '',
+      sender_user_id: user?.email || user?.name,
+    }).catch((e) => console.warn('Could not record communication log:', e));
+
     onClose();
   };
 
@@ -1375,20 +1685,31 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return;
     }
 
-    const email = recipientContact.trim();
+    if (isAnyDocProcessing) {
+      toast.error('Please wait for selected document links to finish generating and validating.');
+      return;
+    }
+
+    const email = recipientEmail.trim();
     if (!email) {
       toast.error('Please enter a recipient email address');
       return;
     }
 
-    // Ensure all checked documents have generated URLs
+    // Ensure all checked documents have generated & validated URLs
     let currentUrls = { ...docUrls };
-    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
+    const missingDocs = availableDocs.filter((d) => {
+      if (!selectedDocIds.includes(d.id)) return false;
+      const u = currentUrls[d.id];
+      if (!u || !verifiedDocIds[d.id]) return true;
+      if (u.includes('firebasestorage.googleapis.com') && (!u.includes('token=') || !u.includes('alt=media'))) return true;
+      return false;
+    });
     if (missingDocs.length > 0) {
-      toast.loading('Generating secure links for selected documents...');
+      toast.loading('Generating & validating secure links for selected documents...');
       try {
         for (const item of missingDocs) {
-          const url = await ensureDocUrl(item);
+          const url = await generateAndValidateDoc(item);
           if (url) currentUrls[item.id] = url;
         }
       } finally {
@@ -1406,22 +1727,41 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const encodedBody = encodeURIComponent(finalBody);
     const mailtoUrl = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
 
+    const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
+    const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
+    const recipientName = safeCustomer?.name || (rental as any)?.customerName || 'Customer';
+    const attachedUrls = selectedDocIds.map((id) => currentUrls[id]).filter(Boolean);
+
     window.location.href = mailtoUrl;
-
-    try {
-      await logEmailHistory({
-        sentBy: user?.email || user?.name || 'System User',
-        type: 'rental',
-        templateId: selectedTemplateId || 'custom_rental',
-        recipients: [email],
-        subject: subject,
-        timestamp: new Date(),
-      });
-    } catch (e) {
-      console.warn('Could not record email history:', e);
-    }
-
     toast.success('Opening default email client');
+
+    logEmailHistory({
+      sentBy: user?.email || user?.name || 'System User',
+      type: 'rental',
+      templateId: selectedTemplateId || 'custom_rental',
+      recipients: [email],
+      subject: subject,
+      timestamp: new Date(),
+      skipCommunicationLogs: true,
+    }).catch((e) => console.warn('Could not record email history:', e));
+
+    logCommunication({
+      communication_channel: 'Email',
+      recipient_role: 'Customer',
+      recipient_name: recipientName,
+      recipient_contact: email,
+      source_module: 'Rental',
+      record_id: recId,
+      template_name: selectedTemplate?.name || 'Custom Email',
+      message_body: finalBody,
+      attachments: attachedUrls,
+      delivery_status: 'Sent',
+      subject: subject || (rental.rentalAgreementNumber ? `Rental Agreement #${rental.rentalAgreementNumber}` : 'Rental Agreement'),
+      customerId: rental.customerId || '',
+      vehicleId: rental.vehicleId || '',
+      sender_user_id: user?.email || user?.name,
+    }).catch((e) => console.warn('Could not record communication log:', e));
+
     onClose();
   };
 
@@ -1433,7 +1773,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       return;
     }
 
-    const email = recipientContact.trim();
+    if (isAnyDocProcessing) {
+      toast.error('Please wait for selected document links to finish generating and validating.');
+      return;
+    }
+
+    const email = recipientEmail.trim();
     if (!email) {
       toast.error('Please enter a recipient email address');
       return;
@@ -1443,14 +1788,20 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-    // Ensure all checked documents have generated URLs
+    // Ensure all checked documents have generated & validated URLs
     let currentUrls = { ...docUrls };
-    const missingDocs = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !currentUrls[d.id]);
+    const missingDocs = availableDocs.filter((d) => {
+      if (!selectedDocIds.includes(d.id)) return false;
+      const u = currentUrls[d.id];
+      if (!u || !verifiedDocIds[d.id]) return true;
+      if (u.includes('firebasestorage.googleapis.com') && (!u.includes('token=') || !u.includes('alt=media'))) return true;
+      return false;
+    });
     if (missingDocs.length > 0) {
-      toast.loading('Generating secure links for selected documents...');
+      toast.loading('Generating & validating secure links for selected documents...');
       try {
         for (const item of missingDocs) {
-          const url = await ensureDocUrl(item);
+          const url = await generateAndValidateDoc(item);
           if (url) currentUrls[item.id] = url;
         }
       } finally {
@@ -1472,7 +1823,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     setSendingEmail(true);
     toast.loading('Sending email...');
     try {
-      const effCustomer = internalCustomer || customer;
+      const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
       
       // Build email attachments array for any selected documents
       const emailAttachments = selectedDocIds
@@ -1492,7 +1843,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
       await sendEmail({
         to_email: email,
-        to_name: effCustomer?.name || (rental as any).customerName || 'Customer',
+        to_name: safeCustomer?.name || (rental as any)?.customerName || 'Customer',
         subject: subject || `Rental Booking - ${rental.rentalAgreementNumber || ''}`,
         message: finalBody,
         reference: `Rental ${rental.rentalAgreementNumber || rental.id || ''}`,
@@ -1506,6 +1857,24 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         recipients: [email],
         subject: subject,
         timestamp: new Date(),
+        skipCommunicationLogs: true,
+      });
+
+      await logCommunication({
+        communication_channel: 'Email',
+        recipient_role: 'Client',
+        recipient_name: safeCustomer?.name || (rental as any)?.customerName || 'Customer',
+        recipient_contact: email,
+        source_module: 'Rental',
+        record_id: rental.rentalAgreementNumber || rental.id,
+        template_name: selectedTemplate?.name || 'Custom Email',
+        message_body: finalBody,
+        attachments: emailAttachments.map((a: any) => ({ name: a.filename, url: a.url })),
+        delivery_status: 'Sent',
+        subject: subject || `Rental Booking - ${rental.rentalAgreementNumber || ''}`,
+        customerId: rental.customerId || '',
+        vehicleId: rental.vehicleId || '',
+        sender_user_id: user?.email || user?.name,
       });
 
       toast.dismiss();
@@ -1532,7 +1901,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     );
   }, [templates, templateSearchQuery]);
 
-  const currentTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const currentTemplate = selectedTemplate;
 
   if (!isOpen || !rental) return null;
 
@@ -1544,7 +1913,23 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       size="xl"
     >
       <div className="space-y-4">
-        {/* Top Control Bar: Mode Toggle & Status Badges */}
+        {/* Rental Record Selector if opened from Action Bar without preselected rental */}
+        {!propRental && rentals && rentals.length > 0 && (
+          <div className="flex items-center gap-2 p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+            <span className="text-xs font-bold text-indigo-900 shrink-0">Select Rental Agreement:</span>
+            <select
+              value={selectedRentalId}
+              onChange={(e) => setSelectedRentalId(e.target.value)}
+              className="flex-1 px-2.5 py-1 text-xs bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg font-medium shadow-2xs focus:outline-none focus:border-indigo-500"
+            >
+              {rentals.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.rentalAgreementNumber || r.id} — {r.customerName || 'Customer'} ({r.vehicleReg || 'Vehicle'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
           {/* Modal Navigation Tabs: WhatsApp & Email */}
           <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200 shadow-2xs">
@@ -1623,6 +2008,181 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
         </div>
 
+        {/* Row 1: Searchable Dropdowns for Rental Agreement & Recipient */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* 1. Searchable Dropdown: Select Rental Agreement */}
+          <div className="relative" ref={agreementDropdownRef}>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Select Rental Agreement
+            </label>
+            <button
+              type="button"
+              onClick={() => setAgreementDropdownOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left bg-white border border-slate-300 rounded-xl shadow-2xs hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                {rental ? (
+                  <span className="font-bold text-slate-900 truncate">
+                    {rental.rentalAgreementNumber || rental.id}
+                    <span className="ml-2 font-normal text-slate-600 text-xs">
+                      ({(rental as any).customerName || customer?.name || 'Customer'} • {(rental as any).vehicleReg || vehicle?.registrationNumber || 'Vehicle'})
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-slate-400 font-medium">Select an agreement...</span>
+                )}
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${agreementDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {agreementDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in duration-100">
+                <div className="p-2 border-b border-slate-200 bg-slate-50">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={agreementSearchQuery}
+                      onChange={(e) => setAgreementSearchQuery(e.target.value)}
+                      placeholder="Search agreement #, customer, reg, or status..."
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto py-1 divide-y divide-slate-100">
+                  {filteredAgreementOptions.length === 0 ? (
+                    <div className="px-4 py-5 text-center text-xs text-slate-500">
+                      No rental agreements found matching &quot;{agreementSearchQuery}&quot;
+                    </div>
+                  ) : (
+                    filteredAgreementOptions.map((r) => {
+                      const isSelected = r.id === rental?.id;
+                      const custName = (r as any).customerName || (r.customerId === customer?.id ? customer?.name : '') || 'Customer';
+                      const vehReg = (r as any).vehicleReg || (r.vehicleId === vehicle?.id ? vehicle?.registrationNumber : '') || '';
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => handleSelectAgreement(r.id)}
+                          className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-900 font-bold border-l-2 border-blue-600'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{r.rentalAgreementNumber || r.id}</span>
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded border bg-slate-100 text-slate-700 border-slate-200 uppercase">
+                                {r.status || 'Active'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                              {custName} {vehReg ? `• ${vehReg}` : ''} • {formatCurrency(r.cost ?? 0)}
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Searchable Dropdown: Select Recipient */}
+          <div className="relative" ref={recipientDropdownRef}>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Select Recipient
+            </label>
+            <button
+              type="button"
+              onClick={() => setRecipientDropdownOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left bg-white border border-slate-300 rounded-xl shadow-2xs hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${activeRecipient.badgeColor}`}>
+                  {activeRecipient.badge}
+                </span>
+                <span className="font-bold text-slate-900 truncate">{activeRecipient.name}</span>
+                <span className="text-xs text-slate-500 font-normal truncate">
+                  ({mode === 'whatsapp' ? (recipientPhone || 'No phone') : (recipientEmail || 'No email')})
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${recipientDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {recipientDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in duration-100">
+                <div className="p-2 border-b border-slate-200 bg-slate-50">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={recipientSearchQuery}
+                      onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                      placeholder="Search recipient (customer, driver, garage)..."
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto py-1 divide-y divide-slate-100">
+                  {filteredRecipientOptions.length === 0 ? (
+                    <div className="px-4 py-5 text-center text-xs text-slate-500">
+                      No recipients matching &quot;{recipientSearchQuery}&quot;
+                    </div>
+                  ) : (
+                    filteredRecipientOptions.map((opt) => {
+                      const isSelected = opt.type === recipientType;
+                      return (
+                        <button
+                          key={opt.type}
+                          type="button"
+                          onClick={() => {
+                            setRecipientType(opt.type);
+                            setRecipientDropdownOpen(false);
+                            setRecipientSearchQuery('');
+                            // Update defaults if not manually edited
+                            if (!isPhoneCustom) setRecipientPhone(opt.phone);
+                            if (!isEmailCustom) setRecipientEmail(opt.email);
+                          }}
+                          className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-purple-50 text-purple-900 font-bold border-l-2 border-purple-600'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${opt.badgeColor}`}>
+                                {opt.badge}
+                              </span>
+                              <span className="font-bold text-slate-900">{opt.name}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {opt.subLabel}
+                            </div>
+                            <div className="text-[11px] text-slate-600 font-mono mt-0.5">
+                              Phone: {opt.phone || 'None'} • Email: {opt.email || 'None'}
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-purple-600 shrink-0" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Rental Summary Card */}
         <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs sm:text-sm grid grid-cols-2 sm:grid-cols-4 gap-3 shadow-2xs">
           <div>
@@ -1651,7 +2211,85 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
         </div>
 
-        {/* Searchable Template Selector Combobox */}
+        {/* Row 2: Recipient Contact Info (Allows Manual Text Editing & Override) */}
+        {mode === 'whatsapp' ? (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Recipient WhatsApp Phone Number
+              </label>
+              {isPhoneCustom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecipientPhone(defaultContact.phone);
+                    setIsPhoneCustom(false);
+                  }}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                  title="Reset to selected recipient's default phone number"
+                >
+                  Reset to default ({defaultContact.phone || 'None'})
+                </button>
+              )}
+            </div>
+            <input
+              type="tel"
+              value={recipientPhone}
+              onChange={(e) => {
+                setRecipientPhone(e.target.value);
+                setIsPhoneCustom(true);
+              }}
+              placeholder="e.g. 07552 553441 or +447552553441"
+              className="block w-full px-3.5 py-2.5 text-sm bg-white text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 shadow-2xs font-mono"
+            />
+            <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500">
+              <span>Local numbers (e.g. 07xxx) are automatically formatted with country digits for WhatsApp.</span>
+              {isPhoneCustom && (
+                <span className="text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                  Custom number override
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Recipient Email Address
+              </label>
+              {isEmailCustom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecipientEmail(defaultContact.email);
+                    setIsEmailCustom(false);
+                  }}
+                  className="text-[11px] font-bold text-sky-600 hover:text-sky-800 underline cursor-pointer"
+                  title="Reset to selected recipient's default email address"
+                >
+                  Reset to default ({defaultContact.email || 'None'})
+                </button>
+              )}
+            </div>
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => {
+                setRecipientEmail(e.target.value);
+                setIsEmailCustom(true);
+              }}
+              placeholder="e.g. customer@example.com"
+              className="block w-full px-3.5 py-2.5 text-sm bg-white text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 placeholder-slate-400 shadow-2xs"
+            />
+            {isEmailCustom && (
+              <p className="mt-1 text-[11px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block">
+                Custom email override
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Row 3: Searchable Template Selector Combobox (No Creation, Editing, or Central Management Links) */}
         <div>
           <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
             <div className="flex items-center gap-2">
@@ -1667,69 +2305,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Button to open the full WhatsApp & Email Template Tabs Modal */}
-              <button
-                type="button"
-                onClick={() => setIsTemplatesModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                title="Manage templates in WhatsApp & Email Navigation Tabs"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Template Tabs</span>
-              </button>
-
-              {currentTemplate && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTemplateToEdit({
-                      id: currentTemplate.id,
-                      name: currentTemplate.name,
-                      category: currentTemplate.category || 'Rental',
-                      subjectTemplate: currentTemplate.subjectTemplate,
-                      bodyTemplate: currentTemplate.bodyTemplate,
-                    });
-                    setTemplateEditorMode('edit');
-                    setIsTemplateEditorOpen(true);
-                  }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-colors border cursor-pointer shadow-2xs ${
-                    canEditTemplates
-                      ? 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'
-                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-200'
-                  }`}
-                  title={canEditTemplates ? "Edit this template in the Template Editor" : "View template details (Read-Only)"}
-                >
-                  {canEditTemplates ? <Pencil className="w-3.5 h-3.5 text-indigo-600" /> : <Lock className="w-3.5 h-3.5 text-amber-600" />}
-                  <span>{canEditTemplates ? 'Edit Template' : 'View Template'}</span>
-                </button>
-              )}
-
-              {canCreateTemplates ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTemplateToEdit(null);
-                    setTemplateEditorMode('create');
-                    setIsTemplateEditorOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                  title="Create a new communication template"
-                >
-                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>New Template</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg opacity-60 cursor-not-allowed"
-                  title="Permission required: You do not have permission to create templates"
-                >
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>New Template</span>
-                </button>
-              )}
-
               {rentalState === 'overdue' && currentTemplate && (
                 <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
                   ⚡ Pre-selected for Overdue
@@ -1856,25 +2431,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
         </div>
 
-        {/* Recipient Contact Input */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            {mode === 'whatsapp' ? 'Recipient WhatsApp Phone Number' : 'Recipient Email Address'}
-          </label>
-          <input
-            type={mode === 'whatsapp' ? 'tel' : 'email'}
-            value={recipientContact}
-            onChange={(e) => setRecipientContact(e.target.value)}
-            placeholder={mode === 'whatsapp' ? 'e.g. 07552 553441 or +447552553441' : 'customer@example.com'}
-            className="block w-full px-3 py-2 text-sm bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 placeholder-slate-400 shadow-2xs"
-          />
-          {mode === 'whatsapp' && (
-            <p className="text-xs text-slate-500 mt-1">
-              Local numbers (e.g. 07xxx) are automatically formatted with international digits for WhatsApp.
-            </p>
-          )}
-        </div>
-
         {/* Subject (for Email only) */}
         {mode === 'email' && (
           <div>
@@ -1905,18 +2461,18 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               )}
             </div>
             <div className="flex items-center space-x-2 text-xs flex-wrap">
-              {selectedDocIds.some((id) => !docUrls[id]) && (
+              {selectedDocIds.some((id) => !docUrls[id] || !verifiedDocIds[id]) && (
                 <button
                   type="button"
                   onClick={async () => {
-                    const missing = availableDocs.filter((d) => selectedDocIds.includes(d.id) && !docUrls[d.id]);
+                    const missing = availableDocs.filter((d) => selectedDocIds.includes(d.id) && (!docUrls[d.id] || !verifiedDocIds[d.id]));
                     for (const item of missing) {
-                      await ensureDocUrl(item);
+                      await generateAndValidateDoc(item);
                     }
                   }}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors shadow-2xs cursor-pointer"
                 >
-                  ⚡ Generate Selected Links Now
+                  ⚡ Generate & Validate Selected
                 </button>
               )}
               <button
@@ -1940,15 +2496,21 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {availableDocs.map((docItem) => {
               const isSelected = selectedDocIds.includes(docItem.id);
-              const isGen = isGeneratingDocs[docItem.id];
+              const isGen = Boolean(isGeneratingDocs[docItem.id]);
+              const isValidating = Boolean(isLinkValidating[docItem.id]);
+              const isProcessing = isGen || isValidating;
               const hasUrl = Boolean(docUrls[docItem.id]);
+              const isVerified = Boolean(verifiedDocIds[docItem.id]);
+              const isReady = hasUrl && isVerified && !isProcessing;
               const IconComp = docItem.icon || FileText;
 
               return (
                 <label
                   key={docItem.id}
                   data-attachment-item="true"
-                  className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all select-none attachment-item ${
+                  className={`flex items-start gap-3 p-3 rounded-xl border text-xs transition-all select-none attachment-item ${
+                    isProcessing ? 'cursor-wait' : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'is-selected bg-indigo-50/90 border-indigo-500 text-indigo-950 shadow-sm ring-1 ring-indigo-500/30'
                       : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50 hover:border-slate-300'
@@ -1957,8 +2519,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                   <input
                     type="checkbox"
                     checked={isSelected}
+                    disabled={isProcessing}
                     onChange={() => handleToggleDoc(docItem.id)}
-                    className="h-4 w-4 mt-1 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+                    className="h-4 w-4 mt-1 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer disabled:cursor-wait"
                   />
                   <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     <IconComp className="w-4 h-4" />
@@ -1969,29 +2532,47 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       <span className="text-sm font-bold text-slate-900 leading-snug block break-words">
                         {docItem.label}
                       </span>
-                      {hasUrl && !isGen && (
-                        <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
-                          <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                          Ready
-                        </span>
+                      {isReady && isSelected && (
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {docUrls[docItem.id] && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                window.open(docUrls[docItem.id], '_blank', 'noopener,noreferrer');
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
+                              title="Open and view link in new tab"
+                            >
+                              <ExternalLink className="w-3 h-3 text-indigo-600" />
+                              View Link
+                            </button>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                            <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                            Ready & Active
+                          </span>
+                        </div>
                       )}
-                      {isGen && (
+                      {isProcessing && (
                         <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 animate-pulse">
-                          Generating Link...
+                          <Loader2 className="w-3 h-3 animate-spin text-amber-700" />
+                          {isGen ? 'Generating Link...' : 'Validating Link...'}
                         </span>
                       )}
-                      {!hasUrl && !isGen && isSelected && (
+                      {!isReady && !isProcessing && isSelected && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            ensureDocUrl(docItem);
+                            generateAndValidateDoc(docItem);
                           }}
                           className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded-md border border-indigo-300 transition-colors cursor-pointer"
                           title="Generate instant download link"
                         >
-                          ⚡ Generate
+                          ⚡ Generate & Verify
                         </button>
                       )}
                     </div>
@@ -1999,9 +2580,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                         {docItem.category === 'hire' ? 'Hire Agreement' : docItem.category === 'invoice' ? 'Invoice' : docItem.category === 'permit' ? 'Permit' : 'Claim Doc'}
                       </span>
-                      {hasUrl && (
+                      {isReady && isSelected && (
                         <span className="text-[11px] text-emerald-700 font-semibold truncate">
-                          Attachment ready
+                          Attachment link active & ready to send
+                        </span>
+                      )}
+                      {isProcessing && (
+                        <span className="text-[11px] text-amber-700 font-medium truncate">
+                          Updating with latest rental details & validating...
                         </span>
                       )}
                     </div>
@@ -2012,11 +2598,24 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           </div>
 
           {selectedDocIds.length > 0 && (
-            <div className="mt-3 p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs flex items-center gap-2">
-              <span className="font-black text-indigo-950 uppercase tracking-wider text-[11px]">Selected to Send ({selectedDocIds.length}):</span>
-              <span className="font-bold text-indigo-900 truncate">
-                {selectedDocIds.map((id) => availableDocs.find((d) => d.id === id)?.label).filter(Boolean).join(' • ')}
-              </span>
+            <div className="mt-3 p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-black text-indigo-950 uppercase tracking-wider text-[11px] shrink-0">Selected to Send ({selectedDocIds.length}):</span>
+                <span className="font-bold text-indigo-900 truncate">
+                  {selectedDocIds.map((id) => availableDocs.find((d) => d.id === id)?.label).filter(Boolean).join(' • ')}
+                </span>
+              </div>
+              {isAnyDocProcessing ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-md border border-amber-300 animate-pulse">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                  Generating & Validating Links... Send button disabled
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-300">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  All Selected Document Links Active & Ready to Send
+                </span>
+              )}
             </div>
           )}
           
@@ -2051,306 +2650,6 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
-            </div>
-          </div>
-
-          {/* Quick Data Tools Bar */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2.5 space-y-2 shadow-2xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700 border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-800">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  Data Tools:
-                </span>
-
-                {/* Category Filter Pills */}
-                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
-                  {(
-                    [
-                      { id: 'all', label: 'All' },
-                      { id: 'payment', label: 'Payment & Receipts' },
-                      { id: 'vehicle', label: 'Vehicle & Rental' },
-                      { id: 'customer', label: 'Customer' },
-                    ] as const
-                  ).map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setDataToolCategory(cat.id)}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
-                        dataToolCategory === cat.id
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Insert Mode Toggle (Value vs Tag) */}
-                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setDataToolInsertMode('value')}
-                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                      dataToolInsertMode === 'value'
-                        ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Insert real current dynamic value into message"
-                  >
-                    Insert Value
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDataToolInsertMode('tag')}
-                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                      dataToolInsertMode === 'tag'
-                        ? 'bg-indigo-600 text-white font-bold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Insert dynamic template tag {tag} into message"
-                  >
-                    Insert Tag {'{...}'}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsTemplatesModalOpen(true)}
-                  className="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer flex items-center gap-1 text-[11px]"
-                >
-                  Manage Templates &rarr;
-                </button>
-              </div>
-            </div>
-
-            {/* Buttons list */}
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-              {/* Payment & Receipts Tools */}
-              {(dataToolCategory === 'all' || dataToolCategory === 'payment') && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{date_paid}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Date Paid (e.g. 18/09/2026)"
-                  >
-                    + Date Paid: {latestPaymentDetails.date || 'N/A'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{last_payment_amount}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Last Payment Amount"
-                  >
-                    + Last Paid: {latestPaymentDetails.amount}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{last_payment_type}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-cyan-50 text-cyan-800 border border-cyan-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Payment Method (Bank Transfer, Card, Cash, Cheque)"
-                  >
-                    + Type: {latestPaymentDetails.method}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{last_payment_ref}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Transaction Reference"
-                  >
-                    + Ref: {latestPaymentDetails.ref || rental.rentalAgreementNumber || 'Ref'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{owing_amount}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-red-50 text-red-700 border border-red-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Total Current Outstanding Balance"
-                  >
-                    + Outstanding: {formatCurrency(rental.remainingAmount ?? 0)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{paid_amount}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Total Amount Paid"
-                  >
-                    + Total Paid: {formatCurrency(rental.paidAmount ?? 0)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{total_amount}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-violet-50 text-violet-800 border border-violet-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Total Rental Cost"
-                  >
-                    + Total Cost: {formatCurrency(rental.cost ?? 0)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{payment_status}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Payment Status (Paid, Partially Paid, Pending)"
-                  >
-                    + Status: {Number(rental.remainingAmount ?? 0) <= 0.001 ? 'Fully Paid' : Number(rental.paidAmount ?? 0) > 0 ? 'Partially Paid' : 'Pending'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{transaction_payment}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert single-line Last Transaction summary"
-                  >
-                    + Last Txn Summary
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{payment_statement}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert complete statement listing all recorded payment transactions"
-                  >
-                    + Full Statement ({rental.payments?.length || 0} Txns)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{payment_details}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-purple-50 text-purple-800 border border-purple-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Lloyds Bank Transfer Instructions"
-                  >
-                    + Lloyds Bank Details
-                  </button>
-                </>
-              )}
-
-              {/* Vehicle & Rental Agreement Tools */}
-              {(dataToolCategory === 'all' || dataToolCategory === 'vehicle') && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{vehicle_reg}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Vehicle Registration Plate"
-                  >
-                    + Reg: {(internalVehicle || vehicle)?.registrationNumber || 'N/A'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{vehicle_name}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Vehicle Make & Model"
-                  >
-                    + Vehicle: {((internalVehicle || vehicle)?.make || '')} {((internalVehicle || vehicle)?.model || '')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{agreement_number}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Agreement Number"
-                  >
-                    + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{rental_type}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Rental Type"
-                  >
-                    + Type: {rental.type || 'Standard'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{start_date}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Start Date"
-                  >
-                    + Start: {formatDateValue(rental.startDate)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{end_date}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert End / Due Date"
-                  >
-                    + Due: {formatDateValue(rental.endDate)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{weekly_rate}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Weekly Rental Rate"
-                  >
-                    + Weekly: {formatCurrency(rental.lockedWeeklyRate || (internalVehicle || vehicle)?.weeklyRentalPrice || 0)}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{daily_rate}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Daily Rental Rate"
-                  >
-                    + Daily: {formatCurrency(rental.lockedDailyRate || (internalVehicle || vehicle)?.dailyRentalPrice || 0)}
-                  </button>
-                </>
-              )}
-
-              {/* Customer & Document Tools */}
-              {(dataToolCategory === 'all' || dataToolCategory === 'customer') && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{client_name}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Customer / Driver Name"
-                  >
-                    + Customer: {(internalCustomer || customer)?.name || 'Customer'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{client_phone}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Customer Phone / Mobile"
-                  >
-                    + Phone: {(internalCustomer || customer)?.mobile || (internalCustomer || customer)?.phone || 'N/A'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{client_email}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Customer Email"
-                  >
-                    + Email: {(internalCustomer || customer)?.email || 'N/A'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInsertDataTool('{pdf_link}')}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white hover:bg-indigo-50 text-indigo-800 border border-indigo-300 transition-colors shadow-2xs cursor-pointer"
-                    title="Insert Document PDF download link"
-                  >
-                    + PDF Doc Link
-                  </button>
-                </>
-              )}
             </div>
           </div>
 
@@ -2429,9 +2728,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                disabled={!canSendWhatsApp}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!canSendWhatsApp ? "Permission required: You do not have permission to send WhatsApp messages" : undefined}
+                className="inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl focus:outline-none shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-95"
+                title="Send and open in WhatsApp"
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Open in WhatsApp
@@ -2442,69 +2740,52 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 <button
                   type="button"
                   onClick={handleSendMailto}
-                  disabled={!canSendEmail}
-                  className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 focus:outline-none shadow-2xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!canSendEmail ? "Permission required: You do not have permission to send emails" : "Open default email application"}
+                  className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-bold rounded-xl focus:outline-none shadow-2xs transition-all text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 cursor-pointer active:scale-95"
+                  title="Open in your default mail application"
                 >
-                  <Mail className="h-4 w-4 mr-1.5 text-sky-600" />
-                  Open in Email Client
+                  <Mail className="h-4 w-4 mr-2" />
+                  Open in Mail App
+                  <ExternalLink className="h-3.5 w-3.5 ml-1.5 opacity-80" />
                 </button>
                 <button
                   type="button"
                   onClick={handleSendDirectEmail}
-                  disabled={sendingEmail || !canSendEmail}
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 focus:outline-none shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95 disabled:cursor-not-allowed"
-                  title={!canSendEmail ? "Permission required: You do not have permission to send emails" : undefined}
+                  disabled={sendingEmail || !canSendEmail || isAnyDocProcessing}
+                  className={`inline-flex items-center justify-center px-4 py-2 text-sm font-bold rounded-lg focus:outline-none shadow-sm transition-all ${
+                    sendingEmail || !canSendEmail || isAnyDocProcessing
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                      : 'text-white bg-sky-600 hover:bg-sky-700 cursor-pointer active:scale-95'
+                  }`}
+                  title={
+                    !canSendEmail
+                      ? 'Permission required: You do not have permission to send emails'
+                      : isAnyDocProcessing
+                      ? 'Generating document link... Please wait until the document is verified and ready.'
+                      : undefined
+                  }
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  {sendingEmail ? 'Sending...' : 'Send Direct Email'}
+                  {sendingEmail ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-white" />
+                      Sending...
+                    </>
+                  ) : isAnyDocProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-slate-600" />
+                      Preparing Document Link...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Direct Email
+                    </>
+                  )}
                 </button>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Modal Navigation Tabs: Dedicated WhatsApp & Email Templates Manager */}
-      <RentalTemplatesModal
-        isOpen={isTemplatesModalOpen}
-        onClose={() => setIsTemplatesModalOpen(false)}
-        initialTab={mode}
-        rental={rental}
-        customer={internalCustomer || customer}
-        vehicle={internalVehicle || vehicle}
-        onSelectTemplate={(tpl) => {
-          setSelectedTemplateId(tpl.id || '');
-          if (tpl.channel === 'whatsapp' || tpl.channel === 'email') {
-            setMode(tpl.channel);
-          }
-          if (tpl.subjectTemplate && mode === 'email') {
-            setSubject(populateTemplate(tpl.subjectTemplate));
-          }
-          setBaseMessage(tpl.bodyTemplate);
-          setMessage(populateTemplate(tpl.bodyTemplate));
-          setIsTemplatesModalOpen(false);
-          toast.success(`Loaded "${tpl.name}" template`);
-        }}
-      />
-
-      {/* Template Editor / Creator Modal */}
-      <RentalTemplateEditorModal
-        isOpen={isTemplateEditorOpen}
-        onClose={() => setIsTemplateEditorOpen(false)}
-        mode={templateEditorMode}
-        templateToEdit={templateToEdit}
-        initialTemplate={templateToEdit}
-        rental={rental}
-        customer={internalCustomer || customer}
-        vehicle={internalVehicle || vehicle}
-        populateFn={populateTemplate}
-        readOnly={!canEditTemplates}
-        onSaved={async (savedTemplateId) => {
-          await fetchRentalTemplates();
-          setSelectedTemplateId(savedTemplateId);
-        }}
-      />
     </Modal>
   );
 };

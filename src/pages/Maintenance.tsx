@@ -13,7 +13,9 @@ import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
-import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock, ExternalLink, Radio, Copy } from 'lucide-react'; 
+import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock, ExternalLink, Radio, Copy, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react'; 
+import MaintenanceCommunicationModal from '../components/maintenance/MaintenanceCommunicationModal'; 
+import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal'; 
 import { startOfDay, differenceInCalendarDays, format, parseISO } from 'date-fns'; 
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
 import { MaintenanceLog, Vehicle, Customer } from '../types'; 
@@ -86,6 +88,16 @@ const Maintenance: React.FC = () => {
   const [catName, setCatName] = useState<string>('');
 
   const [payLog, setPayLog] = useState<MaintenanceLog | null>(null);
+  const [commModal, setCommModal] = useState<{
+    isOpen: boolean;
+    mode: 'whatsapp' | 'email';
+  }>({
+    isOpen: false,
+    mode: 'whatsapp',
+  });
+
+  const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
+  const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
   
   const loadCategories = useCallback(() => {
     setLoadingCats(true);
@@ -689,6 +701,18 @@ const Maintenance: React.FC = () => {
           )}
         </div>
       </Modal>
+
+      {commModal.isOpen && (
+        <MaintenanceCommunicationModal
+          isOpen={commModal.isOpen}
+          onClose={() => setCommModal((prev) => ({ ...prev, isOpen: false }))}
+          initialMode={commModal.mode}
+          logs={filteredLogs.length > 0 ? filteredLogs : logs}
+          vehicles={vehicles}
+          customers={customers}
+          rentals={rentals}
+        />
+      )}
     </div>
   );
 };

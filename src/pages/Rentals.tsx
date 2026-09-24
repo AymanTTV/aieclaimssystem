@@ -28,11 +28,11 @@ import {
   Image as ImageIcon, 
   FileText as FileTextIcon,
   Mail,
+  MessageCircle,
   Settings2,
   MessageSquare
 } from 'lucide-react';
-import MondayAutoEmailBulkModal from '../components/rentals/MondayAutoEmailBulkModal';
-import RentalTemplatesModal from '../components/rentals/RentalTemplatesModal';
+import RentalCommunicationModal from '../components/rentals/RentalCommunicationModal';
 
 
 import { exportRentals } from '../utils/RentalsExport';
@@ -53,7 +53,7 @@ import {
 } from '../utils/documentGenerator';
 import { RentalBulkDocument } from '../components/pdf/documents';
 import { generateRentalDocuments } from '../utils/generateRentalDocuments';
-import { uploadRentalDocuments } from '../utils/uploadRentalDocuments';
+import { uploadRentalDocuments, openDocument } from '../utils/uploadRentalDocuments';
 import { saveAs } from 'file-saver';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
 import { calculateTotalSubstitutionCharges, calculateRentalCostDetailed, calculateOverdueCost } from '../utils/rentalCalculations'; 
@@ -70,8 +70,6 @@ const Rentals = () => {
   const { customers, loading: customersLoading } = useCustomers();
   const { can, isAdmin } = usePermissions();
   const { user } = useAuth();
-  const [showRentalTemplatesModal, setShowRentalTemplatesModal] = useState(false);
-  const [rentalTemplatesInitialTab, setRentalTemplatesInitialTab] = useState<'whatsapp' | 'email'>('whatsapp');
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
   const [notingRental, setNotingRental] = useState<Rental | null>(null);
@@ -92,8 +90,17 @@ const Rentals = () => {
   const [payingRental, setPayingRental] = useState<Rental | null>(null);
   const [completingRental, setCompletingRental] = useState<Rental | null>(null);
   const [showAvailableVehicles, setShowAvailableVehicles] = useState(false);
-  const [showMondayAutoEmailModal, setShowMondayAutoEmailModal] = useState(false);
-  const [mondayAutoEmailTab, setMondayAutoEmailTab] = useState<'list' | 'templates'>('list');
+  const [showQuickAccessModal, setShowQuickAccessModal] = useState(false);
+  const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('reminderTemplates');
+  const [rentalCommModal, setRentalCommModal] = useState<{
+    isOpen: boolean;
+    mode: 'whatsapp' | 'email';
+    rental: Rental | null;
+  }>({
+    isOpen: false,
+    mode: 'whatsapp',
+    rental: null,
+  });
   
   const [agreementRental, setAgreementRental] = useState<Rental | null>(null);
   const [showReturnSelector, setShowReturnSelector] = useState(false);
@@ -284,7 +291,7 @@ const Rentals = () => {
 
         toast.dismiss();
         toast.success('Agreement generated and uploaded!');
-        if (uploadRes.agreementUrls[key]) window.open(uploadRes.agreementUrls[key], '_blank');
+        if (uploadRes.agreementUrls[key]) openDocument(uploadRes.agreementUrls[key]);
       } catch (error: any) {
         toast.dismiss(); toast.error(`Failed to generate agreement: ${error.message}`);
       }
@@ -305,7 +312,7 @@ const Rentals = () => {
 
         toast.dismiss();
         toast.success('Invoice generated and uploaded!');
-        if (uploadRes.invoiceUrl) window.open(uploadRes.invoiceUrl, '_blank');
+        if (uploadRes.invoiceUrl) openDocument(uploadRes.invoiceUrl);
       } catch (error: any) {
         toast.dismiss(); toast.error(`Failed to generate invoice: ${error.message}`);
       }
@@ -314,7 +321,7 @@ const Rentals = () => {
   );
 
   const handleDownloadPermit = useCallback((rental: Rental) => {
-    if (rental.documents?.permit) window.open(rental.documents?.permit, '_blank');
+    if (rental.documents?.permit) openDocument(rental.documents?.permit);
     else toast.error('No parking permit available');
   }, []);
 
@@ -344,7 +351,7 @@ const Rentals = () => {
       const uploadRes = await uploadRentalDocuments(rental.id, { agreements: {}, invoice: new Blob([]), permit: blob });
 
       toast.dismiss(); toast.success(`Permit generated for ${label}!`);
-      if (uploadRes.permitUrl) window.open(uploadRes.permitUrl, '_blank');
+      if (uploadRes.permitUrl) openDocument(uploadRes.permitUrl);
     } catch (err: any) {
       toast.dismiss(); toast.error(`Failed: ${err.message}`);
     }
@@ -391,7 +398,7 @@ const Rentals = () => {
       const uploadRes = await uploadRentalDocuments(rentalFor90.id, { agreements: { [key]: docs.agreement }, invoice: docs.invoice, permit: docs.permit, claimDocuments: docs.claimDocuments });
 
       toast.dismiss(); toast.success('90-day agreement uploaded!');
-      if (uploadRes.agreementUrls?.[key]) window.open(uploadRes.agreementUrls[key], '_blank');
+      if (uploadRes.agreementUrls?.[key]) openDocument(uploadRes.agreementUrls[key]);
     } catch (err: any) {
       toast.dismiss(); toast.error(err?.message || 'Failed to generate 90-day agreement');
     } finally { close90(); }
@@ -521,45 +528,6 @@ const Rentals = () => {
 
             {/* Right side: Management & Actions */}
             <div className="flex items-center gap-2 shrink-0">
-              {(can('rentals', 'template') || can('rentals', 'templateEdit') || isAdmin) && (
-                <button 
-                  onClick={() => {
-                    setRentalTemplatesInitialTab('whatsapp');
-                    setShowRentalTemplatesModal(true);
-                  }} 
-                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                  title="Open Message Templates"
-                >
-                  <MessageSquare className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                  <span>Message Templates</span>
-                </button>
-              )}
-              {can('rentals', 'reminder') && (
-                <button 
-                  onClick={() => {
-                    setMondayAutoEmailTab('templates');
-                    setShowMondayAutoEmailModal(true);
-                  }} 
-                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                  title="Select separate Bulk Email templates for Weekly and Daily rental reminders"
-                >
-                  <Settings2 className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                  <span>Reminder Templates</span>
-                </button>
-              )}
-              {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && (
-                <button 
-                  onClick={() => {
-                    setMondayAutoEmailTab('list');
-                    setShowMondayAutoEmailModal(true);
-                  }} 
-                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                  title="Manage Monday Auto-Email for Active Rentals"
-                >
-                  <Mail className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                  <span>Monday Auto-Email</span>
-                </button>
-              )}
               {can('rentals', 'availableVehicles') && (
                 <button 
                   onClick={() => setShowAvailableVehicles(true)} 
@@ -638,10 +606,10 @@ const Rentals = () => {
         isOpen={showForm} 
         onClose={() => setShowForm(false)} 
         title="Schedule Rental" 
-        size="xl"
-        className="schedule-rental-modal h-[85vh] max-h-[90vh] min-h-[500px] flex flex-col"
-        contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0"
-        theme="navy"
+        size="2xl"
+        className="schedule-rental-modal h-[88vh] max-h-[92vh] min-h-[560px] w-full max-w-5xl 2xl:max-w-6xl flex flex-col shadow-2xl"
+        contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0 bg-white"
+        theme="default"
       >
         <RentalForm vehicles={vehicles} customers={customers} onClose={() => setShowForm(false)} />
       </Modal>
@@ -833,20 +801,17 @@ const Rentals = () => {
         {returnExpectationRental && <ExpectedReturnModal rental={returnExpectationRental} onClose={() => setReturnExpectationRental(null)} />}
       </Modal>
 
-      <MondayAutoEmailBulkModal
-        isOpen={showMondayAutoEmailModal}
-        onClose={() => setShowMondayAutoEmailModal(false)}
-        rentals={rentals}
-        vehicles={vehicles}
-        customers={customers}
-        initialTab={mondayAutoEmailTab}
-      />
-
-      {showRentalTemplatesModal && (
-        <RentalTemplatesModal
-          isOpen={showRentalTemplatesModal}
-          onClose={() => setShowRentalTemplatesModal(false)}
-          initialTab={rentalTemplatesInitialTab}
+      {rentalCommModal.isOpen && (
+        <RentalCommunicationModal
+          isOpen={rentalCommModal.isOpen}
+          onClose={() => setRentalCommModal((prev) => ({ ...prev, isOpen: false }))}
+          initialMode={rentalCommModal.mode}
+          rental={rentalCommModal.rental}
+          rentals={filteredRentals.length > 0 ? filteredRentals : rentals}
+          customer={customers.find((c) => c.id === rentalCommModal.rental?.customerId)}
+          vehicle={vehicles.find((v) => v.id === rentalCommModal.rental?.vehicleId)}
+          customers={customers}
+          vehicles={vehicles}
         />
       )}
     </div>

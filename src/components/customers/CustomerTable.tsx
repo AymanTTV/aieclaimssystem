@@ -9,6 +9,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { doc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
+import { CustomerAvatar } from './CustomerAvatar';
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -90,7 +91,33 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
     { 
       header: 'Name', 
       accessorKey: 'name',
-      cell: ({ row }: any) => <span className="font-medium text-gray-900 text-sm">{row.original.name}</span>
+      cell: ({ row }: any) => {
+        const c = row.original;
+        return (
+          <div className="flex items-center gap-2.5 py-0.5">
+            <CustomerAvatar
+              name={c.name}
+              firstName={c.firstName}
+              lastName={c.lastName}
+              isCompany={c.type === 'company'}
+              profilePictureUrl={c.profilePictureUrl}
+              size="sm"
+              status={c.status}
+              showStatusDot={true}
+            />
+            <div className="min-w-0">
+              <span className="font-semibold text-gray-900 text-sm block truncate max-w-[190px]" title={c.name}>
+                {c.name}
+              </span>
+              {c.email && (
+                <span className="text-[11px] text-gray-500 block truncate max-w-[190px]" title={c.email}>
+                  {c.email}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      }
     },
     {
       header: 'Age',

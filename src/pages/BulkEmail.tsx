@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays, isAfter } from 'date-fns';
-import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Clock, Play, Loader2, Edit3, Plus, HelpCircle } from 'lucide-react'; 
-import { Navigate } from 'react-router-dom';
+import { Search, Mail, Trash2, User, Briefcase, Wrench, Wallet, Paperclip, X, Clock, Play, Loader2, Edit3, Plus, HelpCircle, Settings2, ExternalLink } from 'lucide-react'; 
+import { Navigate, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes';
 import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
+import MondayAutoEmailBulkModal from '../components/rentals/MondayAutoEmailBulkModal';
 import {
   collection,
   query,
@@ -253,16 +254,19 @@ const getCleanAttachmentName = (filename: string) => {
 type RecipientFilterType = 'all' | 'customer' | 'serviceCenter' | 'legalHandler' | 'invoiceManual' | 'account' | 'owner';
 
 // Mappings for target permissions
-const TARGET_PERMISSIONS: Record<string, keyof Permission> = {
-  custom: 'targetCustom',
+const TARGET_PERMISSIONS: Record<string, any> = {
+  finance: 'targetFinance',
   rental: 'targetRental',
   maintenance: 'targetMaintenance',
   invoice: 'targetInvoice',
-  finance: 'targetFinance',
   claim: 'targetClaim',
+  driverPay: 'targetDriverPay',
+  members: 'targetMembers',
+  custom: 'targetCustom',
 };
 
 export default function BulkEmail() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { can, isManager } = usePermissions();
 
@@ -273,11 +277,12 @@ export default function BulkEmail() {
 
   // ─── DETERMINE AVAILABLE TABS ───────────────────────────────────
   const availableTabs = useMemo(() => {
-    return (Object.keys(emailTemplates) as EmailType[]).filter(type => {
-       const permKey = TARGET_PERMISSIONS[type];
-       return permKey ? can('bulkEmail', permKey) : false;
+    const allTabs: EmailType[] = ['finance', 'rental', 'maintenance', 'invoice', 'claim', 'driverPay', 'members', 'custom'];
+    return allTabs.filter(type => {
+      const permKey = TARGET_PERMISSIONS[type];
+      return permKey ? (can('bulkEmail', permKey) || can('bulkEmail', 'send') || isManager) : true;
     });
-  }, [can]);
+  }, [can, isManager]);
 
   // ─── STATE ──────────────────────────────────────────────────────
   const [emailType, setEmailType]                   = useState<EmailType>(availableTabs[0] || 'custom');
@@ -300,6 +305,29 @@ export default function BulkEmail() {
   const [selectedSystemDocs, setSelectedSystemDocs] = useState<{name: string, url: string}[]>([]);
   const [customFiles, setCustomFiles] = useState<File[]>([]);
 
+  // ─── Data Hooks & State ─────────────────────────────────────────
+  const { customers } = useCustomers();
+  const { vehicles } = useVehicles();
+  const { rentals } = useRentals();
+  const { logs: maintenanceLogs } = useMaintenanceLogs();
+  const { serviceCenters } = useServiceCenters();
+  const { invoices } = useInvoices();
+  const { claims } = useClaims();
+  const { history } = useEmailHistory();
+  const { transactions } = useFinances();
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  useEffect(() => {
+    const q = query(collection(db, 'accounts'), orderBy('name'));
+    getDocs(q).then(snap => {
+        const accs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Account));
+        setAccounts(accs);
+    }).catch(console.error);
+  }, []);
+
+  const [legalHandlers, setLegalHandlers] = useState<LegalHandler[]>([]);
+  const [claimDocById, setClaimDocById] = useState<Record<string, any>>({});
+
   // Database Templates state
   const [liveTemplates, setLiveTemplates] = useState<AppMessageTemplate[]>([]);
   const [templateEditModalOpen, setTemplateEditModalOpen] = useState(false);
@@ -307,9 +335,13 @@ export default function BulkEmail() {
   const [templateToEdit, setTemplateToEdit] = useState<AppMessageTemplate | null>(null);
   const [templateGuideOpen, setTemplateGuideOpen] = useState(false);
 
+  // Centralized Monday Auto-Email & Reminder Sequence Management modal
+  const [mondayModalOpen, setMondayModalOpen] = useState(false);
+  const [mondayModalInitialTab, setMondayModalInitialTab] = useState<'list' | 'templates'>('list');
+
   const fetchLiveTemplates = useCallback(async () => {
     try {
-      const list = await loadTemplatesForCategory(emailType);
+      const list = await loadTemplatesForCategory(emailType, 'email');
       setLiveTemplates(list);
     } catch (e) {
       console.error('Failed to load live templates for email', e);
@@ -1394,7 +1426,7 @@ export default function BulkEmail() {
       </div>
 
       {/* Type + Template */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {availableTabs.map(t => (
           <button
             key={t}
@@ -1410,9 +1442,9 @@ export default function BulkEmail() {
               if (t === 'finance') setRecipientFilter('customer');
               else setRecipientFilter('all');
             }}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
+            className={`px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-center transition-colors shadow-xs cursor-pointer ${emailType === t ? 'bg-[#2563EB] text-white shadow-xs' : 'bg-white text-[#334155] border border-[#CBD5E1] hover:bg-[#F8FAFC]'}`}
           >
-            {t.charAt(0).toUpperCase()+t.slice(1)}
+            {t === 'driverPay' ? 'Driver Pay' : t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
       </div>
@@ -1432,41 +1464,18 @@ export default function BulkEmail() {
               ))}
             </select>
           </div>
-
-          {selectedTemplateId && currentTemplate && (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleOpenEditTemplate}
-                title="Edit this template text, subject, or placeholder tags"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                <span>Edit Template</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteSelectedTemplate}
-                title="Delete this template permanently"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Delete</span>
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100">
           <button
             type="button"
-            onClick={handleOpenNewTemplate}
-            title="Create a brand new template for this category"
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            onClick={() => navigate(ROUTES.AUTOMATION)}
+            title="Create, edit, or configure templates in Automation Control"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Template</span>
+            <Settings2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Manage in Automation Control</span>
+            <ExternalLink className="w-3 h-3 text-blue-600" />
           </button>
 
           <button
@@ -1503,20 +1512,35 @@ export default function BulkEmail() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleRunRentalTestBatch}
-            disabled={isRunningRentalTestBatch}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 shrink-0 cursor-pointer"
-            title="Manually execute full filtering logic and send emails to all eligible active non-claim rentals immediately"
-          >
-            {isRunningRentalTestBatch ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4 mr-2 fill-white" />
-            )}
-            Run Test Email Batch
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setMondayModalInitialTab('list');
+                setMondayModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer"
+              title="Configure schedule time, days, and per-rental automation toggles"
+            >
+              <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+              <span>Schedule & Automation</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRunRentalTestBatch}
+              disabled={isRunningRentalTestBatch}
+              className="inline-flex items-center justify-center px-4 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+              title="Manually execute full filtering logic and send emails to all eligible active non-claim rentals immediately"
+            >
+              {isRunningRentalTestBatch ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4 mr-2 fill-white" />
+              )}
+              Run Test Email Batch
+            </button>
+          </div>
         </div>
       )}
 
@@ -1966,32 +1990,21 @@ export default function BulkEmail() {
         </div>
       </div>
 
-      {/* Template Edit & Create Modal */}
-      <TemplateEditModal
-        isOpen={templateEditModalOpen}
-        onClose={() => setTemplateEditModalOpen(false)}
-        template={templateEditMode === 'edit' ? templateToEdit : null}
-        defaultCategory={emailType}
-        defaultChannel="email"
-        onSaved={(saved) => {
-          fetchLiveTemplates();
-          setSelectedTemplateId(saved.id);
-        }}
-        onDeleted={(deletedId) => {
-          if (selectedTemplateId === deletedId) {
-            setSelectedTemplateId('');
-            setSubject('');
-            setMessage('');
-          }
-          fetchLiveTemplates();
-        }}
-      />
-
       {/* Template Guide Modal */}
       <TemplateGuideModal
         isOpen={templateGuideOpen}
         onClose={() => setTemplateGuideOpen(false)}
         channel="email"
+      />
+
+      {/* Centralized Monday Auto-Email & Reminder Sequence Management Modal */}
+      <MondayAutoEmailBulkModal
+        isOpen={mondayModalOpen}
+        onClose={() => setMondayModalOpen(false)}
+        rentals={rentals}
+        vehicles={vehicles}
+        customers={customers}
+        initialTab={mondayModalInitialTab}
       />
     </div>
   );

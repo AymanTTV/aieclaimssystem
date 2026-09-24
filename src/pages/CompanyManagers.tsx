@@ -3,6 +3,7 @@ import React from 'react';
 import { usePermissions } from '../hooks/usePermissions';
 import CompanyDetails from '../components/company/CompanyDetails';
 import ManagerGroups from '../components/company/ManagerGroups';
+import CompanyDocumentManager from '../components/company/CompanyDocumentManager';
 
 export const CompanyManagers = () => {
   const { can } = usePermissions();
@@ -29,6 +30,13 @@ export const CompanyManagers = () => {
       <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
         <div className="p-6">
           <CompanyDetails />
+        </div>
+      </div>
+
+      {/* Conditional Document Selection & Signature Workflows (Claim vs Non-Claim) */}
+      <div className="bg-white rounded-2xl shadow-xs border border-[#E2E8F0] overflow-hidden">
+        <div className="p-6">
+          <CompanyDocumentManager />
         </div>
       </div>
 

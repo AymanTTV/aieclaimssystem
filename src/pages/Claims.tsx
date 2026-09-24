@@ -1,6 +1,7 @@
 // src/pages/Claims.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, FileText, Download, Search, Shield, Layers, Briefcase, Edit2, Trash2 } from 'lucide-react'; 
+import { Plus, FileText, Download, Search, Shield, Layers, Briefcase, Edit2, Trash2, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react'; 
+import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal'; 
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
 import { moveToTrash } from '../utils/trashService';
@@ -365,6 +366,9 @@ const Claims: React.FC = () => {
   const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
   const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
 
+  const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
+  const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
+
   const handleOpenWhatsApp = (c: Claim, recipient: 'client' | 'legalHandler' = 'client') => {
     setCommClaim(c);
     setCommChannel('whatsapp');
@@ -377,6 +381,14 @@ const Claims: React.FC = () => {
     setCommChannel('email');
     setCommRecipient(recipient);
     setCommCategory(recipient === 'legalHandler' ? 'legal_handler' : 'general');
+  };
+
+  const handleActionBarDispatch = (channel: 'whatsapp' | 'email') => {
+    const target = claims[0] || null;
+    setCommClaim(target);
+    setCommChannel(channel);
+    setCommCategory('general');
+    setCommRecipient('client');
   };
 
   const allProgressOptions = useMemo(() => {
@@ -1154,11 +1166,13 @@ const Claims: React.FC = () => {
           isOpen={!!commClaim}
           onClose={() => setCommClaim(null)}
           claim={commClaim}
+          claims={filteredClaims.length > 0 ? filteredClaims : claims}
           initialChannel={commChannel}
           initialCategory={commCategory}
           initialRecipient={commRecipient}
         />
       )}
+
     </div>
   );
 };

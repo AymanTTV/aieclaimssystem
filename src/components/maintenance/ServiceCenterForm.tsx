@@ -7,7 +7,8 @@ import {
   updateServiceCenter,
 } from '../../utils/serviceCenters';
 import toast from 'react-hot-toast';
-import { Mail, Phone, MapPin, PoundSterling } from 'lucide-react';
+import { Mail, Phone, MapPin, PoundSterling, MessageSquare, Wrench } from 'lucide-react';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 
 interface ServiceCenterFormProps {
   center?: ServiceCenter;                 // if provided -> edit mode
@@ -21,6 +22,7 @@ const ServiceCenterForm: React.FC<ServiceCenterFormProps> = ({
   onSuccess,
 }) => {
   const isEdit = !!center?.id;
+  const [activeTab, setActiveTab] = useState<'details' | 'communication'>('details');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: center?.name || '',
@@ -108,7 +110,56 @@ const ServiceCenterForm: React.FC<ServiceCenterFormProps> = ({
         </p>
       </div>
 
-      {/* Card: Basic Details */}
+      {/* Tabs if in Edit mode */}
+      {isEdit && (
+        <div className="flex items-center gap-2 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('details')}
+            className={`flex items-center gap-2 px-3 py-2 text-xs sm:text-sm font-semibold border-b-2 transition cursor-pointer ${
+              activeTab === 'details'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Garage Details</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('communication')}
+            className={`flex items-center gap-2 px-3 py-2 text-xs sm:text-sm font-semibold border-b-2 transition cursor-pointer ${
+              activeTab === 'communication'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Communication History</span>
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'communication' && isEdit && center?.id ? (
+        <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+          <CommunicationHistoryTimeline
+            recordId={center.id}
+            recipientRole="Garage"
+            matchKeys={[
+              center.id,
+              center.name,
+              center.email,
+              center.phone,
+              center.postcode,
+            ].filter(Boolean)}
+            title={`Communication History — ${center.name}`}
+            description="Chronological log of WhatsApp notifications and emails sent to this garage."
+          />
+        </div>
+      ) : (
+        <>
+          {/* Card: Basic Details */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <h4 className="text-sm font-medium text-gray-900 mb-3">Basic Details</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -212,28 +263,41 @@ const ServiceCenterForm: React.FC<ServiceCenterFormProps> = ({
         </p>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-end space-x-3">
+        {/* Actions */}
+        <div className="flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !isValid}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:opacity-60 cursor-pointer"
+          >
+            {loading ? (isEdit ? 'Updating…' : 'Adding…') : isEdit ? 'Update Service Center' : 'Add Service Center'}
+          </button>
+        </div>
+      </>
+    )}
+    {activeTab === 'communication' && (
+      <div className="flex justify-end pt-2 border-t border-gray-200">
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onClose();
-          }}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer"
         >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading || !isValid}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:opacity-60"
-        >
-          {loading ? (isEdit ? 'Updating…' : 'Adding…') : isEdit ? 'Update Service Center' : 'Add Service Center'}
+          Close
         </button>
       </div>
+    )}
     </div>
   );
 };

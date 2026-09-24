@@ -29,13 +29,17 @@ import {
   Sparkles,
   Inbox,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Customer } from '../../types/customer';
 import { resolveNameFields, resolveAddressFields, combineFullAddress } from '../../utils/nameAddressUtils';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
+import { formatSignatureTimestamp } from '../../utils/signatureStamp';
+import { CustomerAvatar } from './CustomerAvatar';
 
-export type MemberDetailTab = 'profile' | 'contact' | 'license' | 'documents' | 'signature' | 'all';
+export type MemberDetailTab = 'profile' | 'contact' | 'license' | 'documents' | 'signature' | 'communication' | 'all';
 
 interface CustomerDetailsProps {
   customer: Customer;
@@ -173,6 +177,11 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
           },
         ]
       : []),
+    {
+      id: 'communication' as MemberDetailTab,
+      label: 'Communication History',
+      icon: MessageSquare,
+    },
     { id: 'all', label: 'All Details', icon: Layers },
   ];
 
@@ -404,6 +413,41 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
                   <span className="text-xs text-slate-500 italic truncate" title={customer.billCopyNote}>
                     ({customer.billCopyNote})
                   </span>
+                )}
+              </div>
+            </div>
+
+            {/* Customer Profile Picture */}
+            <div className="pt-2 border-t border-slate-100">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Customer Profile Picture</span>
+              <div className="flex items-center justify-between gap-3 mt-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <CustomerAvatar
+                    name={customer.name}
+                    firstName={nameFields.firstName}
+                    lastName={nameFields.lastName}
+                    isCompany={isCompany}
+                    profilePictureUrl={customer.profilePictureUrl}
+                    size="sm"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-xs font-semibold text-slate-800 block truncate">
+                      {customer.profilePictureUrl ? 'Custom Profile Photo Uploaded' : 'Default Initials Avatar'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block truncate">
+                      {customer.profilePictureUrl ? 'Stored on member profile record' : 'No custom photo uploaded'}
+                    </span>
+                  </div>
+                </div>
+                {customer.profilePictureUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({ url: customer.profilePictureUrl!, title: `${customer.name} - Profile Photo` })}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-600 bg-white hover:bg-blue-50 rounded-lg border border-blue-200 shadow-2xs transition shrink-0 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -942,12 +986,25 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
                 className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
               />
             </div>
-            <div className="space-y-2 text-xs text-slate-600 max-w-md">
+            <div className="space-y-2.5 text-xs text-slate-600 max-w-md">
               <p>
-                <strong>Signee:</strong> {customer.name}
+                <strong className="text-slate-900">Signee:</strong> {customer.name}
               </p>
+              
+              {(customer.signatureTimestamp || customer.signedAt) && (
+                <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-lg p-2.5 text-xs text-emerald-950 font-mono">
+                  <span className="font-bold block text-emerald-800 text-[11px] mb-0.5">Verified Signature Record:</span>
+                  <p className="font-semibold text-emerald-900">
+                    {customer.signatureTimestamp || (customer.signedAt ? formatSignatureTimestamp(customer.signedAt) : 'Electronically Signed')}
+                  </p>
+                  <p className="text-[10px] text-emerald-700 mt-1 font-sans">
+                    ✓ Mandatory Terms &amp; Conditions explicitly agreed and verified
+                  </p>
+                </div>
+              )}
+
               <p>
-                <strong>Digital Verification:</strong> Cryptographically logged with session record.
+                <strong className="text-slate-900">Digital Verification:</strong> Cryptographically logged with audit timestamp and verified consent.
               </p>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 This signature serves as binding consent for vehicle lease agreements, deposit acknowledgements, and terms of service.
@@ -975,15 +1032,30 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
         {/* ─────────────────────────────────────────────────────────────── */}
         <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3.5 min-w-0">
-            {/* Avatar Circle */}
+            {/* Avatar with Photo & Preview */}
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-base shadow-xs shrink-0 border ${
-                isCompany
-                  ? 'bg-purple-100 text-purple-700 border-purple-200'
-                  : 'bg-blue-100 text-blue-700 border-blue-200'
-              }`}
+              className={`relative group shrink-0 ${customer.profilePictureUrl ? 'cursor-pointer' : ''}`}
+              onClick={customer.profilePictureUrl ? () => setPreviewImage({ url: customer.profilePictureUrl!, title: `${customer.name} - Profile Photo` }) : undefined}
             >
-              {isCompany ? <Building className="w-6 h-6" /> : initials}
+              <CustomerAvatar
+                name={customer.name}
+                firstName={nameFields.firstName}
+                lastName={nameFields.lastName}
+                isCompany={isCompany}
+                profilePictureUrl={customer.profilePictureUrl}
+                size="lg"
+                status={customer.status}
+                showStatusDot={true}
+                className={customer.profilePictureUrl ? 'ring-2 ring-blue-100 hover:ring-blue-400' : ''}
+              />
+              {customer.profilePictureUrl && (
+                <div
+                  className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white"
+                  title="Click to view full photo"
+                >
+                  <Eye className="w-4 h-4" />
+                </div>
+              )}
             </div>
 
             <div className="min-w-0">
@@ -1094,6 +1166,25 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
           {activeTab === 'license' && renderLicenseContent()}
           {activeTab === 'documents' && renderDocumentsContent()}
           {activeTab === 'signature' && renderSignatureContent()}
+          {activeTab === 'communication' && (
+            <div className="space-y-4">
+              <CommunicationHistoryTimeline
+                customerId={customer.id}
+                recordId={customer.accountNumber || customer.id}
+                matchKeys={[
+                  customer.id,
+                  customer.accountNumber,
+                  customer.name,
+                  customer.email,
+                  customer.mobile,
+                  customer.phone,
+                  customer.driverLicenseNumber,
+                ].filter(Boolean)}
+                title={`Communication History & Audit Trail — ${customer.name}`}
+                description="Chronological log of all WhatsApp messages, emails, and attachments sent to this customer."
+              />
+            </div>
+          )}
 
           {activeTab === 'all' && (
             <div className="space-y-6">

@@ -22,6 +22,8 @@ import { fetchLegalHandlers } from '../../utils/legalHandlers';
 import { LegalHandler } from '../../types/legalHandler';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../routes';
 import ClaimTemplateSearchableSelect from './ClaimTemplateSearchableSelect';
 import {
   MessageCircle,
@@ -50,7 +52,8 @@ import toast from 'react-hot-toast';
 interface ClaimCommunicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  claim: Claim | null;
+  claim?: Claim | null;
+  claims?: Claim[];
   initialChannel?: ClaimCommunicationChannel;
   initialCategory?: ClaimTemplateCategory;
   initialRecipient?: ClaimRecipientType;
@@ -63,6 +66,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   isOpen,
   onClose,
   claim,
+  claims,
   initialChannel = 'whatsapp',
   initialCategory = 'general',
   initialRecipient = 'client',
@@ -70,10 +74,29 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   overrideStage,
   onSuccess,
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const permissions = usePermissions();
   const can = typeof permissions?.can === 'function' ? permissions.can : () => true;
   const isAdmin = permissions?.isAdmin;
+
+  const [selectedClaimId, setSelectedClaimId] = useState<string>(claim?.id || '');
+
+  useEffect(() => {
+    if (claim?.id) {
+      setSelectedClaimId(claim.id);
+    } else if (claims && claims.length > 0 && !selectedClaimId) {
+      setSelectedClaimId(claims[0].id);
+    }
+  }, [claim, claims, selectedClaimId]);
+
+  const targetClaim = useMemo(() => {
+    if (claim) return claim;
+    if (claims && selectedClaimId) {
+      return claims.find((c) => c.id === selectedClaimId) || claims[0] || null;
+    }
+    return claims && claims.length > 0 ? claims[0] : null;
+  }, [claim, claims, selectedClaimId]);
 
   const hasWhatsAppPermission = isAdmin || can('claims', 'whatsapp') || can('claims', 'send');
   const hasEmailPermission = isAdmin || can('claims', 'email') || can('claims', 'send');
@@ -116,9 +139,9 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
   // Extract all available files from the claim (Claim Card PDF, evidence files, photos)
   const availableFiles = useMemo(() => {
-    if (!claim) return [];
-    return extractClaimAvailableFiles(claim, claimCardAttachment);
-  }, [claim, claimCardAttachment]);
+    if (!targetClaim) return [];
+    return extractClaimAvailableFiles(targetClaim, claimCardAttachment);
+  }, [targetClaim, claimCardAttachment]);
 
   // Grouped available files for UI presentation
   const claimCardFile = useMemo(() => availableFiles.find((f) => f.id === 'claim_card_pdf'), [availableFiles]);
@@ -143,9 +166,38 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
       });
   }, [isOpen]);
 
-  // When modal opens or claim changes, re-sync state
+  // Reactive centralized template synchronization
+  const loadTemplatesForCurrentChannel = React.useCallback(async (chan: ClaimCommunicationChannel) => {
+    setLoadingTemplates(true);
+    try {
+      const loaded = await fetchClaimTemplates(chan);
+      setTemplates(loaded);
+      return loaded;
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+      toast.error('Could not load claim message templates');
+      return [];
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!isOpen || !claim) return;
+    if (!isOpen) return;
+    const handleSync = () => {
+      loadTemplatesForCurrentChannel(channel);
+    };
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
+  }, [isOpen, channel, loadTemplatesForCurrentChannel]);
+
+  // When modal opens or targetClaim changes, re-sync state
+  useEffect(() => {
+    if (!isOpen || !targetClaim) return;
 
     setChannel(initialChannel);
     const startRecipient = initialRecipient || 'client';
@@ -157,20 +209,20 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     setSelectedFileIds(startRecipient === 'legalHandler' ? ['claim_card_pdf'] : []);
 
     // Resolve client
-    const baseContext = resolveClaimContext(claim, overrideNotes, overrideStage);
+    const baseContext = resolveClaimContext(targetClaim, overrideNotes, overrideStage);
     setClientName(baseContext.client_name);
     setClientPhone(baseContext.client_phone);
     setClientEmail(baseContext.client_email);
 
     // Resolve legal handler from claim
-    const lhDetails = resolveLegalHandlerDetails(claim);
+    const lhDetails = resolveLegalHandlerDetails(targetClaim);
     setLegalHandlerName(lhDetails.legal_handler_name);
     setLegalHandlerFirm(lhDetails.legal_handler_firm);
     setLegalHandlerPhone(lhDetails.legal_handler_phone);
     setLegalHandlerEmail(lhDetails.legal_handler_email);
 
     // If claim has an assigned legal handler object with id
-    const assignedLhId = (claim.fileHandlers?.legalHandler as any)?.id || '';
+    const assignedLhId = (targetClaim.fileHandlers?.legalHandler as any)?.id || '';
     if (assignedLhId) {
       setSelectedLegalHandlerId(assignedLhId);
     }
@@ -178,41 +230,38 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     // Reset attachment state
     setClaimCardAttachment(null);
 
-    // Load templates
-    setLoadingTemplates(true);
-    fetchClaimTemplates()
-      .then((loaded) => {
-        setTemplates(loaded);
-
+    // Initialize channel-specific behavior
+    if (initialChannel === 'whatsapp') {
+      loadTemplatesForCurrentChannel('whatsapp').then((loaded) => {
         // Pick a default template matching category and channel
         const matching = loaded.filter(
           (t) =>
             t.category === startCategory &&
-            (t.channel === 'all' || !t.channel || t.channel === initialChannel)
+            (t.channel === 'all' || !t.channel || t.channel === 'whatsapp')
         );
         const defaultChoice = matching[0] || loaded.find((t) => t.category === startCategory) || loaded[0];
         if (defaultChoice) {
           setSelectedTemplateId(defaultChoice.id);
           applyTemplate(defaultChoice, baseContext);
         }
-      })
-      .catch((err) => {
-        console.error('Failed to load templates:', err);
-        toast.error('Could not load claim message templates');
-      })
-      .finally(() => {
-        setLoadingTemplates(false);
       });
-  }, [isOpen, claim, initialChannel, initialCategory, initialRecipient, overrideNotes, overrideStage]);
+    } else {
+      setSelectedTemplateId('');
+      const ref = targetClaim?.claimNumber || (targetClaim?.id ? targetClaim.id.slice(-8) : '');
+      const reg = targetClaim?.clientVehicle?.registration || '';
+      setSubject(`Claim Update - Ref: ${ref}${reg ? ` (${reg})` : ''}`);
+      setMessage('');
+    }
+  }, [isOpen, targetClaim, initialChannel, initialCategory, initialRecipient, overrideNotes, overrideStage, loadTemplatesForCurrentChannel]);
 
   // Automatic Claim Card PDF generation when Claim Card is selected
   useEffect(() => {
-    if (!isOpen || !claim) return;
+    if (!isOpen || !targetClaim) return;
 
     if (selectedFileIds.includes('claim_card_pdf')) {
       if (!claimCardAttachment && !generatingPdf) {
         setGeneratingPdf(true);
-        generateClaimCardPdf(claim)
+        generateClaimCardPdf(targetClaim)
           .then((att) => {
             setClaimCardAttachment(att);
           })
@@ -225,15 +274,15 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           });
       }
     }
-  }, [isOpen, claim, selectedFileIds, claimCardAttachment, generatingPdf]);
+  }, [isOpen, targetClaim, selectedFileIds, claimCardAttachment, generatingPdf]);
 
   // Handler to manually re-generate Claim Card PDF
   const handleRegeneratePdf = async () => {
-    if (!claim) return;
+    if (!targetClaim) return;
     setGeneratingPdf(true);
     try {
       // Clear cached url to force fresh render
-      const freshClaim: Claim = { ...claim, claimCardUrl: undefined as any };
+      const freshClaim: Claim = { ...targetClaim, claimCardUrl: undefined as any };
       const att = await generateClaimCardPdf(freshClaim);
       setClaimCardAttachment(att);
       toast.success('Claim Card PDF refreshed and attached!');
@@ -501,7 +550,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           phone: targetPhone,
           message,
           recipientName: targetName,
-          claim,
+          claim: targetClaim,
           userName: user?.name,
           templateId: selectedTemplateId,
           subject,
@@ -560,7 +609,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
           recipientName: targetName,
           subject,
           body: message,
-          claim,
+          claim: targetClaim,
           userName: user?.name,
           templateId: selectedTemplateId,
           recipientType,
@@ -588,10 +637,10 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     }
   };
 
-  if (!isOpen || !claim) return null;
+  if (!isOpen || !targetClaim) return null;
 
-  const claimRef = claim.claimId || (claim.id ? `#${claim.id.slice(-8).toUpperCase()}` : 'N/A');
-  const cleanClaimRef = (claim.claimId || claim.id || 'claim').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const claimRef = targetClaim.claimId || (targetClaim.id ? `#${targetClaim.id.slice(-8).toUpperCase()}` : 'N/A');
+  const cleanClaimRef = (targetClaim.claimId || targetClaim.id || 'claim').replace(/[^a-zA-Z0-9_-]/g, '_');
 
   return (
     <Modal
@@ -623,6 +672,24 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
       size="xl"
     >
       <div className="space-y-5 text-gray-800">
+        {/* Claim Record Selector if opened from Action Bar */}
+        {!claim && claims && claims.length > 0 && (
+          <div className="flex items-center gap-2 p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl">
+            <span className="text-xs font-bold text-blue-900 shrink-0">Select Claim Record:</span>
+            <select
+              value={selectedClaimId}
+              onChange={(e) => setSelectedClaimId(e.target.value)}
+              className="flex-1 px-2.5 py-1 text-xs bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg font-medium shadow-2xs focus:outline-none focus:border-blue-500"
+            >
+              {claims.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.claimId || c.id} — {c.clientName || 'Client'} ({c.registration || c.vehicleDetails?.registration || 'Vehicle'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* ROW 1: Channel Selector & Recipient Selector */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-gray-200">
           {/* Channel Selector */}
@@ -786,21 +853,23 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
         {/* Template Picker */}
         <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <label className="block text-xs font-semibold text-slate-700">
               Select Template ({filteredTemplates.length} available)
             </label>
-            {canChangeTemplate && (
-              <button
-                type="button"
-                onClick={handleRefreshPlaceholders}
-                className="text-xs text-primary hover:text-primary-700 flex items-center gap-1 font-medium transition-colors"
-                title="Re-populate template with current field values"
-              >
-                <RefreshCw className="h-3 w-3" />
-                <span>Reset to template defaults</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {canChangeTemplate && (
+                <button
+                  type="button"
+                  onClick={handleRefreshPlaceholders}
+                  className="text-xs text-primary hover:text-primary-700 flex items-center gap-1 font-medium transition-colors"
+                  title="Re-populate template with current field values"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>Reset to defaults</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {loadingTemplates ? (
@@ -1414,63 +1483,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="w-full text-xs sm:text-sm font-mono border border-gray-300 rounded-md p-3 focus:ring-primary focus:border-primary shadow-sm leading-relaxed"
-            placeholder="Type your message or select a template above..."
+            placeholder={channel === 'whatsapp' ? "Type your message or select a template above..." : "Type your email message..."}
           />
-
-          {/* Quick Insert Variable Pills */}
-          <div className="mt-2 pt-2 border-t border-gray-100">
-            <div className="flex items-center gap-1 mb-1.5">
-              <Sparkles className="h-3 w-3 text-amber-500" />
-              <span className="text-[11px] font-semibold text-gray-600">Quick Insert Placeholders:</span>
-            </div>
-
-            {/* Legal Handler Placeholders */}
-            <div className="mb-1 flex flex-wrap items-center gap-1">
-              <span className="text-[10px] uppercase font-bold text-purple-700 mr-1">Legal Handler:</span>
-              {[
-                '{legal_handler_name}',
-                '{legal_handler_firm}',
-                '{legal_handler_email}',
-                '{legal_handler_phone}',
-              ].map((token) => (
-                <button
-                  key={token}
-                  type="button"
-                  onClick={() => handleInsertPlaceholder(token)}
-                  className="text-[11px] bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 px-2 py-0.5 rounded transition-colors font-mono"
-                  title={`Insert ${token}`}
-                >
-                  {token}
-                </button>
-              ))}
-            </div>
-
-            {/* Claim & Vehicle Placeholders */}
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] uppercase font-bold text-blue-700 mr-1">Claim & Vehicle:</span>
-              {[
-                '{claim_id}',
-                '{vehicle_reg}',
-                '{incident_date}',
-                '{claim_status}',
-                '{progress_stage}',
-                '{client_name}',
-                '{client_phone}',
-                '{latest_update_notes}',
-                '{next_steps}',
-              ].map((token) => (
-                <button
-                  key={token}
-                  type="button"
-                  onClick={() => handleInsertPlaceholder(token)}
-                  className="text-[11px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 px-2 py-0.5 rounded transition-colors font-mono"
-                  title={`Insert ${token}`}
-                >
-                  {token}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Modal Footer Actions */}

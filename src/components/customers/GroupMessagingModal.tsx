@@ -175,13 +175,24 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     }
   }, [isOpen, category, channel]);
 
-  // Load templates from database
+  // Load templates from database with channel filter and reactive sync
   useEffect(() => {
     if (!isOpen) return;
-    fetchGlobalTemplates().then((list) => {
-      setTemplates(list);
-    });
-  }, [isOpen]);
+    const load = () => {
+      fetchGlobalTemplates(channel).then((list) => {
+        setTemplates(list);
+      });
+    };
+    load();
+
+    const handleSync = () => load();
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
+  }, [isOpen, channel]);
 
   // Handle template selection change
   const handleSelectTemplate = (tempId: string) => {
@@ -253,7 +264,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
         saveAsNew,
       });
 
-      const updatedList = await fetchGlobalTemplates();
+      const updatedList = await fetchGlobalTemplates(channel);
       setTemplates(updatedList);
       setSelectedTemplateId(savedId);
 

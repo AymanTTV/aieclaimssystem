@@ -22,7 +22,9 @@ import { formatWhatsAppNumber, buildWaMeLink } from './whatsapp';
 import { sendEmail } from './emailService';
 import { logEmailHistory } from '../hooks/useEmailHistory';
 import { logWhatsappHistory } from '../hooks/useWhatsappHistory';
+import { logCommunication } from '../services/communicationLogService';
 import { format } from 'date-fns';
+import { loadTemplatesForCategory, isTemplateInCategory, isTemplateDeletedSync } from './templateManager';
 
 export const COMPANY_SIGNATURE = `
 Kind regards,
@@ -264,44 +266,40 @@ export function filterRecipientsByCategory(
 }
 
 /**
- * Fetch all templates from Firestore and merge with defaults
+ * Fetch all templates from Firestore and merge with defaults.
+ * Follows strict folder routing: Loads templates from 'members' folder + universal 'custom' folder.
  */
-export async function fetchGlobalTemplates(): Promise<GlobalMessageTemplate[]> {
-  const list: GlobalMessageTemplate[] = [...DEFAULT_TEMPLATES];
-  const seenIds = new Set(list.map((t) => t.id));
+export async function fetchGlobalTemplates(channel?: 'whatsapp' | 'email' | 'all'): Promise<GlobalMessageTemplate[]> {
+  const list: GlobalMessageTemplate[] = [];
+  const seenIds = new Set<string>();
 
   try {
-    const snap = await getDocs(collection(db, 'messageTemplates'));
-    snap.forEach((docSnap) => {
-      const data = docSnap.data();
-      const cat = data.category || 'Group Messaging';
-      // Include any template under Group Messaging, News Flash, Bulk Email, or custom
-      const isRelevant =
-        cat.toLowerCase().includes('group') ||
-        cat.toLowerCase().includes('news') ||
-        cat.toLowerCase().includes('customer') ||
-        cat.toLowerCase().includes('broadcast') ||
-        cat === 'Bulk Email' ||
-        cat === 'custom' ||
-        data.isGlobalTemplate === true;
-
-      if (isRelevant && !seenIds.has(docSnap.id)) {
-        seenIds.add(docSnap.id);
-        list.push({
-          id: docSnap.id,
-          name: data.name || 'Untitled Template',
-          subjectTemplate: data.subjectTemplate || data.subject || '',
-          bodyTemplate: data.bodyTemplate || data.body || '',
-          category: data.category || 'Group Messaging',
-          channel: data.channel || 'both',
-          isCustom: true,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
-        });
-      }
-    });
+    const loaded = await loadTemplatesForCategory('members', channel);
+    for (const t of loaded) {
+      seenIds.add(t.id);
+      list.push({
+        id: t.id,
+        name: t.name,
+        subjectTemplate: t.subjectTemplate,
+        bodyTemplate: t.bodyTemplate,
+        category: t.category || 'members',
+        channel: (t.channel as any) || 'both',
+        isCustom: isTemplateInCategory(t.category, 'custom'),
+      });
+    }
   } catch (err) {
-    console.error('Failed to fetch message templates from Firestore:', err);
+    console.error('Failed to fetch message templates from templateManager:', err);
+  }
+
+  // Also merge DEFAULT_TEMPLATES if not deleted and not already present
+  for (const dt of DEFAULT_TEMPLATES) {
+    if (!seenIds.has(dt.id) && !isTemplateDeletedSync(dt.id)) {
+      if (channel && channel !== 'all' && dt.channel && dt.channel !== 'both' && dt.channel !== channel) {
+        continue;
+      }
+      seenIds.add(dt.id);
+      list.push(dt);
+    }
   }
 
   return list;
@@ -403,6 +401,23 @@ export async function dispatchBulkEmail(params: {
         attachments: params.attachment?.url ? [params.attachment.url] : undefined,
       });
 
+      // Audit trail record
+      await logCommunication({
+        communication_channel: 'Email',
+        recipient_role: recipient.type === 'serviceCenter' ? 'Garage' : 'Member',
+        recipient_name: recipient.name,
+        recipient_contact: recipient.email,
+        source_module: 'Members',
+        record_id: recipient.id,
+        template_name: params.templateId || 'Broadcast Email',
+        message_body: personalizedBody,
+        attachments: params.attachment?.url ? [{ name: params.attachment.name, url: params.attachment.url }] : [],
+        delivery_status: 'Sent',
+        subject: personalizedSubject,
+        customerId: recipient.id,
+        sender_user_id: 'System Admin (Group Messaging)',
+      });
+
       successful++;
     } catch (err: any) {
       console.error(`Email dispatch error for ${recipient.email}:`, err);
@@ -476,7 +491,24 @@ export function openWhatsAppChat(params: {
     subject: personalizedSubject || 'Group WhatsApp Message',
     body: fullMessage,
     timestamp: new Date(),
+    skipCommunicationLogs: true,
   }).catch((err) => console.warn('Failed to log whatsapp history:', err));
+
+  logCommunication({
+    communication_channel: 'WhatsApp',
+    recipient_role: params.recipient.type === 'serviceCenter' ? 'Garage' : 'Member',
+    recipient_name: params.recipient.name,
+    recipient_contact: digits,
+    source_module: 'Members',
+    record_id: params.recipient.id,
+    template_name: params.templateId || 'Group WhatsApp',
+    message_body: fullMessage,
+    attachments: params.attachment?.url ? [{ name: params.attachment.name, url: params.attachment.url }] : [],
+    delivery_status: 'Sent',
+    subject: personalizedSubject || 'Group WhatsApp Message',
+    customerId: params.recipient.id,
+    sender_user_id: 'Admin (Group Messaging)',
+  }).catch((err) => console.warn('Failed to log communication:', err));
 
   return true;
 }

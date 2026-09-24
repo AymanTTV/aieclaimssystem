@@ -21,6 +21,7 @@ import {
 
 // Permit (your existing letter)
 import { ParkingPermitLetter } from '../components/pdf/ParkingPermitLetter';
+import { AIE_CLAIMS_COMPANY_DETAILS } from './legalDocumentUtils';
 
 type PeriodOverride = { start: Date; end: Date };
 
@@ -136,8 +137,27 @@ export const generateRentalDocuments = async (
       throw new Error('Failed to generate PDF documents');
     }
 
-    // Claims bundle (unchanged, uses full rental period)
-    if (rental.type === 'claim' || rental.reason === 'claim') {
+    // Claims bundle (generated for Claim customers/rentals)
+    const rawCustomerType = String(customer?.type || (rental as any)?.customerType || '').trim().toLowerCase();
+    const rawRentalType = String(rental.type || (rental as any).rentalType || (rental as any).billingType || '').trim().toLowerCase();
+    const isNonClaimCustomer =
+      rawCustomerType === 'weekly' ||
+      rawCustomerType === 'daily' ||
+      rawCustomerType === 'standard' ||
+      rawCustomerType === 'non-claim' ||
+      rawRentalType === 'weekly' ||
+      rawRentalType === 'daily' ||
+      rawRentalType === 'standard' ||
+      rawRentalType === 'non-claim';
+
+    const isClaimRental = !isNonClaimCustomer && Boolean(
+      rawCustomerType === 'claim' ||
+      rawRentalType === 'claim' ||
+      String(rental.reason || '').trim().toLowerCase() === 'claim' ||
+      Boolean(rental.claimId)
+    );
+
+    if (isClaimRental) {
       const claimDocuments: Record<string, Blob> = {};
 
       // Calculate days of hire
@@ -271,39 +291,49 @@ export const generateRentalDocuments = async (
         includeRecoveryCostVAT: rental.includeRecoveryCostVAT,
       };
 
+      const claimCompanyDetails = {
+        ...companyDetails,
+        ...AIE_CLAIMS_COMPANY_DETAILS,
+        fullName: 'AIE Claims LTD',
+        name: 'AIE Claims Ltd.',
+      };
+
       try {
         claimDocuments.conditionOfHire = await pdf(createElement(ConditionOfHire, {
           claim: claimData,
-          companyDetails
+          companyDetails: claimCompanyDetails
         })).toBlob();
 
         claimDocuments.noticeOfRightToCancel = await pdf(createElement(NoticeOfRightToCancel, {
           claim: claimData,
-          companyDetails
+          companyDetails: claimCompanyDetails
         })).toBlob();
 
         claimDocuments.hireAgreement = await pdf(createElement(HireAgreement, {
           claim: claimData,
-          companyDetails
+          companyDetails: claimCompanyDetails
         })).toBlob();
+        claimDocuments.claimHireAgreement = claimDocuments.hireAgreement;
 
         claimDocuments.creditStorageAndRecovery = await pdf(createElement(CreditStorageAndRecovery, {
           claim: claimData,
-          companyDetails
+          companyDetails: claimCompanyDetails
         })).toBlob();
 
         // Always generate mitigation
         claimDocuments.creditHireMitigation = await pdf(createElement(CreditHireMitigation, {
           claim: claimData,
-          companyDetails
+          companyDetails: claimCompanyDetails
         })).toBlob();
 
-        // Generate satisfaction when completed
-        if (claimData.completionStatus === 'completed') {
+        // Always generate satisfaction notice for selectable claim documents bundle
+        try {
           claimDocuments.satisfactionNotice = await pdf(createElement(SatisfactionNotice, {
             claim: claimData,
-            companyDetails
+            companyDetails: claimCompanyDetails
           })).toBlob();
+        } catch (snErr) {
+          console.warn('Could not generate satisfactionNotice for claim:', snErr);
         }
       } catch (error: any) {
         console.error('Error generating claim documents:', error);

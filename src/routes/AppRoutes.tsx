@@ -73,6 +73,7 @@ const DriverPay            = lazyLoad('DriverPay');
 const AiePettyCash         = lazyLoad('AiePettyCash');
 const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense');
 const AutomationSettings = lazyLoad('AutomationSettings');
+const PublicDocumentViewer = lazyLoad('PublicDocumentViewer');
 
 export default function AppRoutes() {
   return (
@@ -82,6 +83,23 @@ export default function AppRoutes() {
       <Route path="/admin-setup" element={<AdminSetup />} />
       {/* Public Signature Route - accessible without login */}
       <Route path="/sign/:id"    element={<SignCustomer />} />  {/* <--- Add this line */}
+      {/* Public Document Viewer Routes - accessible without login */}
+      <Route
+        path="/view-document"
+        element={
+          <Suspense fallback={spinner}>
+            <PublicDocumentViewer />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/doc/:rentalId/:docType"
+        element={
+          <Suspense fallback={spinner}>
+            <PublicDocumentViewer />
+          </Suspense>
+        }
+      />
       {/* Public Real-Time Mirror Routes - Read-Only Live Sync */}
       <Route path="/maintenance/live" element={<PublicMirror />} />
       <Route path="/maintenance-public" element={<PublicMirror />} />

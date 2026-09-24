@@ -1,6 +1,15 @@
 // src/constants/emailTemplates.ts
 
-export type EmailType = 'custom' | 'rental' | 'maintenance' | 'invoice' | 'claim' | 'finance' | 'Bulk Email';
+export type EmailType = 
+  | 'finance' 
+  | 'rental' 
+  | 'maintenance' 
+  | 'invoice' 
+  | 'claim' 
+  | 'driverPay' 
+  | 'members' 
+  | 'custom' 
+  | 'Bulk Email';
 
 export interface EmailTemplate {
   id: string;
@@ -1559,6 +1568,89 @@ Reference: {vehicle_reg}
 Please kindly settle your outstanding daily balance today to ensure your account remains in good standing and hire continues without interruption.
 
 If you have already made this payment, thank you—please feel free to ignore this reminder.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental'],
+    },
+  ],
+
+  /* ───────── DRIVER PAY ───────── */
+  driverPay: [
+    {
+      id: 'driver_pay_advice',
+      name: 'Driver Payment Advice',
+      subjectTemplate: 'Payment Remittance Advice - {payment_id}',
+      bodyTemplate:
+`Hello {driver_name},
+
+Your driver payment remittance #{payment_id} for the period {period_start} to {period_end} has been processed.
+
+Payment Details:
+• Total Amount: £{amount_paid}
+• Payment Date: {payment_date}
+• Status: {payment_status}
+• Reference: {payment_id}
+
+{notes}
+
+Thank you for your partnership.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction'],
+    },
+    {
+      id: 'driver_pay_statement_summary',
+      name: 'Driver Pay Statement Summary',
+      subjectTemplate: 'Driver Payout Summary - {driver_name}',
+      bodyTemplate:
+`Dear {driver_name},
+
+This is an automated summary of your earnings payout for {period_start} - {period_end}.
+
+• Amount Credited: £{amount_paid}
+• Settlement Date: {payment_date}
+• Payment Ref: {payment_id}
+
+If you have any questions regarding your earnings statement, please contact the finance office.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction'],
+    },
+  ],
+
+  /* ───────── MEMBERS ───────── */
+  members: [
+    {
+      id: 'members_welcome_notice',
+      name: 'Member Welcome Notice',
+      subjectTemplate: 'Welcome to AIE Skyline - Account Confirmation',
+      bodyTemplate:
+`Dear [Customer Name],
+
+Welcome to AIE Skyline. We are pleased to confirm your member account is now active.
+
+Your details on file:
+• Name: [Customer Name]
+• Contact: [Phone]
+• Email: [Email]
+
+If you require any assistance with vehicle reservations, hire management, or maintenance support, please do not hesitate to contact our team.
+
+${aieSkylineSignature}`,
+      requiredFields: ['rental'],
+    },
+    {
+      id: 'members_account_update',
+      name: 'Member Account Update',
+      subjectTemplate: 'Important Notice Regarding Your Member Account',
+      bodyTemplate:
+`Dear [Customer Name],
+
+We are writing with an update regarding your member account status.
+
+Please review your profile details and ensure all driver contact details and documentation remain up to date.
+
+Should you have any questions, our support team is available 24/7.
 
 ${aieSkylineSignature}`,
       requiredFields: ['rental'],

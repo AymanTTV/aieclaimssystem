@@ -25,6 +25,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { sendEmail } from '../utils/emailService';
+import { logCommunication } from '../services/communicationLogService';
 
 export interface BulkEmailTemplate {
   id: string;
@@ -475,14 +476,18 @@ export async function getBulkEmailTemplates(): Promise<BulkEmailTemplate[]> {
     snap.docs.forEach(d => {
       const data = d.data();
       const cat = String(data.category || '').trim();
-      // STRICT FILTER: category must match 'Bulk Email' (case-insensitive check)
-      if (cat === 'Bulk Email' || cat.toLowerCase() === 'bulk email') {
+      // STRICT FILTER: category must match 'Bulk Email' or be an automated scheduler template
+      if (
+        cat === 'Bulk Email' ||
+        cat.toLowerCase() === 'bulk email' ||
+        data.isScheduler === true
+      ) {
         templates.push({
           id: d.id,
           name: data.name || 'Bulk Email Template',
           subjectTemplate: data.subjectTemplate || '',
           bodyTemplate: data.bodyTemplate || '',
-          category: 'Bulk Email',
+          category: data.category || 'Bulk Email',
         });
       }
     });
@@ -749,6 +754,24 @@ export async function sendSingleRentalTestEmail(
     isTest: true,
   });
 
+  // Dedicated Communication Audit Trail Log
+  await logCommunication({
+    sender_user_id: 'Automated Scheduler',
+    communication_channel: 'Email',
+    recipient_role: 'Client',
+    recipient_name: clientName,
+    recipient_contact: clientEmail,
+    source_module: 'Rental',
+    record_id: rental.id || rentalId,
+    template_name: template.name || 'Weekly Rental Payment Reminder',
+    message_body: finalBody,
+    attachments: [],
+    delivery_status: 'Sent',
+    subject: finalSubject,
+    customerId: rental.customerId || '',
+    vehicleId: rental.vehicleId || '',
+  });
+
   return {
     success: true,
     message: `Test email (${template.name}) sent to ${clientName} (${clientEmail}).`,
@@ -965,6 +988,25 @@ export async function runMondayAutoEmailJob(options?: {
         hasAttachments: false, // Rule 6: strictly no attachments
         isTest: isTestRun,
       });
+
+      // Dedicated Communication Audit Trail Log
+      await logCommunication({
+        sender_user_id: isTestRun ? 'Manual Bulk Test (Rental)' : 'Automated Scheduler',
+        communication_channel: 'Email',
+        recipient_role: 'Client',
+        recipient_name: clientName,
+        recipient_contact: clientEmail,
+        source_module: 'Rental',
+        record_id: rentalId,
+        template_name: activeTemplate.name || 'Automated Payment Reminder',
+        message_body: finalBody,
+        attachments: [],
+        delivery_status: 'Sent',
+        subject: finalSubject,
+        customerId: rental.customerId || '',
+        vehicleId: rental.vehicleId || '',
+      });
+
       sentCount++;
     } catch (histErr) {
       console.error(`[MondayAutoEmailJob] Failed to log emailHistory for ${rentalId}:`, histErr);

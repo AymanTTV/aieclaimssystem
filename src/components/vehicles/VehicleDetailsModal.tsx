@@ -1175,7 +1175,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
           {/* ─────────────────────────────────────────────────────────────── */}
           {/* 1. PINNED NAVIGATION BAR AT TOP                                 */}
           {/* ─────────────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 w-full border-b border-slate-200 shrink-0 bg-slate-100/70 select-none divide-x divide-slate-200">
+          <div className="flex overflow-x-auto sm:grid sm:grid-cols-6 w-full border-b border-slate-200 shrink-0 bg-slate-100/80 select-none divide-x divide-slate-200 no-scrollbar">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1185,26 +1185,33 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center gap-1.5 py-3 px-2 border-b-2 text-xs sm:text-sm transition-all cursor-pointer truncate ${
+                  title={tab.label}
+                  className={`group min-w-[110px] sm:min-w-0 flex-1 flex flex-col items-center justify-center py-2.5 px-1.5 sm:px-2 border-b-2 transition-all cursor-pointer ${
                     isActive
                       ? 'border-blue-600 text-blue-700 font-extrabold bg-white shadow-xs'
                       : 'border-transparent text-slate-600 font-semibold hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0 pointer-events-none" />
-                  <span className="truncate">{tab.label}</span>
-                  {tab.badge !== undefined && (
-                    <span
-                      className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 border ${
-                        tab.badgeColor
-                          ? tab.badgeColor
-                          : isActive
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-slate-200 text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      {tab.badge}
+                  <div className="flex items-center justify-center gap-1.5 w-full">
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
+                    <span className="text-xs sm:text-sm font-bold tracking-tight whitespace-nowrap">
+                      {tab.label}
                     </span>
+                  </div>
+                  {tab.badge !== undefined && (
+                    <div className="mt-1 flex items-center justify-center w-full px-1">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-full tracking-wide border transition-colors ${
+                          tab.badgeColor
+                            ? tab.badgeColor
+                            : isActive
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-slate-200 text-slate-700 border-slate-300 group-hover:bg-slate-300/80'
+                        }`}
+                      >
+                        {tab.badge}
+                      </span>
+                    </div>
                   )}
                 </button>
               );

@@ -5,9 +5,11 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { formatWhatsAppNumber, buildWaMeLink } from './whatsapp';
 import { logWhatsappHistory } from '../hooks/useWhatsappHistory';
+import { logCommunication } from '../services/communicationLogService';
 import { ensureValidDate } from './dateHelpers';
 import { resolveNameFields } from './nameAddressUtils';
 import { emailTemplates } from '../constants/emailTemplates';
+import { isTemplateInCategory, isTemplateDeletedSync } from './templateManager';
 
 export interface DriverPayTemplateOption {
   id: string;
@@ -292,19 +294,22 @@ export function replaceDriverPayPlaceholders(
 }
 
 /**
- * Fetches and populates template dropdown list strictly from the "Custom" folder/tab
- * under WhatsApp Communication settings.
- * Displays ALL active templates available inside the WhatsApp "Custom" folder.
+ * DYNAMIC MODULE-TO-FOLDER TEMPLATE MAPPING (DRIVER PAY):
+ * Strictly pulls templates ONLY from "Driver Pay" folder + universal "Custom" folder.
+ * Excludes templates belonging to unrelated specific folders (Finance, Rental, Maintenance, Invoice, Claim, Members).
  */
-export async function fetchDriverPayTemplates(): Promise<DriverPayTemplateOption[]> {
+export async function fetchDriverPayTemplates(
+  channelFilter?: 'whatsapp' | 'email' | 'all'
+): Promise<DriverPayTemplateOption[]> {
   const customMap = new Map<string, DriverPayTemplateOption>();
 
-  // 1. Seed with base templates from the "Custom" folder under WhatsApp communication settings
+  // 1. Seed with base templates from the universal "Custom" folder
   const baseCustomTemplates = emailTemplates.custom || [];
   for (const tpl of baseCustomTemplates) {
+    if (isTemplateDeletedSync(tpl.id)) continue;
     customMap.set(tpl.id, {
       id: tpl.id,
-      name: tpl.name || 'Custom Template',
+      name: `Custom: ${tpl.name || 'Custom Template'}`,
       category: 'custom',
       channel: 'all',
       subjectTemplate: tpl.subjectTemplate || '',
@@ -314,19 +319,58 @@ export async function fetchDriverPayTemplates(): Promise<DriverPayTemplateOption
     });
   }
 
-  // 2. Fetch live templates from Firestore `messageTemplates` strictly under category 'custom'
+  // Also include base Driver Pay templates from emailTemplates
+  const baseDriverPayEmail = (emailTemplates as any).driverPay || [];
+  for (const tpl of baseDriverPayEmail) {
+    if (isTemplateDeletedSync(tpl.id)) continue;
+    customMap.set(tpl.id, {
+      id: tpl.id,
+      name: tpl.name || 'Driver Pay Template',
+      category: 'driverPay',
+      channel: 'all',
+      subjectTemplate: tpl.subjectTemplate || '',
+      bodyTemplate: tpl.bodyTemplate || '',
+      isActive: true,
+      isCustom: false,
+    });
+  }
+
+  // Also include default driver pay templates
+  for (const tpl of DEFAULT_DRIVER_PAY_TEMPLATES) {
+    if (isTemplateDeletedSync(tpl.id)) continue;
+    customMap.set(tpl.id, {
+      ...tpl,
+      channel: tpl.channel || 'all',
+      isCustom: false,
+    });
+  }
+
+  // 2. Fetch live templates from Firestore `messageTemplates`
   try {
     const snap = await getDocs(collection(db, 'messageTemplates'));
     snap.forEach((docSnap) => {
+      if (isTemplateDeletedSync(docSnap.id)) {
+        customMap.delete(docSnap.id);
+        return;
+      }
+
       const data = docSnap.data();
+      if (data.isDeleted === true || data.deleted === true) {
+        customMap.delete(docSnap.id);
+        return;
+      }
+
       const rawCat = String(data.category || data.type || '').toLowerCase().trim();
       const rawChannel = String(data.channel || 'all').toLowerCase().trim();
 
-      // STRICT REQUIREMENT: Only populate from the "Custom" folder/tab under WhatsApp Communication settings
-      if (rawCat !== 'custom') return;
+      // STRICT FOLDER ACCESS: Driver Pay folder + universal Custom folder only
+      const isDriverPay = isTemplateInCategory(rawCat, 'driverPay');
+      const isCustom = isTemplateInCategory(rawCat, 'custom');
+      if (!isDriverPay && !isCustom) return;
 
-      // Exclude templates dedicated purely to email (only allow whatsapp or all)
-      if (rawChannel === 'email') return;
+      // Filter by channel if specified
+      if (channelFilter === 'whatsapp' && rawChannel === 'email') return;
+      if (channelFilter === 'email' && rawChannel === 'whatsapp') return;
 
       // Check if template is explicitly deactivated
       const isDeactivated = data.active === false || data.isActive === false;
@@ -335,33 +379,37 @@ export async function fetchDriverPayTemplates(): Promise<DriverPayTemplateOption
         return;
       }
 
-      const name = data.name || data.title || 'Custom Template';
+      const rawName = data.name || data.title || 'Driver Pay Template';
+      const name = isCustom ? `[Custom] ${rawName}` : rawName;
       const bodyTemplate = data.bodyTemplate || data.body || data.content || '';
       const subjectTemplate = data.subjectTemplate || data.subject || '';
 
       customMap.set(docSnap.id, {
         id: docSnap.id,
         name,
-        category: 'custom',
-        channel: rawChannel === 'whatsapp' ? 'whatsapp' : 'all',
+        category: isCustom ? 'custom' : 'driverPay',
+        channel: rawChannel === 'whatsapp' ? 'whatsapp' : rawChannel === 'email' ? 'email' : 'all',
         subjectTemplate,
         bodyTemplate,
         isActive: true,
-        isCustom: true,
+        isCustom: isCustom,
       });
     });
   } catch (err) {
     console.warn('Could not fetch custom messageTemplates from Firestore, using base Custom templates:', err);
   }
 
-  // Return ALL active templates available inside the WhatsApp "Custom" folder
-  const activeCustomTemplates = Array.from(customMap.values()).filter((t) => t.isActive !== false);
-
-  if (activeCustomTemplates.length === 0) {
-    return DEFAULT_DRIVER_PAY_TEMPLATES.map((t) => ({ ...t, category: 'custom', isCustom: true }));
+  // Filter templates by channelFilter if set
+  let results = Array.from(customMap.values()).filter((t) => t.isActive !== false);
+  if (channelFilter && channelFilter !== 'all') {
+    results = results.filter((t) => t.channel === 'all' || !t.channel || t.channel === channelFilter);
   }
 
-  return activeCustomTemplates;
+  if (results.length === 0) {
+    return DEFAULT_DRIVER_PAY_TEMPLATES.map((t) => ({ ...t, category: 'driverPay', isCustom: false }));
+  }
+
+  return results;
 }
 
 /**
@@ -449,6 +497,22 @@ export async function dispatchDriverPayWhatsApp(
       subject: `Driver Payment: ${record.driverNo || record.name}`,
       body: message,
       timestamp: new Date(),
+      skipCommunicationLogs: true,
+    });
+
+    await logCommunication({
+      communication_channel: 'WhatsApp',
+      recipient_role: 'Driver',
+      recipient_name: record.name,
+      recipient_contact: record.phoneNumber || '',
+      source_module: 'Driver Pay',
+      record_id: record.driverNo || record.id,
+      template_name: templateId || 'Driver Pay Notification',
+      message_body: message,
+      attachments: [],
+      delivery_status: 'Sent',
+      subject: `Driver Payment: ${record.driverNo || record.name}`,
+      sender_user_id: userEmail,
     });
   } catch (logErr) {
     console.warn('Failed to log WhatsApp history for driver pay:', logErr);
@@ -456,3 +520,50 @@ export async function dispatchDriverPayWhatsApp(
 
   return { success: true };
 }
+
+/**
+ * Dispatches driver pay communication via email
+ */
+export async function dispatchDriverPayEmail(
+  record: DriverPay,
+  subject: string,
+  message: string,
+  emailAddress?: string,
+  userEmail?: string,
+  templateId?: string
+): Promise<{ success: boolean; error?: string; mode?: 'mailto' | 'provider' }> {
+  const targetEmail = emailAddress || record.email || '';
+  if (!targetEmail || !targetEmail.includes('@')) {
+    return {
+      success: false,
+      error: `Driver "${record.name}" does not have a valid email address on file (${targetEmail || 'None'}).`,
+    };
+  }
+
+  const mailtoUrl = `mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(message)}`;
+  window.open(mailtoUrl, '_blank');
+
+  try {
+    await logCommunication({
+      communication_channel: 'Email',
+      recipient_role: 'Driver',
+      recipient_name: record.name,
+      recipient_contact: targetEmail,
+      source_module: 'Driver Pay',
+      record_id: record.driverNo || record.id,
+      template_name: templateId || 'Driver Payment Advice',
+      message_body: message,
+      attachments: [],
+      delivery_status: 'Sent',
+      subject,
+      sender_user_id: userEmail,
+    });
+  } catch (logErr) {
+    console.warn('Failed to log email history for driver pay:', logErr);
+  }
+
+  return { success: true, mode: 'mailto' };
+}
+

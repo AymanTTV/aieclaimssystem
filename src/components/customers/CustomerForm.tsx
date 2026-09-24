@@ -4,11 +4,14 @@ import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { Customer, Gender, CustomerType, calculateAge } from '../../types/customer';
-import { Upload, User, FileText, CreditCard, Globe, Hash } from 'lucide-react';
+import { Upload, User, FileText, CreditCard, Globe, Hash, Camera, Eye, Trash2, RefreshCw } from 'lucide-react';
 import FormField from '../ui/FormField';
 import toast from 'react-hot-toast';
 import CustomerSignature from './CustomerSignature';
 import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
+import { formatSignatureTimestamp, stampSignatureImage } from '../../utils/signatureStamp';
+import { CustomerAvatar } from './CustomerAvatar';
+import { uploadProfilePicture, compressImageFile } from '../../utils/imageUtils';
 
 // List of common countries for the searchable dropdown
 const COUNTRIES = [
@@ -135,6 +138,57 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
     billDocument: File | null;
   }>({ licenseFront: null, licenseBack: null, billDocument: null });
 
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(
+    Boolean(customer?.termsAccepted || (customer?.signature && customer?.signature.length > 0))
+  );
+
+  // Profile Picture state
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(
+    customer?.profilePictureUrl || null
+  );
+  const [profilePictureRemoved, setProfilePictureRemoved] = useState(false);
+  const [isViewingPicture, setIsViewingPicture] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const profileFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleProfilePictureSelect = async (file: File) => {
+    const validExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (!validMimes.includes(file.type) && !validExtensions.includes(ext)) {
+      toast.error('Please upload a valid image file (JPG, PNG, or WEBP).');
+      return;
+    }
+
+    try {
+      const preview = await compressImageFile(file, 600, 600, 0.82);
+      setProfilePictureFile(file);
+      setProfilePicturePreview(preview);
+      setProfilePictureRemoved(false);
+      toast.success('Profile picture selected');
+    } catch (err) {
+      console.error('Image compression error:', err);
+      toast.error('Failed to process image file');
+    }
+  };
+
+  const handleProfilePictureRemove = () => {
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
+    setProfilePictureRemoved(true);
+    if (profileFileInputRef.current) profileFileInputRef.current.value = '';
+    toast.success('Profile picture removed');
+  };
+
+  const handleProfileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleProfilePictureSelect(file);
+  };
+
   const [documentPreviews, setDocumentPreviews] = useState<{
     licenseFront: string | null;
     licenseBack: string | null;
@@ -164,13 +218,46 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.signature && !termsAccepted) {
+      toast.error('You must accept the Terms & Conditions to submit the signature.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const normalizedEmail = (formData.email || '').trim().toLowerCase();
+      let finalSignature = formData.signature;
+      let sigTimestamp = customer?.signatureTimestamp;
+      let signedAt = customer?.signedAt;
+
+      // If a new or updated signature is present, stamp timestamp & metadata
+      if (formData.signature && formData.signature !== customer?.signature) {
+        const now = new Date();
+        sigTimestamp = formatSignatureTimestamp(now);
+        signedAt = now;
+        finalSignature = await stampSignatureImage(formData.signature, sigTimestamp, formData.name);
+      }
+
+      // Handle Customer Profile Picture upload / removal
+      let finalProfilePictureUrl: string | null = customer?.profilePictureUrl || null;
+      if (profilePictureRemoved) {
+        finalProfilePictureUrl = null;
+      } else if (profilePictureFile) {
+        const docPath = customer?.id || doc(collection(db, 'customers')).id;
+        try {
+          finalProfilePictureUrl = await uploadProfilePicture(profilePictureFile, docPath);
+        } catch (uploadErr) {
+          console.warn('Profile picture upload failed, using preview URL:', uploadErr);
+          finalProfilePictureUrl = profilePicturePreview;
+        }
+      }
+
       const baseData = {
         type: formData.type,
         name: formData.name,
+        profilePictureUrl: finalProfilePictureUrl,
         firstName: formData.firstName,
         middleName: formData.middleName,
         lastName: formData.lastName,
@@ -195,6 +282,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
           ...baseData,
           accountNumber: formData.accountNumber,
           vatNumber: formData.vatNumber,
+          signature: finalSignature,
+          signatureTimestamp: sigTimestamp || null,
+          signedAt: signedAt || null,
+          termsAccepted: Boolean(finalSignature && termsAccepted),
+          termsAcceptedAt: Boolean(finalSignature && termsAccepted) ? (customer?.termsAcceptedAt || new Date()) : null,
         };
       } else {
         // Add individual specific fields
@@ -213,7 +305,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
           licenseExpiry: new Date(formData.licenseExpiry),
           badgeNumber: formData.badgeNumber,
           billExpiry: new Date(formData.billExpiry),
-          signature: formData.signature,
+          signature: finalSignature,
+          signatureTimestamp: sigTimestamp || null,
+          signedAt: signedAt || null,
+          termsAccepted: Boolean(finalSignature && termsAccepted),
+          termsAcceptedAt: Boolean(finalSignature && termsAccepted) ? (customer?.termsAcceptedAt || new Date()) : null,
         };
         
         const docPath = customer?.id || doc(collection(db, 'customers')).id;
@@ -254,6 +350,111 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       
+      {/* SECTION: Customer Profile Picture */}
+      <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center">
+            <Camera className="w-4 h-4 mr-2 text-blue-600" /> Member Profile Picture
+          </h3>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            JPG, PNG, or WEBP
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+          {/* Avatar Preview */}
+          <div className="relative group shrink-0">
+            <CustomerAvatar
+              name={formData.name || combineFullName(formData.firstName, formData.middleName, formData.lastName)}
+              firstName={formData.firstName}
+              lastName={formData.lastName}
+              isCompany={isCompany}
+              profilePictureUrl={profilePicturePreview}
+              size="2xl"
+              shape="rounded"
+              className={profilePicturePreview ? 'ring-2 ring-blue-500/30 shadow-md' : 'shadow-xs'}
+            />
+            {profilePicturePreview && (
+              <button
+                type="button"
+                onClick={() => setIsViewingPicture(true)}
+                className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold gap-1 cursor-pointer"
+                title="View full picture"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View</span>
+              </button>
+            )}
+          </div>
+
+          {/* Upload Dropzone & Controls */}
+          <div className="flex-1 w-full space-y-3">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleProfileDrop}
+              onClick={() => profileFileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${
+                isDragOver
+                  ? 'border-blue-500 bg-blue-50/50'
+                  : 'border-slate-300 hover:border-blue-400 hover:bg-white'
+              }`}
+            >
+              <input
+                ref={profileFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleProfilePictureSelect(file);
+                }}
+              />
+              <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
+              <p className="text-xs font-bold text-slate-700">
+                Click to choose or drag & drop profile picture
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Recommended max size 5MB (JPG, PNG, or WEBP)
+              </p>
+            </div>
+
+            {/* Action Controls: Upload, View, Remove */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => profileFileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 shadow-2xs transition cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                <span>{profilePicturePreview ? 'Change Picture' : 'Upload Profile Picture'}</span>
+              </button>
+
+              {profilePicturePreview && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsViewingPicture(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Full Size</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProfilePictureRemove}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Picture</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* SECTION 1: Basic Information */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
         <h3 className="text-md font-semibold text-gray-800 mb-4 flex items-center">
@@ -443,7 +644,13 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
             </div>
           </div>
           <div className="mt-6">
-            <CustomerSignature value={formData.signature} onChange={handleSignatureChange} disabled={loading} />
+            <CustomerSignature
+              value={formData.signature}
+              onChange={handleSignatureChange}
+              termsAccepted={termsAccepted}
+              onTermsAcceptedChange={setTermsAccepted}
+              disabled={loading}
+            />
           </div>
         </div>
       )}
@@ -451,10 +658,53 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
       {/* Footer Actions */}
       <div className="flex justify-end space-x-3 pt-4 border-t">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
-        <button type="submit" disabled={loading} className="px-6 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:bg-gray-400 shadow-sm">
+        <button
+          type="submit"
+          disabled={loading || Boolean(formData.signature && !termsAccepted)}
+          className="px-6 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-primary-600 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-sm transition-colors"
+        >
           {loading ? 'Saving...' : customer ? 'Update Customer' : 'Add Customer'}
         </button>
       </div>
+      {/* Full Size Picture Preview Lightbox */}
+      {isViewingPicture && profilePicturePreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setIsViewingPicture(false)}
+        >
+          <div
+            className="relative max-w-lg w-full bg-white rounded-3xl p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Profile Picture Preview</h3>
+              <button
+                type="button"
+                onClick={() => setIsViewingPicture(false)}
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="w-full h-80 rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
+              <img
+                src={profilePicturePreview}
+                alt="Profile Preview"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsViewingPicture(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

@@ -23,7 +23,9 @@ import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDe
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle } from 'lucide-react';
+import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react';
+import InvoiceCommunicationModal from '../components/finance/InvoiceCommunicationModal';
+import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal';
 import { doc, collection, getDocs, updateDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
@@ -64,6 +66,14 @@ const Invoices: React.FC = () => {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
+
+  // Centralized communication modal states
+  const [showCommModal, setShowCommModal] = useState(false);
+  const [commMode, setCommMode] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [commInvoice, setCommInvoice] = useState<Invoice | null>(null);
+
+  const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
+  const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -520,6 +530,7 @@ const Invoices: React.FC = () => {
               Categories
             </button>
           )}
+
           {can('invoices', 'create') && (
             <button onClick={() => setShowForm(true)} className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer">
               <Plus className="h-4 w-4 mr-2" /> Create Invoice
@@ -713,6 +724,19 @@ const Invoices: React.FC = () => {
         <ManageAccountsModal onClose={() => setShowManageAccounts(false)} accounts={accounts} transactions={transactions} />
       </Modal>
 
+      {showCommModal && (
+        <InvoiceCommunicationModal
+          isOpen={showCommModal}
+          onClose={() => {
+            setShowCommModal(false);
+            setCommInvoice(null);
+          }}
+          invoice={commInvoice}
+          invoices={finalFilteredInvoices && finalFilteredInvoices.length > 0 ? finalFilteredInvoices : invoices}
+          initialMode={commMode}
+        />
+      )}
+
       <ManageGroupsModal open={showManageGroups} onClose={() => setShowManageGroups(false)} />
 
       <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="sm">
@@ -740,7 +764,6 @@ const Invoices: React.FC = () => {
          </div>
        </div>
       </Modal>
-      
     </div>
   );
 };

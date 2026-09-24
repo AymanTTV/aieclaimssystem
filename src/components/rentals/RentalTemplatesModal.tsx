@@ -1,30 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   MessageCircle, 
   Mail, 
-  Plus, 
   Search, 
-  Lock, 
   Eye, 
   Copy, 
   Check, 
-  Edit3, 
-  Trash2, 
-  Sparkles, 
   RotateCcw, 
   FileText,
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
 import Modal from '../ui/Modal';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { emailTemplates } from '../../constants/emailTemplates';
-import { usePermissions } from '../../hooks/usePermissions';
-import RentalTemplateEditorModal, { RentalTemplateData, RENTAL_DATA_TOOLS } from './RentalTemplateEditorModal';
+import { ROUTES } from '../../routes';
+import { RentalTemplateData, RENTAL_DATA_TOOLS } from './RentalTemplateEditorModal';
 import { Rental, Vehicle, Customer } from '../../types';
 import toast from 'react-hot-toast';
-import { loadTemplatesForCategory, markTemplateAsDeleted } from '../../utils/templateManager';
+import { loadTemplatesForCategory } from '../../utils/templateManager';
 
 export interface RentalTemplatesModalProps {
   isOpen: boolean;
@@ -45,13 +38,7 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
   vehicle,
   onSelectTemplate,
 }) => {
-  const { can, isAdmin } = usePermissions();
-  
-  // Granular template permissions: admin or specific permission
-  const canCreate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit') || can('automation', 'create') || can('whatsapp', 'template');
-  const canEdit = isAdmin || can('rentals', 'templateEdit') || can('automation', 'update') || can('whatsapp', 'template');
-  const canDelete = isAdmin || can('rentals', 'templateDelete') || can('automation', 'delete') || can('whatsapp', 'delete');
-  const isReadOnly = !canEdit && !canCreate;
+  const navigate = useNavigate();
 
   // Active Navigation Tab: 'whatsapp' or 'email'
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'email'>(initialTab);
@@ -70,11 +57,6 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
-
-  // Editor modal state
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
-  const [selectedTemplateForEdit, setSelectedTemplateForEdit] = useState<RentalTemplateData | null>(null);
 
   // Load templates from unified template manager
   const loadTemplates = useCallback(async () => {
@@ -102,6 +84,12 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
       loadTemplates();
     }
   }, [isOpen, loadTemplates]);
+
+  const handleRedirectToManage = () => {
+    onClose();
+    toast('Redirecting to Automation Control to manage templates...', { icon: '⚡' });
+    navigate(ROUTES.AUTOMATION);
+  };
 
   // Safe population of placeholders
   const populateString = useCallback((raw: string): string => {
@@ -177,40 +165,6 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleOpenCreate = () => {
-    if (!canCreate) {
-      toast.error('Permission denied: You do not have permission to create templates.');
-      return;
-    }
-    setSelectedTemplateForEdit(null);
-    setEditorMode('create');
-    setEditorOpen(true);
-  };
-
-  const handleOpenEdit = (t: RentalTemplateData) => {
-    setSelectedTemplateForEdit(t);
-    setEditorMode('edit');
-    setEditorOpen(true);
-  };
-
-  const handleDeleteTemplate = async (t: RentalTemplateData) => {
-    if (!canDelete) {
-      toast.error('Permission denied: You do not have permission to delete templates.');
-      return;
-    }
-    if (!t.id) return;
-    if (!window.confirm(`Are you sure you want to delete "${t.name}"? This will permanently remove it from your template choices.`)) return;
-
-    try {
-      await markTemplateAsDeleted(t.id, t.category);
-      toast.success(`Template "${t.name}" deleted permanently`);
-      loadTemplates();
-    } catch (err) {
-      console.error('Delete template error:', err);
-      toast.error('Failed to delete template');
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -225,26 +179,25 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
         <div className="flex flex-col h-full space-y-3 text-slate-800 min-h-0">
           {/* Top Controls Container - Pinned at top */}
           <div className="shrink-0 space-y-3">
-            {/* Permission Status Banner if Read Only */}
-            {isReadOnly ? (
-              <div className="flex items-start gap-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-                <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-amber-900 mr-1.5">Read-Only Mode:</span>
-                  You have permission to view, search, and copy templates. Editing and creating templates requires the <span className="underline font-semibold">Edit Message Templates</span> permission in User Roles.
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>You have full permission to <strong>create, customize, and edit</strong> all WhatsApp and Email templates.</span>
-                </div>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-md text-[11px] border border-emerald-300">
-                  Editor Access
+            {/* Centralized Template Architecture Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>
+                  <strong>Centralized Templates:</strong> WhatsApp and Email templates are created &amp; managed exclusively on <strong>Automation Control</strong>.
                 </span>
               </div>
-            )}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleRedirectToManage}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg transition-colors cursor-pointer"
+                >
+                  <span>Automation Control</span>
+                  <ExternalLink className="w-3 h-3 ml-0.5" />
+                </button>
+              </div>
+            </div>
 
             {/* MODAL NAVIGATION TABS (WhatsApp vs Email) */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-0">
@@ -292,21 +245,16 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                 </button>
               </div>
 
-              {/* Top Action: Create Template */}
+              {/* Centralized Redirect Action */}
               <div className="pb-2">
                 <button
                   type="button"
-                  onClick={handleOpenCreate}
-                  disabled={!canCreate}
-                  title={!canCreate ? 'You do not have permission to create templates' : 'Create new template'}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
-                    !canCreate
-                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer active:scale-95'
-                  }`}
+                  onClick={handleRedirectToManage}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all shadow-sm border cursor-pointer bg-blue-600 hover:bg-blue-700 text-white border-blue-700"
+                  title="Open Automation Control to create or edit templates"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Create Template</span>
+                  <span>Manage in Automation Control</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -365,18 +313,16 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                 <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
                   {searchQuery 
                     ? `No ${activeTab} templates match your search "${searchQuery}".` 
-                    : `No templates configured for ${activeTab}. Click "+ Create Template" above to add one.`}
+                    : `No templates configured for ${activeTab}. Manage them in ${activeTab === 'whatsapp' ? 'WhatsApp Communication' : 'Bulk Email'}.`}
                 </p>
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={handleOpenCreate}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Create First Template
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleRedirectToManage(activeTab)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Manage in {activeTab === 'whatsapp' ? 'WhatsApp' : 'Bulk Email'}
+                </button>
               </div>
             ) : (
               filteredTemplates.map((t) => {
@@ -471,32 +417,17 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
                           {copiedId === t.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         </button>
 
-                        {/* Edit or View Template */}
+                        {/* Edit Template in Centralized Page */}
                         <button
                           type="button"
-                          onClick={() => handleOpenEdit(t)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
-                            isReadOnly
-                              ? 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
-                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
-                          }`}
-                          title={isReadOnly ? 'View template details (read-only)' : 'Edit template'}
+                          onClick={() => handleRedirectToManage(t.channel === 'email' ? 'email' : 'whatsapp')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer shadow-2xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                          title={`Edit this template on the ${t.channel === 'email' ? 'Bulk Email' : 'WhatsApp Communication'} page`}
                         >
-                          {isReadOnly ? <Lock className="w-3 h-3 text-amber-600" /> : <Edit3 className="w-3 h-3 text-indigo-600" />}
-                          <span>{isReadOnly ? 'View' : 'Edit'}</span>
+                          <FileText className="w-3 h-3 text-blue-600" />
+                          <span>Edit on {t.channel === 'email' ? 'Email' : 'WhatsApp'}</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
                         </button>
-
-                        {/* Delete (only if protected delete permission) */}
-                        {canDelete && t.id && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTemplate(t)}
-                            className="p-1 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg cursor-pointer transition-colors"
-                            title="Delete template (Protected)"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-500" />
-                          </button>
-                        )}
                       </div>
                     </div>
 
@@ -535,26 +466,6 @@ export const RentalTemplatesModal: React.FC<RentalTemplatesModalProps> = ({
           </div>
         </div>
       </Modal>
-
-      {/* Embedded Template Editor (Respects Read-Only) */}
-      <RentalTemplateEditorModal
-        isOpen={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        templateToEdit={selectedTemplateForEdit}
-        mode={editorMode}
-        rental={rental}
-        customer={customer}
-        vehicle={vehicle}
-        readOnly={isReadOnly}
-        onSaved={(id) => {
-          loadTemplates();
-          setEditorOpen(false);
-        }}
-        onDeleted={(id) => {
-          loadTemplates();
-          setEditorOpen(false);
-        }}
-      />
     </>
   );
 };

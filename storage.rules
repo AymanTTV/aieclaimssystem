@@ -4,42 +4,40 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    function isAdmin() {
-      return isAuthenticated() && 
-        firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    function isManager() {
-      return isAuthenticated() && 
-        firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+
+    // Rental documents & Invoices - Public read access for customers and recipients to view/download shared invoices, agreements, permits, and claim forms without login
+    match /rentals/{rentalId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
-    // Allow read access to all authenticated users
-    match /{allPaths=**} {
-      allow read: if isAuthenticated();
+    // Direct and finance Invoices - Public read access for shared invoices
+    match /invoices/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     // Profile pictures
     match /profile-pictures/{userId} {
-      allow write: if isAuthenticated() && 
-        (request.auth.uid == userId || isAdmin());
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
-    // Vehicle images
-    match /vehicles/{vehicleId}/{fileName} {
-      allow write: if isAuthenticated() && 
-        (isAdmin() || isManager());
-    }
-
-    // Rental documents
-    match /rentals/{rentalId}/{fileName} {
-      allow write: if isAuthenticated() && 
-        (isAdmin() || isManager());
+    // Vehicle images and documents
+    match /vehicles/{vehicleId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     // Claims documents
-    match /claims/{claimId}/{fileName} {
+    match /claims/{claimId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Fallback: Allow public read access to all documents (agreements, invoices, permits) and authenticated write
+    match /{allPaths=**} {
+      allow read: if true;
       allow write: if isAuthenticated();
     }
   }

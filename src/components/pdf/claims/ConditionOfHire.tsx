@@ -3,14 +3,14 @@ import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { Claim } from '../../../types';
 import { styles } from '../styles';
-import logo from '../../../assets/logo.png';
+import aieClaimsLogo from '../../../assets/aieclaim.png';
 import {
   getHireCommencementDate,
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  formatInlineCompanyFooter
+  AIE_CLAIMS_FOOTER_TEXT
 } from '../../../utils/legalDocumentUtils';
 
 const localStyles = StyleSheet.create({
@@ -148,12 +148,12 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
 
   // Dynamically interpolate template variables
   const processedTerms = parseLegalVariables(rawTerms, {
-    companyName: companyDetails?.fullName || 'AIE SKYLINE LIMITED',
-    companyAddress: companyDetails?.officialAddress || '',
-    companyPhone: companyDetails?.phone || '',
-    companyEmail: companyDetails?.email || '',
+    companyName: 'AIE Claims LTD',
+    companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
+    companyPhone: '+442080505337',
+    companyEmail: 'claims@aieclaims.co.uk',
     companyVat: companyDetails?.vatNumber || '',
-    companyRegistration: companyDetails?.registrationNumber || '',
+    companyRegistration: '15616639',
     hirerName: clientName,
     customerName: clientName,
     hirerAddress: clientAddress,
@@ -173,7 +173,7 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
 
   const paragraphs = splitParagraphs(processedTerms);
 
-  const footerText = formatInlineCompanyFooter(companyDetails);
+  const footerText = AIE_CLAIMS_FOOTER_TEXT;
 
   return (
     <Document>
@@ -181,13 +181,13 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
         {/* HEADER - fixed on all pages */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={logo} style={styles.logo} />
+            <Image src={aieClaimsLogo} style={styles.logo} />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-            <Text style={styles.companyDetail}>{companyDetails?.officialAddress || ''}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || ''}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails?.email || ''}</Text>
+            <Text style={styles.companyName}>AIE Claims LTD</Text>
+            <Text style={styles.companyDetail}>United House, 39-41 North Road, London, N7 9DP</Text>
+            <Text style={styles.companyDetail}>Tel: +442080505337</Text>
+            <Text style={styles.companyDetail}>Email: claims@aieclaims.co.uk</Text>
           </View>
         </View>
 
@@ -274,7 +274,7 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
             {companyDetails?.signature && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text style={{ fontSize: 9, marginTop: 4 }}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>AIE Claims LTD</Text>
             <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
               Date: {hireStartDateFormatted}
             </Text>

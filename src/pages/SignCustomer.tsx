@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import SignaturePad from '../components/ui/SignaturePad';
 import { CheckCircle, AlertCircle, Lock, Clock } from 'lucide-react'; // Added Clock icon
 import { Customer } from '../types/customer';
+import { formatSignatureTimestamp, stampSignatureImage } from '../utils/signatureStamp';
 
 const SignCustomer = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,8 +17,10 @@ const SignCustomer = () => {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [signature, setSignature] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [signedTimestamp, setSignedTimestamp] = useState('');
   const [error, setError] = useState('');
   const [isExpiredError, setIsExpiredError] = useState(false); // To show specific UI for expiration
 
@@ -71,17 +74,26 @@ const SignCustomer = () => {
   }, [id, tokenParam]);
 
   const handleSubmit = async () => {
-    if (!signature || !id) return;
+    if (!signature || !id || !termsAccepted) return;
     setSubmitting(true);
     try {
       const docRef = doc(db, 'customers', id);
+      const signedDate = new Date();
+      const timestampText = formatSignatureTimestamp(signedDate);
+      const stampedSignature = await stampSignatureImage(signature, timestampText, customer?.name);
+
       await updateDoc(docRef, {
-        signature: signature,
-        updatedAt: new Date(),
+        signature: stampedSignature,
+        signatureTimestamp: timestampText,
+        signedAt: signedDate,
+        termsAccepted: true,
+        termsAcceptedAt: signedDate,
+        updatedAt: signedDate,
         // IMPORTANT: Delete both the token and the expiration time
         signatureRequestToken: deleteField(),
         signatureRequestExpiresAt: deleteField()
       });
+      setSignedTimestamp(timestampText);
       setSuccess(true);
     } catch (err) {
       console.error('Error saving signature:', err);
@@ -96,10 +108,21 @@ const SignCustomer = () => {
   if (success) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
-        <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h1>
-        <p className="text-gray-600">Your signature has been successfully saved.</p>
-        <p className="text-sm text-gray-400 mt-4">You can close this window.</p>
+        <div className="max-w-md w-full bg-white rounded-xl shadow-md p-8 border border-slate-100">
+          <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h1>
+          <p className="text-gray-600 mb-4">Your electronic signature has been legally verified and successfully saved.</p>
+          
+          {signedTimestamp && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 font-mono mb-4 text-left">
+              <span className="font-bold block mb-1">Audit Trail Record:</span>
+              <p>{signedTimestamp}</p>
+              <p className="text-emerald-700 mt-1">✓ Verified Terms & Conditions Agreed</p>
+            </div>
+          )}
+          
+          <p className="text-sm text-gray-400">You can safely close this window.</p>
+        </div>
       </div>
     );
   }
@@ -148,8 +171,13 @@ const SignCustomer = () => {
                 className="max-h-20 opacity-70" 
               />
             </div>
+            {customer.signatureTimestamp && (
+              <p className="text-[11px] text-gray-500 font-mono text-center mt-2">
+                {customer.signatureTimestamp}
+              </p>
+            )}
             <p className="text-xs text-gray-400 text-center mt-2">
-              Signing below will replace this signature.
+              Signing below will replace this signature and record a new timestamp.
             </p>
           </div>
         )}
@@ -159,24 +187,48 @@ const SignCustomer = () => {
             {customer.signature ? 'New Signature' : 'Please sign below'}
           </label>
           
-          <div className="border rounded-md">
+          <div className="border rounded-md bg-white">
             <SignaturePad 
               value={signature} 
               onChange={setSignature} 
             />
           </div>
 
+          {/* Mandatory Terms & Conditions Tick Box */}
+          <div className="pt-2 border-t border-gray-100">
+            <label className="flex items-start space-x-3 cursor-pointer select-none group">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer transition-colors"
+                required
+              />
+              <span className="text-xs text-gray-700 leading-relaxed font-medium group-hover:text-gray-900">
+                I agree to the <span className="font-semibold text-gray-900 underline">Terms &amp; Conditions</span> and confirm that my electronic signature is legally binding.
+              </span>
+            </label>
+          </div>
+
+          {/* Submit button: strictly disabled until signature is drawn AND T&C is checked */}
           <button
+            type="button"
             onClick={handleSubmit}
-            disabled={!signature || submitting}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 focus:outline-none disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            disabled={!signature || !termsAccepted || submitting}
+            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-primary hover:bg-primary-600 focus:outline-none disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-all"
           >
-            {submitting ? 'Saving...' : 'Submit Signature'}
+            {submitting ? 'Verifying & Saving...' : 'Submit / Sign'}
           </button>
+
+          {!termsAccepted && signature && (
+            <p className="text-xs text-amber-600 font-medium text-center">
+              ⚠️ Please tick the Terms &amp; Conditions box to enable submission.
+            </p>
+          )}
         </div>
         
         <p className="text-xs text-gray-400 text-center mt-6">
-          Secure one-time link provided by AIE Skyline
+          Secure one-time link provided by AIE Skyline • Legally Binding E-Signature
         </p>
       </div>
     </div>

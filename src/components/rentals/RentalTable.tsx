@@ -99,7 +99,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onSetReturnExpectation,
   onExtend,
 }) => {
-  const { can } = usePermissions();
+  const { can, isAdmin } = usePermissions();
   const { user } = useAuth(); 
   const { formatCurrency } = useFormattedDisplay();
 
@@ -547,12 +547,12 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
 
             {/* ROW 3: Documents Generation & Communications */}
-            {(can('rentals', 'whatsapp') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler') || can('rentals', 'singleDoc')) && (
+            {(isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler') || can('rentals', 'singleDoc')) && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
-                {can('rentals', 'whatsapp') && (
+                {(isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view')) && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
                 )}
-                {can('rentals', 'email') && (
+                {(isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view')) && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
                 )}
                 {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && r.status === 'active' && (() => {
@@ -672,8 +672,11 @@ const RentalTable: React.FC<RentalTableProps> = ({
         isOpen={commModal.isOpen}
         onClose={() => setCommModal(prev => ({ ...prev, isOpen: false, rental: null }))}
         rental={commModal.rental}
-        customer={commCustomer}
-        vehicle={commVehicle}
+        rentals={rentals}
+        customer={commCustomer || undefined}
+        vehicle={commVehicle || undefined}
+        customers={customers}
+        vehicles={vehicles}
         initialMode={commModal.mode}
       />
     </>

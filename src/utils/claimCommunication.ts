@@ -8,11 +8,14 @@ import { sendEmail } from './emailService';
 import { formatWhatsAppNumber, buildWaMeLink } from './whatsapp';
 import { logWhatsappHistory } from '../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../hooks/useEmailHistory';
+import { logCommunication } from '../services/communicationLogService';
 import { resolveNameFields } from './nameAddressUtils';
 import { emailTemplates } from '../constants/emailTemplates';
+import { isTemplateInCategory, isTemplateDeletedSync } from './templateManager';
 import { pdf } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import ClaimDocument from '../components/pdf/documents/ClaimDocument';
+import { AIE_CLAIMS_COMPANY_DETAILS } from './legalDocumentUtils';
 
 export type ClaimCommunicationChannel = 'whatsapp' | 'email';
 export type ClaimTemplateCategory = 'general' | 'progress' | 'legal_handler' | 'custom' | 'all';
@@ -858,23 +861,10 @@ export async function generateClaimCardPdf(claim: Claim): Promise<ClaimAttachmen
     };
   }
 
-  // 1. Fetch company details with fallback
-  let companyDetails: any = {
-    fullName: 'AIE Claims LTD',
-    addressLine1: 'United House, 39-41 North Road,',
-    addressLine2: 'London, N7 9DP',
-    phone: '+442080505337',
-    email: 'claims@aieclaims.co.uk',
+  // 1. Fetch company details with fallback to AIE Claims LTD
+  const companyDetails: any = {
+    ...AIE_CLAIMS_COMPANY_DETAILS,
   };
-  try {
-    const docRef = doc(db, 'companySettings', 'details');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      companyDetails = { ...companyDetails, ...docSnap.data() };
-    }
-  } catch (err) {
-    console.warn('Using default company details for Claim Card:', err);
-  }
 
   // 2. Normalize claim reasons
   const normalized: Claim = {
@@ -930,7 +920,9 @@ export async function generateClaimCardPdf(claim: Claim): Promise<ClaimAttachmen
  * Fetches active templates from Firestore `messageTemplates` where category is 'claim' or related,
  * and merges with built-ins from DEFAULT_CLAIM_TEMPLATES and emailTemplates.claim
  */
-export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
+export async function fetchClaimTemplates(
+  channelFilter?: ClaimCommunicationChannel
+): Promise<ClaimTemplateOption[]> {
   const result: ClaimTemplateOption[] = [];
   const seenIds = new Set<string>();
 
@@ -944,11 +936,34 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
       const rawName = data.name || 'Communication Template';
       const lowerName = rawName.toLowerCase();
       const lowerBody = (data.bodyTemplate || data.body || data.content || '').toLowerCase();
+      const docChannel = String(data.channel || data.platform || '').toLowerCase().trim();
+
+      if (isTemplateDeletedSync(docSnap.id)) return;
+      if (data.isDeleted === true || data.deleted === true) return;
+
+      // STRICT FOLDER ACCESS: Strictly allow templates from 'claim' folder + universal 'custom' folder
+      const isClaim = isTemplateInCategory(cat, 'claim');
+      const isCustom = isTemplateInCategory(cat, 'custom');
+      if (!isClaim && !isCustom) {
+        return;
+      }
+
+      // If channel filter specified, filter out non-matching channels
+      if (
+        channelFilter &&
+        docChannel &&
+        docChannel !== 'all' &&
+        docChannel !== channelFilter
+      ) {
+        return;
+      }
 
       // Categorize into 'legal_handler', 'progress', 'custom', or 'general'
       let templateCategory: ClaimTemplateCategory = 'general';
 
-      if (
+      if (isCustom) {
+        templateCategory = 'custom';
+      } else if (
         cat === 'legal_handler' ||
         cat === 'legal' ||
         recipientType === 'legalhandler' ||
@@ -968,15 +983,9 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
         lowerBody.includes('status update')
       ) {
         templateCategory = 'progress';
-      } else if (cat === 'custom' || data.isCustom) {
-        templateCategory = 'custom';
-      } else if (cat && cat !== 'claim') {
-        templateCategory = 'custom';
       }
 
-      const displayName = cat && cat !== 'claim' && cat !== 'general'
-        ? `[${data.category}] ${rawName}`
-        : rawName;
+      const displayName = isCustom ? `[Custom] ${rawName}` : rawName;
 
       // Channel is unlocked to 'all' so user can dispatch via either WhatsApp or Email
       const option: ClaimTemplateOption = {
@@ -998,7 +1007,7 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
 
   // 2. Add defaults
   for (const tpl of DEFAULT_CLAIM_TEMPLATES) {
-    if (!seenIds.has(tpl.id)) {
+    if (!seenIds.has(tpl.id) && !isTemplateDeletedSync(tpl.id)) {
       result.push(tpl);
       seenIds.add(tpl.id);
     }
@@ -1007,7 +1016,7 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
   // 3. Add any from constants/emailTemplates.claim that aren't already included
   if (Array.isArray(emailTemplates?.claim)) {
     for (const tpl of emailTemplates.claim) {
-      if (!seenIds.has(tpl.id)) {
+      if (!seenIds.has(tpl.id) && !isTemplateDeletedSync(tpl.id)) {
         const isProgress =
           tpl.id.includes('status') ||
           tpl.name.toLowerCase().includes('status') ||
@@ -1026,6 +1035,24 @@ export async function fetchClaimTemplates(): Promise<ClaimTemplateOption[]> {
           subjectTemplate: tpl.subjectTemplate,
           bodyTemplate: tpl.bodyTemplate,
           isCustom: false,
+        });
+        seenIds.add(tpl.id);
+      }
+    }
+  }
+
+  // 4. Add any from constants/emailTemplates.custom that aren't already included (universal Custom folder)
+  if (Array.isArray(emailTemplates?.custom)) {
+    for (const tpl of emailTemplates.custom) {
+      if (!seenIds.has(tpl.id) && !isTemplateDeletedSync(tpl.id)) {
+        result.push({
+          id: tpl.id,
+          name: `[Custom] ${tpl.name}`,
+          category: 'custom',
+          channel: 'all',
+          subjectTemplate: tpl.subjectTemplate,
+          bodyTemplate: tpl.bodyTemplate,
+          isCustom: true,
         });
         seenIds.add(tpl.id);
       }
@@ -1090,6 +1117,24 @@ export async function executeClaimWhatsApp(params: {
       subject: params.subject || `Claim ${claimRef} Update (${params.recipientType || 'client'})`,
       body: finalMessage,
       timestamp: new Date(),
+      skipCommunicationLogs: true,
+    });
+
+    await logCommunication({
+      communication_channel: 'WhatsApp',
+      recipient_role: params.recipientType === 'legalHandler' ? 'Legal Handler' : 'Client',
+      recipient_name: params.recipientName,
+      recipient_contact: params.phone,
+      source_module: 'Claim',
+      record_id: claimRef,
+      template_name: params.templateName || (params.templateId ? `Template: ${params.templateId}` : 'Claim Update'),
+      message_body: finalMessage,
+      attachments: (params.attachments || []).map((a: any) => ({ name: a.filename, url: a.url })),
+      delivery_status: 'Sent',
+      subject: params.subject || `Claim ${claimRef} Update`,
+      customerId: params.claim.customerId || '',
+      vehicleId: params.claim.vehicleId || '',
+      sender_user_id: params.userName,
     });
   } catch (histErr) {
     console.warn('Failed to log WhatsApp communication history:', histErr);
@@ -1182,6 +1227,24 @@ export async function executeClaimEmail(params: {
           recipients: [params.email],
           subject: params.subject,
           timestamp: new Date(),
+          skipCommunicationLogs: true,
+        });
+
+        await logCommunication({
+          communication_channel: 'Email',
+          recipient_role: params.recipientType === 'legalHandler' ? 'Legal Handler' : 'Client',
+          recipient_name: params.recipientName,
+          recipient_contact: params.email,
+          source_module: 'Claim',
+          record_id: claimRef,
+          template_name: params.templateName || (params.templateId ? `Template: ${params.templateId}` : 'Claim Email'),
+          message_body: finalBody,
+          attachments: (params.attachments || []).map((a: any) => ({ name: a.filename, url: a.url })),
+          delivery_status: 'Sent',
+          subject: params.subject,
+          customerId: params.claim.customerId || '',
+          vehicleId: params.claim.vehicleId || '',
+          sender_user_id: params.userName,
         });
       } catch (histErr) {
         console.warn('Failed to log email history:', histErr);
@@ -1208,6 +1271,24 @@ export async function executeClaimEmail(params: {
       recipients: [params.email],
       subject: params.subject,
       timestamp: new Date(),
+      skipCommunicationLogs: true,
+    });
+
+    await logCommunication({
+      communication_channel: 'Email',
+      recipient_role: params.recipientType === 'legalHandler' ? 'Legal Handler' : 'Client',
+      recipient_name: params.recipientName,
+      recipient_contact: params.email,
+      source_module: 'Claim',
+      record_id: claimRef,
+      template_name: params.templateName || (params.templateId ? `Template: ${params.templateId}` : 'Claim Email'),
+      message_body: finalBody,
+      attachments: (params.attachments || []).map((a: any) => ({ name: a.filename, url: a.url })),
+      delivery_status: 'Sent',
+      subject: params.subject,
+      customerId: params.claim.customerId || '',
+      vehicleId: params.claim.vehicleId || '',
+      sender_user_id: params.userName,
     });
   } catch (histErr) {
     console.warn('Failed to log email history for mailto:', histErr);

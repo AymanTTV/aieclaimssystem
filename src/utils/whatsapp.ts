@@ -48,8 +48,49 @@ export const sendWhatsAppMessage = ({ phone, message }: WhatsAppMessage) => {
   if (!digits) throw new Error('Invalid phone number for WhatsApp');
 
   const url = buildWaMeLink(digits, message);
-  window.open(url, '_blank', 'noopener,noreferrer');
+  openWhatsAppLink(url);
 };
+
+/**
+ * Safely opens a WhatsApp link in a new window/tab or via direct anchor dispatch,
+ * preventing browser popup blockers from suppressing the action.
+ */
+export function openWhatsAppLink(url: string): boolean {
+  if (!url) return false;
+
+  // 1. Direct window.open within the user gesture event loop.
+  // Note: do NOT pass 'noopener,noreferrer' as the windowFeatures string argument,
+  // because per WHATWG HTML spec, passing 'noopener' in features causes window.open to return null.
+  try {
+    const newWin = window.open(url, '_blank');
+    if (newWin) {
+      newWin.focus?.();
+      return true;
+    }
+  } catch (err) {
+    console.warn('[openWhatsAppLink] Direct window.open failed:', err);
+  }
+
+  // 2. Programmatic anchor dispatch with target="_blank"
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        if (link.parentNode) link.parentNode.removeChild(link);
+      } catch {}
+    }, 300);
+    return true;
+  } catch (err) {
+    console.warn('[openWhatsAppLink] Anchor click failed:', err);
+  }
+
+  return false;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Prebuilt notifications (reused across the app)

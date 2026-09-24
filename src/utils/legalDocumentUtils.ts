@@ -177,12 +177,39 @@ export const parseAddressForFooter = (rawAddress?: string): { addrLine1: string;
   return { addrLine1: cleaned.replace(/[,.]+$/, '') + '.', addrLine2: '' };
 };
 
+export const AIE_CLAIMS_COMPANY_DETAILS = {
+  fullName: 'AIE Claims LTD',
+  name: 'AIE Claims Ltd.',
+  registrationNumber: '15616639',
+  officialAddress: 'United House, 39-41 North Road, London, N7 9DP',
+  addressLine1: 'United House, 39-41 North Road,',
+  addressLine2: 'London, N7 9DP',
+  phone: '+442080505337',
+  email: 'claims@aieclaims.co.uk',
+};
+
+export const AIE_CLAIMS_FOOTER_TEXT =
+  'AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP';
+
+export const formatClaimCompanyFooter = (_companyDetails?: any): string => {
+  return AIE_CLAIMS_FOOTER_TEXT;
+};
+
 /**
  * Formats company legal details into a clean, balanced 2-row footer:
  * Row 1: "AIE Skyline Limited, registered in England and Wales (Company No: 14592207)"
  * Row 2: "Registered Office: United House, 39-41 North Road, London, N7 9DP. | VAT No: 453448875"
  */
 export const formatInlineCompanyFooter = (companyDetails?: any): string => {
+  if (
+    companyDetails?.isClaim ||
+    companyDetails?.useAieClaims ||
+    companyDetails?.fullName?.toLowerCase().includes('claim') ||
+    companyDetails?.name?.toLowerCase().includes('claim')
+  ) {
+    return AIE_CLAIMS_FOOTER_TEXT;
+  }
+
   const name = companyDetails?.fullName || companyDetails?.name || 'AIE Skyline Limited';
   const regNo = companyDetails?.registrationNumber || '14592207';
   const vat = companyDetails?.vatNumber || '453448875';

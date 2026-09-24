@@ -4,6 +4,7 @@ import { useCustomers } from '../hooks/useCustomers';
 import { useClaims } from '../hooks/useClaims';
 import { useCustomerFilters } from '../hooks/useCustomerFilters';
 import CustomerTable from '../components/customers/CustomerTable';
+import MemberCards from '../components/customers/MemberCards';
 import CustomerFilters from '../components/customers/CustomerFilters';
 import CustomerForm from '../components/customers/CustomerForm';
 import CustomerDetails from '../components/customers/CustomerDetails';
@@ -11,7 +12,7 @@ import { GroupMessagingModal } from '../components/customers/GroupMessagingModal
 import Modal from '../components/ui/Modal';
 import { Customer } from '../types/customer';
 import { handleCustomerExport } from '../utils/customerHelpers';
-import { Plus, Download, CheckCircle, XCircle, Edit3, Radio } from 'lucide-react';
+import { Plus, Download, CheckCircle, XCircle, Edit3, Radio, LayoutGrid, List } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
@@ -48,6 +49,7 @@ const Customers = () => {
   // [NEW] Bill Copy Tracker State
   const [updatingBillCopy, setUpdatingBillCopy] = useState<Customer | null>(null);
   const [billCopyData, setBillCopyData] = useState<{status: 'available' | 'unavailable', note: string}>({status: 'unavailable', note: ''});
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Load existing data when modal opens
   useEffect(() => {
@@ -203,19 +205,71 @@ const Customers = () => {
         selectedType={selectedType} onTypeFilter={setSelectedType}
       />
 
-      {/* Table */}
-      <CustomerTable
-        customers={visibleCustomers}
-        onView={setSelectedCustomer}
-        onEdit={(c) => handleOpenEditForm(c)}
-        onDelete={setDeletingCustomer}
-        onGenerateDocument={handleGenerateDocument}
-        onViewDocument={handleViewDocument}
-        onAssignType={setAssigningCustomer}
-        onUpdateBillCopy={setUpdatingBillCopy} // [NEW]
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-      />
+      {/* View Switcher Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Directory View:</span>
+          <div className="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white text-blue-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Directory Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'cards'
+                  ? 'bg-white text-blue-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Member Cards</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="text-xs font-medium text-slate-500">
+          Showing <span className="font-bold text-slate-800">{visibleCustomers.length}</span> member{visibleCustomers.length === 1 ? '' : 's'}
+        </div>
+      </div>
+
+      {/* Directory Table or Member Cards */}
+      {viewMode === 'table' ? (
+        <CustomerTable
+          customers={visibleCustomers}
+          onView={setSelectedCustomer}
+          onEdit={(c) => handleOpenEditForm(c)}
+          onDelete={setDeletingCustomer}
+          onGenerateDocument={handleGenerateDocument}
+          onViewDocument={handleViewDocument}
+          onAssignType={setAssigningCustomer}
+          onUpdateBillCopy={setUpdatingBillCopy}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+        />
+      ) : (
+        <MemberCards
+          customers={visibleCustomers}
+          onView={setSelectedCustomer}
+          onEdit={(c) => handleOpenEditForm(c)}
+          onDelete={setDeletingCustomer}
+          onGenerateDocument={handleGenerateDocument}
+          onViewDocument={handleViewDocument}
+          onAssignType={setAssigningCustomer}
+          onUpdateBillCopy={setUpdatingBillCopy}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+        />
+      )}
 
       {/* Modals */}
       <Modal isOpen={isFormModalOpen} onClose={handleCloseForm} title={editingCustomer ? 'Edit Customer' : 'Add New Customer'} size="xl">

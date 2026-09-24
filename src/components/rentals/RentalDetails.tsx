@@ -42,7 +42,8 @@ import {
   Share2,
   RefreshCw,
   Smartphone,
-  Lock
+  Lock,
+  History
 } from 'lucide-react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -50,6 +51,7 @@ import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import VehicleConditionDetails from './VehicleConditionDetails';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 import { 
   calculateRentalCostDetailed, 
   calculateOverdueCost, 
@@ -63,6 +65,10 @@ import RentalMondayAutoEmailToggle from './RentalMondayAutoEmailToggle';
 import { sendSingleRentalTestEmail } from '../../jobs/mondayAutoEmailJob';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { RentalCommunicationModal } from './RentalCommunicationModal';
+import { openDocument } from '../../utils/uploadRentalDocuments';
+import { openWhatsAppLink } from '../../utils/whatsapp';
+import { logCommunication } from '../../services/communicationLogService';
+import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import RentalTemplatesModal from './RentalTemplatesModal';
 import RentalTemplateEditorModal, { RentalTemplateData, RENTAL_DATA_TOOLS } from './RentalTemplateEditorModal';
 import toast from 'react-hot-toast';
@@ -76,7 +82,7 @@ interface RentalDetailsProps {
   onClose?: () => void;
 }
 
-type RentalDetailTab = 'overview' | 'financials' | 'condition' | 'substitutions' | 'documents' | 'payments' | 'whatsapp' | 'email';
+type RentalDetailTab = 'overview' | 'financials' | 'condition' | 'substitutions' | 'documents' | 'payments' | 'whatsapp' | 'email' | 'history';
 
 const RentalDetails: React.FC<RentalDetailsProps> = ({
   rental,
@@ -277,8 +283,8 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   // Permissions & Templates Navigation Tabs modal state
   const { can, isAdmin } = usePermissions();
   const canEditTemplates = isAdmin || can('rentals', 'templateEdit');
-  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp');
-  const canSendEmail = isAdmin || can('rentals', 'email');
+  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view');
+  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view');
   const [isTemplatesNavModalOpen, setIsTemplatesNavModalOpen] = useState(false);
   const [templatesNavModalTab, setTemplatesNavModalTab] = useState<'whatsapp' | 'email'>('whatsapp');
 
@@ -571,7 +577,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     }
   };
 
-  const handleOpenWhatsApp = () => {
+  const handleOpenWhatsApp = async () => {
     if (!canSendWhatsApp) {
       toast.error('You do not have permission to send or dispatch WhatsApp messages');
       return;
@@ -586,12 +592,70 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     } else if (cleanPhone.startsWith('+')) {
       cleanPhone = cleanPhone.slice(1);
     }
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(commMessage)}`;
-    window.open(url, '_blank');
-    toast.success('Opening WhatsApp...');
+
+    const finalMessage = commMessage.trim();
+    if (!finalMessage) {
+      toast.error('Message text cannot be empty');
+      return;
+    }
+
+    const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
+    const customerName = customer?.name || (rental as any).customerName || 'Customer';
+    const curTpl = commTemplates.find(t => t.id === selectedCommTemplateId);
+    const resolvedSubject = commSubject || (rental.rentalAgreementNumber ? `Rental Agreement #${rental.rentalAgreementNumber}` : 'Rental Details');
+
+    // Collect attached document URLs
+    const attachedUrls: string[] = [];
+    selectedDocIds.forEach((docId) => {
+      if (docId === 'hireAgreement') {
+        const u = latestAgreementKey && rental.documents?.agreements?.[latestAgreementKey];
+        if (u) attachedUrls.push(u);
+      } else if (docId === 'invoice' && rental.documents?.invoice) {
+        attachedUrls.push(rental.documents.invoice);
+      } else if (docId === 'permit' && rental.documents?.permit) {
+        attachedUrls.push(rental.documents.permit);
+      } else if ((rental.documents as any)?.[docId]) {
+        attachedUrls.push((rental.documents as any)[docId]);
+      }
+    });
+
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMessage)}`;
+
+    // 1. Synchronously open WhatsApp immediately within user gesture to avoid popup blocker
+    openWhatsAppLink(url);
+    toast.success('WhatsApp opened and recorded in communication history');
+
+    // 2. Record communication logs in background without blocking the UI or popup
+    logWhatsappHistory({
+      sentBy: user?.email || user?.name || 'System User',
+      type: 'rental',
+      templateId: selectedCommTemplateId || 'custom_rental',
+      recipients: [cleanPhone],
+      subject: resolvedSubject,
+      body: finalMessage,
+      timestamp: new Date(),
+      skipCommunicationLogs: true,
+    }).catch((err) => console.warn('Could not record communication log for WhatsApp:', err));
+
+    logCommunication({
+      communication_channel: 'WhatsApp',
+      recipient_role: 'Customer',
+      recipient_name: customerName,
+      recipient_contact: cleanPhone,
+      source_module: 'Rental',
+      record_id: recId,
+      template_name: curTpl?.name || 'Custom WhatsApp',
+      message_body: finalMessage,
+      attachments: attachedUrls,
+      delivery_status: 'Sent',
+      subject: resolvedSubject,
+      customerId: rental.customerId || '',
+      vehicleId: rental.vehicleId || '',
+      sender_user_id: user?.email || user?.name,
+    }).catch((err) => console.warn('Could not record communication log for WhatsApp:', err));
   };
 
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     if (!canSendEmail) {
       toast.error('You do not have permission to send or dispatch emails');
       return;
@@ -600,9 +664,47 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       toast.error('Please enter a recipient email address');
       return;
     }
-    const mailtoUrl = `mailto:${encodeURIComponent(commRecipientEmail)}?subject=${encodeURIComponent(commSubject)}&body=${encodeURIComponent(commMessage)}`;
+
+    const finalMessage = commMessage.trim();
+    const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
+    const customerName = customer?.name || (rental as any).customerName || 'Customer';
+    const curTpl = commTemplates.find(t => t.id === selectedCommTemplateId);
+    const resolvedSubject = commSubject || (rental.rentalAgreementNumber ? `Rental Agreement #${rental.rentalAgreementNumber}` : 'Rental Details');
+
+    const attachedUrls: string[] = [];
+    selectedDocIds.forEach((docId) => {
+      if (docId === 'hireAgreement') {
+        const u = latestAgreementKey && rental.documents?.agreements?.[latestAgreementKey];
+        if (u) attachedUrls.push(u);
+      } else if (docId === 'invoice' && rental.documents?.invoice) {
+        attachedUrls.push(rental.documents.invoice);
+      } else if (docId === 'permit' && rental.documents?.permit) {
+        attachedUrls.push(rental.documents.permit);
+      } else if ((rental.documents as any)?.[docId]) {
+        attachedUrls.push((rental.documents as any)[docId]);
+      }
+    });
+
+    const mailtoUrl = `mailto:${encodeURIComponent(commRecipientEmail)}?subject=${encodeURIComponent(resolvedSubject)}&body=${encodeURIComponent(finalMessage)}`;
     window.location.href = mailtoUrl;
-    toast.success('Opened in your email client');
+    toast.success('Opened in your email client and recorded in communication history');
+
+    logCommunication({
+      communication_channel: 'Email',
+      recipient_role: 'Customer',
+      recipient_name: customerName,
+      recipient_contact: commRecipientEmail.trim(),
+      source_module: 'Rental',
+      record_id: recId,
+      template_name: curTpl?.name || 'Custom Email',
+      message_body: finalMessage,
+      attachments: attachedUrls,
+      delivery_status: 'Sent',
+      subject: resolvedSubject,
+      customerId: rental.customerId || '',
+      vehicleId: rental.vehicleId || '',
+      sender_user_id: user?.email || user?.name,
+    }).catch((err) => console.warn('Could not record communication log for Email:', err));
   };
 
   const handleSendTestStatementEmail = async () => {
@@ -639,6 +741,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     { id: 'payments', label: 'Payments', icon: CreditCard, count: paymentsCount },
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
     { id: 'email', label: 'Email', icon: Mail },
+    { id: 'history', label: 'History', icon: History },
   ];
 
   const currentTabIndex = tabs.findIndex(t => t.id === activeTab);
@@ -1192,7 +1295,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
               <button
                 type="button"
-                onClick={() => rental.documents?.invoice ? window.open(rental.documents.invoice, '_blank') : onDownloadInvoice?.()}
+                onClick={() => rental.documents?.invoice ? openDocument(rental.documents.invoice) : onDownloadInvoice?.()}
                 className={`inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                   rental.documents?.invoice 
                     ? 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100' 
@@ -1205,7 +1308,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
               <button
                 type="button"
-                onClick={() => rental.documents?.permit ? window.open(rental.documents.permit, '_blank') : onDownloadPermit?.()}
+                onClick={() => rental.documents?.permit ? openDocument(rental.documents.permit) : onDownloadPermit?.()}
                 className={`inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                   rental.documents?.permit 
                     ? 'border-purple-300 text-purple-800 bg-purple-50 hover:bg-purple-100' 
@@ -1686,7 +1789,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 {latestAgreementKey && (
                   <button
                     type="button"
-                    onClick={() => window.open(rental.documents!.agreements![latestAgreementKey], '_blank')}
+                    onClick={() => openDocument(rental.documents!.agreements![latestAgreementKey])}
                     className="inline-flex items-center px-3.5 py-2 border border-blue-300 shadow-xs text-xs font-bold rounded-xl text-blue-700 bg-blue-50 hover:bg-blue-100 transition cursor-pointer"
                   >
                     <FileText className="h-4 w-4 mr-2 text-blue-600" /> {formatLatestAgreementLabel()} (Main)
@@ -1697,7 +1800,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                   <button
                     key={key}
                     type="button"
-                    onClick={() => window.open(rental.documents!.agreements![key], '_blank')}
+                    onClick={() => openDocument(rental.documents!.agreements![key])}
                     className="inline-flex items-center px-3.5 py-2 border border-slate-200 shadow-xs text-xs font-medium rounded-xl text-slate-700 bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
                   >
                     <FileText className="h-4 w-4 mr-2 text-slate-600" /> {formatAgreementKey(key)}
@@ -1706,7 +1809,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => rental.documents?.invoice ? window.open(rental.documents.invoice, '_blank') : onDownloadInvoice?.()}
+                  onClick={() => rental.documents?.invoice ? openDocument(rental.documents.invoice) : onDownloadInvoice?.()}
                   className={`inline-flex items-center px-3.5 py-2 border shadow-xs text-xs font-bold rounded-xl transition cursor-pointer ${
                     rental.documents?.invoice 
                       ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100' 
@@ -1719,7 +1822,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => rental.documents?.permit ? window.open(rental.documents.permit, '_blank') : onDownloadPermit?.()}
+                  onClick={() => rental.documents?.permit ? openDocument(rental.documents.permit) : onDownloadPermit?.()}
                   className={`inline-flex items-center px-3.5 py-2 border shadow-xs text-xs font-bold rounded-xl transition cursor-pointer ${
                     rental.documents?.permit 
                       ? 'border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100' 
@@ -1746,7 +1849,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                         <button
                           key={docKey} 
                           type="button"
-                          onClick={() => window.open((rental.documents as any)[docKey], '_blank')}
+                          onClick={() => openDocument((rental.documents as any)[docKey])}
                           className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-xs text-xs font-medium rounded-lg text-slate-700 bg-slate-50 hover:bg-slate-100 cursor-pointer"
                           title={label}
                         >
@@ -1841,7 +1944,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
               <RentalPaymentHistory 
                 payments={rental.payments || []} 
-                onDownloadDocument={(url) => window.open(url, '_blank')} 
+                onDownloadDocument={(url) => openDocument(url)} 
               />
             </div>
 
@@ -1975,166 +2078,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                     </option>
                   ))}
                 </select>
-              </div>
-            </div>
-
-            {/* Quick Data Tools Bar */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  Quick Data Insert Tools (Click to Insert Live Values)
-                </span>
-                <span className="text-[10px] text-slate-500">Values are injected live</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {/* Payment & Receipts Tools */}
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{date_paid}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer"
-                  title="Insert Date of Last Payment Paid"
-                >
-                  + Date Paid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
-                  title="Insert Amount of Last Payment Paid"
-                >
-                  + Last Payment Paid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_type}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 transition cursor-pointer"
-                  title="Insert Payment Method (Bank Transfer, Card, Cash, etc.)"
-                >
-                  + Payment Type
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_ref}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition cursor-pointer"
-                  title="Insert Last Payment Reference"
-                >
-                  + Payment Ref
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{owing_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-[#DC2626] border border-rose-200 transition cursor-pointer"
-                  title="Insert Total Current Outstanding Balance"
-                >
-                  + Outstanding: {formatCurrency(remaining)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{paid_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-[#15803D] border border-emerald-200 transition cursor-pointer"
-                  title="Insert Total Amount Paid"
-                >
-                  + Paid: {formatCurrency(paid)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{total_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-[#D97706] border border-amber-200 transition cursor-pointer"
-                  title="Insert Total Cost"
-                >
-                  + Total: {formatCurrency(totalAmountDue)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_status}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition cursor-pointer"
-                  title="Insert Payment Status"
-                >
-                  + Status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{transaction_payment}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
-                  title="Insert Last Transaction Summary"
-                >
-                  + Last Txn Summary
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_statement}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer"
-                  title="Insert Complete Statement of All Transactions"
-                >
-                  + Full Statement
-                </button>
-
-                {/* Vehicle & Rental Tools */}
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{vehicle_reg}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Vehicle Registration Plate"
-                >
-                  + Reg: {vehicle?.registrationNumber || rental.vehicleReg || 'N/A'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{vehicle_name}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Vehicle Make & Model"
-                >
-                  + Vehicle: {vehicle?.make} {vehicle?.model}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{agreement_number}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Rental Agreement Number"
-                >
-                  + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{client_name}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Customer Name"
-                >
-                  + Customer: {customer?.name || rental.customerName || 'Customer'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{start_date}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Start Date"
-                >
-                  + Start Date
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{end_date}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Due / End Date"
-                >
-                  + Due Date
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{weekly_rate}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Weekly Rate"
-                >
-                  + Weekly Rate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_details}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 transition cursor-pointer"
-                  title="Insert Lloyds Bank Details"
-                >
-                  + Lloyds Bank Details
-                </button>
               </div>
             </div>
 
@@ -2377,166 +2320,6 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               </div>
             </div>
 
-            {/* Quick Data Tools Bar */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                  Quick Data Insert Tools (Click to Insert Live Values)
-                </span>
-                <span className="text-[10px] text-slate-500">Values are injected live</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {/* Payment & Receipts Tools */}
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{date_paid}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer"
-                  title="Insert Date of Last Payment Paid"
-                >
-                  + Date Paid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
-                  title="Insert Amount of Last Payment Paid"
-                >
-                  + Last Payment Paid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_type}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 transition cursor-pointer"
-                  title="Insert Payment Method (Bank Transfer, Card, Cash, etc.)"
-                >
-                  + Payment Type
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{last_payment_ref}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition cursor-pointer"
-                  title="Insert Last Payment Reference"
-                >
-                  + Payment Ref
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{owing_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-[#DC2626] border border-rose-200 transition cursor-pointer"
-                  title="Insert Total Current Outstanding Balance"
-                >
-                  + Outstanding: {formatCurrency(remaining)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{paid_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-[#15803D] border border-emerald-200 transition cursor-pointer"
-                  title="Insert Total Amount Paid"
-                >
-                  + Paid: {formatCurrency(paid)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{total_amount}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-[#D97706] border border-amber-200 transition cursor-pointer"
-                  title="Insert Total Cost"
-                >
-                  + Total: {formatCurrency(totalAmountDue)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_status}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition cursor-pointer"
-                  title="Insert Payment Status"
-                >
-                  + Status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{transaction_payment}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
-                  title="Insert Last Transaction Summary"
-                >
-                  + Last Txn Summary
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_statement}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer"
-                  title="Insert Complete Statement of All Transactions"
-                >
-                  + Full Statement
-                </button>
-
-                {/* Vehicle & Rental Tools */}
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{vehicle_reg}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Vehicle Registration Plate"
-                >
-                  + Reg: {vehicle?.registrationNumber || rental.vehicleReg || 'N/A'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{vehicle_name}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Vehicle Make & Model"
-                >
-                  + Vehicle: {vehicle?.make} {vehicle?.model}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{agreement_number}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Rental Agreement Number"
-                >
-                  + Agr #: {rental.rentalAgreementNumber || rental.id || 'N/A'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{client_name}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Customer Name"
-                >
-                  + Customer: {customer?.name || rental.customerName || 'Customer'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{start_date}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Start Date"
-                >
-                  + Start Date
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{end_date}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Due / End Date"
-                >
-                  + Due Date
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{weekly_rate}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition cursor-pointer"
-                  title="Insert Weekly Rate"
-                >
-                  + Weekly Rate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInsertTag('{payment_details}')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 transition cursor-pointer"
-                  title="Insert Lloyds Bank Details"
-                >
-                  + Lloyds Bank Details
-                </button>
-              </div>
-            </div>
-
             {/* Document Link Attachments */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 block">
@@ -2647,6 +2430,35 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
               </span>
             </div>
 
+          </div>
+        )}
+
+        {/* 9. COMMUNICATION HISTORY & AUDIT TRAIL TAB */}
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <CommunicationHistoryTimeline
+              recordId={rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id}
+              customerId={rental.customerId}
+              sourceModule="Rental"
+              matchKeys={[
+                rental.id,
+                rental.rentalAgreementNumber,
+                (rental as any).agreementNumber,
+                rental.rentalAgreementNumber ? `AGR-${rental.rentalAgreementNumber}` : '',
+                rental.rentalAgreementNumber ? `#${rental.rentalAgreementNumber}` : '',
+                rental.rentalAgreementNumber ? `Rental ${rental.rentalAgreementNumber}` : '',
+                rental.rentalAgreementNumber ? `Rental Agreement ${rental.rentalAgreementNumber}` : '',
+                rental.customerId,
+                customer?.name,
+                customer?.email,
+                customer?.phone,
+                customer?.mobile,
+                vehicle?.registration,
+                vehicle?.registrationNumber,
+              ].filter(Boolean)}
+              title={`Agreement #${rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id} — Communication History`}
+              description="Complete chronological audit log of all WhatsApp messages, emails, and statement dispatches for this rental."
+            />
           </div>
         )}
 

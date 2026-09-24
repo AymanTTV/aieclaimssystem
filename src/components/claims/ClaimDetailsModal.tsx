@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -37,6 +38,7 @@ import clsx from 'clsx';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
 import { resolveLegalHandlerDetails } from '../../utils/claimCommunication';
 import ClaimCommunicationModal from './ClaimCommunicationModal';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 
 interface ClaimDetailsProps {
   claim: Claim;
@@ -44,6 +46,42 @@ interface ClaimDetailsProps {
   onWhatsApp?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
   onEmail?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
 }
+
+function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
+  if (!v) return null;
+  if (typeof (v as any).toDate === 'function') {
+    try {
+      return (v as any).toDate();
+    } catch (e) {
+      return null;
+    }
+  }
+  if (v instanceof Date && !isNaN(v.getTime())) return v;
+  const date = new Date(v as any);
+  if (!isNaN(date.getTime())) return date;
+  return null;
+}
+
+const formatDate = (date: Date | null | undefined): string => {
+  const jsDate = toJsDate(date);
+  if (!jsDate) return 'N/A';
+  return format(jsDate, 'dd/MM/yyyy');
+};
+
+const formatDateTime = (date: Date | null | undefined): string => {
+  const jsDate = toJsDate(date);
+  if (!jsDate) return 'N/A';
+  return format(jsDate, 'dd/MM/yyyy HH:mm');
+};
+
+const checkIsExpiring = (dateVal: any) => {
+  const d = toJsDate(dateVal);
+  if (!d) return false;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return differenceInDays(d, now) <= 7;
+};
 
 const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   claim,
@@ -57,7 +95,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
   const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
   const [activeTab, setActiveTab] = useState<
-    'client_vehicle' | 'vehicle_docs' | 'incident' | 'third_party' | 'evidence' | 'progress'
+    'client_vehicle' | 'vehicle_docs' | 'incident' | 'third_party' | 'evidence' | 'progress' | 'communication'
   >('client_vehicle');
 
   const [activeCommDropdown, setActiveCommDropdown] = useState<'whatsapp' | 'email' | null>(null);
@@ -108,50 +146,40 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   const tabs = useMemo(() => [
     {
       id: 'client_vehicle' as const,
-      title: 'Client & Vehicle',
+      title: 'Client',
       icon: User,
-      badge: (claim as any).clientVehicle?.registration
-        ? String((claim as any).clientVehicle.registration).toUpperCase()
-        : 'Details',
     },
     {
       id: 'vehicle_docs' as const,
-      title: 'Vehicle Docs',
+      title: 'Vehicle',
       icon: FileText,
-      badge: `${Object.keys(claim.clientVehicle?.documents || {}).length} Docs`,
     },
     {
       id: 'incident' as const,
-      title: 'Incident Details',
+      title: 'Incident',
       icon: Calendar,
-      badge: formatDate((claim as any).incidentDetails?.date),
     },
     {
       id: 'third_party' as const,
       title: 'Third Party',
       icon: Users,
-      badge: (claim as any).thirdParty?.name || 'Third Party',
     },
     {
       id: 'evidence' as const,
       title: 'Evidence',
       icon: Camera,
-      badge: `${
-        ((claim as any).evidence?.images?.length || 0) +
-        ((claim as any).evidence?.videos?.length || 0) +
-        ((claim as any).evidence?.clientVehiclePhotos?.length || 0) +
-        ((claim as any).evidence?.engineerReport?.length || 0) +
-        ((claim as any).evidence?.bankStatement?.length || 0) +
-        ((claim as any).evidence?.adminDocuments?.length || 0)
-      } Items`,
     },
     {
       id: 'progress' as const,
-      title: 'Progress History',
+      title: 'Progress',
       icon: Activity,
-      badge: `${historyToShow.length} Updates`,
     },
-  ], [claim, historyToShow.length]);
+    {
+      id: 'communication' as const,
+      title: 'Communications',
+      icon: MessageSquare,
+    },
+  ], []);
 
   const currentTabIndex = tabs.findIndex((t) => t.id === activeTab);
   const handlePrevTab = () => {
@@ -198,42 +226,6 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     };
     fetchCreatedByName();
   }, [claim.createdBy]);
-
-  function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
-    if (!v) return null;
-    if (typeof (v as any).toDate === 'function') {
-      try {
-        return (v as any).toDate();
-      } catch (e) {
-        return null;
-      }
-    }
-    if (v instanceof Date && !isNaN(v.getTime())) return v;
-    const date = new Date(v as any);
-    if (!isNaN(date.getTime())) return date;
-    return null;
-  }
-
-  const formatDate = (date: Date | null | undefined): string => {
-    const jsDate = toJsDate(date);
-    if (!jsDate) return 'N/A';
-    return format(jsDate, 'dd/MM/yyyy');
-  };
-
-  const formatDateTime = (date: Date | null | undefined): string => {
-    const jsDate = toJsDate(date);
-    if (!jsDate) return 'N/A';
-    return format(jsDate, 'dd/MM/yyyy HH:mm');
-  };
-
-  const checkIsExpiring = (dateVal: any) => {
-    const d = toJsDate(dateVal);
-    if (!d) return false;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    d.setHours(0, 0, 0, 0);
-    return differenceInDays(d, now) <= 7;
-  };
 
   // Formal Visual Card Section Component
   const FormalSectionCard: React.FC<{
@@ -496,7 +488,7 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
       {/* ========================================================================= */}
       {/* 1. MODAL NAVIGATION BAR (PINNED AT THE TOP)                               */}
       {/* ========================================================================= */}
-      <div className="flex overflow-x-auto sm:grid sm:grid-cols-6 w-full border border-slate-200 shrink-0 bg-slate-100/70 select-none divide-x divide-slate-200 rounded-xl overflow-hidden no-scrollbar shadow-2xs">
+      <div className="flex flex-nowrap items-stretch w-full border border-slate-200 shrink-0 bg-slate-100/90 select-none divide-x divide-slate-200 rounded-xl overflow-x-auto no-scrollbar shadow-2xs h-13 min-h-[52px]">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -507,23 +499,17 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
               id={`claim-tab-${tab.id}`}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-1.5 py-3 px-2 border-b-2 text-xs sm:text-sm transition-all cursor-pointer truncate ${
+              title={tab.title}
+              className={`group flex-1 flex items-center justify-center gap-2 py-3 px-3 transition-all cursor-pointer whitespace-nowrap shrink-0 border-b-2 ${
                 isActive
                   ? 'border-blue-600 text-blue-700 font-extrabold bg-white shadow-xs'
                   : 'border-transparent text-slate-600 font-semibold hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
-              <Icon className="w-4 h-4 shrink-0 pointer-events-none" />
-              <span className="truncate">{tab.title}</span>
-              {tab.badge && (
-                <span
-                  className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 ${
-                    isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
+              <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
+              <span className="text-xs sm:text-sm font-bold tracking-tight whitespace-nowrap">
+                {tab.title}
+              </span>
             </button>
           );
         })}
@@ -1478,6 +1464,30 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           )}
         </div>
       </FormalSectionCard>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SECTION 7: Communication Audit Trail */}
+      {/* ========================================================================= */}
+      {activeTab === 'communication' && (
+        <div className="space-y-4">
+          <CommunicationHistoryTimeline
+            recordId={claim.claimId || claim.id}
+            sourceModule="Claim"
+            matchKeys={[
+              claim.id,
+              claim.claimId,
+              claim.clientPhone,
+              claim.clientEmail,
+              claim.clientName,
+              claim.legalHandlerEmail,
+              claim.legalHandlerPhone,
+              claim.vehicleReg,
+            ].filter(Boolean)}
+            title={`Claim #${claim.claimId || claim.id} — Communication History`}
+            description="Complete audit trail of all WhatsApp messages and emails sent to clients and legal handlers."
+          />
+        </div>
       )}
 
       {/* ========================================================================= */}

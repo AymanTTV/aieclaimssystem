@@ -30,10 +30,13 @@ import {
   Building,
   ArrowRightLeft,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  History
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import toast from 'react-hot-toast';
+import { useCommunicationLogs } from '../../hooks/useCommunicationLogs';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 
 export type InvoiceDetailTab =
   | 'overview'
@@ -41,6 +44,7 @@ export type InvoiceDetailTab =
   | 'client_vehicle'
   | 'payments_ledger'
   | 'notes_audit'
+  | 'communication'
   | 'all';
 
 interface InvoiceDetailsProps {
@@ -117,6 +121,30 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const paymentsCount = invoice.payments?.length || 0;
   const hasClientOrVehicle = !!(customer || invoice.customerName || vehicle || invoice.vehicleName);
 
+  const { logs: commLogs } = useCommunicationLogs({
+    recordId: invoice.id,
+    customerId: invoice.customerId,
+    matchKeys: [
+      invoice.id,
+      invoice.invoiceNumber,
+      invoice.invoiceNumber ? `INV-${invoice.invoiceNumber}` : '',
+      invoice.invoiceNumber ? `#${invoice.invoiceNumber}` : '',
+      invoice.invoiceNumber ? `Invoice #${invoice.invoiceNumber}` : '',
+      invoice.customerId,
+      customer?.name,
+      customer?.email,
+      customer?.phone,
+      customer?.mobile,
+      (invoice as any).customerEmail,
+      (invoice as any).customerPhone,
+      (invoice as any).recipientEmail,
+      vehicle?.registration,
+      (invoice as any).vehicleReg,
+    ].filter(Boolean),
+  });
+
+  const commCount = commLogs.length;
+
   // Tab definitions
   const tabs: {
     id: InvoiceDetailTab;
@@ -144,6 +172,12 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       badge: paymentsCount > 0 ? `${paymentsCount} paid` : undefined,
     },
     { id: 'notes_audit', label: 'Notes & Audit', icon: Clock },
+    {
+      id: 'communication',
+      label: 'Communication History',
+      icon: History,
+      badge: `${commCount} Sent`,
+    },
     { id: 'all', label: 'All Details', icon: Layers },
   ];
 
@@ -700,6 +734,36 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     </div>
   );
 
+  const renderCommunicationHistoryContent = () => (
+    <div className="space-y-4">
+      <CommunicationHistoryTimeline
+        recordId={invoice.id}
+        customerId={invoice.customerId}
+        sourceModule="Invoice"
+        matchKeys={[
+          invoice.id,
+          invoice.invoiceNumber,
+          invoice.invoiceNumber ? `INV-${invoice.invoiceNumber}` : '',
+          invoice.invoiceNumber ? `#${invoice.invoiceNumber}` : '',
+          invoice.invoiceNumber ? `Invoice #${invoice.invoiceNumber}` : '',
+          invoice.customerId,
+          customer?.name,
+          customer?.email,
+          customer?.phone,
+          customer?.mobile,
+          (invoice as any).customerEmail,
+          (invoice as any).customerPhone,
+          (invoice as any).recipientEmail,
+          vehicle?.registration,
+          (invoice as any).vehicleReg,
+        ].filter(Boolean)}
+        title={`Invoice #${invoice.invoiceNumber || invoice.id} — Communication History`}
+        description="Complete chronological audit log of all manual and scheduled automated emails and WhatsApp messages for this invoice."
+        emptyMessage="No communication history recorded for this invoice yet."
+      />
+    </div>
+  );
+
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden text-slate-900 bg-white">
       {/* ─────────────────────────────────────────────────────────────────── */}
@@ -758,7 +822,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* 1. MODAL NAVIGATION BAR (PINNED AT THE TOP)                        */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 w-full border-b border-slate-200 shrink-0 bg-slate-100/70 select-none divide-x divide-slate-200">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 w-full border-b border-slate-200 shrink-0 bg-slate-100/70 select-none divide-x divide-slate-200">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -799,6 +863,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         {activeTab === 'client_vehicle' && renderClientVehicleContent()}
         {activeTab === 'payments_ledger' && renderPaymentsLedgerContent()}
         {activeTab === 'notes_audit' && renderNotesAuditContent()}
+        {activeTab === 'communication' && renderCommunicationHistoryContent()}
 
         {activeTab === 'all' && (
           <div className="space-y-6">
@@ -818,9 +883,13 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">4. Payments & Ledger</h3>
               {renderPaymentsLedgerContent()}
             </div>
-            <div className="pb-2">
+            <div className="border-b border-slate-200 pb-4">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">5. Notes & Audit</h3>
               {renderNotesAuditContent()}
+            </div>
+            <div className="pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">6. Communication History</h3>
+              {renderCommunicationHistoryContent()}
             </div>
           </div>
         )}

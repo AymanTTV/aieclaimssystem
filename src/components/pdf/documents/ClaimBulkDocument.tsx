@@ -28,8 +28,8 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
   const headerDetails = {
     logoUrl: aieClaimsLogo,
     fullName: 'AIE Claims LTD',
-    addressLine1: 'United House, 39-41 North Road,', // Broken down
-    addressLine2: 'London, N7 9DP.', // Broken down, added period for consistency
+    addressLine1: 'United House, 39-41 North Road,',
+    addressLine2: 'London, N7 9DP',
     phone: '+442080505337',
     email: 'claims@aieclaims.co.uk',
   };
@@ -117,13 +117,7 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
             {/* FOOTER */}
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>
-                {formatInlineCompanyFooter({
-                  fullName: 'AIE Skyline Limited',
-                  registrationNumber: '14592207',
-                  officialAddress: 'United House.\n39-41 North Road, London, N7 9DP.',
-                  vatNumber: '453448875',
-                  ...companyDetails,
-                })}
+                AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP
               </Text>
               {/* Page number positioned on the right */}
               <Text

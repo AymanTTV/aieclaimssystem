@@ -6,9 +6,11 @@ import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
+import CommunicationHistoryTimeline from '../../components/common/CommunicationHistoryTimeline';
 
 export default function Profile() {
   const { user } = useAuth();
+  const [profileTab, setProfileTab] = useState<'profile' | 'history'>('profile');
 
   const initialName = user?.firstName
     ? { firstName: user.firstName, middleName: user.middleName || '', lastName: user.lastName || '' }
@@ -133,8 +135,39 @@ export default function Profile() {
   };
 
   return (
-    <div className="max-w-lg space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+    <div className="max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Member Profile</h1>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-200">
+        <button
+          type="button"
+          onClick={() => setProfileTab('profile')}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition cursor-pointer ${
+            profileTab === 'profile'
+              ? 'border-rose-600 text-rose-600 font-bold'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          My Profile Details
+        </button>
+        <button
+          type="button"
+          onClick={() => setProfileTab('history')}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition cursor-pointer ${
+            profileTab === 'history'
+              ? 'border-rose-600 text-rose-600 font-bold'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          Communication History
+        </button>
+      </div>
+
+      {profileTab === 'profile' ? (
+        <div className="max-w-lg space-y-6">
       
       <div>
         <label className="block text-sm font-medium text-gray-700">First Name</label>
@@ -232,15 +265,32 @@ export default function Profile() {
         />
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className={`py-2 px-4 rounded-md text-white ${
-          saving ? 'bg-primary/70' : 'bg-primary hover:bg-primary-dark'
-        } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary`}
-      >
-        {saving ? 'Saving…' : 'Save Changes'}
-      </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`py-2 px-4 rounded-md text-white ${
+            saving ? 'bg-primary/70' : 'bg-primary hover:bg-primary-dark'
+          } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer`}
+        >
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+      ) : (
+        <div className="space-y-4">
+          <CommunicationHistoryTimeline
+            recordId={user?.id}
+            recipientRole="Member"
+            matchKeys={[
+              user?.id,
+              user?.email,
+              user?.name,
+              user?.phoneNumber,
+            ].filter(Boolean)}
+            title="My Communication History"
+            description="Chronological log of WhatsApp notifications, email statements, and updates sent to your account."
+          />
+        </div>
+      )}
     </div>
   );
 }

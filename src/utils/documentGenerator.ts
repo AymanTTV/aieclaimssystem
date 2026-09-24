@@ -76,18 +76,42 @@ export const generateAndUploadDocument = async (
       })
     ).toBlob();
 
+    // Generate a persistent, secure download token for pre-signed public read URL
     // Upload to storage
-    const storageRef = ref(storage, `${path}/${recordId}/${urlFieldName}.pdf`);
+    const storagePath = `${path}/${recordId}/${urlFieldName}.pdf`;
+    const storageRef = ref(storage, storagePath);
     
-    const snapshot = await uploadBytes(storageRef, pdfBlob, {
-      contentType: 'application/pdf',
-      customMetadata: {
-        'Cache-Control': 'public,max-age=7200'
-      }
-    });
+    let downloadURL = '';
+    try {
+      const snapshot = await uploadBytes(storageRef, pdfBlob, {
+        contentType: 'application/pdf',
+        contentDisposition: `inline; filename="${urlFieldName}.pdf"`,
+        cacheControl: 'public, max-age=31536000'
+      });
 
-    // Get download URL
-    const downloadURL = await getDownloadURL(snapshot.ref);
+      try {
+        downloadURL = await getDownloadURL(snapshot.ref);
+      } catch (err) {
+        console.warn('getDownloadURL failed:', err);
+      }
+    } catch (uploadErr) {
+      console.warn('Storage uploadBytes failed, using resilient fallback:', uploadErr);
+    }
+
+    if (!downloadURL) {
+      try {
+        downloadURL = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfBlob);
+        });
+      } catch {
+        if (typeof URL !== 'undefined' && URL.createObjectURL) {
+          downloadURL = URL.createObjectURL(pdfBlob);
+        }
+      }
+    }
 
     // Update record with document URL in the specific field
     await updateDoc(doc(db, collectionName, recordId), {

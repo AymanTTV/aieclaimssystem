@@ -16,6 +16,9 @@ export interface Customer {
   billCopyStatus?: BillCopyStatus; 
   billCopyNote?: string;
 
+  // [NEW] Customer Profile Picture
+  profilePictureUrl?: string;
+
   name: string;
   firstName?: string;
   middleName?: string;
@@ -51,6 +54,10 @@ export interface Customer {
   billExpiry?: Date;
   age?: number;
   signature?: string;
+  signatureTimestamp?: string;
+  signedAt?: Date;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: Date;
 
   licenseFrontUrl?: string;
   licenseBackUrl?: string;

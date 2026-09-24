@@ -817,12 +817,13 @@
   }
 
   /* ==========================================================================
-     SCHEDULE RENTAL MODAL - PRIMARY DARK NAVY PALETTE (#0F111A / #16192B / #1E2238)
+     SCHEDULE RENTAL MODAL - LIGHT PALETTE MATCHING PAGE DESIGN
      ========================================================================== */
   .schedule-rental-modal,
-  .modal-navy .rental-form-container {
-    background-color: #16192B !important;
-    color: #FFFFFF !important;
+  .schedule-rental-modal .rental-form-container,
+  .rental-form-container {
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
   }
 
   .schedule-rental-modal input:not([type="checkbox"]):not([type="radio"]),
@@ -831,11 +832,11 @@
   .rental-form-container input:not([type="checkbox"]):not([type="radio"]),
   .rental-form-container select,
   .rental-form-container textarea {
-    background-color: #0F111A !important;
-    border-color: #2B314E !important;
-    color: #FFFFFF !important;
-    -webkit-text-fill-color: #FFFFFF !important;
-    caret-color: #3b82f6 !important;
+    background-color: #FFFFFF !important;
+    border-color: #CBD5E1 !important;
+    color: #0F172A !important;
+    -webkit-text-fill-color: #0F172A !important;
+    caret-color: #2563EB !important;
   }
 
   .schedule-rental-modal input::placeholder,
@@ -853,81 +854,81 @@
   .rental-form-container input:focus,
   .rental-form-container select:focus,
   .rental-form-container textarea:focus {
-    border-color: #3b82f6 !important;
+    border-color: #2563EB !important;
     outline: none !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
   }
 
-  /* Signature Canvas specific exception: canvas remains white for black ink visibility */
+  /* Signature Canvas */
   .schedule-rental-modal canvas.signature-canvas,
   .rental-form-container canvas.signature-canvas {
     background-color: #FFFFFF !important;
   }
 
-  /* FileUpload Dropzone in Navy Modals */
+  /* FileUpload Dropzone in Schedule Rental Modal */
   .schedule-rental-modal .border-dashed,
-  .modal-navy .border-dashed {
-    background-color: #0F111A !important;
-    border-color: #2B314E !important;
+  .rental-form-container .border-dashed {
+    background-color: #F8FAFC !important;
+    border-color: #CBD5E1 !important;
   }
   .schedule-rental-modal .border-dashed:hover,
-  .modal-navy .border-dashed:hover {
-    background-color: #121524 !important;
+  .rental-form-container .border-dashed:hover {
+    background-color: #F1F5F9 !important;
+    border-color: #94A3B8 !important;
   }
   .schedule-rental-modal .border-dashed label,
-  .modal-navy .border-dashed label {
-    color: #60A5FA !important;
+  .rental-form-container .border-dashed label {
+    color: #2563EB !important;
   }
   .schedule-rental-modal .border-dashed p,
-  .modal-navy .border-dashed p {
-    color: #94A3B8 !important;
+  .rental-form-container .border-dashed p {
+    color: #64748B !important;
   }
 
   /* Date and time input native icon and calendar color scheme */
   .schedule-rental-modal input[type="date"],
   .schedule-rental-modal input[type="time"],
   .schedule-rental-modal input[type="datetime-local"],
-  .modal-navy input[type="date"],
-  .modal-navy input[type="time"],
-  .modal-navy input[type="datetime-local"] {
-    color-scheme: dark !important;
+  .rental-form-container input[type="date"],
+  .rental-form-container input[type="time"],
+  .rental-form-container input[type="datetime-local"] {
+    color-scheme: light !important;
   }
 
   /* Compulsory notice tag */
-  .modal-navy span[title="Compulsory field - Must fill in"],
   .schedule-rental-modal span[title="Compulsory field - Must fill in"] {
-    background-color: rgba(239, 68, 68, 0.2) !important;
-    border-color: rgba(239, 68, 68, 0.4) !important;
-    color: #FCA5A5 !important;
+    background-color: #FEE2E2 !important;
+    border-color: #FCA5A5 !important;
+    color: #991B1B !important;
   }
 
   /* Modal custom scrollbar styling */
   .schedule-rental-modal .custom-scrollbar,
-  .modal-navy .custom-scrollbar {
+  .rental-form-container .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #2B314E #16192B;
+    scrollbar-color: #CBD5E1 #F8FAFC;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar,
-  .modal-navy .custom-scrollbar::-webkit-scrollbar {
+  .rental-form-container .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-track,
-  .modal-navy .custom-scrollbar::-webkit-scrollbar-track {
-    background: #16192B;
+  .rental-form-container .custom-scrollbar::-webkit-scrollbar-track {
+    background: #F8FAFC;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-thumb,
-  .modal-navy .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #2B314E;
+  .rental-form-container .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
     border-radius: 9999px;
   }
 
   .schedule-rental-modal .custom-scrollbar::-webkit-scrollbar-thumb:hover,
-  .modal-navy .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #3E466B;
+  .rental-form-container .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
   }
 
   /* Tables */

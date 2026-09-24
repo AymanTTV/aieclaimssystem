@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle } from '../../types';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
-import { Wrench, DollarSign, FileText, Car, Layers, Paperclip, Calendar, Clock, MapPin, Receipt, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Wrench, DollarSign, FileText, Car, Layers, Paperclip, Calendar, Clock, MapPin, Receipt, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions'; 
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
@@ -16,7 +17,7 @@ interface MaintenanceDetailsProps {
   onClose?: () => void;
 }
 
-type DetailsTab = 'overview' | 'parts_labor' | 'invoicing' | 'attachments';
+type DetailsTab = 'overview' | 'parts_labor' | 'invoicing' | 'attachments' | 'communication';
 
 const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, onClose }) => {
   const [activeTab, setActiveTab] = useState<DetailsTab>('overview');
@@ -141,6 +142,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
     ...(!isCompany ? [{ id: 'parts_labor' as DetailsTab, label: 'Parts & Labor', icon: Layers, count: (log.parts?.length || 0) }] : []),
     ...(!isCompany ? [{ id: 'invoicing' as DetailsTab, label: 'Invoicing & Finance', icon: Receipt }] : []),
     { id: 'attachments', label: 'Attachments', icon: Paperclip, count: log.attachments?.length || 0 },
+    { id: 'communication', label: 'Communication History', icon: MessageSquare },
   ];
 
   return (
@@ -537,6 +539,27 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Communication History Tab */}
+        {activeTab === 'communication' && (
+          <div className="space-y-4">
+            <CommunicationHistoryTimeline
+              recordId={log.orderNumber || log.id}
+              sourceModule="Maintenance"
+              matchKeys={[
+                log.id,
+                log.orderNumber,
+                log.vehicleId,
+                vehicle?.registration,
+                log.serviceCenter,
+                log.driverName,
+                log.driverPhone,
+              ].filter(Boolean)}
+              title={`Maintenance #${log.orderNumber || log.id} — Communication History`}
+              description="Chronological audit log of all WhatsApp and email communications sent for this maintenance order."
+            />
           </div>
         )}
 

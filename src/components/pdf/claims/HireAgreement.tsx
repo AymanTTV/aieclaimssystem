@@ -9,14 +9,14 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { resolveNameFields, resolveAddressFields, combineFullName } from '../../../utils/nameAddressUtils';
-import logo from '../../../assets/logo.png';
+import aieClaimsLogo from '../../../assets/aieclaim.png';
 import { styles } from '../styles';
 import {
   getHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  formatInlineCompanyFooter
+  AIE_CLAIMS_FOOTER_TEXT
 } from '../../../utils/legalDocumentUtils';
 
 const isValidPdfImageSrc = (v: any): v is string => {
@@ -307,20 +307,17 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
     2
   )}/day applies for up to 3 months. Payment is due in full within eleven months from this date.`;
 
-  const companyName = companyDetails?.fullName || companyDetails?.name || 'AIE SKYLINE LIMITED';
-  const companyReg = companyDetails?.registrationNumber || '14592207';
-  const companyAddress = companyDetails?.officialAddress || 'United House, 39-41 North Road, London, N7 9DP';
-  const companyVat = companyDetails?.vatNumber || '453448875';
-  const footerText = formatInlineCompanyFooter(companyDetails);
+  const companyName = 'AIE Claims LTD';
+  const companyReg = '15616639';
+  const companyAddress = 'United House, 39-41 North Road, London, N7 9DP';
+  const companyPhone = '+442080505337';
+  const companyEmail = 'claims@aieclaims.co.uk';
+  const footerText = AIE_CLAIMS_FOOTER_TEXT;
 
   const renderHeader = () => (
     <View style={styles.header} fixed>
       <View style={styles.headerLeft}>
-        {isValidPdfImageSrc(companyDetails?.logoUrl) ? (
-          <Image src={companyDetails.logoUrl} style={styles.logo} cache={false} />
-        ) : (
-          <Image src={logo} style={styles.logo} cache={false} />
-        )}
+        <Image src={aieClaimsLogo} style={styles.logo} cache={false} />
       </View>
       <View style={styles.headerRight}>
         <Text style={styles.companyName}>{companyName}</Text>
@@ -328,10 +325,10 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
           {companyAddress}
         </Text>
         <Text style={styles.companyDetail}>
-          Tel: {companyDetails?.phone}
+          Tel: {companyPhone}
         </Text>
         <Text style={styles.companyDetail}>
-          Email: {companyDetails?.email}
+          Email: {companyEmail}
         </Text>
       </View>
     </View>
@@ -508,12 +505,12 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
             parseLegalVariables(
               companyDetails?.hireAgreementText || companyDetails?.termsAndConditions || defaultTerms,
               {
-                companyName: companyDetails?.fullName || 'AIE SKYLINE LIMITED',
-                companyAddress: companyDetails?.officialAddress || '',
-                companyPhone: companyDetails?.phone || '',
-                companyEmail: companyDetails?.email || '',
+                companyName: 'AIE Claims LTD',
+                companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
+                companyPhone: '+442080505337',
+                companyEmail: 'claims@aieclaims.co.uk',
                 companyVat: companyDetails?.vatNumber || '',
-                companyRegistration: companyDetails?.registrationNumber || '',
+                companyRegistration: '15616639',
                 hirerName,
                 customerName: hirerName,
                 vehicleReg: vehRegistration,
@@ -555,7 +552,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
               />
             )}
             <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
-            <Text style={localStyles.compactText}>{companyDetails?.fullName || companyDetails?.name || 'AIE SKYLINE LIMITED'}</Text>
+            <Text style={localStyles.compactText}>AIE Claims LTD</Text>
             <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
           </View>
         </View>

@@ -43,6 +43,7 @@ const CATEGORIES = [
   { id: 'maintenance', label: 'Maintenance' },
   { id: 'invoice', label: 'Invoice' },
   { id: 'claim', label: 'Claim' },
+  { id: 'driverPay', label: 'Driver Pay' },
   { id: 'finance', label: 'Finance' },
   { id: 'Bulk Email', label: 'Bulk Email' },
 ];

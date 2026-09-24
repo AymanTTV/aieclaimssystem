@@ -8,7 +8,9 @@ import { formatWhatsAppNumber, buildWaMeLink } from './whatsapp';
 import { sendEmail } from './emailService';
 import { logWhatsappHistory } from '../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../hooks/useEmailHistory';
+import { logCommunication } from '../services/communicationLogService';
 import { emailTemplates } from '../constants/emailTemplates';
+import { isTemplateInCategory, isTemplateDeletedSync } from './templateManager';
 
 export type MaintenanceRecipientType = 'driver' | 'garage';
 export type MaintenanceChannelMode = 'whatsapp' | 'email';
@@ -732,62 +734,73 @@ AIE Skyline Limited`,
 ];
 
 /**
- * STRICT CATEGORY FILTERING (MAINTENANCE ONLY):
- * Restrict template dropdown loading on the Maintenance Page so it ONLY fetches and displays
- * templates where category = "Maintenance" (case-insensitive).
+ * DYNAMIC MODULE-TO-FOLDER TEMPLATE MAPPING (MAINTENANCE):
+ * Restrict template dropdown loading on the Maintenance Page so it strictly fetches:
+ * 1. Templates from its specific folder ("Maintenance")
+ * 2. PLUS all templates stored under the universal "Custom" folder.
  *
- * Excludes templates from other categories (Finance, Rental, Invoice, Claim, Custom, Bulk Email, etc.)
- * across both WhatsApp and Email channels.
+ * Operational pages strictly do NOT have access to templates belonging to unrelated specific folders
+ * (Finance, Rental, Invoice, Claim, Driver Pay, Members).
  */
 export async function fetchMaintenanceTemplates(
   channelFilter?: MaintenanceChannelMode
 ): Promise<MaintenanceTemplateOption[]> {
-  const standardEmailTemplates: MaintenanceTemplateOption[] = (emailTemplates.maintenance || []).map((et) => {
-    const isGarage =
-      et.name.toLowerCase().includes('garage') ||
-      et.name.toLowerCase().includes('supplier') ||
-      et.name.toLowerCase().includes('service center') ||
-      et.name.toLowerCase().includes('provider');
-
-    return {
+  const customEmailDefaults: MaintenanceTemplateOption[] = (emailTemplates.custom || [])
+    .filter(et => !isTemplateDeletedSync(et.id))
+    .map(et => ({
       id: et.id,
-      name: `Email: ${et.name}`,
-      recipientType: isGarage ? 'garage' : 'driver',
-      channel: 'email' as const,
-      category: 'Maintenance',
+      name: `Custom: ${et.name}`,
+      recipientType: 'driver',
+      channel: 'all' as const,
+      category: 'Custom',
       subjectTemplate: et.subjectTemplate,
       bodyTemplate: et.bodyTemplate,
-    };
-  });
+    }));
 
-  const baseTemplates = [...DEFAULT_MAINTENANCE_TEMPLATES, ...standardEmailTemplates];
+  const standardEmailTemplates: MaintenanceTemplateOption[] = (emailTemplates.maintenance || [])
+    .filter(et => !isTemplateDeletedSync(et.id))
+    .map((et) => {
+      const isGarage =
+        et.name.toLowerCase().includes('garage') ||
+        et.name.toLowerCase().includes('supplier') ||
+        et.name.toLowerCase().includes('service center') ||
+        et.name.toLowerCase().includes('provider');
+
+      return {
+        id: et.id,
+        name: `Email: ${et.name}`,
+        recipientType: isGarage ? 'garage' : 'driver',
+        channel: 'email' as const,
+        category: 'Maintenance',
+        subjectTemplate: et.subjectTemplate,
+        bodyTemplate: et.bodyTemplate,
+      };
+    });
+
+  const baseTemplates = [
+    ...DEFAULT_MAINTENANCE_TEMPLATES.filter(t => !isTemplateDeletedSync(t.id)), 
+    ...standardEmailTemplates,
+    ...customEmailDefaults
+  ];
 
   try {
-    // 1. STRICT QUERY: Filter Firestore messageTemplates strictly by category = "Maintenance"
-    let queryDocs: any[] = [];
-    try {
-      const q = query(
-        collection(db, 'messageTemplates'),
-        where('category', 'in', ['maintenance', 'Maintenance', 'MAINTENANCE'])
-      );
-      const snap = await getDocs(q);
-      queryDocs = snap.docs;
-    } catch (queryErr) {
-      console.warn('Direct category query failed, falling back to full collection with strict filter:', queryErr);
-      const snap = await getDocs(collection(db, 'messageTemplates'));
-      queryDocs = snap.docs;
-    }
+    const snap = await getDocs(collection(db, 'messageTemplates'));
+    const queryDocs = snap.docs;
 
     const customTemplates: MaintenanceTemplateOption[] = [];
     queryDocs.forEach((doc) => {
+      if (isTemplateDeletedSync(doc.id)) return;
+
       const data = doc.data();
+      if (data.isDeleted === true || data.deleted === true) return;
+
       const rawName = data.name || 'Maintenance Template';
       const cat = String(data.category || '').toLowerCase().trim();
 
-      // STRICT CATEGORY FILTERING ENFORCEMENT:
-      // ONLY allow category === 'maintenance'.
-      // Exclude templates from other categories (Finance, Rental, Invoice, Claim, Custom, Bulk Email, etc.)
-      if (cat !== 'maintenance') {
+      // STRICT FOLDER ACCESS: Designated module folder ("Maintenance") + universal "Custom" folder
+      const isMaintenance = isTemplateInCategory(cat, 'maintenance');
+      const isCustom = isTemplateInCategory(cat, 'custom');
+      if (!isMaintenance && !isCustom) {
         return;
       }
 
@@ -810,46 +823,35 @@ export async function fetchMaintenanceTemplates(
 
       const subjectTemplate = data.subjectTemplate || data.subject || 'Maintenance Update - {vehicle_reg}';
       const bodyTemplate = data.bodyTemplate || data.body || data.content || '';
+      const displayCategory = isCustom ? 'Custom' : 'Maintenance';
 
       if (isWhatsApp) {
-        // WhatsApp Template: Query strictly from WhatsApp Communication -> category = "Maintenance"
         customTemplates.push({
           id: doc.id,
-          name: rawName,
+          name: isCustom ? `[Custom] ${rawName}` : rawName,
           recipientType: isGarage ? 'garage' : 'driver',
           channel: 'whatsapp',
-          category: 'Maintenance',
+          category: displayCategory,
           subjectTemplate,
           bodyTemplate,
         });
       } else if (isEmail) {
-        // Email Template: Query strictly from Email / Bulk Email -> category = "Maintenance"
         customTemplates.push({
           id: doc.id,
-          name: rawName,
+          name: isCustom ? `[Custom] ${rawName}` : rawName,
           recipientType: isGarage ? 'garage' : 'driver',
           channel: 'email',
-          category: 'Maintenance',
+          category: displayCategory,
           subjectTemplate,
           bodyTemplate,
         });
       } else {
-        // Multi-channel Maintenance Template: Available for both WhatsApp and Email
-        customTemplates.push({
-          id: `${doc.id}_whatsapp`,
-          name: `${rawName} (WhatsApp)`,
-          recipientType: isGarage ? 'garage' : 'driver',
-          channel: 'whatsapp',
-          category: 'Maintenance',
-          subjectTemplate,
-          bodyTemplate,
-        });
         customTemplates.push({
           id: doc.id,
-          name: `${rawName} (Email)`,
+          name: isCustom ? `[Custom] ${rawName}` : rawName,
           recipientType: isGarage ? 'garage' : 'driver',
-          channel: 'email',
-          category: 'Maintenance',
+          channel: 'all',
+          category: displayCategory,
           subjectTemplate,
           bodyTemplate,
         });
@@ -867,7 +869,7 @@ export async function fetchMaintenanceTemplates(
     }
 
     if (channelFilter) {
-      return deduplicated.filter((t) => t.channel === channelFilter);
+      return deduplicated.filter((t) => t.channel === channelFilter || t.channel === 'all' || !t.channel);
     }
     return deduplicated;
   } catch (err) {
@@ -883,7 +885,7 @@ export async function fetchMaintenanceTemplates(
     }
   }
   if (channelFilter) {
-    return deduplicated.filter((t) => t.channel === channelFilter);
+    return deduplicated.filter((t) => t.channel === channelFilter || t.channel === 'all' || !t.channel);
   }
   return deduplicated;
 }
@@ -898,6 +900,7 @@ export async function executeMaintenanceWhatsApp(params: {
   recipientType: MaintenanceRecipientType;
   log: MaintenanceLog;
   userName?: string;
+  templateName?: string;
 }): Promise<{ url: string }> {
   const digits = formatWhatsAppNumber(params.phone);
   if (!digits) {
@@ -917,6 +920,23 @@ export async function executeMaintenanceWhatsApp(params: {
       subject: `Maintenance ${params.log.orderNumber || params.log.id}`,
       body: params.message,
       timestamp: new Date(),
+      skipCommunicationLogs: true,
+    });
+
+    await logCommunication({
+      communication_channel: 'WhatsApp',
+      recipient_role: params.recipientType === 'garage' ? 'Garage' : 'Driver',
+      recipient_name: params.recipientName,
+      recipient_contact: params.phone,
+      source_module: 'Maintenance',
+      record_id: params.log.orderNumber || params.log.id,
+      template_name: params.templateName || 'Maintenance Notification',
+      message_body: params.message,
+      attachments: [],
+      delivery_status: 'Sent',
+      subject: `Maintenance ${params.log.orderNumber || params.log.id}`,
+      vehicleId: params.log.vehicleId || '',
+      sender_user_id: params.userName,
     });
   } catch (err) {
     console.warn('Failed to log WhatsApp history:', err);
@@ -936,6 +956,7 @@ export async function executeMaintenanceEmail(params: {
   recipientType: MaintenanceRecipientType;
   log: MaintenanceLog;
   userName?: string;
+  templateName?: string;
 }): Promise<void> {
   if (!params.toEmail || !params.toEmail.includes('@')) {
     throw new Error('A valid email address is required to send this email.');
@@ -958,6 +979,23 @@ export async function executeMaintenanceEmail(params: {
       recipients: [params.toEmail],
       subject: params.subject,
       timestamp: new Date(),
+      skipCommunicationLogs: true,
+    });
+
+    await logCommunication({
+      communication_channel: 'Email',
+      recipient_role: params.recipientType === 'garage' ? 'Garage' : 'Driver',
+      recipient_name: params.toName,
+      recipient_contact: params.toEmail,
+      source_module: 'Maintenance',
+      record_id: params.log.orderNumber || params.log.id,
+      template_name: params.templateName || 'Maintenance Notification',
+      message_body: params.message,
+      attachments: [],
+      delivery_status: 'Sent',
+      subject: params.subject,
+      vehicleId: params.log.vehicleId || '',
+      sender_user_id: params.userName,
     });
   } catch (err) {
     console.warn('Failed to log Email history:', err);

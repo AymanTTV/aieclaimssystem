@@ -1,5 +1,7 @@
 // src/components/finance/InvoiceCommunicationModal.tsx
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../routes';
 import { Invoice, Customer, Vehicle } from '../../types/finance';
 import Modal from '../ui/Modal';
 import { db } from '../../lib/firebase';
@@ -28,13 +30,16 @@ import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
 import { sendEmail } from '../../utils/emailService';
 import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
+import { logCommunication } from '../../services/communicationLogService';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import { emailTemplates } from '../../constants/emailTemplates';
+import { loadTemplatesForCategory } from '../../utils/templateManager';
 
 interface InvoiceCommunicationModalProps {
   isOpen: boolean;
   onClose: () => void;
   invoice: Invoice | null;
+  invoices?: Invoice[];
   customer?: Customer;
   vehicle?: Vehicle;
   initialMode?: 'whatsapp' | 'email';
@@ -52,15 +57,35 @@ interface TemplateOption {
 export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps> = ({
   isOpen,
   onClose,
-  invoice,
+  invoice: propInvoice,
+  invoices = [],
   customer,
   vehicle,
   initialMode = 'whatsapp',
   moduleContext = 'invoices',
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
   const { can, isAdmin } = usePermissions();
+
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(propInvoice?.id || '');
+
+  useEffect(() => {
+    if (propInvoice?.id) {
+      setSelectedInvoiceId(propInvoice.id);
+    } else if (invoices && invoices.length > 0 && !selectedInvoiceId) {
+      setSelectedInvoiceId(invoices[0].id);
+    }
+  }, [propInvoice, invoices, selectedInvoiceId]);
+
+  const invoice = useMemo(() => {
+    if (propInvoice) return propInvoice;
+    if (invoices && selectedInvoiceId) {
+      return invoices.find((inv) => inv.id === selectedInvoiceId) || invoices[0] || null;
+    }
+    return invoices && invoices.length > 0 ? invoices[0] : null;
+  }, [propInvoice, invoices, selectedInvoiceId]);
 
   const targetModule = moduleContext === 'vdInvoice' ? 'vdInvoice' : 'invoices';
   const canSendWhatsApp = isAdmin || can(targetModule, 'whatsapp') || can(targetModule, 'send');
@@ -73,6 +98,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const selectedTemplate = useMemo(() => templates.find((t) => t.id === selectedTemplateId), [templates, selectedTemplateId]);
   
   // Searchable dropdown state
   const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
@@ -118,85 +144,60 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
     };
   }, [isTemplateDropdownOpen]);
 
-  // Load message templates exclusively from the "Invoice" tab storage (messageTemplates where category === 'invoice')
-  // DO NOT use any hardcoded fallback templates in code
+  // Load message templates from centralized storage with reactive sync
+  // Strictly pulls templates from designated folder ("Invoice") + universal "Custom" folder
+  const fetchInvoiceTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    try {
+      const list = await loadTemplatesForCategory('invoice', mode);
+      const mapped: TemplateOption[] = list.map((t) => ({
+        id: t.id,
+        name: t.name,
+        category: t.category || 'invoice',
+        subjectTemplate: t.subjectTemplate || '',
+        bodyTemplate: t.bodyTemplate || '',
+      }));
+      setTemplates(mapped);
+    } catch (err) {
+      console.error('Failed to load templates from templateManager', err);
+      // Fallback to built-in invoice and custom templates
+      const fallback: TemplateOption[] = [
+        ...(emailTemplates.invoice || []).map((et) => ({
+          id: et.id,
+          name: et.name,
+          category: 'invoice',
+          subjectTemplate: et.subjectTemplate,
+          bodyTemplate: et.bodyTemplate,
+        })),
+        ...(emailTemplates.custom || []).map((et) => ({
+          id: et.id,
+          name: `[Custom] ${et.name}`,
+          category: 'custom',
+          subjectTemplate: et.subjectTemplate,
+          bodyTemplate: et.bodyTemplate,
+        })),
+      ];
+      setTemplates(fallback);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [mode]);
+
   useEffect(() => {
     if (!isOpen) return;
-
-    let isMounted = true;
-    const fetchInvoiceTemplates = async () => {
-      setLoadingTemplates(true);
-      try {
-        const snap = await getDocs(collection(db, 'messageTemplates'));
-        const allTpls: TemplateOption[] = [];
-        const seenIds = new Set<string>();
-
-        if (!snap.empty && isMounted) {
-          snap.docs.forEach((d) => {
-            const data = d.data() as any;
-            const cat = String(data.category || 'general').trim();
-            const option: TemplateOption = {
-              id: d.id,
-              name: data.name || 'Untitled Template',
-              category: cat || 'Invoice',
-              subjectTemplate: data.subjectTemplate || data.subject || '',
-              bodyTemplate: data.bodyTemplate || data.body || '',
-            };
-            allTpls.push(option);
-            seenIds.add(d.id);
-          });
-        }
-
-        // Add built-in defaults from emailTemplates.invoice if not already in Firestore
-        (emailTemplates.invoice || []).forEach((et) => {
-          if (!seenIds.has(et.id)) {
-            allTpls.push({
-              id: et.id,
-              name: et.name,
-              category: 'invoice',
-              subjectTemplate: et.subjectTemplate,
-              bodyTemplate: et.bodyTemplate,
-            });
-            seenIds.add(et.id);
-          }
-        });
-
-        // Prioritize invoice templates at the top, then alphabetically
-        allTpls.sort((a, b) => {
-          const aIsInvoice = String(a.category || '').toLowerCase() === 'invoice';
-          const bIsInvoice = String(b.category || '').toLowerCase() === 'invoice';
-          if (aIsInvoice && !bIsInvoice) return -1;
-          if (!aIsInvoice && bIsInvoice) return 1;
-          return a.name.localeCompare(b.name);
-        });
-
-        if (isMounted) {
-          setTemplates(allTpls);
-        }
-      } catch (err) {
-        console.error('Failed to load templates from Firestore', err);
-        if (isMounted) {
-          // Fallback to built-in invoice templates
-          const fallback = (emailTemplates.invoice || []).map((et) => ({
-            id: et.id,
-            name: et.name,
-            category: 'invoice',
-            subjectTemplate: et.subjectTemplate,
-            bodyTemplate: et.bodyTemplate,
-          }));
-          setTemplates(fallback);
-        }
-      } finally {
-        if (isMounted) setLoadingTemplates(false);
-      }
-    };
-
     fetchInvoiceTemplates();
 
-    return () => {
-      isMounted = false;
+    const handleSync = () => {
+      fetchInvoiceTemplates();
     };
-  }, [isOpen]);
+
+    window.addEventListener('template_saved', handleSync);
+    window.addEventListener('template_deleted', handleSync);
+    return () => {
+      window.removeEventListener('template_saved', handleSync);
+      window.removeEventListener('template_deleted', handleSync);
+    };
+  }, [isOpen, fetchInvoiceTemplates]);
 
   // Determine invoice payment state
   const paymentState = useMemo(() => {
@@ -614,6 +615,23 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         subject: subject || 'Invoice Details',
         body: finalMessage,
         timestamp: new Date(),
+        skipCommunicationLogs: true,
+      });
+
+      await logCommunication({
+        communication_channel: 'WhatsApp',
+        recipient_role: 'Customer',
+        recipient_name: invoice.customerName || customer?.name || 'Customer',
+        recipient_contact: digits,
+        source_module: moduleContext === 'vdInvoice' ? 'Finance' : 'Invoice',
+        record_id: invoice.invoiceNumber || invoice.id,
+        template_name: selectedTemplate?.name || 'Custom Invoice',
+        message_body: finalMessage,
+        attachments: cachedPdfUrl || invoice.documentUrl ? [cachedPdfUrl || invoice.documentUrl!] : [],
+        delivery_status: 'Sent',
+        subject: subject || 'Invoice Details',
+        customerId: invoice.customerId || customer?.id || '',
+        sender_user_id: user?.email || user?.name,
       });
     } catch (e) {
       console.warn('Could not record WhatsApp history:', e);
@@ -657,6 +675,23 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         recipients: [email],
         subject: subject,
         timestamp: new Date(),
+        skipCommunicationLogs: true,
+      });
+
+      await logCommunication({
+        communication_channel: 'Email',
+        recipient_role: 'Customer',
+        recipient_name: invoice.customerName || customer?.name || 'Customer',
+        recipient_contact: email,
+        source_module: moduleContext === 'vdInvoice' ? 'Finance' : 'Invoice',
+        record_id: invoice.invoiceNumber || invoice.id,
+        template_name: selectedTemplate?.name || 'Custom Invoice',
+        message_body: finalBody,
+        attachments: pdfUrl ? [pdfUrl] : [],
+        delivery_status: 'Sent',
+        subject: subject || `Invoice ${invoice.invoiceNumber || ''}`,
+        customerId: invoice.customerId || customer?.id || '',
+        sender_user_id: user?.email || user?.name,
       });
     } catch (e) {
       console.warn('Could not record email history:', e);
@@ -712,6 +747,23 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         recipients: [email],
         subject: subject,
         timestamp: new Date(),
+        skipCommunicationLogs: true,
+      });
+
+      await logCommunication({
+        communication_channel: 'Email',
+        recipient_role: 'Customer',
+        recipient_name: invoice.customerName || customer?.name || 'Customer',
+        recipient_contact: email,
+        source_module: moduleContext === 'vdInvoice' ? 'Finance' : 'Invoice',
+        record_id: invoice.invoiceNumber || invoice.id,
+        template_name: selectedTemplate?.name || 'Custom Invoice',
+        message_body: finalBody,
+        attachments: pdfUrl ? [pdfUrl] : [],
+        delivery_status: 'Sent',
+        subject: subject || `Invoice ${invoice.invoiceNumber || ''}`,
+        customerId: invoice.customerId || customer?.id || '',
+        sender_user_id: user?.email || user?.name,
       });
 
       toast.success('Email dispatched successfully via provider!');
@@ -737,7 +789,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
     });
   }, [templates, templateSearchQuery]);
 
-  const currentTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const currentTemplate = selectedTemplate;
 
   if (!isOpen || !invoice) return null;
 
@@ -816,6 +868,24 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
           </div>
         </div>
 
+        {/* Record Selector if opened from Action Bar */}
+        {!propInvoice && invoices && invoices.length > 0 && (
+          <div className="flex items-center gap-2 p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl">
+            <span className="text-xs font-bold text-blue-900 shrink-0">Select Invoice:</span>
+            <select
+              value={selectedInvoiceId}
+              onChange={(e) => setSelectedInvoiceId(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 text-xs bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg font-medium shadow-2xs focus:outline-none focus:border-blue-500"
+            >
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.invoiceNumber || 'No #'} — {inv.customerName || 'Customer'} (Total: {formatCurrency(inv.total ?? 0)})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Invoice Summary Card */}
         <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-xs sm:text-sm grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div>
@@ -842,30 +912,32 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
 
         {/* Searchable Template Selector Combobox */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Communication Template <span className="text-gray-400 font-normal lowercase">(All Communication Templates)</span>
-            </label>
-            {paymentState === 'overdue' && currentTemplate && (
-              <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
-                ⚡ Pre-selected for Overdue
-              </span>
-            )}
-            {paymentState === 'full_payment' && currentTemplate && (
-              <span className="text-[11px] text-green-800 bg-green-50 px-2 py-0.5 rounded border border-green-200 font-medium">
-                ⚡ Pre-selected Paid Receipt
-              </span>
-            )}
-            {paymentState === 'partial_payment' && currentTemplate && (
-              <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
-                ⚡ Pre-selected Partial Payment
-              </span>
-            )}
-            {paymentState === 'pending' && currentTemplate && (
-              <span className="text-[11px] text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-medium">
-                ⚡ Pre-selected Standard Invoice
-              </span>
-            )}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Communication Template <span className="text-gray-400 font-normal lowercase">({mode === 'whatsapp' ? 'WhatsApp' : 'Email'})</span>
+              </label>
+              {paymentState === 'overdue' && currentTemplate && (
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                  ⚡ Pre-selected for Overdue
+                </span>
+              )}
+              {paymentState === 'full_payment' && currentTemplate && (
+                <span className="text-[11px] text-green-800 bg-green-50 px-2 py-0.5 rounded border border-green-200 font-medium">
+                  ⚡ Pre-selected Paid Receipt
+                </span>
+              )}
+              {paymentState === 'partial_payment' && currentTemplate && (
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                  ⚡ Pre-selected Partial Payment
+                </span>
+              )}
+              {paymentState === 'pending' && currentTemplate && (
+                <span className="text-[11px] text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-medium">
+                  ⚡ Pre-selected Standard Invoice
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="relative" ref={dropdownRef}>

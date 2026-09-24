@@ -547,11 +547,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             key={s.step} type="button"
             className={`flex-1 py-3.5 sm:py-4 px-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-all cursor-pointer
               ${activeStep === s.step 
-                ? 'border-blue-600 text-blue-700 bg-blue-50 shadow-xs' 
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
+                ? 'border-blue-600 text-blue-700 bg-blue-50/80 shadow-xs' 
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             onClick={() => setActiveStep(s.step as any)}
           >
-            <s.icon className={`w-4 h-4 ${activeStep === s.step ? 'text-blue-400' : 'text-slate-500'}`} />
+            <s.icon className={`w-4 h-4 ${activeStep === s.step ? 'text-blue-600' : 'text-slate-400'}`} />
             <span className="hidden sm:inline">{s.label}</span>
           </button>
         ))}
@@ -565,10 +565,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                {/* Assign Vehicle Card */}
                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
                   <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <Car className="text-blue-400" /> Assign Vehicle
+                    <Car className="text-blue-600" /> Assign Vehicle
                   </h3>
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-500 pointer-events-none" />
+                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
                     <input
                       type="text" 
                       autoComplete="off"
@@ -578,7 +578,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                       onFocus={() => setShowVehicleResults(true)}
                       onBlur={() => setTimeout(() => setShowVehicleResults(false), 200)}
                       placeholder="Search by make, model, or plate..."
-                      className="block w-full pl-10 pr-3 py-3 bg-white text-[#0F172A] font-medium placeholder:text-slate-500 border-[1.5px] border-[#CBD5E1] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs text-sm"
+                      className="block w-full pl-10 pr-3 py-3 bg-white text-slate-900 font-semibold placeholder:text-slate-400 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs text-sm"
                     />
                     {showVehicleResults && (
                       <div className="absolute z-20 mt-1 w-full bg-white shadow-2xl max-h-60 rounded-xl py-1 overflow-auto border border-slate-200 custom-scrollbar">
@@ -594,15 +594,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                                setConditionData(p => ({ ...p, mileage: v.mileage || 0 }));
                              }}
                           >
-                            <div className="font-bold text-slate-900">{v.make} {v.model} <span className="text-blue-400 ml-2 font-extrabold">{v.registrationNumber}</span></div>
+                            <div className="font-bold text-slate-900">{v.make} {v.model} <span className="text-blue-600 ml-2 font-black">{v.registrationNumber}</span></div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                   {selectedVehicle && (
-                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4">
-                      <CheckCircle className="text-emerald-400 w-6 h-6 shrink-0" />
+                    <div className="mt-4 p-4 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center gap-4 shadow-xs">
+                      <CheckCircle className="text-emerald-600 w-6 h-6 shrink-0" />
                       <div>
                         <p className="font-bold text-slate-900">{selectedVehicle.make} {selectedVehicle.model}</p>
                         <p className="text-sm font-semibold text-slate-600">{selectedVehicle.registrationNumber}</p>
@@ -614,10 +614,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                {/* Assign Customer Card */}
                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
                   <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <User className="text-blue-400" /> Assign Customer
+                    <User className="text-blue-600" /> Assign Customer
                   </h3>
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-500 pointer-events-none" />
+                    <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
                     <input
                       type="text" 
                       autoComplete="off"
@@ -627,7 +627,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                       onFocus={() => setShowCustomerResults(true)}
                       onBlur={() => setTimeout(() => setShowCustomerResults(false), 200)}
                       placeholder="Search by name, email, or mobile..."
-                      className="block w-full pl-10 pr-3 py-3 bg-white text-[#0F172A] font-medium placeholder:text-slate-500 border-[1.5px] border-[#CBD5E1] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs text-sm"
+                      className="block w-full pl-10 pr-3 py-3 bg-white text-slate-900 font-semibold placeholder:text-slate-400 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs text-sm"
                     />
                    {showCustomerResults && (
                       <div className="absolute z-20 mt-1 w-full bg-white shadow-2xl max-h-60 rounded-xl py-1 overflow-auto border border-slate-200 custom-scrollbar">
@@ -648,12 +648,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   </div>
                   
                   {selectedCustomer && (
-                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col gap-4">
+                    <div className="mt-4 p-4 bg-emerald-50/80 border border-emerald-200 rounded-xl flex flex-col gap-4 shadow-xs">
                       <div className="flex items-center gap-4">
-                        <CheckCircle className="text-emerald-400 w-6 h-6 shrink-0" />
+                        <CheckCircle className="text-emerald-600 w-6 h-6 shrink-0" />
                         <div>
                           <p className="font-bold text-slate-900">{selectedCustomer.name}</p>
-                          <p className="text-sm text-slate-500">{selectedCustomer.mobile}</p>
+                          <p className="text-sm text-slate-600">{selectedCustomer.mobile}</p>
                         </div>
                       </div>
                       
@@ -662,9 +662,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                         <div className="flex justify-between items-center mb-2">
                            <label className="block text-sm font-bold text-slate-900">Customer Signature</label>
                            {formData.signature ? (
-                             <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/70 px-2.5 py-0.5 rounded border border-emerald-500/40 uppercase tracking-wider">Attached</span>
+                             <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300 uppercase tracking-wider">Attached</span>
                            ) : (
-                             <span className="text-[10px] font-bold text-rose-300 bg-rose-950/70 px-2.5 py-0.5 rounded border border-rose-500/40 uppercase tracking-wider">Required</span>
+                             <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-0.5 rounded border border-rose-300 uppercase tracking-wider">Required</span>
                            )}
                         </div>
                         <SignaturePad
@@ -672,7 +672,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                           onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
                           theme="default"
                         />
-                        <p className="text-xs text-slate-500 mt-2">
+                        <p className="text-xs text-slate-500 mt-2 font-medium">
                           {formData.signature 
                             ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
                             : 'Please have the customer sign above.'}
@@ -734,7 +734,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                                      }, 200);
                                    }}
                                    placeholder="Search available substitution vehicles..."
-                                   className="w-full bg-slate-50 text-slate-900 font-medium border border-slate-200 rounded-lg p-2.5 shadow-sm placeholder:text-slate-500 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                   className="w-full bg-white text-slate-900 font-medium border border-slate-300 rounded-lg p-2.5 shadow-xs placeholder:text-slate-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                  />
                                  
                                  {showSubVehicleResults[index] && (
@@ -765,7 +765,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                                             <div className="font-bold text-slate-900">{v.registrationNumber}</div>
                                             <div className="text-xs text-slate-600 font-medium">{v.make} {v.model}</div>
                                          </div>
-                                         <div className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-2 py-1 rounded font-bold uppercase">
+                                         <div className="text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded font-bold uppercase">
                                             Available
                                          </div>
                                        </div>
@@ -801,18 +801,18 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                            </div>
 
                            <div className="mt-4 border-t border-slate-200 pt-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                               <h5 className="font-bold text-slate-900 mb-3 flex items-center gap-2"><Car className="text-blue-400"/> Sub Vehicle Check-Out Condition</h5>
+                               <h5 className="font-bold text-slate-900 mb-3 flex items-center gap-2"><Car className="text-blue-600"/> Sub Vehicle Check-Out Condition</h5>
                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <FormField type="number" label="Mileage Out" name="mileage" value={sub.mileage} onChange={e => handleSubChange(index, e)} required />
                                   <div>
                                      <label className="block text-sm font-semibold text-slate-900 mb-1">Fuel Level</label>
-                                     <select name="fuelLevel" value={sub.fuelLevel} onChange={e => handleSubChange(index, e as any)} className="w-full rounded-md border-slate-200 bg-white text-slate-900 shadow-sm focus:border-blue-500" required>
+                                     <select name="fuelLevel" value={sub.fuelLevel} onChange={e => handleSubChange(index, e as any)} className="w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-xs focus:border-blue-500 text-sm p-2" required>
                                         <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
                                      </select>
                                   </div>
                                   <div className="flex gap-4 col-span-1 md:col-span-2">
-                                     <label className="flex items-center gap-2 font-medium text-slate-700"><input type="checkbox" name="isClean" checked={!!sub.isClean} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5"/> Is Clean</label>
-                                     <label className="flex items-center gap-2 font-medium text-slate-700"><input type="checkbox" name="hasDamage" checked={!!sub.hasDamage} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-rose-500"/> Has Damage</label>
+                                     <label className="flex items-center gap-2 font-medium text-slate-700 cursor-pointer"><input type="checkbox" name="isClean" checked={!!sub.isClean} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-blue-600 border-slate-300 bg-white"/> Is Clean</label>
+                                     <label className="flex items-center gap-2 font-medium text-slate-700 cursor-pointer"><input type="checkbox" name="hasDamage" checked={!!sub.hasDamage} onChange={e => handleSubChange(index, e)} className="rounded w-5 h-5 text-rose-500 border-slate-300 bg-white"/> Has Damage</label>
                                   </div>
                                   {sub.hasDamage && <div className="col-span-1 md:col-span-2"><TextArea label="Damage Description" name="damageDescription" value={sub.damageDescription} onChange={e => handleSubChange(index, e as any)} /></div>}
                                   <div className="col-span-1 md:col-span-2 space-y-3">
@@ -826,7 +826,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                      <button 
                        type="button" 
                        onClick={addSubstitutionVehicle} 
-                       className="flex items-center px-4 py-2 border border-slate-200 rounded-lg shadow-sm text-slate-700 bg-white hover:bg-slate-100 font-bold transition-all cursor-pointer"
+                       className="flex items-center px-4 py-2 border border-slate-300 rounded-lg shadow-xs text-slate-700 bg-white hover:bg-slate-50 font-bold transition-all cursor-pointer text-sm"
                      >
                        <Plus className="h-4 w-4 mr-2" /> Add Another Substitution
                      </button>
@@ -842,13 +842,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                <h3 className="col-span-2 text-lg font-bold text-slate-900 border-b border-slate-200 pb-2">Scheduling</h3>
                <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Rental Type</label>
-                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as any }))} className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as any }))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium">
                     <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="claim">Claim</option>
                   </select>
                </div>
                <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
-                  <select value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))} className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                  <select value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium">
                     <option value="scheduled">Scheduled</option><option value="active">Active</option>
                   </select>
                </div>
@@ -856,7 +856,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Reason</label>
-                    <select value={formData.reason} onChange={e => setFormData(p => ({ ...p, reason: e.target.value as any }))} className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 p-2.5 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <select value={formData.reason} onChange={e => setFormData(p => ({ ...p, reason: e.target.value as any }))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium">
                       <option value="hired">Hire</option><option value="claim">Claim</option><option value="o/d">O/D</option><option value="staff">Staff</option><option value="workshop">Workshop</option>
                     </select>
                  </div>
@@ -864,14 +864,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-sm font-semibold text-slate-700">Claim Reference</label>
-                        <label className="flex items-center space-x-2 text-xs text-slate-500"><input type="checkbox" checked={manualClaimRef} onChange={e => setManualClaimRef(e.target.checked)} className="rounded border-slate-200 bg-slate-50" /><span>Manual</span></label>
+                        <label className="flex items-center space-x-2 text-xs text-slate-500 cursor-pointer"><input type="checkbox" checked={manualClaimRef} onChange={e => setManualClaimRef(e.target.checked)} className="rounded border-slate-300 text-blue-600 bg-white" /><span>Manual</span></label>
                       </div>
                       {manualClaimRef ? (
-                        <input type="text" value={formData.claimRef} onChange={e => setFormData(p => ({...p, claimRef: e.target.value}))} className="w-full bg-slate-50 text-slate-900 font-medium rounded-lg border border-slate-200 shadow-sm p-2.5 text-sm focus:ring-2 focus:ring-blue-500" placeholder="Enter claim ref" />
+                        <input type="text" value={formData.claimRef} onChange={e => setFormData(p => ({...p, claimRef: e.target.value}))} className="w-full bg-white text-slate-900 font-medium rounded-lg border border-slate-300 shadow-xs p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter claim ref" />
                       ) : (
                         <div className="relative">
-                          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500 pointer-events-none" />
-                          <input type="text" value={claimSearchQuery} onChange={e => { setClaimSearchQuery(e.target.value); setShowClaimResults(true); }} onFocus={() => setShowClaimResults(true)} onBlur={() => setTimeout(() => setShowClaimResults(false), 200)} placeholder="Search claims..." className="w-full pl-9 py-2.5 bg-slate-50 text-slate-900 font-medium border border-slate-200 rounded-lg shadow-sm placeholder:text-slate-500 text-sm focus:ring-2 focus:ring-blue-500" />
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                          <input type="text" value={claimSearchQuery} onChange={e => { setClaimSearchQuery(e.target.value); setShowClaimResults(true); }} onFocus={() => setShowClaimResults(true)} onBlur={() => setTimeout(() => setShowClaimResults(false), 200)} placeholder="Search claims..." className="w-full pl-9 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs placeholder:text-slate-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                           {showClaimResults && (
                             <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-auto custom-scrollbar">
                               {filteredClaims.map(c => (
@@ -887,8 +887,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                  )}
                </div>
 
-               <div className="col-span-2 flex items-center gap-3 bg-blue-950/40 p-3.5 rounded-xl border border-blue-800/40">
-                  <input type="checkbox" id="includeVAT" checked={formData.includeVAT} onChange={e => setFormData(p => ({ ...p, includeVAT: e.target.checked }))} className="w-5 h-5 text-blue-500 rounded border-slate-200 bg-slate-50" />
+               <div className="col-span-2 flex items-center gap-3 bg-blue-50/80 p-3.5 rounded-xl border border-blue-200">
+                  <input type="checkbox" id="includeVAT" checked={formData.includeVAT} onChange={e => setFormData(p => ({ ...p, includeVAT: e.target.checked }))} className="w-5 h-5 text-blue-600 rounded border-slate-300 bg-white" />
                   <label htmlFor="includeVAT" className="font-bold text-slate-900 text-sm cursor-pointer">Apply Standard 20% VAT to Base Rental Cost</label>
                </div>
 
@@ -917,12 +917,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                {formData.type === 'weekly' ? (
                   <div className="flex items-end gap-3 col-span-2 border border-slate-200 p-3.5 rounded-xl bg-slate-50">
                     <div className="flex-1"><FormField type="number" label="Insurance Per Week (£)" value={formData.insurancePerWeek} onChange={e => { setInsurancePerWeekTouched(true); setFormData(p => ({...p, insurancePerWeek: parseFloat(e.target.value)||0})); }} /></div>
-                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-700 cursor-pointer"><input type="checkbox" checked={formData.insurancePerWeekIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerWeekIncludeVAT: e.target.checked}))} className="rounded border-slate-200 bg-white" /> Inc VAT</label>
+                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-700 cursor-pointer"><input type="checkbox" checked={formData.insurancePerWeekIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerWeekIncludeVAT: e.target.checked}))} className="rounded border-slate-300 text-blue-600 bg-white" /> Inc VAT</label>
                   </div>
                ) : (
                   <div className="flex items-end gap-3 col-span-2 border border-slate-200 p-3.5 rounded-xl bg-slate-50">
                     <div className="flex-1"><FormField type="number" label="Insurance Per Day (£)" value={formData.insurancePerDay} onChange={e => { setInsurancePerDayTouched(true); setFormData(p => ({...p, insurancePerDay: parseFloat(e.target.value)||0})); }} /></div>
-                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-700 cursor-pointer"><input type="checkbox" checked={formData.insurancePerDayIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerDayIncludeVAT: e.target.checked}))} className="rounded border-slate-200 bg-white" /> Inc VAT</label>
+                    <label className="flex items-center gap-2 pb-2 font-bold text-sm text-slate-700 cursor-pointer"><input type="checkbox" checked={formData.insurancePerDayIncludeVAT} onChange={e => setFormData(p => ({...p, insurancePerDayIncludeVAT: e.target.checked}))} className="rounded border-slate-300 text-blue-600 bg-white" /> Inc VAT</label>
                   </div>
                )}
                {/* Claim Specific Extras */}
@@ -930,10 +930,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                  <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
                     <FormField type="date" label="Storage Start" value={formData.storageStartDate} onChange={e => setFormData(p => ({...p, storageStartDate: e.target.value}))} />
                     <FormField type="date" label="Storage End" value={formData.storageEndDate} onChange={e => setFormData(p => ({...p, storageEndDate: e.target.value}))} />
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Storage/Day (£)" value={formData.storageCostPerDay} onChange={e => setFormData(p => ({...p, storageCostPerDay: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeStorageVAT} onChange={e => setFormData(p => ({...p, includeStorageVAT: e.target.checked}))} className="rounded mb-3 border-slate-200 bg-slate-50" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Recovery (£)" value={formData.recoveryCost} onChange={e => setFormData(p => ({...p, recoveryCost: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeRecoveryCostVAT} onChange={e => setFormData(p => ({...p, includeRecoveryCostVAT: e.target.checked}))} className="rounded mb-3 border-slate-200 bg-slate-50" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Delivery (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-slate-200 bg-slate-50" /></div>
-                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Collection (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-slate-200 bg-slate-50" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Storage/Day (£)" value={formData.storageCostPerDay} onChange={e => setFormData(p => ({...p, storageCostPerDay: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeStorageVAT} onChange={e => setFormData(p => ({...p, includeStorageVAT: e.target.checked}))} className="rounded mb-3 border-slate-300 text-blue-600 bg-white" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Recovery (£)" value={formData.recoveryCost} onChange={e => setFormData(p => ({...p, recoveryCost: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.includeRecoveryCostVAT} onChange={e => setFormData(p => ({...p, includeRecoveryCostVAT: e.target.checked}))} className="rounded mb-3 border-slate-300 text-blue-600 bg-white" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Delivery (£)" value={formData.deliveryCharge} onChange={e => setFormData(p => ({...p, deliveryCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.deliveryChargeIncludeVAT} onChange={e => setFormData(p => ({...p, deliveryChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-slate-300 text-blue-600 bg-white" /></div>
+                    <div className="flex items-end gap-2"><div className="flex-1"><FormField type="number" label="Collection (£)" value={formData.collectionCharge} onChange={e => setFormData(p => ({...p, collectionCharge: parseFloat(e.target.value)||0}))} /></div><input type="checkbox" checked={formData.collectionChargeIncludeVAT} onChange={e => setFormData(p => ({...p, collectionChargeIncludeVAT: e.target.checked}))} className="rounded mb-3 border-slate-300 text-blue-600 bg-white" /></div>
                  </div>
                )}
             </div>
@@ -945,15 +945,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   <FormField type="number" label="Discount % (Applied BEFORE VAT)" value={formData.discountPercentage} onChange={e => { setLastDiscountEdit('pct'); setFormData(p => ({ ...p, discountPercentage: parseFloat(e.target.value)||0 })); }} />
                   <FormField type="number" label="Fixed Discount Amount (£)" value={formData.discountAmount} onChange={e => { setLastDiscountEdit('amt'); setFormData(p => ({ ...p, discountAmount: parseFloat(e.target.value)||0 })); }} />
                   
-                  <div className="col-span-2 bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] p-5 rounded-xl mt-4 flex items-center justify-between shadow-xs">
+                  <div className="col-span-2 bg-amber-50/70 border border-amber-200 p-5 rounded-xl mt-4 flex items-center justify-between shadow-xs">
                      <div>
-                       <p className="text-[#D97706] text-xs font-bold uppercase tracking-wider">Gross Total</p>
-                       <p className="text-3xl sm:text-4xl font-black tracking-tight text-[#D97706] font-mono">{formatCurrency(costs.gross)}</p>
+                       <p className="text-amber-800 text-xs font-bold uppercase tracking-wider">Gross Total</p>
+                       <p className="text-3xl sm:text-4xl font-black tracking-tight text-amber-900 font-mono">{formatCurrency(costs.gross)}</p>
                      </div>
                      <div className="text-right text-xs space-y-1">
-                       <p className="text-[#000000] font-semibold">Net: <span className="font-mono">{formatCurrency(costs.net)}</span></p>
-                       <p className="text-[#2563EB] font-semibold">VAT: <span className="font-mono">{formatCurrency(costs.vat)}</span></p>
-                       {costs.discountAmount > 0 && <p className="text-[#D97706] font-semibold">Saved: <span className="font-mono">{formatCurrency(costs.discountAmount)}</span></p>}
+                       <p className="text-slate-800 font-semibold">Net: <span className="font-mono">{formatCurrency(costs.net)}</span></p>
+                       <p className="text-blue-700 font-semibold">VAT: <span className="font-mono">{formatCurrency(costs.vat)}</span></p>
+                       {costs.discountAmount > 0 && <p className="text-emerald-700 font-semibold">Saved: <span className="font-mono">{formatCurrency(costs.discountAmount)}</span></p>}
                      </div>
                   </div>
                </div>
@@ -966,22 +966,22 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
                <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                 <Car className="text-blue-400"/> Main Vehicle Check-Out Condition
+                 <Car className="text-blue-600"/> Main Vehicle Check-Out Condition
                </h3>
                <div className="grid grid-cols-2 gap-6">
                  <FormField type="number" label="Current Mileage" value={conditionData.mileage} onChange={e => setConditionData(p => ({ ...p, mileage: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))} required />
                  <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Fuel Level</label>
-                    <select value={conditionData.fuelLevel} onChange={e => setConditionData(p => ({ ...p, fuelLevel: e.target.value as any }))} className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 p-2.5 shadow-sm focus:border-blue-500" required>
+                    <select value={conditionData.fuelLevel} onChange={e => setConditionData(p => ({ ...p, fuelLevel: e.target.value as any }))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 text-sm font-medium" required>
                        <option value="0">Empty (0%)</option><option value="25">Quarter (25%)</option><option value="50">Half (50%)</option><option value="75">Three Quarters (75%)</option><option value="100">Full (100%)</option>
                     </select>
                  </div>
                  <div className="flex gap-4 col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
-                       <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5 text-blue-500 border-slate-200 bg-white"/> Is Clean
+                       <input type="checkbox" checked={!!conditionData.isClean} onChange={e => setConditionData(p => ({...p, isClean: e.target.checked}))} className="rounded w-5 h-5 text-blue-600 border-slate-300 bg-white"/> Is Clean
                     </label>
                     <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
-                       <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-rose-500 border-slate-200 bg-white"/> Has Damage
+                       <input type="checkbox" checked={!!conditionData.hasDamage} onChange={e => setConditionData(p => ({...p, hasDamage: e.target.checked}))} className="rounded w-5 h-5 text-rose-500 border-slate-300 bg-white"/> Has Damage
                     </label>
                  </div>
                  {conditionData.hasDamage && <div className="col-span-2"><TextArea label="Damage Description" value={conditionData.damageDescription as any} onChange={e => setConditionData(p => ({...p, damageDescription: e.target.value}))} rows={3} required /></div>}
@@ -997,7 +997,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                    <FormField type="number" label="Amount to Pay Now (£)" value={formData.paidAmount} onChange={e => setFormData(p => ({...p, paidAmount: parseFloat(e.target.value)||0}))} />
                    <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Payment Method</label>
-                      <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 p-2.5 shadow-sm focus:border-blue-500">
+                      <select value={formData.paymentMethod} onChange={e => setFormData(p => ({...p, paymentMethod: e.target.value as any}))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 text-sm font-medium">
                          <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
                       </select>
                    </div>
@@ -1016,7 +1016,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               type="button" 
               onClick={() => setActiveStep(p => p > 1 ? p - 1 : 1 as any)} 
               disabled={activeStep === 1} 
-              className="px-4 py-2 border border-slate-200 rounded-lg disabled:opacity-40 font-bold text-slate-600 hover:text-slate-900 hover:bg-[#1E2238] transition cursor-pointer"
+              className="px-4 py-2 border border-slate-300 rounded-lg disabled:opacity-40 font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer text-sm"
             >
               Back
             </button>
@@ -1029,7 +1029,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   setShareInitialMode('whatsapp');
                   setShowShareModal(true);
                 }}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/60 flex items-center gap-1.5 transition cursor-pointer"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                 title="Send WhatsApp"
               >
                 <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
@@ -1040,7 +1040,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   setShareInitialMode('email');
                   setShowShareModal(true);
                 }}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-950/80 text-sky-300 border border-sky-500/40 hover:bg-sky-900/60 flex items-center gap-1.5 transition cursor-pointer"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-50 text-sky-700 border border-sky-300 hover:bg-sky-100 flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                 title="Send Email"
               >
                 <Mail className="w-3.5 h-3.5" /> Email
@@ -1049,7 +1049,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 type="button"
                 onClick={() => handlePrintOrDownloadPDF()}
                 disabled={isPrintingPdf}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-950/80 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 flex items-center gap-1.5 transition disabled:opacity-40 cursor-pointer"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 flex items-center gap-1.5 transition disabled:opacity-40 cursor-pointer shadow-xs"
                 title="Print / Download PDF"
               >
                 <Printer className="w-3.5 h-3.5" /> PDF
@@ -1062,7 +1062,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               <button 
                 type="button" 
                 onClick={() => setActiveStep(2)} 
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-slate-900 rounded-lg font-bold shadow-lg shadow-blue-950/50 transition cursor-pointer"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm shadow-blue-500/20 transition cursor-pointer text-sm"
               >
                 Next Step
               </button>
@@ -1071,7 +1071,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               <button 
                 type="button" 
                 onClick={() => setActiveStep(3)} 
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-slate-900 rounded-lg font-bold shadow-lg shadow-blue-950/50 transition cursor-pointer"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm shadow-blue-500/20 transition cursor-pointer text-sm"
               >
                 Next Step
               </button>
@@ -1081,7 +1081,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                <button 
                  type="submit" 
                  disabled={loading} 
-                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-900 rounded-lg font-bold shadow-lg shadow-emerald-950/50 flex items-center gap-2 transition cursor-pointer"
+                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm shadow-emerald-500/20 flex items-center gap-2 transition cursor-pointer text-sm"
                >
                  {loading ? 'Processing...' : <><CheckCircle className="w-5 h-5"/> Verify & Confirm</>}
                </button>
@@ -1093,9 +1093,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       {/* Confirmation Modal */}
       <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details" size="lg" theme="default">
          <div className="p-4 space-y-4 text-slate-900">
-            <div className="bg-blue-950/50 p-4 border-l-4 border-blue-500 rounded-lg">
-               <h3 className="font-bold text-blue-300 mb-1">Final Review</h3>
-               <p className="text-sm text-blue-200">Please confirm these details before finalizing creation.</p>
+            <div className="bg-blue-50 p-4 border-l-4 border-blue-600 rounded-lg">
+               <h3 className="font-bold text-blue-900 mb-1">Final Review</h3>
+               <p className="text-sm text-blue-700">Please confirm these details before finalizing creation.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1107,7 +1107,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Vehicle</p>
                   <p className="font-bold text-slate-900 mt-1">{selectedVehicle?.make} {selectedVehicle?.model}</p>
-                  <p className="text-sm font-mono text-blue-400">{selectedVehicle?.registrationNumber}</p>
+                  <p className="text-sm font-mono font-bold text-blue-600">{selectedVehicle?.registrationNumber}</p>
                </div>
                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Timing</p>
@@ -1149,38 +1149,38 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             {/* Quick Actions / Share section */}
             <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3 mt-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Quick Actions</span>
-                <span className="text-xs text-slate-500">Trigger on Confirm</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Quick Actions</span>
+                <span className="text-xs text-slate-500 font-medium">Trigger on Confirm</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500/50 cursor-pointer transition text-xs font-medium text-slate-700">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500 cursor-pointer transition text-xs font-medium text-slate-700 shadow-2xs">
                   <input
                     type="checkbox"
                     checked={postSaveActions.whatsapp}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
-                    className="rounded border-slate-200 text-emerald-500 focus:ring-emerald-500 bg-slate-50"
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white"
                   />
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Send via WhatsApp</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-sky-500/50 cursor-pointer transition text-xs font-medium text-slate-700">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-sky-500 cursor-pointer transition text-xs font-medium text-slate-700 shadow-2xs">
                   <input
                     type="checkbox"
                     checked={postSaveActions.email}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
-                    className="rounded border-slate-200 text-sky-500 focus:ring-sky-500 bg-slate-50"
+                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 bg-white"
                   />
-                  <Mail className="w-3.5 h-3.5 text-sky-400" />
+                  <Mail className="w-3.5 h-3.5 text-sky-600" />
                   <span>Send via Email</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-purple-500/50 cursor-pointer transition text-xs font-medium text-slate-700">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-purple-500 cursor-pointer transition text-xs font-medium text-slate-700 shadow-2xs">
                   <input
                     type="checkbox"
                     checked={postSaveActions.printPdf}
                     onChange={(e) => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
-                    className="rounded border-slate-200 text-purple-500 focus:ring-purple-500 bg-slate-50"
+                    className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 bg-white"
                   />
-                  <Printer className="w-3.5 h-3.5 text-purple-400" />
+                  <Printer className="w-3.5 h-3.5 text-purple-600" />
                   <span>Print / Download PDF</span>
                 </label>
               </div>
@@ -1190,7 +1190,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
               <button
                 type="button"
                 onClick={() => setIsConfirmModalOpen(false)}
-                className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-[#1E2238] transition cursor-pointer"
+                className="px-4 py-2 text-sm font-bold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               >
                 Back to Edit
               </button>
@@ -1198,7 +1198,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                 type="button"
                 onClick={executeCreateRental}
                 disabled={loading}
-                className="px-5 py-2.5 text-sm font-semibold text-slate-900 bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition cursor-pointer"
+                className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition cursor-pointer"
               >
                 {loading ? 'Creating...' : <><CheckCircle className="w-4 h-4" /> Confirm & Save</>}
               </button>

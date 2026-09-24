@@ -1526,7 +1526,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-l-4 !border-l-red-500 border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-l-4 !border-l-red-500 border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-l-4 !border-l-amber-500 border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1551,7 +1551,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1576,7 +1576,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1598,7 +1598,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1628,7 +1628,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1654,7 +1654,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-r border-y-red-700/80 border-r-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
+                                ? 'border-y-[#991b1b] border-r-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
                                 : isInProgress
                                 ? 'border-r border-y-amber-500/30 border-r-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50 group-hover:border-r-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'

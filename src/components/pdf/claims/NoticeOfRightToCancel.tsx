@@ -10,13 +10,13 @@ import {
 } from '@react-pdf/renderer';
 import { Claim } from '../../../types';
 import { styles } from '../styles';
-import logo from '../../../assets/logo.png';
+import aieClaimsLogo from '../../../assets/aieclaim.png';
 import {
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  formatInlineCompanyFooter
+  AIE_CLAIMS_FOOTER_TEXT
 } from '../../../utils/legalDocumentUtils';
 
 interface NoticeOfRightToCancelProps {
@@ -207,12 +207,10 @@ const NoticeOfRightToCancel: React.FC<NoticeOfRightToCancelProps> = ({
 
   const dateIssued = formatHireCommencementDate(claim);
 
-  const companyName = companyDetails?.fullName || 'AIE SKYLINE LIMITED';
-  const companyAddress =
-    companyDetails?.officialAddress ||
-    'United House, 39-41 North Road, London, N7 9DP';
-  const companyPhone = companyDetails?.phone || 'N/A';
-  const companyEmail = companyDetails?.email || 'N/A';
+  const companyName = 'AIE Claims LTD';
+  const companyAddress = 'United House, 39-41 North Road, London, N7 9DP';
+  const companyPhone = '+442080505337';
+  const companyEmail = 'claims@aieclaims.co.uk';
 
   const defaultNotice = `NOTICE OF RIGHT TO CANCEL
 (The Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013)
@@ -278,11 +276,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
         {/* Fixed Header on all pages */}
         <View style={localStyles.header} fixed>
           <View style={styles.headerLeft}>
-            {companyDetails?.logoUrl ? (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            ) : (
-              <Image src={logo} style={styles.logo} />
-            )}
+            <Image src={aieClaimsLogo} style={styles.logo} />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companyName}</Text>
@@ -405,7 +399,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
         {/* Fixed Footer across all pages */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            {formatInlineCompanyFooter(companyDetails)}
+            {AIE_CLAIMS_FOOTER_TEXT}
           </Text>
           <Text
             style={styles.pageNumber}

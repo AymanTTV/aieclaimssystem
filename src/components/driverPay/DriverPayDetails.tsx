@@ -5,10 +5,11 @@ import { DriverPay, PaymentPeriod } from '../../types/driverPay';
 import { doc, getDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
-import { User, Phone, MapPin, MessageCircle } from 'lucide-react';
+import { User, Phone, MapPin, MessageCircle, MessageSquare, CreditCard } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { resolveNameFields } from '../../utils/nameAddressUtils';
+import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 
 interface DriverPayDetailsProps {
   record: DriverPay;
@@ -17,6 +18,7 @@ interface DriverPayDetailsProps {
 
 const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record, onWhatsApp }) => {
   const [createdByUser, setCreatedByUser] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'details' | 'communication'>('details');
   const nameFields = resolveNameFields(record);
 
   // Use the 'record' prop directly. The problematic data fetching has been removed.
@@ -152,7 +154,7 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record, onWhatsApp 
         {onWhatsApp && (
           <button
             onClick={() => onWhatsApp(rec)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-300 rounded-md shadow-sm text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-300 rounded-md shadow-sm text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors cursor-pointer"
             title="Contact Driver via WhatsApp"
           >
             <MessageCircle className="h-4 w-4 text-emerald-600" />
@@ -161,65 +163,114 @@ const DriverPayDetails: React.FC<DriverPayDetailsProps> = ({ record, onWhatsApp 
         )}
       </div>
 
-      <Section title="Driver Details">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">First Name</p>
-            <p className="font-medium">{nameFields.firstName || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Middle Name</p>
-            <p className="font-medium">{nameFields.middleName || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Last Name</p>
-            <p className="font-medium">{nameFields.lastName || '-'}</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Phone className="h-5 w-5 text-gray-400 mr-2" />
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('details')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition cursor-pointer ${
+            activeTab === 'details'
+              ? 'border-blue-600 text-blue-600 font-bold'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Payment & Driver Details</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('communication')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition cursor-pointer ${
+            activeTab === 'communication'
+              ? 'border-blue-600 text-blue-600 font-bold'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>Communication History</span>
+        </button>
+      </div>
+
+      {activeTab === 'details' ? (
+        <>
+          <Section title="Driver Details">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <p className="text-sm text-gray-500">Phone Number</p>
-                <p className="font-medium">{rec.phoneNumber || '-'}</p>
+                <p className="text-sm text-gray-500">First Name</p>
+                <p className="font-medium">{nameFields.firstName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Middle Name</p>
+                <p className="font-medium">{nameFields.middleName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Last Name</p>
+                <p className="font-medium">{nameFields.lastName || '-'}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Phone className="h-5 w-5 text-gray-400 mr-2" />
+                  <div>
+                    <p className="text-sm text-gray-500">Phone Number</p>
+                    <p className="font-medium">{rec.phoneNumber || '-'}</p>
+                  </div>
+                </div>
+                {onWhatsApp && rec.phoneNumber && (
+                  <button
+                    onClick={() => onWhatsApp(rec)}
+                    className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition-colors ml-2 cursor-pointer"
+                    title="Send WhatsApp"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center">
+                <MapPin className="h-5 w-5 text-gray-400 mr-2" />
+                <div>
+                  <p className="text-sm text-gray-500">Collection Point</p>
+                  <p className="font-medium">
+                    {rec.collection === 'OTHER' ? rec.customCollection : rec.collection}
+                  </p>
+                </div>
               </div>
             </div>
-            {onWhatsApp && rec.phoneNumber && (
-              <button
-                onClick={() => onWhatsApp(rec)}
-                className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition-colors ml-2"
-                title="Send WhatsApp"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </button>
+          </Section>
+
+          <Section title="Payment Periods">
+            {periods.length === 0 ? (
+              <div className="text-sm text-gray-500">No periods to display.</div>
+            ) : (
+              periods.map((period, index) => renderPaymentPeriod(period, index))
             )}
-          </div>
-          <div className="flex items-center">
-            <MapPin className="h-5 w-5 text-gray-400 mr-2" />
-            <div>
-              <p className="text-sm text-gray-500">Collection Point</p>
-              <p className="font-medium">
-                {rec.collection === 'OTHER' ? rec.customCollection : rec.collection}
-              </p>
+          </Section>
+
+          <div className="text-sm text-gray-500 border-t pt-4">
+            <div className="flex justify-between">
+              <div>Created by: {createdByUser || 'Unknown'}</div>
+              <div>Created: {formatDateTime(rec.createdAt)}</div>
+              <div>Last Updated: {formatDateTime(rec.updatedAt)}</div>
             </div>
           </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <CommunicationHistoryTimeline
+            recordId={rec.driverNo || rec.id}
+            sourceModule="Driver Pay"
+            matchKeys={[
+              rec.id,
+              rec.driverNo,
+              rec.name,
+              rec.phoneNumber,
+              rec.email,
+            ].filter(Boolean)}
+            title={`Driver ${rec.name} — Communication History`}
+            description="Chronological log of WhatsApp notifications and payment advice sent to this driver."
+          />
         </div>
-      </Section>
-
-      <Section title="Payment Periods">
-        {periods.length === 0 ? (
-          <div className="text-sm text-gray-500">No periods to display.</div>
-        ) : (
-          periods.map((period, index) => renderPaymentPeriod(period, index))
-        )}
-      </Section>
-
-      <div className="text-sm text-gray-500 border-t pt-4">
-        <div className="flex justify-between">
-          <div>Created by: {createdByUser || 'Unknown'}</div>
-          <div>Created: {formatDateTime(rec.createdAt)}</div>
-          <div>Last Updated: {formatDateTime(rec.updatedAt)}</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

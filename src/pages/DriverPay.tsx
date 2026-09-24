@@ -5,7 +5,8 @@ import { db } from '../lib/firebase';
 import { usePermissions } from '../hooks/usePermissions';
 import { useDriverPay } from '../hooks/useDriverPay';
 import { useDriverPayFilters } from '../hooks/useDriverPayFilters';
-import { Download, Plus, FileText, Settings, MessageCircle } from 'lucide-react';
+import { Download, Plus, FileText, Settings, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react';
+import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal';
 import { useAuth } from '../context/AuthContext';
 import AddPaymentPeriodModal from '../components/driverPay/AddPaymentPeriodModal';
 import { format } from 'date-fns';
@@ -91,10 +92,14 @@ const DriverPayPage = () => {
   const [isUpdatingDefaults, setIsUpdatingDefaults] = useState(false);
   const [showManageGroups, setShowManageGroups] = useState(false);
 
-  // WhatsApp States
+  // WhatsApp / Email States
   const [cachedTemplates, setCachedTemplates] = useState<DriverPayTemplateOption[]>([]);
   const [whatsAppModalRecord, setWhatsAppModalRecord] = useState<DriverPay | null>(null);
   const [isBulkWhatsAppOpen, setIsBulkWhatsAppOpen] = useState(false);
+  const [commModalOpen, setCommModalOpen] = useState(false);
+  const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
+  const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
 
   // Load WhatsApp templates on mount
   useEffect(() => {
@@ -353,17 +358,7 @@ const DriverPayPage = () => {
             </button>
           )}
 
-          {/* 🟢 Bulk WhatsApp Action Button */}
-          {selectedRecordIds.size > 0 && can('driverPay', 'whatsapp') && (
-            <button
-              onClick={handleBulkWhatsApp}
-              className="inline-flex items-center px-3.5 py-2.5 border border-emerald-300 text-emerald-700 rounded-xl shadow-xs text-sm font-semibold bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 transition-colors cursor-pointer"
-              title="Batch WhatsApp messages to selected drivers"
-            >
-              <MessageCircle className="h-4 w-4 mr-1.5 text-emerald-600" />
-              WhatsApp Drivers ({selectedRecordIds.size})
-            </button>
-          )}
+
 
           {can('driverPay', 'export') && (
             <button
@@ -674,12 +669,19 @@ const DriverPayPage = () => {
         )}
       </Modal>
 
-      {/* WhatsApp Single Preview/Edit Modal */}
-      <DriverPayWhatsAppModal
-        isOpen={!!whatsAppModalRecord}
-        onClose={() => setWhatsAppModalRecord(null)}
-        record={whatsAppModalRecord}
-      />
+      {/* WhatsApp / Email Communication Modal */}
+      {(commModalOpen || !!whatsAppModalRecord) && (
+        <DriverPayWhatsAppModal
+          isOpen={commModalOpen || !!whatsAppModalRecord}
+          onClose={() => {
+            setCommModalOpen(false);
+            setWhatsAppModalRecord(null);
+          }}
+          record={whatsAppModalRecord}
+          records={sortedFilteredRecords.length > 0 ? sortedFilteredRecords : records}
+          initialChannel={commChannel}
+        />
+      )}
 
       {/* WhatsApp Bulk Dispatch Queue Modal */}
       <DriverPayBulkWhatsAppModal
